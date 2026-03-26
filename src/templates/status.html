@@ -156,11 +156,25 @@
 
   /* 테이블 스타일 */
   .results-section {
-    max-width: 1300px;
-    width:100%;
+    width: 1500px;
+    max-width: calc(100vw - 40px);
     margin: 30px auto;
-    padding:0 12px;
-    box-sizing:border-box;
+    padding: 0;
+    box-sizing: border-box;
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+    overflow-x: hidden; /* 전체 페이지 하단 스크롤 발생 억제 */
+  }
+
+  @media (max-width: 1600px) {
+    .results-section {
+      width: 100%;
+      max-width: 100%;
+      left: 0;
+      transform: none;
+      padding: 0 12px;
+    }
   }
 
   .results-title {
@@ -171,17 +185,57 @@
   }
 
   .table-wrapper {
+    width: 100%;
+    max-width: 1500px;
+    margin: 0 auto;
     background: white;
     border-radius: 16px;
     padding: 20px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-    overflow-x: auto;
+    overflow-x: hidden;
+    box-sizing: border-box;
   }
 
   #results-table {
     width: 100%;
-    min-width: 900px;
+    min-width: 0;
     border-collapse: collapse;
+    table-layout: auto;
+  }
+
+  #results-table th.status-col,
+  #results-table td.status-col {
+    width: 120px;
+    min-width: 120px;
+    max-width: 120px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #results-table th.available-col,
+  #results-table td.available-col {
+    width: 140px;
+    min-width: 140px;
+    max-width: 140px;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  /* 남은자리(7번째) / 날씨/물때(9번째) 데이터 칸 중앙 정렬 */
+  #results-table tbody td:nth-child(7),
+  #results-table tbody td:nth-child(9) {
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  .status-badge {
+    display: inline-block;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   
   @media (max-width:768px){
@@ -503,11 +557,11 @@
             배 이름
             <button type="button" class="sort-btn sort-icon" data-sort-key="ship_name" data-dir="asc">▲▼</button>
           </th>
-          <th style="width: 120px; text-align: center;">
+          <th class="status-col">
             상태
             <button type="button" class="sort-btn sort-icon" data-sort-key="status" data-dir="asc">▲▼</button>
           </th>
-          <th style="width: 100px; text-align: center;">
+          <th class="available-col">
             남은자리
             <button type="button" class="sort-btn sort-icon" data-sort-key="available" data-dir="asc">▲▼</button>
           </th>
@@ -533,7 +587,7 @@
             <td data-label="등록된 배">{{ entry.registered_name or '-' }}</td>
             <td data-label="어종">{{ entry.fish or '-' }}</td>
             <td data-label="배 이름" style="font-weight: 600;">{{ entry.ship_name or '-' }} {% if entry.tide %}({{ entry.tide }}){% endif %}</td>
-            <td data-label="상태">
+            <td data-label="상태" class="status-col">
               <span class="status-badge {{ 'badge-available' if is_open else 'badge-closed' if is_closed else 'badge-maintenance' }}">
                 {{ show_status }}
               </span>
