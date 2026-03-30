@@ -91,8 +91,8 @@ def _clean_ship_name(name: str) -> str:
     """배 이름에서 불필요한 문구 제거"""
     if not name:
         return name
-    # "예약하기" 문구 제거
-    name = name.replace('예약하기', '').strip()
+    # "예약하기"/"대기하기" 문구 제거
+    name = name.replace('예약하기', '').replace('대기하기', '').strip()
     return name
 
 def _is_valid_ship_name(name: str) -> bool:
@@ -363,12 +363,12 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                 except Exception:
                     print("DEBUG_SCHEDULE_ENTRY:", ship_name, status, avail, display_status, ship_fish)
             
+            # 배 이름 정리 (예약하기 등 제거)
+            ship_name = _clean_ship_name(ship_name)
+
             # 유효한 배 이름인지 검증
             if not _is_valid_ship_name(ship_name):
                 continue
-            
-            # 배 이름 정리 (예약하기 등 제거)
-            ship_name = _clean_ship_name(ship_name)
             
             entries.append({
                 "ship_name": ship_name,
@@ -469,7 +469,6 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
         current_fish = fish  # 페이지 레벨 어종으로 시작
 
         for tr in rows:
-            print("START_TR")
             tds = tr.find_all("td")
             if debug_enabled:
                 print(f"DEBUG_TR: tds_count={len(tds)}, tr_text='{tr.get_text(strip=True)[:50]}...'")
@@ -524,143 +523,141 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                 # 어종 정보 행은 보트가 아니므로 건너뜀
                 continue
 
-                # 보트 행이 아니면 건너뜀 (td 갯수 등)
-                if len(tds) < 3:
-                    continue
+            # 보트 행이 아니면 건너뜀 (td 갯수 등)
+            if len(tds) < 3:
+                continue
 
-                # 1번째 td에서 선박명 추출
-                print("BEFORE_SHIP_NAME")
-                ship_name = tds[0].get_text(" ", strip=True)
-                print(f"TEST: ship_name='{ship_name}', len(tds)={len(tds)}")
+            # 1번째 td에서 선박명 추출
+            ship_name = tds[0].get_text(" ", strip=True)
 
+            if debug_enabled:
+                print(f"DEBUG_SHIP_ROW: ship_name='{ship_name}', tds_count={len(tds)}")
+                for i, td in enumerate(tds):
+                    print(f"  TD[{i}]: '{td.get_text(strip=True)}'")
+
+            # 불필요한 행(헤더/공지 등) 제거
+            if not ship_name:
+                continue
+            lowered = ship_name.replace(" ", "")
+            skip = False
+            for kw in exclude_keywords:
+                if kw in ship_name or kw in lowered:
+                    skip = True
+                    break
+            if skip:
+                continue
+
+            # 배별 어종 추출 시도 (TD[1]에서 특수문자 기반)
+            ship_fish = None
+            if len(tds) >= 2:
+                td1_text = tds[1].get_text(strip=True)
                 if debug_enabled:
-                    print(f"DEBUG_SHIP_ROW: ship_name='{ship_name}', tds_count={len(tds)}")
-                    for i, td in enumerate(tds):
-                        print(f"  TD[{i}]: '{td.get_text(strip=True)}'")
+                    print(f"DEBUG_TD1_TEXT: '{td1_text}'")
+                ship_fish = _extract_fish_from_special_marker(td1_text)
+                if debug_enabled:
+                    print(f"DEBUG_EXTRACTED_FISH: '{ship_fish}'")
+            
+            # 배별 어종이 없으면 페이지 레벨 어종 사용
+            if not ship_fish:
+                ship_fish = current_fish
 
-                # 불필요한 행(헤더/공지 등) 제거
-                if not ship_name:
-                    continue
-                lowered = ship_name.replace(" ", "")
-                skip = False
-                for kw in exclude_keywords:
-                    if kw in ship_name or kw in lowered:
-                        skip = True
-                        break
-                if skip:
-                    continue
+            # 3번째 td (또는 admin-right div)가 실제 상태/잔여 정보를 가지고 있는 경우 추출
+            admin_div = None
+            if len(tds) >= 3:
+                admin_div = tds[2].select_one('div[id^="admin-right-"]')
+            if not admin_div:
+                admin_div = tr.select_one('div[id^="admin-right-"]')
 
-                # 배별 어종 추출 시도 (TD[1]에서 특수문자 기반)
-                ship_fish = None
-                if len(tds) >= 2:
-                    td1_text = tds[1].get_text(strip=True)
-                    if debug_enabled:
-                        print(f"DEBUG_TD1_TEXT: '{td1_text}'")
-                    ship_fish = _extract_fish_from_special_marker(td1_text)
-                    if debug_enabled:
-                        print(f"DEBUG_EXTRACTED_FISH: '{ship_fish}'")
-                
-                # 배별 어종이 없으면 페이지 레벨 어종 사용
-                if not ship_fish:
-                    ship_fish = current_fish
+            raw_status_text = ""
+            available = None
+            status_type = "unknown"
 
-                # 3번째 td (또는 admin-right div)가 실제 상태/잔여 정보를 가지고 있는 경우 추출
-                admin_div = None
-                if len(tds) >= 3:
-                    admin_div = tds[2].select_one('div[id^="admin-right-"]')
-                if not admin_div:
-                    admin_div = tr.select_one('div[id^="admin-right-"]')
-
-                raw_status_text = ""
-                available = None
-                status_type = "unknown"
-
-                if admin_div:
-                    img = admin_div.find("img")
-                    if img and img.has_attr("alt"):
-                        raw_status_text = img["alt"].strip()
-                    else:
-                        raw_status_text = admin_div.get_text(" ", strip=True)
-
-                    if re.search(r'점검일', raw_status_text):
-                        status_type = "maintenance"
-                        available = 0
-                    else:
-                        m = re.search(r'남은\s*자리\s*[:：]?\s*(\d+)', raw_status_text) or                             re.search(r'남은자리\s*(\d+)', raw_status_text) or                             re.search(r'(\d+)\s*명', raw_status_text)
-
-                        if m:
-                            try:
-                                available = int(m.group(1))
-                                status_type = "open"
-                            except Exception:
-                                available = None
-                                status_type = "unknown"
-                        elif re.search(r'예약완료|예약 완료', raw_status_text):
-                            status_type = "reserved"
-                            available = 0
-                        elif re.search(r'매진|마감|예약마감', raw_status_text):
-                            status_type = "full"
-                            available = 0
-                        else:
-                            status_type = "unknown"
+            if admin_div:
+                img = admin_div.find("img")
+                if img and img.has_attr("alt"):
+                    raw_status_text = img["alt"].strip()
                 else:
-                    second_text = tds[1].get_text(" ", strip=True)
-                    raw_status_text = second_text
-                    if re.search(r'입금대기', second_text):
-                        status_type = "pending"
-                    elif re.search(r'예약\s*완료', raw_status_text):
+                    raw_status_text = admin_div.get_text(" ", strip=True)
+
+                if re.search(r'점검일', raw_status_text):
+                    status_type = "maintenance"
+                    available = 0
+                else:
+                    m = re.search(r'남은\s*자리\s*[:：]?\s*(\d+)', raw_status_text) or                             re.search(r'남은자리\s*(\d+)', raw_status_text) or                             re.search(r'(\d+)\s*명', raw_status_text)
+
+                    if m:
+                        try:
+                            available = int(m.group(1))
+                            status_type = "open"
+                        except Exception:
+                            available = None
+                            status_type = "unknown"
+                    elif re.search(r'예약완료|예약 완료', raw_status_text):
                         status_type = "reserved"
+                        available = 0
+                    elif re.search(r'매진|마감|예약마감', raw_status_text):
+                        status_type = "full"
                         available = 0
                     else:
                         status_type = "unknown"
-
-                display_status = "-"
-                if status_type == "maintenance":
-                    display_status = "점검일"
-                elif status_type == "reserved":
-                    display_status = "예약마감"
-                elif status_type == "open" and available is not None:
-                    display_status = f"남은자리 {available}명"
-                elif status_type == "full":
-                    display_status = "예약마감"
-                elif status_type == "pending":
-                    display_status = "입금대기"
+            else:
+                second_text = tds[1].get_text(" ", strip=True)
+                raw_status_text = second_text
+                if re.search(r'입금대기', second_text):
+                    status_type = "pending"
+                elif re.search(r'예약\s*완료', raw_status_text):
+                    status_type = "reserved"
+                    available = 0
                 else:
-                    display_status = raw_status_text or "알 수 없음"
+                    status_type = "unknown"
 
-                # debug: 출력하여 파싱 결과 확인
-                if debug_enabled:
-                    try:
-                        print(json.dumps({
-                            "DEBUG_BOARD_ENTRY": {
-                                "ship_name": ship_name,
-                                "status": status_type,
-                                "available": available,
-                                "display_status": display_status,
-                                "raw_status_text": raw_status_text,
-                                "fish": ship_fish,
-                                "row_html_len": len(str(tr))
-                            }
-                        }, ensure_ascii=False))
-                    except Exception:
-                        print("DEBUG_BOARD_ENTRY:", ship_name, status_type, available, display_status, ship_fish)
+            display_status = "-"
+            if status_type == "maintenance":
+                display_status = "점검일"
+            elif status_type == "reserved":
+                display_status = "예약마감"
+            elif status_type == "open" and available is not None:
+                display_status = f"남은자리 {available}명"
+            elif status_type == "full":
+                display_status = "예약마감"
+            elif status_type == "pending":
+                display_status = "입금대기"
+            else:
+                display_status = raw_status_text or "알 수 없음"
 
-                # 유효한 배 이름인지 검증
-                if not _is_valid_ship_name(ship_name):
-                    continue
+            # debug: 출력하여 파싱 결과 확인
+            if debug_enabled:
+                try:
+                    print(json.dumps({
+                        "DEBUG_BOARD_ENTRY": {
+                            "ship_name": ship_name,
+                            "status": status_type,
+                            "available": available,
+                            "display_status": display_status,
+                            "raw_status_text": raw_status_text,
+                            "fish": ship_fish,
+                            "row_html_len": len(str(tr))
+                        }
+                    }, ensure_ascii=False))
+                except Exception:
+                    print("DEBUG_BOARD_ENTRY:", ship_name, status_type, available, display_status, ship_fish)
 
-                # 배 이름 정리 (예약하기 등 제거)
-                ship_name = _clean_ship_name(ship_name)
+            # 유효한 배 이름인지 검증
+            if not _is_valid_ship_name(ship_name):
+                continue
 
-                entries.append({
-                    "ship_name": ship_name,
-                    "status": status_type,
-                    "available": available,
-                    "raw_status_text": raw_status_text,
-                    "display_status": display_status,
-                    "row_html": str(tr),
-                    "fish": ship_fish
-                })
+            # 배 이름 정리 (예약하기 등 제거)
+            ship_name = _clean_ship_name(ship_name)
+
+            entries.append({
+                "ship_name": ship_name,
+                "status": status_type,
+                "available": available,
+                "raw_status_text": raw_status_text,
+                "display_status": display_status,
+                "row_html": str(tr),
+                "fish": ship_fish
+            })
 
         # 폴백 2: 위 방식으로 entries가 비면 admin-right 블록을 직접 스캔
         if not entries:
@@ -788,12 +785,12 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                         status_type = 'full'
                         available = 0
 
+                # 배 이름 정리 (예약하기 등 제거)
+                ship_name = _clean_ship_name(ship_name)
+
                 # 유효한 배 이름인지 검증
                 if not _is_valid_ship_name(ship_name):
                     continue
-
-                # 배 이름 정리 (예약하기 등 제거)
-                ship_name = _clean_ship_name(ship_name)
 
                 fish_local = local_fish or _fish_from_notice_before(tr) or fish or None
                 entries.append({
