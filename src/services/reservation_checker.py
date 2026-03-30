@@ -10,7 +10,7 @@ import json
 FISH_KEYWORDS = [
     '주꾸미', '쭈꾸미', '문어', '갑오징어', '우럭', '광어', '낙지', '백조기', '민어',
     '삼치', '쭈갑', '참돔', '갈치', '다운샷', '생미끼', '돌문어', '피문어', '외수질',
-    '광어다운샷'
+    '광어다운샷','한치'
 ]
 
 # 유효한 배 이름 예외 목록 ("~호"가 없어도 배로 인정)
@@ -24,6 +24,68 @@ def _norm(text: str) -> str:
         return ''
     # \u00a0 등 non-breaking space 포함 다양한 공백/구분자 제거
     return re.sub(r"[\s\u00a0/&(),·\-]+", "", str(text))
+
+def _extract_known_fish(text: str) -> str | None:
+    if not text:
+        return None
+
+    normalized_text = _norm(text)
+    found = []
+    for keyword in FISH_KEYWORDS:
+        if _norm(keyword) in normalized_text and keyword not in found:
+            found.append(keyword)
+    return ', '.join(found) if found else None
+
+def _sanitize_fish_text(text: str) -> str | None:
+    if not text:
+        return None
+
+    cleaned = str(text).strip()
+    cleaned = re.sub(r'[\u200b\u200c\u200d\ufeff]+', '', cleaned).strip()
+    cleaned = re.sub(r'(낚시\s*종류|낚시종류|어종)\s*[:：-]?\s*', '', cleaned, flags=re.I).strip()
+    cleaned = re.sub(r'^[★☆◆■▶▷\[\(<\s]+', '', cleaned).strip()
+    cleaned = re.sub(r'[★☆◆■▶▷\]\)>\s]+$', '', cleaned).strip()
+
+    for sep in ['[', ' 탐사', ' 출조', ' 이벤트', ' 예약', ' 조황']:
+        if sep in cleaned:
+            cleaned = cleaned.split(sep)[0].strip()
+
+    if not cleaned:
+        return None
+
+    cleaned = cleaned.strip()
+    if not cleaned:
+        return None
+
+    return _extract_known_fish(cleaned) or cleaned
+
+def _extract_fish_from_special_marker(text: str) -> str | None:
+    """
+    특수문자(★/◆/☆)로 감싼 어종 전체를 추출
+    예: "★봄 쭈꾸미 ★[8만원]" → "봄 쭈꾸미"
+    예: "◆봄 왕쭈꾸미 전문 출조 ◆[8만원]" → "봄 왕쭈꾸미 전문 출조"
+    """
+    if not text:
+        return None
+    
+    # ★...★ / ◆...◆ / ☆...☆ 패턴 추출 (탐욕적이지 않게)
+    pattern = r'(★|◆|☆)\s*([^★◆☆\[]*?)\s*(★|◆|☆)'
+    match = re.search(pattern, text)
+    
+    if not match:
+        return None
+    
+    fish = match.group(2).strip()
+    
+    # "[" 이후는 제거 (가격 정보)
+    if '[' in fish:
+        fish = fish.split('[')[0].strip()
+    
+    # " 탐사[" 패턴 제거
+    if ' 탐사[' in fish:
+        fish = fish.split(' 탐사[')[0].strip()
+    
+    return fish if fish else None
 
 def _clean_ship_name(name: str) -> str:
     """배 이름에서 불필요한 문구 제거"""
@@ -179,7 +241,7 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
         fish = None
         fish_el = day_block.select_one('div#fish') or day_block.select_one('.fish') or soup.select_one('div#fish')
         if fish_el:
-            fish = fish_el.get_text(" ", strip=True)
+            fish = _sanitize_fish_text(fish_el.get_text(" ", strip=True))
         else:
             label_text = day_block.find(string=re.compile(r'낚시종류'))
             if label_text:
@@ -187,11 +249,11 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                 if parent and parent.name == 'td':
                     sib = parent.find_next_sibling('td')
                     if sib:
-                        fish = sib.get_text(" ", strip=True)
+                        fish = _sanitize_fish_text(sib.get_text(" ", strip=True))
                 else:
                     nxt = label_text.find_next()
                     if nxt and getattr(nxt, 'get_text', None):
-                        fish = nxt.get_text(" ", strip=True)
+                        fish = _sanitize_fish_text(nxt.get_text(" ", strip=True))
 
         # debug: schedule_fleet 패턴에서 추출된 어종 확인
         if debug_enabled:
@@ -260,7 +322,7 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
             if ship_fish_el:
                 ship_fish_text = ship_fish_el.get_text(" ", strip=True)
                 # 라벨 제거 (낚시종류:, 어종: 등)
-                ship_fish = re.sub(r'(낚시\s*종류|낚시종류|어종)\s*[:：-]?\s*', '', ship_fish_text, flags=re.I).strip()
+                ship_fish = _sanitize_fish_text(ship_fish_text)
             
             # 2) 라벨 기반 탐색 (테이블 내 "낚시종류" 또는 "어종" 라벨)
             if not ship_fish:
@@ -271,12 +333,12 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                         sib = p.find_next_sibling('td')
                         if sib:
                             txt = sib.get_text(" ", strip=True)
-                            ship_fish = re.sub(r'(낚시\s*종류|낚시종류|어종)\s*[:：-]?\s*', '', txt, flags=re.I).strip()
+                            ship_fish = _sanitize_fish_text(txt)
                     if not ship_fish:
                         nxt = lbl.find_next()
                         if nxt and getattr(nxt, 'get_text', None):
                             txt = nxt.get_text(" ", strip=True)
-                            ship_fish = re.sub(r'(낚시\s*종류|낚시종류|어종)\s*[:：-]?\s*', '', txt, flags=re.I).strip()
+                            ship_fish = _sanitize_fish_text(txt)
             
             # 3) 페이지 전체(day_block) 어종을 최종 폴백
             if not ship_fish:
@@ -323,6 +385,8 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
 
         # 일반 게시판 패턴
     else:
+        if debug_enabled:
+            print("DEBUG: 일반 게시판 패턴 시작")
         tide = None
         # new-div-YYYYMMDD 컨테이너에서 선박별 행을 추출
         entries = []
@@ -330,6 +394,10 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
 
         # 대표 컨테이너 찾기
         container = soup.select_one(f"div#new-div-{date8}") or soup.select_one(f"div.new-divs, .new-divs")
+        if debug_enabled:
+            print(f"DEBUG_CONTAINER: date8={date8}, container_found={container is not None}")
+            if container:
+                print(f"DEBUG_CONTAINER_ID: {container.get('id', 'no-id')}, class: {container.get('class', [])}")
 
         # 물때 정보 추출 (jeil-panel tr의 data-str 속성에서)
         if container:
@@ -343,21 +411,49 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
         # 일반 게시판에서도 어종 추출 시도
         fish = None
         if container:
+            # 1순위: div#fish 또는 .fish 클래스
             fish_el = container.select_one('div#fish') or container.select_one('.fish') or soup.select_one('div#fish')
             if fish_el:
-                fish = fish_el.get_text(" ", strip=True)
-            else:
-                # 텍스트 또는 img alt 속성으로 "낚시종류" 라벨 찾기
-                label_tag = container.find(lambda tag: tag.name == 'div' and tag.string and tag.string.strip() == '낚시종류')
-                if not label_tag:
-                    label_tag = container.find('img', alt='낚시종류')
-                if label_tag:
-                    # 가장 가까운 'td' 부모를 찾고, 그 다음 'td' 형제를 찾음
-                    label_td = label_tag.find_parent('td')
+                fish = _sanitize_fish_text(fish_el.get_text(" ", strip=True))
+            
+            # 2순위: ★어종★ 패턴 추출 (야무진 사이트 패턴)
+            if not fish:
+                all_text = container.get_text(" ", strip=True)
+                # ★...★ 패턴 매칭 (완벽한 매칭, 비탐욕적)
+                star_matches = re.findall(r'★\s*([^★]+?)\s*★', all_text)
+                if star_matches:
+                    # 첫 번째 ★...★ 패턴을 어종으로 간주
+                    fish_candidate = star_matches[0].strip()
+                    # 불필요한 정보 제거 (금액, 예선 등)
+                    # "[" 이후는 제거 (금액 정보)
+                    if '[' in fish_candidate:
+                        fish_candidate = fish_candidate.split('[')[0].strip()
+                    # " 탐사" 이후는 제거
+                    if ' 탐사' in fish_candidate:
+                        fish_candidate = fish_candidate.split(' 탐사')[0].strip()
+                    if fish_candidate:
+                        fish = fish_candidate
+            
+            # 3순위: 낚시종류 이미지 또는 텍스트 라벨
+            if not fish:
+                # 야무진 사이트: 이미지 아이콘 사용
+                label_img = container.find('img', alt='낚시종류')
+                if label_img:
+                    # 이미지의 부모 td 찾기
+                    label_td = label_img.find_parent('td')
                     if label_td:
                         fish_td = label_td.find_next_sibling('td')
                         if fish_td:
                             fish = fish_td.get_text(" ", strip=True)
+                else:
+                    # 텍스트 라벨로 "낚시종류" 찾기
+                    label_tag = container.find(lambda tag: tag.name == 'div' and tag.string and tag.string.strip() == '낚시종류')
+                    if label_tag:
+                        label_td = label_tag.find_parent('td')
+                        if label_td:
+                            fish_td = label_td.find_next_sibling('td')
+                            if fish_td:
+                                fish = fish_td.get_text(" ", strip=True)
 
         # 컨테이너 내 tr을 우선 사용, 없으면 문서 전체 tr로 폴백
         rows = []
@@ -365,68 +461,82 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
             rows = container.select("tr") or []
         if not rows:
             rows = soup.select("tr")
-            exclude_keywords = {"공지사항", "입금대기", "선박명", "공지", "오늘:"}
-            current_fish = fish  # 페이지 레벨 어종으로 시작
+        
+        if debug_enabled:
+            print(f"DEBUG_ROWS: container_rows={len(container.select('tr') if container else 0)}, total_rows={len(rows)}")
+        
+        exclude_keywords = {"공지사항", "입금대기", "선박명", "공지", "오늘:"}
+        current_fish = fish  # 페이지 레벨 어종으로 시작
 
-            for tr in rows:
-                tds = tr.find_all("td")
-                if not tds:
-                    continue
+        for tr in rows:
+            print("START_TR")
+            tds = tr.find_all("td")
+            if debug_enabled:
+                print(f"DEBUG_TR: tds_count={len(tds)}, tr_text='{tr.get_text(strip=True)[:50]}...'")
+            if not tds:
+                continue
 
-                # --- 공지 행에서 어종 추출 ---
-                is_notice = False
-                # <img alt="공지">
-                img = tds[0].find('img', alt='공지')
-                if img:
-                    is_notice = True
-                # <div>공지</div>
-                div = tds[0].find('div')
-                if div and '공지' in div.get_text(strip=True):
-                    is_notice = True
-                if is_notice and len(tds) >= 2:
-                    # 공지 행의 어종 정보 추출 (단, 안내문 스타일은 무시)
-                    # 1) td 내 모든 텍스트 노드에서 어종 키워드 추출
-                    all_texts = []
-                    # 모든 텍스트 노드 수집 (중첩 태그 포함)
-                    for elem in tds[1].descendants:
-                        if elem.name is None:
-                            txt = str(elem).strip()
-                            if txt:
-                                all_texts.append(txt)
-                    found_fish = []
-                    for txt in all_texts:
-                        n_txt = _norm(txt)
-                        for w in FISH_KEYWORDS:
-                            if _norm(w) in n_txt and w not in found_fish:
-                                found_fish.append(w)
-                    if found_fish:
-                        current_fish = ', '.join(found_fish)
-                        continue
-                    # 2) 전체 텍스트에서 키워드 추출 (백업)
-                    notice_fish = tds[1].get_text(" ", strip=True)
-                    notice_fish = notice_fish.replace('\n', ' ').replace('\r', ' ')
-                    notice_fish = ' '.join(notice_fish.split())
-                    n_nf = _norm(notice_fish)
-                    found_fish = [w for w in FISH_KEYWORDS if _norm(w) in n_nf]
-                    if found_fish:
-                        current_fish = ', '.join(found_fish)
-                    elif notice_fish and len(notice_fish) <= 20 and not re.match(r'^[0-9a-zA-Z\(\)\[\]#]', notice_fish) and notice_fish.count('.') < 2:
-                        current_fish = notice_fish
+            # --- 공지 행에서 어종 추출 ---
+            is_notice = False
+            # <img alt="공지">
+            img = tds[0].find('img', alt='공지')
+            if img:
+                is_notice = True
+            # <div>공지</div>
+            div = tds[0].find('div')
+            if div and '공지' in div.get_text(strip=True):
+                is_notice = True
+            if is_notice and len(tds) >= 2:
+                # 공지 행의 어종 정보 추출 (단, 안내문 스타일은 무시)
+                # 1) td 내 모든 텍스트 노드에서 어종 키워드 추출
+                all_texts = []
+                # 모든 텍스트 노드 수집 (중첩 태그 포함)
+                for elem in tds[1].descendants:
+                    if elem.name is None:
+                        txt = str(elem).strip()
+                        if txt:
+                            all_texts.append(txt)
+                found_fish = []
+                for txt in all_texts:
+                    extracted = _extract_known_fish(txt)
+                    if extracted:
+                        for fish_name in extracted.split(', '):
+                            if fish_name not in found_fish:
+                                found_fish.append(fish_name)
+                if found_fish:
+                    current_fish = ', '.join(found_fish)
                     continue
+                # 2) 전체 텍스트에서 키워드 추출 (백업)
+                notice_fish = tds[1].get_text(" ", strip=True)
+                notice_fish = notice_fish.replace('\n', ' ').replace('\r', ' ')
+                notice_fish = ' '.join(notice_fish.split())
+                extracted_notice_fish = _extract_known_fish(notice_fish)
+                if extracted_notice_fish:
+                    current_fish = extracted_notice_fish
+                elif notice_fish and len(notice_fish) <= 20 and not re.match(r'^[0-9a-zA-Z\(\)\[\]#]', notice_fish) and notice_fish.count('.') < 2:
+                    current_fish = _sanitize_fish_text(notice_fish)
+                continue
 
-                # 어종 정보 행인지 확인 (td가 2개이고 첫번째에 '낚시종류' 포함)
-                first_td_text = tds[0].get_text(" ", strip=True)
-                if '낚시종류' in first_td_text and len(tds) >= 2:
-                    current_fish = tds[1].get_text(" ", strip=True).strip()
-                    # 어종 정보 행은 보트가 아니므로 건너뜀
-                    continue
+            # 어종 정보 행인지 확인 (td가 2개이고 첫번째에 '낚시종류' 포함)
+            first_td_text = tds[0].get_text(" ", strip=True)
+            if '낚시종류' in first_td_text and len(tds) >= 2:
+                current_fish = _sanitize_fish_text(tds[1].get_text(" ", strip=True).strip())
+                # 어종 정보 행은 보트가 아니므로 건너뜀
+                continue
 
                 # 보트 행이 아니면 건너뜀 (td 갯수 등)
                 if len(tds) < 3:
                     continue
 
                 # 1번째 td에서 선박명 추출
+                print("BEFORE_SHIP_NAME")
                 ship_name = tds[0].get_text(" ", strip=True)
+                print(f"TEST: ship_name='{ship_name}', len(tds)={len(tds)}")
+
+                if debug_enabled:
+                    print(f"DEBUG_SHIP_ROW: ship_name='{ship_name}', tds_count={len(tds)}")
+                    for i, td in enumerate(tds):
+                        print(f"  TD[{i}]: '{td.get_text(strip=True)}'")
 
                 # 불필요한 행(헤더/공지 등) 제거
                 if not ship_name:
@@ -439,6 +549,20 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                         break
                 if skip:
                     continue
+
+                # 배별 어종 추출 시도 (TD[1]에서 특수문자 기반)
+                ship_fish = None
+                if len(tds) >= 2:
+                    td1_text = tds[1].get_text(strip=True)
+                    if debug_enabled:
+                        print(f"DEBUG_TD1_TEXT: '{td1_text}'")
+                    ship_fish = _extract_fish_from_special_marker(td1_text)
+                    if debug_enabled:
+                        print(f"DEBUG_EXTRACTED_FISH: '{ship_fish}'")
+                
+                # 배별 어종이 없으면 페이지 레벨 어종 사용
+                if not ship_fish:
+                    ship_fish = current_fish
 
                 # 3번째 td (또는 admin-right div)가 실제 상태/잔여 정보를 가지고 있는 경우 추출
                 admin_div = None
@@ -514,12 +638,12 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                                 "available": available,
                                 "display_status": display_status,
                                 "raw_status_text": raw_status_text,
-                                "fish": current_fish,
+                                "fish": ship_fish,
                                 "row_html_len": len(str(tr))
                             }
                         }, ensure_ascii=False))
                     except Exception:
-                        print("DEBUG_BOARD_ENTRY:", ship_name, status_type, available, display_status, current_fish)
+                        print("DEBUG_BOARD_ENTRY:", ship_name, status_type, available, display_status, ship_fish)
 
                 # 유효한 배 이름인지 검증
                 if not _is_valid_ship_name(ship_name):
@@ -535,7 +659,7 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                     "raw_status_text": raw_status_text,
                     "display_status": display_status,
                     "row_html": str(tr),
-                    "fish": current_fish
+                    "fish": ship_fish
                 })
 
         # 폴백 2: 위 방식으로 entries가 비면 admin-right 블록을 직접 스캔
@@ -564,10 +688,11 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                                 texts.append(t)
                     found = []
                     for t in texts:
-                        nt = _norm(t)
-                        for w in FISH_KEYWORDS:
-                            if _norm(w) in nt and w not in found:
-                                found.append(w)
+                        extracted = _extract_known_fish(t)
+                        if extracted:
+                            for fish_name in extracted.split(', '):
+                                if fish_name not in found:
+                                    found.append(fish_name)
                     if found:
                         # 이 공지 tr 이후의 모든 tr에 어종 적용 (다음 공지가 나오기 전까지)
                         fish_val = ', '.join(found)
