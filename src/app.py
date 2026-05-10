@@ -2,7 +2,6 @@ from flask import Flask
 import webbrowser
 import os
 
-from sqlalchemy import false
 from db import db
 
 def create_app():

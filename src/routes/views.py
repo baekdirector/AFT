@@ -6,9 +6,6 @@ from forms import BoatRegistrationForm, StatusCheckForm, BoatEditForm
 from db import add_boat_instance, get_all_boats, delete_boat, get_boat_by_id, update_boat
 from services.reservation_checker import check_single_boat
 from forms import REGION_CHOICES
-from datetime import date as dt_date
-from urllib.parse import urlparse
-from models import Boat
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 
@@ -76,6 +73,17 @@ city_port_mapping = {
     '고흥': ['녹동방파제']
 }
 
+def _compute_region_counts(boats):
+    region_sets = {}
+    for boat in boats:
+        city = getattr(boat, 'city', None) or ''
+        registered_name = getattr(boat, 'name', None) or getattr(boat, 'registered_name', None) or ''
+        if not city:
+            continue
+        region_sets.setdefault(city, set()).add(registered_name or '')
+    region_counts = {region: len(names) for region, names in region_sets.items()}
+    return region_counts, sum(region_counts.values())
+
 @views.route('/register', methods=['GET', 'POST'])
 def register():
     form = BoatRegistrationForm()
@@ -137,15 +145,7 @@ def status():
 
     # --- added: compute region_counts immediately so status page shows counts on load ---
     registered_boats = get_all_boats()
-    region_sets = {}
-    for b in registered_boats:
-        city = getattr(b, 'city', None) or ''
-        rn = getattr(b, 'name', None) or getattr(b, 'registered_name', None) or ''
-        if not city:
-            continue
-        region_sets.setdefault(city, set()).add(rn or '')
-    region_counts = { r: len(s) for r, s in region_sets.items() }
-    total_registered = sum(region_counts.values())
+    region_counts, total_registered = _compute_region_counts(registered_boats)
     # --- end added ---
 
     # 날짜 미입력 시 조회하지 않고 화면만 렌더링
@@ -208,7 +208,6 @@ def status():
             print(f"DEBUG boat[{i}]:", info)
 
     # 조회 실행 - 병렬 처리로 속도 개선
-    date_str = f"{year:04d}-{month:02d}-{day:02d}"
     results = []
     
     # Flask application context를 스레드에서 사용하기 위해 미리 저장
@@ -265,15 +264,7 @@ def status():
                     print(traceback.format_exc())
 
     # { changed code } : 등록된 배 목록(registered_boats)에서 지역별 등록 수 계산
-    region_sets = {}
-    for b in get_all_boats():
-        city = getattr(b, 'city', None) or ''
-        rn = getattr(b, 'name', None) or getattr(b, 'registered_name', None) or ''
-        if not city:
-            continue
-        region_sets.setdefault(city, set()).add(rn or '')
-    region_counts = { r: len(s) for r, s in region_sets.items() }
-    total_registered = sum(region_counts.values())
+    region_counts, total_registered = _compute_region_counts(registered_boats)
 
     # 예약가능 상태 배를 먼저 보여주도록 정렬
     results_sorted = sorted(results, key=lambda x: x.get('status') != 'open')
