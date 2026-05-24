@@ -59,6 +59,48 @@ def _sanitize_fish_text(text: str) -> str | None:
 
     return _extract_known_fish(cleaned) or cleaned
 
+def _clean_notice_fish_text(text: str) -> str | None:
+    if not text:
+        return None
+
+    cleaned = str(text).strip()
+    cleaned = re.sub(r'[\u200b\u200c\u200d\ufeff]+', '', cleaned).strip()
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    cleaned = re.sub(r'^[\-–—★☆◆■▶▷\[\(<\s]+', '', cleaned).strip()
+    cleaned = re.sub(r'[\-–—★☆◆■▶▷\]\)>\s]+$', '', cleaned).strip()
+    cleaned = re.sub(r'(낚시\s*종류|낚시종류|어종)\s*[:：-]?\s*', '', cleaned, flags=re.I).strip()
+
+    if not cleaned:
+        return None
+
+    if _extract_known_fish(cleaned):
+        return cleaned
+    return None
+
+def _extract_fish_from_notice_area(node) -> str | None:
+    """
+    선박 행 안에 중첩된 공지 테이블에서 어종 문구를 추출한다.
+    일부 사이트는 별도 공지 tr이 아니라 선박의 안내 td 안에 <img alt="공지">를 넣는다.
+    """
+    if not node or not getattr(node, 'select', None):
+        return None
+
+    notice_imgs = node.find_all('img', alt='공지')
+    for img in notice_imgs:
+        notice_row = img.find_parent('tr')
+        if not notice_row:
+            continue
+        notice_tds = notice_row.find_all('td')
+        text_nodes = notice_tds[1:] if len(notice_tds) > 1 else [notice_row]
+        for text_node in text_nodes:
+            text = text_node.get_text("\n", strip=True)
+            for line in text.splitlines():
+                fish = _clean_notice_fish_text(line)
+                if fish:
+                    return fish
+
+    return None
+
 def _extract_fish_from_special_marker(text: str) -> str | None:
     """
     특수문자(★/◆/☆)로 감싼 어종 전체를 추출
@@ -489,6 +531,11 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                 is_notice = True
             if is_notice and len(tds) >= 2:
                 # 공지 행의 어종 정보 추출 (단, 안내문 스타일은 무시)
+                notice_area_fish = _extract_fish_from_notice_area(tr)
+                if notice_area_fish:
+                    current_fish = notice_area_fish
+                    continue
+
                 # 1) td 내 모든 텍스트 노드에서 어종 키워드 추출
                 all_texts = []
                 # 모든 텍스트 노드 수집 (중첩 태그 포함)
@@ -552,10 +599,12 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
             # 배별 어종 추출 시도 (TD[1]에서 특수문자 기반)
             ship_fish = None
             if len(tds) >= 2:
+                ship_fish = _extract_fish_from_notice_area(tds[1])
                 td1_text = tds[1].get_text(strip=True)
                 if debug_enabled:
                     print(f"DEBUG_TD1_TEXT: '{td1_text}'")
-                ship_fish = _extract_fish_from_special_marker(td1_text)
+                if not ship_fish:
+                    ship_fish = _extract_fish_from_special_marker(td1_text)
                 if debug_enabled:
                     print(f"DEBUG_EXTRACTED_FISH: '{ship_fish}'")
             
@@ -678,6 +727,12 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                 if dv and '공지' in dv.get_text(strip=True):
                     is_notice2 = True
                 if is_notice2:
+                    notice_area_fish = _extract_fish_from_notice_area(tr_item)
+                    if notice_area_fish:
+                        for j in range(idx+1, len(all_trs)):
+                            notice_fish_map[id(all_trs[j])] = notice_area_fish
+                        continue
+
                     # 오른쪽 td 전체 텍스트에서 키워드
                     texts = []
                     for elem in tds2[1].descendants:
@@ -712,6 +767,8 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                 # 1) 현재 tr의 첫 td에서 선박명 추출
                 if tds3:
                     ship_name = tds3[0].get_text(' ', strip=True)
+                if len(tds3) >= 2:
+                    local_fish = _extract_fish_from_notice_area(tds3[1])
                 # 문서 전체 tr 스캔 (테이블 경계 무시)
                 all_trs_to_scan = soup.find_all('tr')
                 idx_current = -1
