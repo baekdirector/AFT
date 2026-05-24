@@ -53,3 +53,35 @@ def test_schedule_fleet_hanchi_falls_back_from_day_block(monkeypatch):
     assert len(entries) == 2
     assert entries[0]["fish"] == "한치"
     assert entries[1]["fish"] == "한치"
+
+
+def test_schedule_fleet_accepts_capacity_suffix_for_known_fleet_names(monkeypatch):
+    html = """
+    <div id="d2026-05-24" class="shipsinfo_daywarp weekday">
+      <div id="fish">한치</div>
+
+      <table class="ship_unit">
+        <tr>
+          <td class="ship_info"><div class="title">레드헌터(22인승)</div></td>
+          <td class="ship_info2"><span class="shipping_status">예약마감</span></td>
+        </tr>
+      </table>
+    </div>
+    """
+
+    def fake_get(*args, **kwargs):
+        return DummyResponse(html)
+
+    monkeypatch.setattr(reservation_checker.requests, "get", fake_get)
+
+    result = reservation_checker.check_single_boat(
+        "https://redhunter.sunsang24.com/ship/schedule_fleet",
+        2026,
+        5,
+        24,
+    )
+
+    entries = result["entries"]
+    assert len(entries) == 1
+    assert entries[0]["ship_name"] == "레드헌터"
+    assert entries[0]["status"] == "full"

@@ -93,13 +93,15 @@ def _clean_ship_name(name: str) -> str:
         return name
     # "예약하기"/"대기하기" 문구 제거
     name = name.replace('예약하기', '').replace('대기하기', '').strip()
+    # 선상24 선단 페이지는 "레드헌터(22인승)"처럼 정원 표기가 붙어 내려온다.
+    name = re.sub(r'\(\s*\d+\s*인승\s*\)', '', name).strip()
     return name
 
 def _is_valid_ship_name(name: str) -> bool:
     """배 이름이 유효한지 검증: '호'를 포함하거나 예외 목록에 있어야 함"""
     if not name:
         return False
-    name = name.strip()
+    name = _clean_ship_name(name)
     # "~호"를 포함하면 배로 인정
     if '호' in name:
         return True
