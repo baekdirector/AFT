@@ -32,6 +32,8 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        from db import initialize_shared_boats
+        initialize_shared_boats()
 
     return app
 

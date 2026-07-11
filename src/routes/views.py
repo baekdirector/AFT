@@ -248,8 +248,8 @@ def status():
                 print(traceback.format_exc())
             return []
     
-    # ThreadPoolExecutor로 병렬 처리 (최대 10개 동시 처리)
-    max_workers = min(10, len(boats_to_query)) if boats_to_query else 1
+    # ThreadPoolExecutor로 병렬 처리 (동시 요청 수를 줄여 리소스 부담과 타임아웃 리스크를 낮춤)
+    max_workers = min(6, len(boats_to_query)) if boats_to_query else 1
     
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_boat = {executor.submit(process_boat, boat): boat for boat in boats_to_query}
