@@ -34,6 +34,18 @@ def test_existing_boats_are_treated_as_initial_shared_data(app):
         refreshed = Boat.query.get(boat.id)
         assert refreshed.is_shared is True
 
+
+def test_initialize_shared_boats_seed_default_data_when_db_is_empty(app):
+    with app.app_context():
+        _db.session.query(Boat).delete()
+        _db.session.commit()
+
+        initialize_shared_boats()
+
+        boats = Boat.query.order_by(Boat.id).all()
+        assert len(boats) >= 1
+        assert all(boat.is_shared is True for boat in boats)
+
 # To run the application, use the following commands:
 # cd C:\Workspace\python_ship\fishing-boat-reservation-app
 # python -m venv .venv

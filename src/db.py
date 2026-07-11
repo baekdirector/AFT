@@ -25,6 +25,44 @@ def initialize_shared_boats():
     if Boat.query.count() > 0:
         Boat.query.update({Boat.is_shared: True})
         db.session.commit()
+        return
+
+    default_boats = [
+        {
+            'name': '팀만수',
+            'url': 'https://teammansu.kr/index.php?mid=bk',
+            'city': '인천',
+            'port': '남항(인천항)',
+            'note': '초기 공용 데이터',
+        },
+        {
+            'name': '레드헌터',
+            'url': 'https://redhunter.sunsang24.com/ship/schedule_fleet',
+            'city': '인천',
+            'port': '연안부두',
+            'note': '초기 공용 데이터',
+        },
+        {
+            'name': '힐링피싱',
+            'url': 'https://hl.sunsang24.com/ship/schedule_fleet/202607',
+            'city': '안산',
+            'port': '오이도항',
+            'note': '초기 공용 데이터',
+        },
+    ]
+
+    for boat_data in default_boats:
+        boat = Boat(
+            name=boat_data['name'],
+            url=boat_data['url'],
+            city=boat_data['city'],
+            port=boat_data['port'],
+            note=boat_data['note'],
+            is_shared=True,
+        )
+        db.session.add(boat)
+
+    db.session.commit()
 
 
 def add_boat_instance(name: str, url: str, city: str, port: str, note: str = None, is_shared: bool = True):
