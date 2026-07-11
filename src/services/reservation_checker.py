@@ -1,4 +1,6 @@
 from bs4 import BeautifulSoup, Comment
+from threading import Lock
+from time import time
 from typing import Dict, List
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 import requests
@@ -17,6 +19,38 @@ FISH_KEYWORDS = [
 VALID_SHIP_NAMES = [
     '팀만수', '힐링피싱', '라온피싱', '레드헌터', '레드히어로', '레드썬', '레드퀸', '골드피싱'
 ]
+
+REQUEST_TIMEOUT_SECONDS = 3
+_CACHE_TTL_SECONDS = 300
+_CACHE = {}
+_CACHE_LOCK = Lock()
+
+
+def clear_cache() -> None:
+    with _CACHE_LOCK:
+        _CACHE.clear()
+
+
+def _get_cached_result(cache_key: tuple) -> Dict | None:
+    now = time()
+    with _CACHE_LOCK:
+        cached = _CACHE.get(cache_key)
+        if not cached:
+            return None
+        if cached["expires_at"] <= now:
+            _CACHE.pop(cache_key, None)
+            return None
+        return cached["result"]
+
+
+def _store_cached_result(cache_key: tuple, result: Dict) -> Dict:
+    with _CACHE_LOCK:
+        _CACHE[cache_key] = {
+            "result": result,
+            "expires_at": time() + _CACHE_TTL_SECONDS,
+        }
+    return result
+
 
 def _norm(text: str) -> str:
     """간단 정규화: 공백/특수문자 제거하여 키워드 포함 여부를 관대하게 검사"""
@@ -210,41 +244,48 @@ def _parse_tide_from_text(text: str) -> str | None:
     return f"{m.group(1)}물" if m else None
 
 def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enabled: bool = False) -> Dict:
+    cache_key = (str(boat_url or ""), int(year), int(month), int(day))
+    cached_result = _get_cached_result(cache_key)
+    if cached_result is not None:
+        return cached_result
+
     final_url = build_query_url(boat_url, year, month, day)
 
     # 요일/표시 날짜(물때는 응답 후 보강)
     weekday = _weekday_kor(year, month, day)
     display_date = f"{year:04d}-{month:02d}-{day:02d}({weekday})"
 
-    # 1차 시도: 정상 헤더 (타임아웃 10초)
+    # 1차 시도: 정상 헤더 (짧은 타임아웃으로 빠르게 실패 처리)
     try:
-        resp = requests.get(final_url, headers=_headers_for(final_url), timeout=10)
+        resp = requests.get(final_url, headers=_headers_for(final_url), timeout=REQUEST_TIMEOUT_SECONDS)
     except requests.RequestException as e:
-        return {"used_url": final_url, "display_date": display_date, "entries": [], "error": f"http_error:{e}"}
+        result = {"used_url": final_url, "display_date": display_date, "entries": [], "error": f"http_error:{e}"}
+        return _store_cached_result(cache_key, result)
 
     # 403이면 UA/Referer 바꿔 재시도 + http 스킴 폴백
     if resp.status_code == 403:
         try:
-            resp = requests.get(final_url, headers=_headers_for(final_url, alt=True), timeout=10)
+            resp = requests.get(final_url, headers=_headers_for(final_url, alt=True), timeout=REQUEST_TIMEOUT_SECONDS)
         except requests.RequestException:
             resp = None
 
         if (resp is None) or (resp.status_code == 403 and final_url.startswith("https://")):
             try:
                 http_url = "http://" + final_url[len("https://"):]
-                resp = requests.get(http_url, headers=_headers_for(http_url, alt=True), timeout=10)
+                resp = requests.get(http_url, headers=_headers_for(http_url, alt=True), timeout=REQUEST_TIMEOUT_SECONDS)
                 final_url = http_url  # 실제 사용 URL 갱신
             except requests.RequestException:
                 pass
 
     # 여전히 200이 아니면 예외를 던지지 않고 빈 결과 반환 (500 방지)
     if resp is None or resp.status_code != 200:
-        return {
+        result = {
             "used_url": final_url,
             "display_date": display_date,
             "entries": [],
             "error": f"http_status:{getattr(resp, 'status_code', 'unknown')}"
         }
+        return _store_cached_result(cache_key, result)
 
     soup = BeautifulSoup(resp.text, "html.parser")
 
@@ -273,7 +314,8 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                                 break
 
         if not day_block:
-            return {"matched": False, "date_id": date_id, "source_url": final_url, "entries": [], "tide": None}
+            result = {"matched": False, "date_id": date_id, "source_url": final_url, "entries": [], "tide": None}
+            return _store_cached_result(cache_key, result)
 
         # extract tide info from .date_info2
         tide = None
@@ -425,7 +467,8 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                 "fish": ship_fish  # 배별 어종
             })
 
-        return {"matched": True, "entries": entries, "date_id": date_id, "source_url": final_url, "tide": tide}
+        result = {"matched": True, "entries": entries, "date_id": date_id, "source_url": final_url, "tide": tide}
+        return _store_cached_result(cache_key, result)
 
         # 일반 게시판 패턴
     else:
@@ -863,13 +906,14 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                 })
 
         # matched True로 반환하되 entries가 비어있을 수 있음
-        return {
+        result = {
             "matched": True,
             "entries": entries,
             "source_url": final_url,
             "raw_html": resp.text[:1000],  # 디버깅용 요약
             "tide": tide
         }
+        return _store_cached_result(cache_key, result)
 
 # 예시: 조회 함수에서 지역 필터링 적용
 def filter_entries_by_region(entries, selected_regions):

@@ -85,3 +85,22 @@ def test_schedule_fleet_accepts_capacity_suffix_for_known_fleet_names(monkeypatc
     assert len(entries) == 1
     assert entries[0]["ship_name"] == "레드헌터"
     assert entries[0]["status"] == "full"
+
+
+def test_check_single_boat_uses_cache_for_repeated_queries(monkeypatch):
+    calls = []
+    html = "<div></div>"
+
+    def fake_get(*args, **kwargs):
+        calls.append((args, kwargs))
+        return DummyResponse(html)
+
+    monkeypatch.setattr(reservation_checker.requests, "get", fake_get)
+    reservation_checker.clear_cache()
+
+    first = reservation_checker.check_single_boat("https://example.com/boat", 2026, 7, 11)
+    second = reservation_checker.check_single_boat("https://example.com/boat", 2026, 7, 11)
+
+    assert first["entries"] == []
+    assert second["entries"] == []
+    assert len(calls) == 1

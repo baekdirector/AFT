@@ -9,6 +9,7 @@ class Boat(db.Model):
     city = db.Column(db.String(100), nullable=False)
     port = db.Column(db.String(100), nullable=False)
     note = db.Column(db.Text, nullable=True)
+    is_shared = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
@@ -23,5 +24,6 @@ class Boat(db.Model):
             'city': self.city,
             'port': self.port,
             'note': self.note,
+            'is_shared': self.is_shared,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
