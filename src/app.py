@@ -1,14 +1,26 @@
 from flask import Flask
 import webbrowser
 import os
+import sys
+
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+if CURRENT_DIR not in sys.path:
+    sys.path.insert(0, CURRENT_DIR)
 
 from db import db
 
 def create_app():
     app = Flask(__name__, static_folder='../img', static_url_path='/img')
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///boats.db'
+    os.makedirs(app.instance_path, exist_ok=True)
+
+    database_url = os.environ.get('DATABASE_URL')
+    if database_url and database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+    sqlite_path = os.path.join(app.instance_path, 'boats.db').replace('\\', '/')
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url or f'sqlite:///{sqlite_path}'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SECRET_KEY'] = 'change_this_in_production'
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'change_this_in_production')
     app.config['DEBUG_LOGGING_ENABLED'] = False
 
     db.init_app(app)
