@@ -223,9 +223,18 @@
     white-space: nowrap;
   }
 
+  #results-table th:nth-child(9),
+  #results-table td:nth-child(9),
+  .weather-col {
+    display: none !important;
+  }
+
+  .fish-col {
+    color: #dc2626 !important;
+  }
+
   /* 남은자리(7번째) / 날씨/물때(9번째) 데이터 칸 중앙 정렬 */
-  #results-table tbody td:nth-child(7),
-  #results-table tbody td:nth-child(9) {
+  #results-table tbody td:nth-child(7) {
     text-align: center;
     vertical-align: middle;
   }
@@ -240,16 +249,18 @@
   
   @media (max-width:768px){
     .results-section { padding:0 8px; }
-    .table-wrapper { padding:12px; border-radius:12px; overflow:visible; }
+    .table-wrapper { padding:10px; border-radius:12px; overflow:visible; }
     #results-table { min-width:0; }
     #results-table thead { display:none; }
     #results-table tr {
-      display:block;
-      margin:14px 0 18px;
+      display:grid;
+      grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
+      column-gap:8px;
+      margin:10px 0 12px;
       border:1px solid #e5e7eb;
       border-radius:14px;
       background:#fff;
-      padding:10px 10px 4px;
+      padding:8px;
       box-shadow:0 2px 6px rgba(0,0,0,0.04);
     }
     #results-table td {
@@ -257,10 +268,12 @@
       align-items:flex-start;
       gap:8px;
       border:0!important;
-      padding:5px 4px;
+      padding:4px 2px;
       position:relative;
       width:100%;
       box-sizing:border-box;
+      grid-column:1 / -1;
+      min-width:0;
     }
     #results-table td:before {
       content:attr(data-label);
@@ -270,8 +283,32 @@
       font-size:13px;
     }
     #results-table td span.status-badge { margin-top:2px; }
-    .status-badge { font-size:12px; padding:4px 12px; }
-    .btn-popup { min-width:100px; padding:8px 10px; font-size:13px; }
+    #results-table td.status-col,
+    #results-table td.available-col,
+    #results-table td:nth-child(7) {
+      grid-column:auto;
+      width:auto;
+      min-width:0;
+      max-width:none;
+      overflow:visible;
+      text-overflow:clip;
+      align-items:center;
+      gap:6px;
+    }
+    #results-table td.status-col:before,
+    #results-table td.available-col:before,
+    #results-table td:nth-child(7):before {
+      flex:0 0 auto;
+      min-width:34px;
+    }
+    .status-badge {
+      font-size:12px;
+      padding:4px 10px;
+      max-width:none;
+      overflow:visible;
+      text-overflow:clip;
+    }
+    .weather-col { display:none !important; }
     /* 빈 결과 행은 라벨/플렉스 제거하여 중앙 정렬 유지 */
     #results-table td.no-results { display:block; text-align:center !important; padding:40px 12px; }
     #results-table td.no-results:before { content:none; }
@@ -289,7 +326,7 @@
   }
 
   #results-table tbody td {
-    padding: 5px;
+    padding: 4px 5px;
     border-bottom: 1px solid #f3f4f6;
     font-size: 14px;
     color: #4b5563;
@@ -336,6 +373,16 @@
   }
 
   /* 팝업 버튼 스타일 */
+  @media (max-width:768px){
+    .status-badge {
+      font-size:12px;
+      padding:4px 10px;
+      max-width:none;
+      overflow:visible;
+      text-overflow:clip;
+    }
+  }
+
   .btn-popup {
     padding: 6px 12px;
     background: #0d9488;
@@ -585,7 +632,7 @@
             <td data-label="지역">{{ entry.city or '-' }}</td>
             <td data-label="항구">{{ entry.port or '-' }}</td>
             <td data-label="등록된 배">{{ entry.registered_name or '-' }}</td>
-            <td data-label="어종">{{ entry.fish or '-' }}</td>
+            <td data-label="어종" class="fish-col">{{ entry.fish or '-' }}</td>
             <td data-label="배 이름" style="font-weight: 600;">{{ entry.ship_name or '-' }} {% if entry.tide %}({{ entry.tide }}){% endif %}</td>
             <td data-label="상태" class="status-col">
               <span class="status-badge {{ 'badge-available' if is_open else 'badge-closed' if is_closed else 'badge-maintenance' }}">
@@ -819,6 +866,7 @@
 
         // 어종
         const tdFish = document.createElement('td');
+        tdFish.className = 'fish-col';
         tdFish.setAttribute('data-label', '어종');
         tdFish.textContent = r.fish || '-';
         tr.appendChild(tdFish);
@@ -832,6 +880,7 @@
 
         // 상태 (badge 스타일 적용)
         const tdStatus = document.createElement('td');
+        tdStatus.className = 'status-col';
         tdStatus.setAttribute('data-label', '상태');
         tdStatus.style.textAlign = 'center';
         const badge = document.createElement('span');
@@ -854,6 +903,7 @@
 
         // 남은자리
         const tdAvail = document.createElement('td');
+        tdAvail.className = 'available-col';
         tdAvail.setAttribute('data-label', '남은자리');
         tdAvail.style.textAlign = 'center';
         tdAvail.textContent = (r.status_class === 'closed') ? '0' : (r.available != null ? String(r.available) : '-');
@@ -877,6 +927,7 @@
 
         // 날씨/물때 팝업
         const tdWeather = document.createElement('td');
+        tdWeather.className = 'weather-col';
         tdWeather.setAttribute('data-label', '날씨/물때');
         tdWeather.style.textAlign = 'center';
         const popupBtn = document.createElement('button');
