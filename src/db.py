@@ -1,5 +1,3 @@
-import os
-
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import inspect, text
 
@@ -19,55 +17,6 @@ def ensure_boat_shared_column():
     db.session.commit()
 
 
-def _load_shared_boats_from_excel():
-    from openpyxl import load_workbook
-
-    excel_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'boat_list.xlsx'))
-    if not os.path.exists(excel_path):
-        return []
-
-    try:
-        workbook = load_workbook(excel_path, data_only=True)
-    except Exception:
-        return []
-
-    worksheet = workbook.active
-    boats = []
-    for row in worksheet.iter_rows(min_row=2, values_only=True):
-        if not row or len(row) < 5:
-            continue
-
-        city = row[1]
-        port = row[2]
-        name = row[3]
-        url = row[4]
-        note = row[5] if len(row) > 5 else None
-
-        if isinstance(city, str):
-            city = city.strip()
-        if isinstance(port, str):
-            port = port.strip()
-        if isinstance(name, str):
-            name = name.strip()
-        if isinstance(url, str):
-            url = url.strip()
-        if isinstance(note, str):
-            note = note.strip()
-
-        if not name or not url:
-            continue
-
-        boats.append({
-            'name': name,
-            'url': url,
-            'city': city,
-            'port': port,
-            'note': note or '초기 공용 데이터',
-        })
-
-    return boats
-
-
 def initialize_shared_boats():
     from models import Boat
 
@@ -78,7 +27,7 @@ def initialize_shared_boats():
         db.session.commit()
         return
 
-    default_boats = _load_shared_boats_from_excel() or [
+    default_boats = [
         {
             'name': '팀만수',
             'url': 'https://teammansu.kr/index.php?mid=bk',
