@@ -48,7 +48,9 @@ def make_icon(size: int, maskable: bool = False):
 
     font_size = int(size * FONT_RATIO)
     font = load_font(font_size)
-    text_w, text_h = draw.textsize(TEXT, font=font)
+    text_bbox = draw.textbbox((0, 0), TEXT, font=font)
+    text_w = text_bbox[2] - text_bbox[0]
+    text_h = text_bbox[3] - text_bbox[1]
     x = (size - text_w) / 2
     y = (size - text_h) / 2 - size * 0.05
 
@@ -56,8 +58,8 @@ def make_icon(size: int, maskable: bool = False):
     draw.text((x+2, y+2), TEXT, font=font, fill=(0,0,0,120))
     draw.text((x, y), TEXT, font=font, fill=TEXT_COLOR)
 
-    suffix = 'maskable-' if maskable else ''
-    out_path = ICON_DIR / f'{suffix}{size}.png'
+    prefix = 'maskable-' if maskable else 'icon-'
+    out_path = ICON_DIR / f'{prefix}{size}.png'
     img.save(out_path, optimize=True)
     print(f'Generated {out_path}')
 
