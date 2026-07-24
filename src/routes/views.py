@@ -84,6 +84,21 @@ def _compute_region_counts(boats):
     region_counts = {region: len(names) for region, names in region_sets.items()}
     return region_counts, sum(region_counts.values())
 
+
+def _get_region_boats(boats):
+    region_boats = {}
+    for boat in boats:
+        city = getattr(boat, 'city', None) or ''
+        if not city:
+            continue
+        region_boats.setdefault(city, []).append({
+            'id': boat.id,
+            'name': boat.name,
+        })
+    for city in region_boats:
+        region_boats[city].sort(key=lambda x: x['name'])
+    return region_boats
+
 @views.route('/register', methods=['GET', 'POST'])
 def register():
     form = BoatRegistrationForm()
@@ -142,10 +157,12 @@ def status():
     # 지역 목록 및 선택값
     region_names = [label for value, label in REGION_CHOICES if value]
     selected_regions = request.args.getlist("regions") or ['전체']
+    selected_boats = request.args.getlist("boats")
 
     # --- added: compute region_counts immediately so status page shows counts on load ---
     registered_boats = get_all_boats()
     region_counts, total_registered = _compute_region_counts(registered_boats)
+    region_boats = _get_region_boats(registered_boats)
     # --- end added ---
 
     # 날짜 미입력 시 조회하지 않고 화면만 렌더링
@@ -159,8 +176,10 @@ def status():
             day=d_arg or "",
             region_names=region_names,
             selected_regions=selected_regions,
+            selected_boats=selected_boats,
             region_counts=region_counts,        # now populated
-            total_registered=total_registered   # now populated
+            total_registered=total_registered,  # now populated
+            region_boats=region_boats,
         )
 
     # 날짜 파싱
@@ -177,8 +196,10 @@ def status():
             day=d_arg or "",
             region_names=region_names,
             selected_regions=selected_regions,
+            selected_boats=selected_boats,
             region_counts={},           # { changed code }
-            total_registered=0          # { changed code }
+            total_registered=0,         # { changed code }
+            region_boats=region_boats,
         )
 
     # 지역 필터링(OR). '전체'만 선택 시 전체 조회
@@ -187,6 +208,11 @@ def status():
     # { changed code } : 선택된 지역에 따라 쿼리 대상 목록 생성
     filter_targets = [r for r in selected_regions if r != '전체']
     boats_to_query = [b for b in registered_boats if b.city in filter_targets] if filter_targets else registered_boats
+
+    # 선택된 배가 있으면 해당 배만 조회
+    if selected_boats:
+        selected_boat_set = set(selected_boats)
+        boats_to_query = [b for b in boats_to_query if b.name in selected_boat_set]
 
     # DEBUG: get_all_boats() 반환값 검사 — 터미널에 출력
     if current_app.config['DEBUG_LOGGING_ENABLED']:
@@ -274,11 +300,13 @@ def status():
                            entries=results_sorted,
                            region_names=region_names,
                            selected_regions=selected_regions,
+                           selected_boats=selected_boats,
                            year=year,
                            month=month,
                            day=day,
                            region_counts=region_counts,
-                           total_registered=total_registered)
+                           total_registered=total_registered,
+                           region_boats=region_boats)
 
 # API endpoint: JSON으로 파싱결과 반환 (클라이언트가 fetch로 호출)
 @views.route('/api/status', methods=['POST'])

@@ -123,6 +123,99 @@
     box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
   }
 
+  /* 배 선택 pill 스타일 (region-filter와 동일) */
+  .boat-filter label {
+    position: relative;
+    cursor: pointer;
+  }
+
+  .boat-filter input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .boat-filter label span {
+    display: inline-block;
+    padding-top: 5px;
+    padding-bottom: 7px;
+    padding-left: 10px;
+    padding-right: 10px;
+    border: 2px solid #e5e7eb;
+    border-radius: 50px;
+    background: white;
+    color: #6b7280;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .boat-filter label:hover span {
+    border-color: #d1d5db;
+    transform: translateY(-1px);
+  }
+
+  .boat-filter input[type="checkbox"]:checked + span {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: white;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  }
+
+  .boat-filter-section {
+    margin-bottom: 20px;
+  }
+
+  .boat-filter-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .boat-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    background: white;
+    color: #374151;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .boat-toggle-btn:hover {
+    border-color: #3b82f6;
+    color: #3b82f6;
+  }
+
+  .boat-toggle-btn[aria-expanded="true"] {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #3b82f6;
+  }
+
+  .boat-filter {
+    display: none;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .boat-filter.is-open {
+    display: flex;
+  }
+
+  .boat-selected-summary {
+    font-size: 13px;
+    color: #6b7280;
+  }
+
   .status-open { color:#ff0000; font-weight:700; }
   .status-closed { color:#000000; font-weight:700; }
 
@@ -545,6 +638,16 @@
       {% endfor %}
     </div>
 
+    <!-- 배 선택 섹션 -->
+    <div class="boat-filter-section">
+      <div class="boat-filter-header">
+        <label style="font-size: 14px; font-weight: 600; color: #374151;">배 선택</label>
+        <span id="boat-selected-count" class="boat-selected-summary"></span>
+        <button type="button" id="boat-toggle-btn" class="boat-toggle-btn" aria-expanded="false" aria-label="배 목록 펼치기">▼</button>
+      </div>
+      <div id="boat-filter" class="boat-filter"></div>
+    </div>
+
     <!-- 날짜 입력: Flatpickr 단일 컴포넌트 (간격 축소) -->
     <div class="date-row">
       <div class="date-col">
@@ -701,14 +804,104 @@
     if(allBox){
       allBox.addEventListener('change', function(){
         if(allBox.checked){ regionBoxes.forEach(cb => cb.checked = false); }
+        updateBoatList();
       });
       regionBoxes.forEach(cb => {
         cb.addEventListener('change', function(){
           if(cb.checked) allBox.checked = false;
           if(!regionBoxes.some(b => b.checked)) allBox.checked = true; // 모두 해제 시 '전체' 자동 선택
+          updateBoatList();
         });
       });
     }
+
+    // ====== 배 선택 필터 ======
+    const regionBoatsData = {{ region_boats | tojson }};
+    const initialSelectedBoats = {{ selected_boats | tojson }};
+    const boatFilterEl = document.getElementById('boat-filter');
+    const boatToggleBtn = document.getElementById('boat-toggle-btn');
+    const boatSelectedCountEl = document.getElementById('boat-selected-count');
+
+    function getSelectedRegions() {
+      const allChecked = allBox && allBox.checked;
+      if (allChecked) return Object.keys(regionBoatsData);
+      return regionBoxes.filter(cb => cb.checked).map(cb => cb.value);
+    }
+
+    function updateBoatCount() {
+      if (!boatFilterEl || !boatSelectedCountEl) return;
+      const total = boatFilterEl.querySelectorAll('input[name="boats"]').length;
+      const checked = boatFilterEl.querySelectorAll('input[name="boats"]:checked').length;
+      if (total === 0) {
+        boatSelectedCountEl.textContent = '지역을 선택하세요';
+      } else {
+        boatSelectedCountEl.textContent = `선택 ${checked} / ${total}척`;
+      }
+    }
+
+    function updateBoatList() {
+      if (!boatFilterEl) return;
+
+      const regions = getSelectedRegions();
+      const prevChecked = new Set(
+        Array.from(boatFilterEl.querySelectorAll('input[name="boats"]:checked')).map(cb => cb.value)
+      );
+      const hasInitial = initialSelectedBoats && initialSelectedBoats.length > 0;
+      const useInitial = hasInitial && !window._boatListInitialized;
+
+      const boats = [];
+      const seen = new Set();
+      regions.forEach(region => {
+        (regionBoatsData[region] || []).forEach(boat => {
+          if (!seen.has(boat.name)) {
+            seen.add(boat.name);
+            boats.push(boat);
+          }
+        });
+      });
+      boats.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+
+      boatFilterEl.innerHTML = '';
+      boats.forEach(boat => {
+        const label = document.createElement('label');
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.name = 'boats';
+        input.value = boat.name;
+
+        let shouldCheck = false;
+        if (useInitial) {
+          shouldCheck = initialSelectedBoats.includes(boat.name);
+        } else if (prevChecked.size > 0) {
+          shouldCheck = prevChecked.has(boat.name);
+        } else {
+          shouldCheck = true;
+        }
+        input.checked = shouldCheck;
+
+        const span = document.createElement('span');
+        span.textContent = boat.name;
+        label.appendChild(input);
+        label.appendChild(span);
+        input.addEventListener('change', updateBoatCount);
+        boatFilterEl.appendChild(label);
+      });
+
+      window._boatListInitialized = true;
+      updateBoatCount();
+    }
+
+    if (boatToggleBtn && boatFilterEl) {
+      boatToggleBtn.addEventListener('click', function() {
+        const isOpen = boatFilterEl.classList.toggle('is-open');
+        boatToggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        boatToggleBtn.textContent = isOpen ? '▲' : '▼';
+        boatToggleBtn.setAttribute('aria-label', isOpen ? '배 목록 접기' : '배 목록 펼치기');
+      });
+    }
+
+    updateBoatList();
+    // ====== 배 선택 필터 끝 ======
 
     // 폼 제출 시 스피너 표시
     const form = document.getElementById('status-form');
