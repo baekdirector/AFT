@@ -1,2 +1,3 @@
 -r src/requirements.txt
 gunicorn
+psycopg2-binary
