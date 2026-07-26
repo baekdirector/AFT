@@ -173,8 +173,8 @@ def _clean_ship_name(name: str) -> str:
     name = re.sub(r'\(\s*\d+\s*인승\s*\)', '', name).strip()
     return name
 
-def _is_valid_ship_name(name: str) -> bool:
-    """배 이름이 유효한지 검증: '호'를 포함하거나 예외 목록에 있어야 함"""
+def _is_valid_ship_name(name: str, extra_valid_names: set | None = None) -> bool:
+    """배 이름이 유효한지 검증: '호'를 포함하거나 예외 목록에 있거나, 실제 등록된 배 이름이면 인정"""
     if not name:
         return False
     name = _clean_ship_name(name)
@@ -184,7 +184,9 @@ def _is_valid_ship_name(name: str) -> bool:
     # 예외 목록에 있으면 배로 인정
     if name in VALID_SHIP_NAMES:
         return True
-    return False
+    # 실제 DB에 등록된 배 이름이면 인정 (신규 등록 배가 필터에 걸리지 않도록)
+    if extra_valid_names and name in extra_valid_names:
+        return True
 
 def build_query_url(base_url: str, year: int, month: int, day: int) -> str:
     """
@@ -243,7 +245,7 @@ def _parse_tide_from_text(text: str) -> str | None:
     m = re.search(r'(\d+)\s*물', text)
     return f"{m.group(1)}물" if m else None
 
-def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enabled: bool = False) -> Dict:
+def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enabled: bool = False, known_ship_name: str | None = None) -> Dict:
     cache_key = (str(boat_url or ""), int(year), int(month), int(day))
     cached_result = _get_cached_result(cache_key)
     if cached_result is not None:
@@ -453,7 +455,7 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
             ship_name = _clean_ship_name(ship_name)
 
             # 유효한 배 이름인지 검증
-            if not _is_valid_ship_name(ship_name):
+            if not _is_valid_ship_name(ship_name, {known_ship_name} if known_ship_name else None):
                 continue
             
             entries.append({
@@ -737,7 +739,7 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                     print("DEBUG_BOARD_ENTRY:", ship_name, status_type, available, display_status, ship_fish)
 
             # 유효한 배 이름인지 검증
-            if not _is_valid_ship_name(ship_name):
+            if not _is_valid_ship_name(ship_name, {known_ship_name} if known_ship_name else None):
                 continue
 
             # 배 이름 정리 (예약하기 등 제거)
@@ -891,7 +893,7 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                 ship_name = _clean_ship_name(ship_name)
 
                 # 유효한 배 이름인지 검증
-                if not _is_valid_ship_name(ship_name):
+                if not _is_valid_ship_name(ship_name, {known_ship_name} if known_ship_name else None):
                     continue
 
                 fish_local = local_fish or _fish_from_notice_before(tr) or fish or None

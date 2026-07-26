@@ -69,7 +69,7 @@ city_port_mapping = {
     '보령': ['오천항', '구매항', '대천항', '무창포항', '남당항', '홍원항'],
     '군산': ['비응항', '야미도항'],
     '격포': ['격포항'],
-    '여수': ['돌산항', '국동항', '소호항', '신추항', '종포항'],
+    '여수': ['돌산항', '국동항', '소호항', '신추항', '종포항', '신월항', '돌산나루터'],
     '고흥': ['녹동방파제']
 }
 
@@ -244,7 +244,7 @@ def status():
         boat_name = getattr(boat, "name", None) or getattr(boat, "registered_name", "unknown")
         boat_url = getattr(boat, "url", "")
         try:
-            check = check_single_boat(boat_url, year, month, day, debug_enabled=debug_enabled)
+            check = check_single_boat(boat_url, year, month, day, debug_enabled=debug_enabled, known_ship_name=boat_name)
             check_source = check.get("source_url") or boat_url or ""
             
             boat_results = []
@@ -266,13 +266,46 @@ def status():
                      "row_html": e.get("row_html"),
                      "tide": check.get("tide"),
                 })
+
+            # 결과가 하나도 없으면(스크래핑 실패/미매칭) "알 수 없음" 상태로 배 자체는 표시
+            if not boat_results:
+                boat_results.append({
+                     "registered_name": boat_name,
+                     "city": getattr(boat, "city", ""),
+                     "port": getattr(boat, "port", ""),
+                     "ship_name": boat_name,
+                     "status": "unknown",
+                     "available": None,
+                     "display_status": "알 수 없음",
+                     "raw_status_text": "",
+                     "url": check_source or boat_url,
+                     "url_path": check_source or boat_url,
+                     "fish": None,
+                     "row_html": "",
+                     "tide": check.get("tide"),
+                })
+
             return boat_results
         except Exception as e:
             if debug_enabled:
                 import traceback
                 print(f"Error processing boat {boat_name}: {e}")
                 print(traceback.format_exc())
-            return []
+            return [{
+                "registered_name": boat_name,
+                "city": getattr(boat, "city", ""),
+                "port": getattr(boat, "port", ""),
+                "ship_name": boat_name,
+                "status": "unknown",
+                "available": None,
+                "display_status": "알 수 없음",
+                "raw_status_text": f"조회 오류: {e}",
+                "url": boat_url,
+                "url_path": boat_url,
+                "fish": None,
+                "row_html": "",
+                "tide": None,
+            }]
     
     # ThreadPoolExecutor로 병렬 처리 (동시 요청 수를 줄여 리소스 부담과 타임아웃 리스크를 낮춤)
     max_workers = min(6, len(boats_to_query)) if boats_to_query else 1
@@ -414,7 +447,7 @@ def get_city_port_mapping():
         '보령': ['오천항', '구매항', '대천항', '무창포항', '남당항', '홍원항'],
         '군산': ['비응항', '야미도항'],
         '격포': ['격포항'],
-        '여수': ['돌산항', '국동항', '소호항', '신추항', '종포항'],
+        '여수': ['돌산항', '국동항', '소호항', '신추항', '종포항', '신월항', '돌산나루터'],
         '고흥': ['녹동방파제']
     }
 
