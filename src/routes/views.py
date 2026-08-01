@@ -710,8 +710,8 @@ def api_tide_graph():
 @views.route('/map')
 def map_page():
     """지도 페이지 - 항구별 등록된 배 표시"""
-    port_coordinates = get_port_coordinates()
-    city_port_mapping = get_city_port_mapping()
+    port_coordinates = PORT_COORDINATES
+    city_port_mapping = CITY_PORT_MAPPING
 
     boats = get_all_boats()
     boat_counts = {}

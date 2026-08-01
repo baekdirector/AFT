@@ -215,8 +215,7 @@
   <!-- Sea-themed full-width banner with left-aligned content and right-aligned buttons -->
   <div class="site-top" role="banner" aria-label="AFT system banner">
     <div class="inner">
-      <a href="{{ url_for('views.index') }}" style="text-decoration: none; color: inherit;">
-        <div class="title">
+      <a href="{{ url_for('views.index') }}" class="title" aria-label="홈으로 이동">
           <div class="logo" aria-hidden="true">
             <!-- 새로운 ship icon -->
             <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ship size-8 text-white" aria-hidden="true">
@@ -231,7 +230,6 @@
             <div class="text">AFT 배 자리 있냐??</div>
             <div class="subtitle">원하는 배 자리 있는지 빨리 확인해 보자~~~</div>
           </div>
-        </div>
       </a>
 
       <!-- quick action buttons on the right -->
