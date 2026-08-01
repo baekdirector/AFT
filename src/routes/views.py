@@ -1,6 +1,6 @@
 import io
 import openpyxl
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, Response
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, Response, stream_with_context
 from flask import send_from_directory
 from forms import BoatRegistrationForm, StatusCheckForm, BoatEditForm
 from db import add_boat_instance, get_all_boats, delete_boat, get_boat_by_id, update_boat
@@ -8,6 +8,7 @@ from services.reservation_checker import check_single_boat
 from forms import REGION_CHOICES
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
+import json
 
 views = Blueprint('views', __name__, template_folder='templates')
 
@@ -150,9 +151,12 @@ def status():
     y_arg = request.args.get("year")
     m_arg = request.args.get("month")
     d_arg = request.args.get("day")
-    if y_arg: form.year.data = int(y_arg)
-    if m_arg: form.month.data = int(m_arg)
-    if d_arg: form.day.data = int(d_arg)
+    for field_name, value in (('year', y_arg), ('month', m_arg), ('day', d_arg)):
+        if value:
+            try:
+                getattr(form, field_name).data = int(value)
+            except (TypeError, ValueError):
+                pass
 
     # 지역 목록 및 선택값
     region_names = [label for value, label in REGION_CHOICES if value]
@@ -202,135 +206,11 @@ def status():
             region_boats=region_boats,
         )
 
-    # 지역 필터링(OR). '전체'만 선택 시 전체 조회
-    registered_boats = get_all_boats()
-
-    # { changed code } : 선택된 지역에 따라 쿼리 대상 목록 생성
-    filter_targets = [r for r in selected_regions if r != '전체']
-    boats_to_query = [b for b in registered_boats if b.city in filter_targets] if filter_targets else registered_boats
-
-    # 선택된 배가 있으면 해당 배만 조회
-    if selected_boats:
-        selected_boat_set = set(selected_boats)
-        boats_to_query = [b for b in boats_to_query if b.name in selected_boat_set]
-
-    # DEBUG: get_all_boats() 반환값 검사 — 터미널에 출력
-    if current_app.config['DEBUG_LOGGING_ENABLED']:
-        print("DEBUG: get_all_boats() returned", len(registered_boats), "boats")
-        for i, b in enumerate(registered_boats, start=1):
-            try:
-                info = {
-                    'repr': repr(b),
-                    'type': type(b).__name__,
-                    'id': getattr(b, 'id', None),
-                    'name': getattr(b, 'name', None),
-                    'registered_name': getattr(b, 'registered_name', None),
-                    'city': getattr(b, 'city', None),
-                    'port': getattr(b, 'port', None),
-                    'url': getattr(b, 'url', None),
-                }
-            except Exception as exc:
-                info = {'error': str(exc), 'repr': repr(b)}
-            print(f"DEBUG boat[{i}]:", info)
-
-    # 조회 실행 - 병렬 처리로 속도 개선
-    results = []
-    
-    # Flask application context를 스레드에서 사용하기 위해 미리 저장
-    debug_enabled = current_app.config.get('DEBUG_LOGGING_ENABLED', False)
-    
-    # 병렬 처리 함수 정의
-    def process_boat(boat):
-        boat_name = getattr(boat, "name", None) or getattr(boat, "registered_name", "unknown")
-        boat_url = getattr(boat, "url", "")
-        try:
-            check = check_single_boat(boat_url, year, month, day, debug_enabled=debug_enabled, known_ship_name=boat_name)
-            check_source = check.get("source_url") or boat_url or ""
-            
-            boat_results = []
-            for e in check.get("entries", []):
-                full_url = (e.get("used_url") or e.get("source_url") or e.get("url") or check_source or boat_url) or ""
-                url_path = e.get("used_url_path") or e.get("url_path") or full_url
-                boat_results.append({
-                     "registered_name": boat_name,
-                     "city": getattr(boat, "city", ""),
-                     "port": getattr(boat, "port", ""),
-                     "ship_name": e.get("ship_name"),
-                     "status": e.get("status"),
-                     "available": e.get("available"),
-                     "display_status": e.get("display_status"),
-                     "raw_status_text": e.get("raw_status_text"),
-                     "url": full_url,
-                     "url_path": url_path,
-                     "fish": e.get("fish"),
-                     "row_html": e.get("row_html"),
-                     "tide": check.get("tide"),
-                })
-
-            # 결과가 하나도 없으면(스크래핑 실패/미매칭) "알 수 없음" 상태로 배 자체는 표시
-            if not boat_results:
-                boat_results.append({
-                     "registered_name": boat_name,
-                     "city": getattr(boat, "city", ""),
-                     "port": getattr(boat, "port", ""),
-                     "ship_name": boat_name,
-                     "status": "unknown",
-                     "available": None,
-                     "display_status": "알 수 없음",
-                     "raw_status_text": "",
-                     "url": check_source or boat_url,
-                     "url_path": check_source or boat_url,
-                     "fish": None,
-                     "row_html": "",
-                     "tide": check.get("tide"),
-                })
-
-            return boat_results
-        except Exception as e:
-            if debug_enabled:
-                import traceback
-                print(f"Error processing boat {boat_name}: {e}")
-                print(traceback.format_exc())
-            return [{
-                "registered_name": boat_name,
-                "city": getattr(boat, "city", ""),
-                "port": getattr(boat, "port", ""),
-                "ship_name": boat_name,
-                "status": "unknown",
-                "available": None,
-                "display_status": "알 수 없음",
-                "raw_status_text": f"조회 오류: {e}",
-                "url": boat_url,
-                "url_path": boat_url,
-                "fish": None,
-                "row_html": "",
-                "tide": None,
-            }]
-    
-    # ThreadPoolExecutor로 병렬 처리 (동시 요청 수를 줄여 리소스 부담과 타임아웃 리스크를 낮춤)
-    max_workers = min(6, len(boats_to_query)) if boats_to_query else 1
-    
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_boat = {executor.submit(process_boat, boat): boat for boat in boats_to_query}
-        for future in as_completed(future_to_boat):
-            try:
-                boat_results = future.result()
-                results.extend(boat_results)
-            except Exception as e:
-                if debug_enabled:
-                    import traceback
-                    print(f"Error getting future result: {e}")
-                    print(traceback.format_exc())
-
-    # { changed code } : 등록된 배 목록(registered_boats)에서 지역별 등록 수 계산
-    region_counts, total_registered = _compute_region_counts(registered_boats)
-
-    # 예약가능 상태 배를 먼저 보여주도록 정렬
-    results_sorted = sorted(results, key=lambda x: x.get('status') != 'open')
-    # 템플릿에는 실제 보여줄 결과 리스트(results)를 전달
+    # 외부 사이트 조회는 브라우저가 호출하는 스트리밍 API에서 수행한다.
+    # 이 라우트가 외부 응답을 기다리지 않으므로 등록 선박 수와 무관하게 즉시 화면을 표시한다.
     return render_template('status.html',
                            form=form,
-                           entries=results_sorted,
+                           entries=[],
                            region_names=region_names,
                            selected_regions=selected_regions,
                            selected_boats=selected_boats,
@@ -341,10 +221,10 @@ def status():
                            total_registered=total_registered,
                            region_boats=region_boats)
 
-# API endpoint: JSON으로 파싱결과 반환 (클라이언트가 fetch로 호출)
+# API endpoint: 선박별 결과를 NDJSON으로 스트리밍
 @views.route('/api/status', methods=['POST'])
 def api_status():
-    data = request.get_json() or request.form
+    data = request.get_json(silent=True) or request.form
     try:
         year = int(data.get('year'))
         month = int(data.get('month'))
@@ -352,46 +232,48 @@ def api_status():
     except Exception:
         return jsonify({"error": "invalid date"}), 400
 
-    boats = get_all_boats()
-    out = []
-    for b in boats:
-        info = check_single_boat(b.url, year, month, day, debug_enabled=current_app.config['DEBUG_LOGGING_ENABLED'])
-        entries_out = []
-        source_url = info.get("source_url") or b.url
-        for entry in info.get("entries", []):
-            # API 응답에서도 동일한 우선순위와 전체 URL 텍스트 전달
-            full_url = (entry.get("used_url") or entry.get("source_url") or entry.get("url") or source_url or "") or ""
-            url_path = entry.get("used_url_path") or entry.get("url_path") or full_url
-            entries_out.append({
-                "ship_name": entry.get("ship_name"),
-                "status": entry.get("status"),
-                "available": entry.get("available"),
-                "raw_status_text": entry.get("raw_status_text"),
-                "row_html": entry.get("row_html"),
-                "source_url": full_url,
-                "url_path": url_path,
-                "fish": entry.get("fish")
-            })
-        if not entries_out:
-            entries_out.append({
-                "ship_name": None,
-                "status": "unknown",
-                "available": None,
-                "raw_status_text": "",
-                "row_html": "",
-                "source_url": source_url
-            })
+    registered_boats = get_all_boats()
+    filter_targets = [region for region in request.form.getlist('regions') if region != '전체']
+    boats = [boat for boat in registered_boats if boat.city in filter_targets] if filter_targets else registered_boats
+    selected_boats = set(request.form.getlist('boats'))
+    if selected_boats:
+        boats = [boat for boat in boats if boat.name in selected_boats]
+    debug_enabled = current_app.config.get('DEBUG_LOGGING_ENABLED', False)
 
-        out.append({
-            "registered_name": b.name,
-            "city": b.city,
-            "port": b.port,
-            "query_date": f"{int(year):04d}-{int(month):02d}-{int(day):02d}",
-            "date_id": info.get("date_id"),
-            "tide": info.get("tide"),   # 추가: 물때 정보
-            "entries": entries_out
-        })
-    return jsonify(out)
+    def process_boat(boat):
+        boat_name = getattr(boat, 'name', None) or 'unknown'
+        try:
+            info = check_single_boat(boat.url, year, month, day, debug_enabled=debug_enabled, known_ship_name=boat_name)
+            source_url = info.get('source_url') or boat.url
+            entries = [{
+                'ship_name': entry.get('ship_name'),
+                'status': entry.get('status'),
+                'available': entry.get('available'),
+                'raw_status_text': entry.get('raw_status_text'),
+                'source_url': entry.get('used_url') or entry.get('source_url') or entry.get('url') or source_url,
+                'url_path': entry.get('used_url_path') or entry.get('url_path') or source_url,
+                'fish': entry.get('fish'),
+            } for entry in info.get('entries', [])]
+            if not entries:
+                entries = [{'ship_name': boat_name, 'status': 'unknown', 'available': None,
+                            'raw_status_text': '', 'source_url': source_url, 'url_path': source_url, 'fish': None}]
+            return {'registered_name': boat_name, 'city': boat.city, 'port': boat.port,
+                    'query_date': f'{year:04d}-{month:02d}-{day:02d}', 'tide': info.get('tide'),
+                    'entries': entries}
+        except Exception as exc:
+            return {'registered_name': boat_name, 'city': getattr(boat, 'city', ''),
+                    'port': getattr(boat, 'port', ''), 'query_date': f'{year:04d}-{month:02d}-{day:02d}',
+                    'tide': None, 'entries': [{'ship_name': boat_name, 'status': 'unknown',
+                    'available': None, 'raw_status_text': f'조회 오류: {exc}',
+                    'source_url': boat.url, 'url_path': boat.url, 'fish': None}]}
+
+    def stream_results():
+        with ThreadPoolExecutor(max_workers=min(6, len(boats)) or 1) as executor:
+            futures = [executor.submit(process_boat, boat) for boat in boats]
+            for future in as_completed(futures):
+                yield json.dumps(future.result(), ensure_ascii=False) + '\n'
+
+    return Response(stream_with_context(stream_results()), mimetype='application/x-ndjson')
 
 @views.route('/weather')
 def weather():

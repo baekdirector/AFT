@@ -903,11 +903,60 @@
     updateBoatList();
     // ====== 배 선택 필터 끝 ======
 
-    // 폼 제출 시 스피너 표시
+    async function loadStatusResults() {
+      const params = new URLSearchParams(new FormData(form));
+      const streamedRows = [];
+      tbody.innerHTML = '';
+      try {
+        const response = await fetch('{{ url_for("views.api_status") }}', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: params
+        });
+        if (!response.ok || !response.body) throw new Error('예약 조회 API 오류: ' + response.status);
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const {value, done} = await reader.read();
+          buffer += decoder.decode(value || new Uint8Array(), {stream: !done});
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            const result = JSON.parse(line);
+            for (const entry of (result.entries || [])) {
+              streamedRows.push({
+                city: result.city || '', port: result.port || '',
+                registered_name: result.registered_name || '',
+                fish: entry.fish || '', ship_name: entry.ship_name || result.registered_name || '',
+                status_text: entry.raw_status_text || entry.status || '알 수 없음',
+                status_class: entry.status === 'full' || entry.status === 'reserved' ? 'closed' : (entry.status || 'unknown'),
+                available: entry.available, url: entry.source_url || '', url_path: entry.url_path || ''
+              });
+            }
+            renderRows(streamedRows);
+          }
+          if (done) break;
+        }
+        if (buffer.trim()) renderRows(streamedRows);
+      } catch (error) {
+        console.error(error);
+        tbody.innerHTML = '<tr><td class="no-results" colspan="9" style="text-align:center;color:#9ca3af;">예약 조회 중 오류가 발생했습니다.</td></tr>';
+      } finally {
+        overlay.style.display = 'none';
+        const btn = form.querySelector('button[type="submit"], #searchBtn');
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    // 폼 제출 시 페이지 이동 없이 선박별 결과를 순차적으로 표시
     const form = document.getElementById('status-form');
     const overlay = document.getElementById('loading-overlay');
     if(form && overlay){
       form.addEventListener('submit', function(e){
+        e.preventDefault();
         // 선택된 날짜를 year/month/day hidden 필드로 분해
         const di = document.getElementById('date');
         const val = di && di.value ? di.value : '';
@@ -923,6 +972,7 @@
         overlay.style.display = 'flex';
         const btn = form.querySelector('button[type="submit"], #searchBtn');
         if(btn){ btn.disabled = true; }
+        loadStatusResults();
       });
     }
 
@@ -1180,6 +1230,10 @@
     }
 
     sortBtns.forEach(b => b.addEventListener('click', handleSortClick));
+    if (document.getElementById('year')?.value && document.getElementById('month')?.value && document.getElementById('day')?.value) {
+      overlay.style.display = 'flex';
+      loadStatusResults();
+    }
     // ====== 정렬 로직 끝 ======
   });
 
