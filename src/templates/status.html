@@ -730,7 +730,7 @@
           {% set is_closed = (entry.status in ['full','reserved']) %}
           {% set show_status =
               '예약가능' if is_open
-              else ('예약마감' if is_closed else ('점검일' if entry.status == 'maintenance' else (entry.display_status or entry.status or '알 수 없음'))) %}
+              else ('예약마감' if is_closed else ('점검일' if entry.status == 'maintenance' else (entry.display_status or ('알 수 없음' if entry.status == 'unknown' else entry.status) or '알 수 없음'))) %}
           <tr>
             <td data-label="지역">{{ entry.city or '-' }}</td>
             <td data-label="항구">{{ entry.port or '-' }}</td>
@@ -931,7 +931,7 @@
                 city: result.city || '', port: result.port || '',
                 registered_name: result.registered_name || '',
                 fish: entry.fish || '', ship_name: entry.ship_name || result.registered_name || '',
-                status_text: entry.raw_status_text || entry.status || '알 수 없음',
+                status_text: entry.raw_status_text || (entry.status === 'unknown' ? '알 수 없음' : entry.status) || '알 수 없음',
                 status_class: entry.status === 'full' || entry.status === 'reserved' ? 'closed' : (entry.status || 'unknown'),
                 available: entry.available, url: entry.source_url || '', url_path: entry.url_path || ''
               });
@@ -941,6 +941,9 @@
           if (done) break;
         }
         if (buffer.trim()) renderRows(streamedRows);
+        // 모든 선박 조회가 끝난 뒤 예약가능(open) 선박을 최상단에 배치한다.
+        sortRows(streamedRows, 'status', 'asc');
+        renderRows(streamedRows);
       } catch (error) {
         console.error(error);
         tbody.innerHTML = '<tr><td class="no-results" colspan="9" style="text-align:center;color:#9ca3af;">예약 조회 중 오류가 발생했습니다.</td></tr>';
@@ -1139,7 +1142,7 @@
           badge.classList.add('badge-maintenance');
           badge.textContent = '점검일';
         } else {
-          badge.textContent = r.status_text || '-';
+          badge.textContent = r.status_class === 'unknown' ? '알 수 없음' : (r.status_text || '알 수 없음');
         }
         tdStatus.appendChild(badge);
         tr.appendChild(tdStatus);
