@@ -41,8 +41,10 @@ class StatusPageService:
     
     @staticmethod
     def get_region_names() -> List[str]:
-        """지역 목록 추출"""
-        return [label for value, label in REGION_CHOICES if value]
+        """예약현황 화면의 지역 목록을 업무 순서로 반환"""
+        preferred_order = ['인천', '안산', '화성', '평택', '당진', '서산', '태안', '보령', '군산', '격포', '여수', '고흥']
+        available_regions = {label for value, label in REGION_CHOICES if value}
+        return [region for region in preferred_order if region in available_regions]
     
     @staticmethod
     def get_selected_regions(request) -> List[str]:
