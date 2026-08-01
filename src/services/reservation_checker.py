@@ -3,22 +3,11 @@ from threading import Lock
 from time import time
 from typing import Dict, List
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+from config import FISH_KEYWORDS, VALID_SHIP_NAMES
 import requests
 import re
 import datetime
 import json
-
-# 어종 키워드 (필요시 확장)
-FISH_KEYWORDS = [
-    '주꾸미', '쭈꾸미', '문어', '갑오징어', '우럭', '광어', '낙지', '백조기', '민어',
-    '삼치', '쭈갑', '참돔', '갈치', '다운샷', '생미끼', '돌문어', '피문어', '외수질',
-    '광어다운샷','한치'
-]
-
-# 유효한 배 이름 예외 목록 ("~호"가 없어도 배로 인정)
-VALID_SHIP_NAMES = [
-    '팀만수', '힐링피싱', '라온피싱', '레드헌터', '레드히어로', '레드썬', '레드퀸', '골드피싱'
-]
 
 REQUEST_TIMEOUT_SECONDS = 3
 _CACHE_TTL_SECONDS = 300

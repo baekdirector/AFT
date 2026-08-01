@@ -839,20 +839,21 @@
       }
     }
 
+    let prevRegionBoats = new Set();  // 이전 지역들의 배 세트
+
     function updateBoatList() {
       if (!boatFilterEl) return;
 
       const regions = getSelectedRegions();
-      const prevChecked = new Set(
-        Array.from(boatFilterEl.querySelectorAll('input[name="boats"]:checked')).map(cb => cb.value)
-      );
-      const hasInitial = initialSelectedBoats && initialSelectedBoats.length > 0;
-      const useInitial = hasInitial && !window._boatListInitialized;
-
+      
+      // 현재 선택된 지역들의 배 세트 구성
+      const currentRegionBoats = new Set();
       const boats = [];
       const seen = new Set();
+      
       regions.forEach(region => {
         (regionBoatsData[region] || []).forEach(boat => {
+          currentRegionBoats.add(boat.name);
           if (!seen.has(boat.name)) {
             seen.add(boat.name);
             boats.push(boat);
@@ -860,6 +861,14 @@
         });
       });
       boats.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+
+      // 이전에 선택된 배들
+      const prevChecked = new Set(
+        Array.from(boatFilterEl.querySelectorAll('input[name="boats"]:checked')).map(cb => cb.value)
+      );
+      
+      const hasInitial = initialSelectedBoats && initialSelectedBoats.length > 0;
+      const useInitial = hasInitial && !window._boatListInitialized;
 
       boatFilterEl.innerHTML = '';
       boats.forEach(boat => {
@@ -871,11 +880,16 @@
 
         let shouldCheck = false;
         if (useInitial) {
+          // 첫 초기화: 초기 선택된 배들만 선택
           shouldCheck = initialSelectedBoats.includes(boat.name);
-        } else if (prevChecked.size > 0) {
-          shouldCheck = prevChecked.has(boat.name);
         } else {
-          shouldCheck = true;
+          // 지역 변경 시 로직:
+          // 1. 새로 추가된 배: 자동 선택
+          const isNewBoat = !prevRegionBoats.has(boat.name);
+          // 2. 이전에 선택되었던 배이고 현재도 같은 지역에 속함: 유지
+          const isPrevCheckedAndStillInRegion = prevChecked.has(boat.name) && prevRegionBoats.has(boat.name);
+          
+          shouldCheck = isNewBoat || isPrevCheckedAndStillInRegion;
         }
         input.checked = shouldCheck;
 
@@ -887,6 +901,9 @@
         boatFilterEl.appendChild(label);
       });
 
+      // 현재 지역의 배 세트를 다음 업데이트를 위해 저장
+      prevRegionBoats = new Set(currentRegionBoats);
+      
       window._boatListInitialized = true;
       updateBoatCount();
     }

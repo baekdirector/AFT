@@ -1,23 +1,10 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, IntegerField, SubmitField, SelectField, HiddenField, TextAreaField
 from wtforms.validators import DataRequired, URL, NumberRange, Optional
+from config import CITY_PORT_MAPPING
 
 # 지역 공용 정의 (등록/수정/조회 모두에서 활용)
-REGION_CHOICES = [
-    ('', '지역을 선택하세요'),
-    ('인천', '인천'),
-    ('안산', '안산'),
-    ('화성', '화성'),
-    ('평택', '평택'),
-    ('당진', '당진'),
-    ('서산', '서산'),
-    ('태안', '태안'),
-    ('보령', '보령'),
-    ('군산', '군산'),
-    ('격포', '격포'),
-    ('여수', '여수'),
-    ('고흥', '고흥'),
-]
+REGION_CHOICES = [('', '지역을 선택하세요')] + [(city, city) for city in sorted(CITY_PORT_MAPPING.keys())]
 
 class BoatRegistrationForm(FlaskForm):
     name = StringField('배 이름', validators=[DataRequired()])

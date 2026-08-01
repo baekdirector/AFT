@@ -1,4 +1,5 @@
 import io
+import os
 import openpyxl
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, Response, stream_with_context
 from flask import send_from_directory
@@ -6,9 +7,13 @@ from forms import BoatRegistrationForm, StatusCheckForm, BoatEditForm
 from db import add_boat_instance, get_all_boats, delete_boat, get_boat_by_id, update_boat
 from services.reservation_checker import check_single_boat
 from forms import REGION_CHOICES
+from config import CITY_PORT_MAPPING, PORT_COORDINATES, BADA_PORT_IDS
+from services.api_response import success_response, error_response, validation_error_response
+from services.status_service import StatusPageService
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 import json
+import requests
 
 views = Blueprint('views', __name__, template_folder='templates')
 
@@ -26,7 +31,7 @@ def index():
         boats=boats,
         boats_json=boats_dict,
         form=form,
-        city_port_map=city_port_mapping
+        city_port_map=CITY_PORT_MAPPING
     )
 
 @views.route('/download_excel')
@@ -59,22 +64,26 @@ def download_excel():
         headers={"Content-Disposition": "attachment;filename=boat_list.xlsx"}
     )
 
-city_port_mapping = {
-    '인천': ['남항(인천항)', '연안부두', '영흥항'],
-    '안산': ['오이도항'],
-    '화성': ['전곡항'],
-    '평택': ['평택항'],
-    '당진': ['장고항'],
-    '서산': ['삼길포항'],
-    '태안': ['마검포항', '모항항', '영목항', '신진도항'],
-    '보령': ['오천항', '구매항', '대천항', '무창포항', '남당항', '홍원항'],
-    '군산': ['비응항', '야미도항'],
-    '격포': ['격포항'],
-    '여수': ['돌산항', '국동항', '소호항', '신추항', '종포항', '신월항', '돌산나루터'],
-    '고흥': ['녹동방파제']
-}
+@views.route('/register', methods=['GET', 'POST'])
+def register():
+    form = BoatRegistrationForm()
+    if request.method == 'POST':
+        city = request.form.get('city')
+        if city in CITY_PORT_MAPPING:
+            form.port.choices = [(port, port) for port in CITY_PORT_MAPPING[city]]
+    
+    if form.validate_on_submit():
+        try:
+            add_boat_instance(form.name.data, form.url.data, form.city.data, form.port.data, form.note.data)
+            flash('배가 등록되었습니다.', 'success')
+            return redirect(url_for('views.index'))
+        except Exception as e:
+            flash(f'등록 중 오류: {e}', 'danger')
+    return render_template('register.html', form=form)
+
 
 def _compute_region_counts(boats):
+    """지역별 배 개수 계산"""
     region_sets = {}
     for boat in boats:
         city = getattr(boat, 'city', None) or ''
@@ -87,6 +96,7 @@ def _compute_region_counts(boats):
 
 
 def _get_region_boats(boats):
+    """지역별 배 목록"""
     region_boats = {}
     for boat in boats:
         city = getattr(boat, 'city', None) or ''
@@ -100,23 +110,6 @@ def _get_region_boats(boats):
         region_boats[city].sort(key=lambda x: x['name'])
     return region_boats
 
-@views.route('/register', methods=['GET', 'POST'])
-def register():
-    form = BoatRegistrationForm()
-    if request.method == 'POST':
-        city = request.form.get('city')
-        if city in city_port_mapping:
-            form.port.choices = [(port, port) for port in city_port_mapping[city]]
-    
-    if form.validate_on_submit():
-        try:
-            add_boat_instance(form.name.data, form.url.data, form.city.data, form.port.data, form.note.data)
-            flash('배가 등록되었습니다.', 'success')
-            return redirect(url_for('views.index'))
-        except Exception as e:
-            flash(f'등록 중 오류: {e}', 'danger')
-    return render_template('register.html', form=form)
-
 @views.route('/edit/<int:boat_id>', methods=['GET', 'POST'])
 def edit_boat(boat_id):
     boat = get_boat_by_id(boat_id)
@@ -127,8 +120,8 @@ def edit_boat(boat_id):
     form = BoatEditForm(obj=boat)
     if request.method == 'POST':
         city = request.form.get('city')
-        if city in city_port_mapping:
-            form.port.choices = [(port, port) for port in city_port_mapping[city]]
+        if city in CITY_PORT_MAPPING:
+            form.port.choices = [(port, port) for port in CITY_PORT_MAPPING[city]]
 
         if form.validate_on_submit():
             try:
@@ -139,87 +132,94 @@ def edit_boat(boat_id):
                 flash(f'수정 중 오류: {e}', 'danger')
     else:
         # GET 요청 시, 현재 도시의 항구 목록을 설정
-        if boat.city in city_port_mapping:
-            form.port.choices = [(port, port) for port in city_port_mapping[boat.city]]
+        if boat.city in CITY_PORT_MAPPING:
+            form.port.choices = [(port, port) for port in CITY_PORT_MAPPING[boat.city]]
 
     return render_template('edit_boat.html', form=form, boat_id=boat_id)
 
 @views.route('/status', methods=['GET'])
 def status():
+    """배 예약 현황 조회 페이지
+    
+    복잡한 로직을 StatusPageService로 분리하여 가독성 향상
+    """
+    from services.status_service import StatusPageService, DateValidator
+    
     form = StatusCheckForm()
-    # 쿼리에서 값 읽어 폼에 주입 (조회 후에도 값 유지)
-    y_arg = request.args.get("year")
-    m_arg = request.args.get("month")
-    d_arg = request.args.get("day")
-    for field_name, value in (('year', y_arg), ('month', m_arg), ('day', d_arg)):
-        if value:
-            try:
-                getattr(form, field_name).data = int(value)
-            except (TypeError, ValueError):
-                pass
-
-    # 지역 목록 및 선택값
-    region_names = [label for value, label in REGION_CHOICES if value]
-    selected_regions = request.args.getlist("regions") or ['전체']
-    selected_boats = request.args.getlist("boats")
-
-    # --- added: compute region_counts immediately so status page shows counts on load ---
+    service = StatusPageService()
+    
+    # 연월일 파라미터 추출
+    year, month, day = service.get_date_params_from_request(request)
+    
+    # 폼에 값 주입
+    if year:
+        form.year.data = year
+    if month:
+        form.month.data = month
+    if day:
+        form.day.data = day
+    
+    # 기본 페이지 데이터
+    region_names = service.get_region_names()
+    selected_regions = service.get_selected_regions(request)
+    selected_boats = service.get_selected_boats(request)
+    
+    # 지역별 배 정보 계산
     registered_boats = get_all_boats()
     region_counts, total_registered = _compute_region_counts(registered_boats)
     region_boats = _get_region_boats(registered_boats)
-    # --- end added ---
-
-    # 날짜 미입력 시 조회하지 않고 화면만 렌더링
-    if not (y_arg and m_arg and d_arg):
-        return render_template(
-            "status.html",
+    
+    # 날짜가 완전하지 않으면 빈 결과 반환
+    if not DateValidator.is_complete(year, month, day):
+        context = service.build_render_context(
             form=form,
             entries=[],
-            year=y_arg or "",
-            month=m_arg or "",
-            day=d_arg or "",
+            year=year,
+            month=month,
+            day=day,
             region_names=region_names,
             selected_regions=selected_regions,
             selected_boats=selected_boats,
-            region_counts=region_counts,        # now populated
-            total_registered=total_registered,  # now populated
+            region_counts=region_counts,
+            total_registered=total_registered,
             region_boats=region_boats,
         )
-
-    # 날짜 파싱
-    try:
-        year, month, day = int(y_arg), int(m_arg), int(d_arg)
-    except Exception:
-        flash("연/월/일을 올바르게 입력하세요.", "warning")
-        return render_template(
-            "status.html",
+        return render_template("status.html", **context)
+    
+    # 날짜 유효성 검증
+    is_valid, error_msg = DateValidator.validate(year, month, day)
+    if not is_valid:
+        flash(error_msg, "warning")
+        context = service.build_render_context(
             form=form,
             entries=[],
-            year=y_arg or "",
-            month=m_arg or "",
-            day=d_arg or "",
+            year=year,
+            month=month,
+            day=day,
             region_names=region_names,
             selected_regions=selected_regions,
             selected_boats=selected_boats,
-            region_counts={},           # { changed code }
-            total_registered=0,         # { changed code }
+            region_counts=region_counts,
+            total_registered=total_registered,
             region_boats=region_boats,
         )
-
-    # 외부 사이트 조회는 브라우저가 호출하는 스트리밍 API에서 수행한다.
-    # 이 라우트가 외부 응답을 기다리지 않으므로 등록 선박 수와 무관하게 즉시 화면을 표시한다.
-    return render_template('status.html',
-                           form=form,
-                           entries=[],
-                           region_names=region_names,
-                           selected_regions=selected_regions,
-                           selected_boats=selected_boats,
-                           year=year,
-                           month=month,
-                           day=day,
-                           region_counts=region_counts,
-                           total_registered=total_registered,
-                           region_boats=region_boats)
+        return render_template("status.html", **context)
+    
+    # 정상 렌더링 (비동기로 데이터 조회)
+    context = service.build_render_context(
+        form=form,
+        entries=[],
+        year=year,
+        month=month,
+        day=day,
+        region_names=region_names,
+        selected_regions=selected_regions,
+        selected_boats=selected_boats,
+        region_counts=region_counts,
+        total_registered=total_registered,
+        region_boats=region_boats,
+    )
+    return render_template('status.html', **context)
 
 # API endpoint: 선박별 결과를 NDJSON으로 스트리밍
 @views.route('/api/status', methods=['POST'])
@@ -278,140 +278,59 @@ def api_status():
 @views.route('/weather')
 def weather():
     """날씨 정보 조회 페이지"""
-    # map_page에서 사용하는 것과 동일한 데이터 사용
     return render_template('weather.html', 
-                         city_port_mapping=get_city_port_mapping(),
-                         port_coordinates=get_port_coordinates(),
-                         bada_port_ids=get_bada_port_ids())
-
-def get_port_coordinates():
-    """항구 좌표 정보를 반환"""
-    return {
-        '남항(인천항)': {'lat': 37.47, 'lon': 126.62},
-        '연안부두': {'lat': 37.4416, 'lon': 126.6110},
-        '영흥항': {'lat': 37.25455083861362, 'lon': 126.49825493353622},
-        '오이도항': {'lat': 37.326444939596996, 'lon': 126.65458586308483},
-        '전곡항': {'lat': 37.18786766510414, 'lon': 126.65235743282231},
-        '평택항': {'lat': 36.96158755929977, 'lon': 126.84006775074936},
-        '장고항': {'lat': 37.03122635505709, 'lon': 126.55981703596025},
-        '삼길포항': {'lat': 37.00415509197122, 'lon': 126.45292068915825},
-        '마검포항': {'lat': 36.61943531903122, 'lon': 126.2875526892295},
-        '모항항': {'lat': 36.7759, 'lon': 126.1328},
-        '영목항': {'lat': 36.3999, 'lon': 126.4277},
-        '신진도항': {'lat': 36.6833, 'lon': 126.1500},
-        '오천항': {'lat': 36.4383319, 'lon': 126.5201303},
-        '구매항': {'lat': 36.424732, 'lon': 126.432133},
-        '대천항': {'lat': 36.3333, 'lon': 126.5167},
-        '무창포항': {'lat': 36.2436, 'lon': 126.5469},
-        '남당항': {'lat': 36.5390947, 'lon': 126.4689945},
-        '홍원항': {'lat': 36.1583, 'lon': 126.5028},
-        '비응항': {'lat': 35.93826493213535, 'lon': 126.53099554693064},
-        '야미도항': {'lat': 35.8407672, 'lon': 126.488760},
-        '격포항': {'lat': 35.6225668, 'lon': 126.4694321},
-        '돌산항': {'lat': 34.61326519186631, 'lon': 127.7224984379492},
-        '국동항': {'lat': 34.72949367130133, 'lon': 127.7253480879476},
-        '소호항': {'lat': 34.746193195297266, 'lon': 127.6561636346259},
-        '신추항': {'lat': 34.7308212588099, 'lon': 127.754781729328},
-        '종포항': {'lat': 34.73738965299665, 'lon': 127.74701532311137},
-        '녹동방파제': {'lat': 34.52298050694286, 'lon': 127.14353349262528},
-    }
-
-def get_city_port_mapping():
-    """지역별 항구 매핑 정보를 반환"""
-    return {
-        '인천': ['남항(인천항)', '연안부두', '영흥항'],
-        '안산': ['오이도항'],
-        '화성': ['전곡항'],
-        '평택': ['평택항'],
-        '당진': ['장고항'],
-        '서산': ['삼길포항'],
-        '태안': ['마검포항', '모항항', '영목항', '신진도항'],
-        '보령': ['오천항', '구매항', '대천항', '무창포항', '남당항', '홍원항'],
-        '군산': ['비응항', '야미도항'],
-        '격포': ['격포항'],
-        '여수': ['돌산항', '국동항', '소호항', '신추항', '종포항', '신월항', '돌산나루터'],
-        '고흥': ['녹동방파제']
-    }
-
-def get_bada_port_ids():
-    """바다타임 포트 ID 매핑 반환 (항구명 -> ID)"""
-    return {
-        '남항(인천항)': 158,
-        '연안부두': 158,
-        '영흥항': 151,
-        '오이도항': 380,
-        '전곡항': 618,
-        '평택항': 149,
-        '장고항': 370,
-        '삼길포항': 144,
-        '마검포항': 1400,
-        '모항항': 134,
-        '영목항': 354,
-        '신진도항': 965,
-        '오천항': 355,
-        '구매항': 1385,
-        '대천항': 126,
-        '무창포항': 236,
-        '남당항': 356,
-        '홍원항': 523,
-        '비응항': 118,
-        '야미도항': 348,
-        '격포항': 430,
-        '돌산항': 270,
-        '국동항': 271,
-        '소호항': 826,
-        '신추항': 885,
-        '종포항': 886,
-        '녹동방파제': 443,
-    }
+                         city_port_mapping=CITY_PORT_MAPPING,
+                         port_coordinates=PORT_COORDINATES,
+                         bada_port_ids=BADA_PORT_IDS)
 
 
 @views.route('/api/weather', methods=['GET'])
 def api_weather():
-    """기상청 API를 호출하여 날씨 정보를 가져오는 API"""
-    import requests
+    """기상청 API를 호출하여 날씨 정보를 가져오는 API
+    
+    표준화된 응답 포맷 사용
+    """
     from datetime import datetime
     
     port = request.args.get('port')
-    date_str = request.args.get('date')  # YYYY-MM-DD
+    date_str = request.args.get('date')
     
     if not port or not date_str:
-        return jsonify({'error': '항구와 날짜를 입력해주세요.'}), 400
+        return jsonify(validation_error_response(
+            error='port와 date 파라미터는 필수입니다.',
+            message='항구와 날짜를 입력해주세요.'
+        )), 400
     
-    # port_coordinates에서 좌표 가져오기
-    port_coords = get_port_coordinates()
-    if port not in port_coords:
-        return jsonify({'error': f'{port}의 좌표 정보를 찾을 수 없습니다.'}), 404
+    if port not in PORT_COORDINATES:
+        return jsonify(error_response(
+            error=f'PORT_NOT_FOUND',
+            message=f'{port}의 좌표 정보를 찾을 수 없습니다.'
+        )), 404
     
-    lat = port_coords[port]['lat']
-    lon = port_coords[port]['lon']
+    lat = PORT_COORDINATES[port]['lat']
+    lon = PORT_COORDINATES[port]['lon']
     
     try:
-        # 위경도를 기상청 격자 좌표로 변환
         grid = convert_to_grid(lat, lon)
-        
-        # 날짜 파싱
         target_date = datetime.strptime(date_str, '%Y-%m-%d')
         base_date = target_date.strftime('%Y%m%d')
         
-        # 기상청 단기예보 API 호출
-        # 공공데이터포털(https://www.data.go.kr/)에서 '기상청_단기예보' 검색하여 API 키 발급
-        service_key = current_app.config.get('KMA_API_KEY', 'd7734746c9c841d53b70df3ffbda3e56422c50e5af2a345ab650bfb24d78b0c9')
-        
-        # API 키가 설정되지 않은 경우 항구별 샘플 데이터 사용
-        use_sample = (service_key == 'd7734746c9c841d53b70df3ffbda3e56422c50e5af2a345ab650bfb24d78b0c9')
+        service_key = current_app.config.get('KMA_API_KEY') or os.environ.get('KMA_API_KEY')
+        use_sample = not service_key
         
         if use_sample:
-            # 항구별로 다른 샘플 데이터 반환
             weather_data = generate_sample_weather_data(port, lat, lon)
-            return jsonify({
-                'lat': lat,
-                'lon': lon,
-                'nx': grid['nx'],
-                'ny': grid['ny'],
-                'data': weather_data,
-                'note': '샘플 데이터입니다. 실제 데이터를 보려면 기상청 API 키를 설정해주세요.'
-            })
+            return jsonify(success_response(
+                data={
+                    'lat': lat,
+                    'lon': lon,
+                    'nx': grid['nx'],
+                    'ny': grid['ny'],
+                    'data': weather_data,
+                    'is_sample': True,
+                    'message': '샘플 데이터입니다. 실제 데이터를 보려면 기상청 API 키를 설정해주세요.'
+                }
+            ))
         
         # 실제 API 호출
         url = 'http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst'
@@ -429,42 +348,47 @@ def api_weather():
         response = requests.get(url, params=params, timeout=10)
         
         if response.status_code != 200:
-            # API 호출 실패 시 샘플 데이터로 대체
             current_app.logger.warning(f"KMA API call failed with status {response.status_code}")
             weather_data = generate_sample_weather_data(port, lat, lon)
-            return jsonify({
-                'lat': lat,
-                'lon': lon,
-                'nx': grid['nx'],
-                'ny': grid['ny'],
-                'data': weather_data,
-                'note': 'API 호출 실패로 샘플 데이터를 표시합니다.'
-            })
+            return jsonify(success_response(
+                data={
+                    'lat': lat,
+                    'lon': lon,
+                    'nx': grid['nx'],
+                    'ny': grid['ny'],
+                    'data': weather_data,
+                    'is_sample': True,
+                    'message': 'API 호출 실패로 샘플 데이터를 표시합니다.'
+                }
+            ))
         
         result = response.json()
-        
-        # API 응답 처리
         weather_data = process_kma_weather_data(result, base_date)
         
         if not weather_data:
-            # 데이터가 없는 경우 샘플 데이터로 대체
             weather_data = generate_sample_weather_data(port, lat, lon)
-            return jsonify({
+            return jsonify(success_response(
+                data={
+                    'lat': lat,
+                    'lon': lon,
+                    'nx': grid['nx'],
+                    'ny': grid['ny'],
+                    'data': weather_data,
+                    'is_sample': True,
+                    'message': '해당 날짜의 실제 데이터가 없어 샘플 데이터를 표시합니다.'
+                }
+            ))
+        
+        return jsonify(success_response(
+            data={
                 'lat': lat,
                 'lon': lon,
                 'nx': grid['nx'],
                 'ny': grid['ny'],
                 'data': weather_data,
-                'note': '해당 날짜의 실제 데이터가 없어 샘플 데이터를 표시합니다.'
-            })
-        
-        return jsonify({
-            'lat': lat,
-            'lon': lon,
-            'nx': grid['nx'],
-            'ny': grid['ny'],
-            'data': weather_data
-        })
+                'is_sample': False
+            }
+        ))
         
     except Exception as e:
         current_app.logger.error(f"Weather API error: {e}")
@@ -658,119 +582,77 @@ def api_tide():
     """
     import requests
     from bs4 import BeautifulSoup
+    from services.badatime_parser import TideTableParser
+    
     port_id = request.args.get('port_id', type=int)
     if not port_id:
-        return jsonify({'error': 'port_id 파라미터가 필요합니다.'}), 400
+        return validation_error_response('port_id 파라미터가 필요합니다.'), 400
 
-    # 날짜는 /{port_id}/tide/YYYY-MM-DD 형태의 경로로 전달됨
-    date_str = request.args.get('date')  # YYYY-MM-DD
+    date_str = request.args.get('date')
     base_url = f"https://www.badatime.com/{port_id}/tide"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36'
     }
+    
     try:
-        # 날짜가 있으면 경로 세그먼트로 전달: /{port}/tide/YYYY-MM-DD
         used_url = f"{base_url}/{date_str}" if date_str else base_url
         resp = requests.get(used_url, headers=headers, timeout=10)
         if resp.status_code != 200:
-            return jsonify({'error': f'페이지 응답 오류: {resp.status_code}'}), 502
-    except Exception as e:
-        return jsonify({'error': f'요청 실패: {e}'}), 500
+            return error_response(f'페이지 응답 오류: {resp.status_code}', error_code='HTTP_ERROR'), 502
+    except requests.RequestException as e:
+        return error_response(f'요청 실패: {str(e)}', error_code='REQUEST_FAILED'), 500
 
     soup = BeautifulSoup(resp.text, 'html.parser')
     week_container = soup.select_one('.week_container')
     if not week_container:
-        return jsonify({'error': 'week_container(class)를 찾을 수 없습니다.'}), 500
+        return error_response('week_container를 찾을 수 없습니다.', error_code='PARSING_ERROR'), 500
 
     table = week_container.select_one('table.week_table')
     if not table:
-        return jsonify({'error': 'week_table을 찾을 수 없습니다.'}), 500
+        return error_response('week_table을 찾을 수 없습니다.', error_code='PARSING_ERROR'), 500
 
-    import re
-    rows = table.select('tbody > tr')
-    if not rows or len(rows) < 5:
-        return jsonify({'error': '예상보다 적은 행. 구조 변경 가능성.'}), 500
-
-    # 1행: 날짜 + 시간 헤더들
-    time_cells = rows[0].find_all('td')[1:]  # 첫번째는 날짜
-    times = []
-    for c in time_cells:
-        t = c.get_text(strip=True).replace('현재','').strip()
-        # Normalize '07시' -> '07시'
-        times.append(t)
-
-    count = len(times)
-
-    def extract_icon_row(tr):
-        icons = []
-        for td in tr.find_all('td')[1:]:
-            img = td.find('img')
-            icons.append(img['src'] if img else '')
-        return icons
-
-    def extract_text_cells(tr):
-        return [td.get_text(strip=True) for td in tr.find_all('td')[1:]]
-
-    # 행 식별: 두번째 행 아이콘, 세번째 행 날씨텍스트(맑음), 네번째 기온(첫셀 '기온'), 다섯번째 풍향(첫셀 '풍향'), 여섯번째 풍속, 일곱번째 파고, 여덟번째 습도, 아홉번째 강수량
-    icon_urls      = extract_icon_row(rows[1])
-    weather_texts  = extract_text_cells(rows[2])
-    temp_values    = extract_text_cells(rows[3]) if '기온' in rows[3].find('td').get_text() else ['']*count
-    wind_dir_cells = rows[4].find_all('td')[1:]
-    wind_dirs = []
-    wind_dir_icons = []
-    for td in wind_dir_cells:
-        img = td.find('img')
-        wind_dir_icons.append(img['src'] if img else '')
-        # span 또는 텍스트
-        txt = td.get_text(strip=True)
-        wind_dirs.append(txt)
-    wind_speeds    = extract_text_cells(rows[5]) if '풍속' in rows[5].find('td').get_text() else ['']*count
-    wave_heights   = extract_text_cells(rows[6]) if '파고' in rows[6].find('td').get_text() else ['']*count
-    humidities     = extract_text_cells(rows[7]) if len(rows) > 7 and '습도' in rows[7].find('td').get_text() else ['']*count
-    precipitations = extract_text_cells(rows[8]) if len(rows) > 8 and '강수' in rows[8].find('td').get_text() else ['']*count
-
-    data_out = []
-    for i in range(count):
-        data_out.append({
-            'time': times[i],
-            'weather_icon_url': icon_urls[i] if i < len(icon_urls) else '',
-            'weather_text': weather_texts[i] if i < len(weather_texts) else '',
-            'temperature': temp_values[i] if i < len(temp_values) else '',
-            'wind_dir': wind_dirs[i] if i < len(wind_dirs) else '',
-            'wind_dir_icon_url': wind_dir_icons[i] if i < len(wind_dir_icons) else '',
-            'wind_speed': wind_speeds[i] if i < len(wind_speeds) else '',
-            'wave_height': wave_heights[i] if i < len(wave_heights) else '',
-            'humidity': humidities[i] if i < len(humidities) else '',
-            'precipitation': precipitations[i] if i < len(precipitations) else ''
+    try:
+        parser = TideTableParser(table)
+        data_out = parser.parse()
+        if data_out is None:
+            return error_response('테이블 파싱 실패', error_code='PARSING_ERROR'), 500
+        
+        return success_response({
+            'port_id': port_id,
+            'source_url': used_url if date_str else base_url,
+            'data': data_out,
+            'date': date_str
         })
-
-    return jsonify({'port_id': port_id, 'source_url': used_url if date_str else base_url, 'data': data_out, 'date': date_str})
+    except Exception as e:
+        return error_response(f'파싱 오류: {str(e)}', error_code='PARSING_ERROR'), 500
 
 # New: Parse Badatime graph page and return only summary table + chart script
 @views.route('/api/tide_graph', methods=['GET'])
 def api_tide_graph():
     """Badatime 그래프 페이지(/{port_id}/graph/{date})에서 요약 테이블(pc_txt_view)과
     차트 컨테이너(#chartdiv) 및 해당 스크립트만 추출해서 반환.
-    응답: { success, pc_html, chart_html, script, source_url }
+    응답: { status, data: { pc_html, chart_html, script, source_url } }
     """
     import requests
     from bs4 import BeautifulSoup
+    import re
 
     port_id = request.args.get('port_id', type=int)
-    date_str = request.args.get('date', default='')  # YYYY-MM-DD
+    date_str = request.args.get('date', default='')
     if not port_id or not date_str:
-        return jsonify({'success': False, 'message': 'port_id와 date가 필요합니다.'}), 400
+        return validation_error_response('port_id와 date가 필요합니다.'), 400
 
     source_url = f"https://www.badatime.com/{port_id}/graph/{date_str}"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36'
     }
+    
     try:
         resp = requests.get(source_url, headers=headers, timeout=10)
         if resp.status_code != 200:
-            return jsonify({'success': False, 'message': f'페이지 응답 오류: {resp.status_code}'}), 502
-    except Exception as e:
-        return jsonify({'success': False, 'message': f'요청 실패: {e}'}), 500
+            return error_response(f'페이지 응답 오류: {resp.status_code}', error_code='HTTP_ERROR'), 502
+    except requests.RequestException as e:
+        return error_response(f'요청 실패: {str(e)}', error_code='REQUEST_FAILED'), 500
 
     soup = BeautifulSoup(resp.text, 'html.parser')
 
@@ -782,52 +664,42 @@ def api_tide_graph():
     mo_view = soup.select_one('div.mo_txt_view')
     mo_html = mo_view.decode() if mo_view else ''
 
-    # 차트 컨테이너와 스크립트(바로 뒤에 오는 inline script)
+    # 차트 컨테이너와 스크립트
     chart_div = soup.select_one('#chartdiv')
     chart_html = ''
     script_text = ''
     if chart_div:
-        # chart div 자체는 보통 빈 div. height 스타일을 보장하기 위해 기본 높이 부여
-        # 원본 div를 복사하고 style 추가
         chart_div_copy = BeautifulSoup(str(chart_div), 'html.parser')
         chart_root = chart_div_copy.select_one('#chartdiv')
         if chart_root:
-            # 기본 높이 적용 (없을 경우)
             style_val = chart_root.get('style', '')
             if 'height:' not in style_val:
                 style_val = (style_val + '; height: 460px;').strip('; ')
                 chart_root['style'] = style_val
         chart_html = str(chart_div_copy)
 
-        # 차트 설정 스크립트: chartdiv 다음 <script> 추출
         next_script = chart_div.find_next('script')
         if next_script and next_script.string:
             script_text = next_script.string
         else:
-            # 일부 페이지는 script 내에 주석/공백 포함 -> 전체 텍스트 사용
             script_text = next_script.get_text("\n") if next_script else ''
 
-        # 안전을 위해 외부 참조가 상대경로일 경우 절대경로로 고치기(이미지/아이콘 등)
         def absolutize_urls(html_text: str) -> str:
-            # badatime.com 이미지를 절대경로로 변경
             html_text = re.sub(r'(["\'])(\/\/(?:images|img)\.badatime\.com[^"\']*)(["\'])', r"https:\1\2\3", html_text)
-            # /img/icon/ 경로를 로컬 static 경로로 변경 - 더 포괄적인 정규식 사용
             html_text = re.sub(r'(["\'])\/img\/icon\/(sunrise|sunset)\.svg(["\'])', r'\1/img/\2.svg\3', html_text)
             return html_text
         
         def absolutize_script_urls(script_text: str) -> str:
-            # 스크립트 내의 이미지 경로도 변경
             script_text = re.sub(r'(["\'])\/img\/icon\/(sunrise|sunset)\.svg(["\'])', r'\1/img/\2.svg\3', script_text)
             return script_text
-
+        
         pc_html = absolutize_urls(pc_html)
         mo_html = absolutize_urls(mo_html)
         chart_html = absolutize_urls(chart_html)
         if script_text:
             script_text = absolutize_script_urls(script_text)
 
-    return jsonify({
-        'success': True,
+    return success_response({
         'pc_html': pc_html,
         'mo_html': mo_html,
         'chart_html': chart_html,
