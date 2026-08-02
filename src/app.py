@@ -9,7 +9,7 @@ if CURRENT_DIR not in sys.path:
 
 from db import db
 
-def create_app():
+def create_app(test_config=None):
     app = Flask(__name__, static_folder='../img', static_url_path='/img')
     os.makedirs(app.instance_path, exist_ok=True)
 
@@ -22,6 +22,9 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'change_this_in_production')
     app.config['DEBUG_LOGGING_ENABLED'] = False
+
+    if test_config is not None:
+        app.config.from_mapping(test_config)
 
     db.init_app(app)
 

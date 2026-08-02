@@ -23,9 +23,10 @@ def app():
     db_fd, db_path = tempfile.mkstemp()
     
     from src.app import create_app
-    app = create_app()
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
-    app.config['TESTING'] = True
+    app = create_app({
+        'SQLALCHEMY_DATABASE_URI': f'sqlite:///{db_path}',
+        'TESTING': True,
+    })
     
     with app.app_context():
         from src.db import db

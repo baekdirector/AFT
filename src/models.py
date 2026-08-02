@@ -27,3 +27,12 @@ class Boat(db.Model):
             'is_shared': self.is_shared,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+
+
+class AppSetting(db.Model):
+    __tablename__ = 'app_settings'
+    key = db.Column(db.String(255), primary_key=True)
+    value = db.Column(db.String(255), nullable=True)
+
+    def __repr__(self):
+        return f'<AppSetting {self.key}={self.value}>'

@@ -68,10 +68,30 @@ def _load_shared_boats_from_excel():
     return boats
 
 
+def _get_app_setting(key: str):
+    from models import AppSetting
+    setting = AppSetting.query.get(key)
+    return setting.value if setting else None
+
+
+def _set_app_setting(key: str, value: str):
+    from models import AppSetting
+    setting = AppSetting.query.get(key)
+    if setting:
+        setting.value = value
+    else:
+        setting = AppSetting(key=key, value=value)
+        db.session.add(setting)
+    db.session.commit()
+
+
 def initialize_shared_boats():
     from models import Boat
 
     ensure_boat_shared_column()
+
+    if _get_app_setting('shared_boats_initialized') == 'true':
+        return
 
     shared_boats = _load_shared_boats_from_excel()
     if not shared_boats:
@@ -120,6 +140,7 @@ def initialize_shared_boats():
         db.session.add(boat)
 
     db.session.commit()
+    _set_app_setting('shared_boats_initialized', 'true')
 
 
 def add_boat_instance(name: str, url: str, city: str, port: str, note: str = None, is_shared: bool = True):
