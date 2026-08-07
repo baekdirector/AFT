@@ -378,6 +378,12 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
             elif avail is not None and avail > 0:
                 status = 'open'
                 display_status = f"남은자리 {avail}명"
+            elif re.search(r'출항취소|취소|cancel', status_text, re.I):
+                status = 'cancelled'
+                display_status = '출항취소'
+            elif re.search(r'기상악화|기상 악화|weather.*bad|bad.*weather', status_text, re.I):
+                status = 'cancelled'
+                display_status = '기상악화'
             else:
                 status = 'unknown'
                 display_status = status_text or "알 수 없음"

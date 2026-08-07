@@ -451,12 +451,17 @@
   }
   
   .badge-available {
-    background-color: #fee2e2;
-    color: #dc2626;
+    background-color: #16a34a;
+    color: #ffffff;
   }
   
   .badge-closed {
-    background-color: #4b5563;
+    background-color: #111827;
+    color: #ffffff;
+  }
+  
+  .badge-danger {
+    background-color: #dc2626;
     color: #ffffff;
   }
   
@@ -729,6 +734,7 @@
         {% for entry in entries %}
           {% set is_open = (entry.status == 'open') %}
           {% set is_closed = (entry.status in ['full','reserved']) %}
+          {% set is_cancelled = (entry.status == 'cancelled') or (entry.display_status in ['기상악화', '출항취소']) %}
           {% set show_status =
               '예약가능' if is_open
               else ('예약마감' if is_closed else ('점검일' if entry.status == 'maintenance' else (entry.display_status or ('알 수 없음' if entry.status == 'unknown' else entry.status) or '알 수 없음'))) %}
@@ -739,7 +745,7 @@
             <td data-label="어종" class="fish-col">{{ entry.fish or '-' }}</td>
             <td data-label="배 이름" style="font-weight: 600;">{{ entry.ship_name or '-' }} {% if entry.tide %}({{ entry.tide }}){% endif %}</td>
             <td data-label="상태" class="status-col">
-              <span class="status-badge {{ 'badge-available' if is_open else 'badge-closed' if is_closed else 'badge-maintenance' }}">
+              <span class="status-badge {{ 'badge-available' if is_open else 'badge-closed' if is_closed else 'badge-danger' if is_cancelled else 'badge-maintenance' }}">
                 {{ show_status }}
               </span>
             </td>
@@ -949,8 +955,11 @@
                 city: result.city || '', port: result.port || '',
                 registered_name: result.registered_name || '',
                 fish: entry.fish || '', ship_name: entry.ship_name || result.registered_name || '',
-                status_text: entry.raw_status_text || (entry.status === 'unknown' ? '알 수 없음' : entry.status) || '알 수 없음',
-                status_class: entry.status === 'full' || entry.status === 'reserved' ? 'closed' : (entry.status || 'unknown'),
+                status_text: entry.display_status || entry.raw_status_text || (entry.status === 'unknown' ? '알 수 없음' : entry.status) || '알 수 없음',
+                status_class: entry.status === 'full' || entry.status === 'reserved' ? 'closed'
+                              : entry.status === 'maintenance' ? 'maintenance'
+                              : entry.status === 'cancelled' ? 'danger'
+                              : (entry.status || 'unknown'),
                 available: entry.available, url: entry.source_url || '', url_path: entry.url_path || ''
               });
             }
@@ -1087,6 +1096,7 @@
           if (statusBadge.classList.contains('badge-available')) status_class = 'open';
           else if (statusBadge.classList.contains('badge-closed')) status_class = 'closed';
           else if (statusBadge.classList.contains('badge-maintenance')) status_class = 'maintenance';
+          else if (statusBadge.classList.contains('badge-danger')) status_class = 'danger';
         }
 
         const availText = tds[i++]?.textContent.trim() || '';
@@ -1159,8 +1169,11 @@
         } else if (r.status_class === 'maintenance') {
           badge.classList.add('badge-maintenance');
           badge.textContent = '점검일';
+        } else if (r.status_class === 'danger') {
+          badge.classList.add('badge-danger');
+          badge.textContent = r.status_text || '알 수 없음';
         } else {
-          badge.textContent = r.status_class === 'unknown' ? '알 수 없음' : (r.status_text || '알 수 없음');
+          badge.textContent = r.status_text || '알 수 없음';
         }
         tdStatus.appendChild(badge);
         tr.appendChild(tdStatus);

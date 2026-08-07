@@ -250,6 +250,7 @@ def api_status():
                 'status': entry.get('status'),
                 'available': entry.get('available'),
                 'raw_status_text': entry.get('raw_status_text'),
+                'display_status': entry.get('display_status'),
                 'source_url': entry.get('used_url') or entry.get('source_url') or entry.get('url') or source_url,
                 'url_path': entry.get('used_url_path') or entry.get('url_path') or source_url,
                 'fish': entry.get('fish'),

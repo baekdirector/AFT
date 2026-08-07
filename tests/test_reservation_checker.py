@@ -87,6 +87,39 @@ def test_schedule_fleet_accepts_capacity_suffix_for_known_fleet_names(monkeypatc
     assert entries[0]["status"] == "full"
 
 
+def test_schedule_fleet_detects_bad_weather_status(monkeypatch):
+    html = """
+    <div id="d2026-07-24" class="shipsinfo_daywarp weekday">
+      <div id="fish">한치</div>
+
+      <table class="ship_unit">
+        <tr>
+          <td class="ship_info"><div class="title">불꽃호</div></td>
+          <td class="ship_info2"><span class="shipping_status">기상악화</span></td>
+        </tr>
+      </table>
+    </div>
+    """
+
+    def fake_get(*args, **kwargs):
+        return DummyResponse(html)
+
+    monkeypatch.setattr(reservation_checker.requests, "get", fake_get)
+
+    result = reservation_checker.check_single_boat(
+        "https://chf.sunsang24.com/ship/schedule_fleet/202607",
+        2026,
+        7,
+        24,
+    )
+
+    entries = result["entries"]
+    assert len(entries) == 1
+    assert entries[0]["status"] == "unknown"
+    assert entries[0]["display_status"] == "기상악화"
+    assert entries[0]["raw_status_text"] == "기상악화"
+
+
 def test_check_single_boat_uses_cache_for_repeated_queries(monkeypatch):
     calls = []
     html = "<div></div>"
