@@ -48,7 +48,12 @@ def make_icon(size: int, maskable: bool = False):
 
     font_size = int(size * FONT_RATIO)
     font = load_font(font_size)
-    text_w, text_h = draw.textsize(TEXT, font=font)
+    try:
+        text_w, text_h = draw.textsize(TEXT, font=font)
+    except AttributeError:
+        bbox = draw.textbbox((0, 0), TEXT, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
     x = (size - text_w) / 2
     y = (size - text_h) / 2 - size * 0.05
 

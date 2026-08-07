@@ -910,6 +910,8 @@ def sea_temp_test(port_id=None):
     - 경로: /sea-temp-test 또는 /sea-temp-test/<port_id>
     - 쿼리스트링으로도 지정 가능: /sea-temp-test?port_id=118
     """
+    from services.weather_tide_service import PortDataService
+
     # 우선순위: path param > query param
     q_port_id = request.args.get('port_id', type=int)
     pid = port_id or q_port_id or 118
@@ -917,7 +919,7 @@ def sea_temp_test(port_id=None):
     return render_template(
         'sea_temp_test.html',
         current_port_id=pid,
-        bada_port_ids=get_bada_port_ids(),
+        bada_port_ids=PortDataService.get_bada_port_ids(),
     )
 
 @views.route('/api/sea_temp')
