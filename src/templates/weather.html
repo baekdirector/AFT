@@ -35,10 +35,10 @@
   .graph-panel{padding:8px;background:#fff;height:800px;overflow:visible}
 
   @media (max-width: 1024px){
-    .result-split{flex-direction:column;max-width:100%;padding:8px}
-    .result-right{flex:1;min-width:0;max-width:none}
-    .graph-frame{height:520px}
-    .graph-panel{height:auto;min-height:400px;padding:4px}
+    .result-split{flex-direction:column;max-width:100%;padding:8px;min-height:auto}
+    .result-right{display:flex;flex:1;flex-direction:column;min-width:0;max-width:none}
+    .graph-frame{height:520px;min-height:520px}
+    .graph-panel{flex:1;height:auto;min-height:520px;padding:4px;overflow-x:auto}
     /* result-header 모바일 대응 */
     .result-header{width:100%;max-width:100%;border-radius:12px 12px 0 0}
     #tide-result{width:100%!important;max-width:100%!important;transform:none!important;left:0!important;position:relative!important}
