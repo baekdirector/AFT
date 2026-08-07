@@ -520,14 +520,15 @@
     .popup-content{max-width:98vw;margin:16px auto;border-radius:12px}
     .popup-header{padding:14px;border-radius:12px 12px 0 0}
     .popup-header h3{font-size:18px}
-    .result-split{flex-direction:column;padding:6px}
+    .result-split{flex-direction:column;padding:6px;min-height:auto}
+    .result-right{display:flex;flex:1;flex-direction:column;min-width:0}
     .result-left{border-right:0;border-bottom:1px solid #eef2f7}
     #tide-table thead{display:none}
     #tide-table,#tide-table tbody,#tide-table tr,#tide-table td{display:block;width:100%}
     #tide-table tr{margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;padding:8px;background:#fff}
     #tide-table td{border:0!important;padding:6px 0;text-align:left!important;position:relative;padding-left:90px}
     #tide-table td:before{content:attr(data-label);position:absolute;left:0;width:80px;font-weight:600;color:#374151;font-size:12px}
-    .graph-panel{height:auto;min-height:300px}
+    .graph-panel{flex:1;height:auto;min-height:300px}
   }
 
   .popup-header {
