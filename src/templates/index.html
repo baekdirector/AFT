@@ -974,6 +974,7 @@
 
 <script>
 // 전역 변수
+const cityPortMapping = {{ city_port_map|tojson }};
 let allShips = [];
 let map = null;
 let filteredShips = [];
@@ -1127,10 +1128,9 @@ function renderShips(ships) {
 function updateFilters() {
     // 지역을 정의된 순서대로 정렬
     const regionOrder = ['인천', '안산', '화성', '평택', '당진', '서산', '태안', '보령', '군산', '격포', '여수', '고흥'];
-    const regionsSet = new Set(allShips.map(s => s.region));
-    const regions = regionOrder.filter(r => regionsSet.has(r));
+    const regions = regionOrder.filter(r => cityPortMapping[r]);
     
-    const ports = [...new Set(allShips.map(s => s.port))].sort();
+    const ports = [...new Set(Object.values(cityPortMapping).flat())].sort();
     
     const regionFilter = document.getElementById('regionFilter');
     const portFilter = document.getElementById('portFilter');
@@ -1229,8 +1229,8 @@ function initializeEventListeners() {
             // 지역이 변경되면 항구 필터 업데이트
             const selectedRegion = this.value;
             const availablePorts = selectedRegion ? 
-                [...new Set(allShips.filter(s => s.region === selectedRegion).map(s => s.port))].sort() :
-                [...new Set(allShips.map(s => s.port))].sort();
+                (cityPortMapping[selectedRegion] || []).sort() :
+                [...new Set(Object.values(cityPortMapping).flat())].sort();
             
             const portFilter = document.getElementById('portFilter');
             const currentPortValue = portFilter.value;

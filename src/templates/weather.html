@@ -17,15 +17,6 @@
   .result-header{background:linear-gradient(135deg,#06b6d4 0%,#0e7490 100%);color:#fff;padding:15px 0;border-radius:18px 18px 0 0;text-align:center;width:1300px;margin:0 auto}
   .result-header h2{margin:0;font-size:22px;font-weight:700}
   .result-header p{display:none;margin:0;font-size:13px;opacity:.9}
-  table{width:100%;border-collapse:collapse}
-  thead th{background:#f9fafb;padding:14px 10px;font-size:16px;font-weight:600;color:#374151;border-bottom:2px solid #e5e7eb;text-align:center;letter-spacing:.5px}
-  tbody td{padding:14px 10px;border-bottom:1px solid #f3f4f6;font-size:15px;color:#4b5563;text-align:center}
-  tbody tr:nth-child(even){background:#f9fafb}
-  tbody tr:hover{background:#f3f4f6}
-  .time-cell{font-weight:600;color:#111827;font-size:15px}
-  .status-box{margin-top:4px;font-size:11px;color:#6b7280}
-  .loading-row td{padding:42px;font-size:14px;color:#6b7280}
-  .empty-row td{padding:42px;font-size:14px;color:#9ca3af}
   .note{margin-top:10px;font-size:12px;color:#64748b}
 
   /* Flatpickr sizing + Korean style tweaks */
@@ -39,26 +30,15 @@
 
   /* 결과 2열 레이아웃 */
   .result-split{display:flex;gap:16px;background:#fff;border-radius:0 0 18px 18px;box-shadow:0 4px 18px rgba(0,0,0,.08);overflow:hidden;max-width:1300px;width:100%;margin:0 auto;min-height:800px;box-sizing:border-box}
-  .result-left{flex:1;min-width:0;border-right:1px solid #eef2f7;overflow-x:auto}
   .result-right{flex:1;min-width:0;background:#fff;overflow:visible}
   .graph-frame{display:block;width:100%;height:800px;border:0;background:#0b1320}
   .graph-panel{padding:8px;background:#fff;height:800px;overflow:visible}
-  
-  /* 모바일 조석 정보 테이블 */
-  .mo_txt_view{display:none}
-  .mo_txt_view table{width:100%;background-color:#f6f6f6;text-align:center;border:1px solid #DEDEDE;border-collapse:collapse}
-  .mo_txt_view td{border:1px solid #DEDEDE;padding:12px 8px}
-  .mo_txt_view td:first-child{width:30%;background-color:#f6f6f6;font-weight:600;color:#374151}
-  .mo_txt_view td:last-child{width:70%;background-color:#ffffff;font-size:16px;line-height:1.6}
 
   @media (max-width: 1024px){
     .result-split{flex-direction:column;max-width:100%;padding:8px}
-    .result-left{border-right:0;border-bottom:1px solid #eef2f7}
     .result-right{flex:1;min-width:0;max-width:none}
     .graph-frame{height:520px}
     .graph-panel{height:auto;min-height:400px;padding:4px}
-    /* 모바일에서 조석 정보 테이블 표시 */
-    .mo_txt_view{display:block;margin-bottom:16px}
     /* result-header 모바일 대응 */
     .result-header{width:100%;max-width:100%;border-radius:12px 12px 0 0}
     #tide-result{width:100%!important;max-width:100%!important;transform:none!important;left:0!important;position:relative!important}
@@ -83,22 +63,6 @@
     /* 모바일에서 날짜 입력/달력 버튼과 동일한 높이(40px)로 정렬 */
     .date-input{height:40px}
     .btn-fetch{flex:0 0 auto;height:40px;padding:0 16px;white-space:nowrap;margin-left:8px;display:inline-flex;align-items:center}
-    /* tide-table 모바일 카드 레이아웃 */
-    #tide-table thead{display:none}
-    #tide-table,#tide-table tbody,#tide-table tr,#tide-table td{display:block;width:100%;box-sizing:border-box}
-    #tide-table tbody{width:100%;overflow:visible}
-    #tide-table tr{margin-bottom:12px;border:1px solid #e5e7eb;border-radius:8px;padding:10px;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,0.05);max-width:100%;box-sizing:border-box}
-    #tide-table td{border:0!important;padding:8px 4px;text-align:left!important;display:flex;align-items:flex-start;gap:8px;min-height:24px;box-sizing:border-box;max-width:100%;word-break:break-word}
-    #tide-table td:before{content:attr(data-label);flex:0 0 80px;font-weight:600;color:#374151;font-size:13px;padding-top:0}
-    #tide-table td img{flex-shrink:0}
-    /* 로딩/빈 행은 flex 해제 */
-    #tide-table .loading-row td,#tide-table .empty-row td{display:block;text-align:center!important;padding:20px}
-    #tide-table .loading-row td:before,#tide-table .empty-row td:before{display:none}
-    /* 모바일 조석 정보 테이블 스타일 개선 */
-    .mo_txt_view table{font-size:14px}
-    .mo_txt_view td{padding:10px 8px!important}
-    .mo_txt_view td:first-child{font-size:13px}
-    .mo_txt_view td:last-child{font-size:15px;line-height:1.8}
     /* graph-panel SVG 모바일 대응 */
     .graph-panel{padding:4px;overflow-x:auto}
     .graph-panel svg{max-width:100%;height:auto!important}
@@ -160,26 +124,6 @@
       <p id="result-sub">원본: -</p>
     </div>
     <div class="result-split">
-      <div class="result-left">
-        <!-- 모바일 조석 정보 -->
-        <div class="mo_txt_view"></div>
-        
-        <table id="tide-table">
-          <thead>
-            <tr>
-              <th>시간</th>
-              <th>풍향</th>
-              <th>풍속</th>
-              <th>날씨</th>
-              <th>기온</th>
-              <th>파고/주기</th>
-            </tr>
-          </thead>
-          <tbody id="tide-tbody">
-            <tr class="loading-row"><td colspan="6">데이터를 불러오는 중...</td></tr>
-          </tbody>
-        </table>
-      </div>
       <div class="result-right">
         <div id="graph-panel" class="graph-panel"></div>
       </div>
@@ -192,12 +136,6 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ko.js"></script>
 
-<!-- amCharts v4 (for tide graph rendering) -->
-<script src="https://cdn.amcharts.com/lib/4/core.js"></script>
-<script src="https://cdn.amcharts.com/lib/4/charts.js"></script>
-<script src="https://cdn.amcharts.com/lib/4/themes/animated.js"></script>
-<script src="https://cdn.amcharts.com/lib/4/lang/ko_KR.js"></script>
-
 <script>
 // 템플릿 데이터
 const CITY_PORTS = {{ city_port_mapping | tojson | safe }};
@@ -205,7 +143,6 @@ const BADA_PORT_IDS = {{ bada_port_ids | tojson | safe }};
 
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('tide-form');
-  const tbody = document.getElementById('tide-tbody');
   const resultWrap = document.getElementById('tide-result');
   const titleEl = document.getElementById('result-title');
   const subEl = document.getElementById('result-sub');
@@ -262,96 +199,20 @@ document.addEventListener('DOMContentLoaded', () => {
     resultWrap.style.display = 'block';
     titleEl.textContent = `${portName} (${dateStr})`;
     subEl.textContent = dateStr || '요청 중...';
-    tbody.innerHTML = '<tr class="loading-row"><td colspan="6">불러오는 중...</td></tr>';
 
-    let tideRows = [];
-    let tideError = null;
-    // 1) 표 데이터 시도
-    try {
-      const qs = new URLSearchParams({ port_id: String(portId), date: dateStr || '' });
-      const resp = await fetch(`/api/tide?${qs.toString()}`);
-      if(!resp.ok) {
-        // 10일 이후 조회 제한 안내 문구로 통일
-        tideError = '10일 이후 날씨 정보는 조회가 안됩니다.';
-      } else {
-        const data = await resp.json();
-        if(data.error) {
-          tideError = data.error;
-        } else {
-          tideRows = data.data || [];
-        }
-      }
-    } catch(errTable) {
-      tideError = '표 요청 실패: ' + errTable.message;
-    }
+    graphPanel.innerHTML = `
+      <iframe
+        id="badatime-graph-iframe"
+        src="https://www.badatime.com/${portId}/graph/${encodeURIComponent(dateStr)}"
+        class="graph-frame"
+        loading="lazy"
+        title="Badatime 그래프"
+      ></iframe>
+    `;
 
-    // 2) 그래프 항상 시도
-    try {
-      const gresp = await fetch(`/api/tide_graph?port_id=${portId}&date=${encodeURIComponent(dateStr)}`);
-      if (!gresp.ok) throw new Error('그래프 정보를 불러올 수 없습니다.');
-      const gdata = await gresp.json();
-      if (!gdata.success) throw new Error(gdata.message || '그래프 파싱 실패');
-      
-      // 모바일 조석 정보 테이블 렌더링
-      const moView = document.querySelector('.mo_txt_view');
-      if (moView && gdata.mo_html) {
-        moView.innerHTML = gdata.mo_html;
-      }
-      
-      // PC 그래프 렌더링
-      graphPanel.innerHTML = (gdata.pc_html || '') + (gdata.chart_html || '');
-      if (gdata.script) {
-        const se = document.createElement('script');
-        se.type = 'text/javascript';
-        se.text = gdata.script;
-        graphPanel.appendChild(se);
-      }
-    } catch (eGraph) {
-      graphPanel.innerHTML = `<div style="padding:12px;color:#374151;background:#fff;">그래프 정보를 불러오지 못했습니다. 새 탭에서 확인하세요.</div>`;
-    }
-
-    // 3) 부제목 / 원본 링크
     const tideUrl = `https://www.badatime.com/${portId}/tide/${dateStr}`;
     subEl.innerHTML = `${dateStr} · <a href="${tideUrl}" target="_blank" rel="noopener">${tideUrl}</a>`;
-
-    // 4) 표 렌더링
-    if (tideError) {
-      tbody.innerHTML = `<tr class='empty-row'><td colspan='6'><span style='color:#dc2626'>${tideError}</span></td></tr>`;
-    } else {
-      renderTideRows(tideRows);
-    }
   });
-
-  function renderTideRows(rows){
-    tbody.innerHTML = '';
-    if(!rows.length){
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="6">데이터가 없습니다.</td></tr>';
-      return;
-    }
-    rows.forEach(r => {
-      const tr = document.createElement('tr');
-      const weatherDisplay = r.weather_icon_url ? `<img src='${r.weather_icon_url}' alt='' width='28' style='vertical-align:middle;margin-right:4px;'>${r.weather_text||''}` : (r.weather_text||'');
-      const windDirDisplay = r.wind_dir_icon_url ? `<img src='${r.wind_dir_icon_url}' alt='' width='16' style='vertical-align:middle;margin-right:4px;'>${r.wind_dir||''}` : (r.wind_dir||'');
-      
-      // 풍속 색상 처리
-      let windSpeedColor = '#4b5563'; // 기본 색상
-      const windSpeed = parseFloat(r.wind_speed || '0');
-      if (windSpeed >= 5.0 && windSpeed <= 7.9) {
-        windSpeedColor = '#f1c40f';
-      } else if (windSpeed >= 8.0 && windSpeed <= 15.0) {
-        windSpeedColor = '#c0392b';
-      }
-      
-      tr.innerHTML = `
-        <td class='time-cell' data-label='시간'>${r.time || ''}</td>
-        <td data-label='풍향'>${windDirDisplay}</td>
-        <td data-label='풍속' style='color:${windSpeedColor}'>${r.wind_speed || ''}</td>
-        <td data-label='날씨'>${weatherDisplay}</td>
-        <td data-label='기온'>${r.temperature || ''}</td>
-        <td data-label='파고/주기'>${r.wave_height || ''}</td>`;
-      tbody.appendChild(tr);
-    });
-  }
 });
 </script>
 {% endblock %}

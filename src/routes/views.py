@@ -665,12 +665,12 @@ def api_tide_graph():
     mo_html = mo_view.decode() if mo_view else ''
 
     # 차트 컨테이너와 스크립트
-    chart_div = soup.select_one('#chartdiv')
+    chart_div = soup.select_one('#chartdiv') or soup.select_one('.graph-wrap') or soup.select_one('#main_chart')
     chart_html = ''
     script_text = ''
     if chart_div:
         chart_div_copy = BeautifulSoup(str(chart_div), 'html.parser')
-        chart_root = chart_div_copy.select_one('#chartdiv')
+        chart_root = chart_div_copy.select_one('#chartdiv') or chart_div_copy.select_one('.graph-wrap') or chart_div_copy.select_one('#main_chart')
         if chart_root:
             style_val = chart_root.get('style', '')
             if 'height:' not in style_val:
@@ -678,21 +678,26 @@ def api_tide_graph():
                 chart_root['style'] = style_val
         chart_html = str(chart_div_copy)
 
-        next_script = chart_div.find_next('script')
-        if next_script and next_script.string:
-            script_text = next_script.string
-        else:
-            script_text = next_script.get_text("\n") if next_script else ''
+        script_nodes = chart_div.find_all('script')
+        if not script_nodes:
+            next_script = chart_div.find_next('script')
+            if next_script:
+                script_nodes.append(next_script)
+        if not script_nodes:
+            script_nodes = [s for s in soup.find_all('script') if 'main_chart' in (s.get_text('') or '') or 'chartdiv' in (s.get_text('') or '') or 'am4core' in (s.get_text('') or '')]
+
+        if script_nodes:
+            script_text = '\n'.join(s.get_text('\n') for s in script_nodes if s)
 
         def absolutize_urls(html_text: str) -> str:
             html_text = re.sub(r'(["\'])(\/\/(?:images|img)\.badatime\.com[^"\']*)(["\'])', r"https:\1\2\3", html_text)
             html_text = re.sub(r'(["\'])\/img\/icon\/(sunrise|sunset)\.svg(["\'])', r'\1/img/\2.svg\3', html_text)
             return html_text
-        
+
         def absolutize_script_urls(script_text: str) -> str:
             script_text = re.sub(r'(["\'])\/img\/icon\/(sunrise|sunset)\.svg(["\'])', r'\1/img/\2.svg\3', script_text)
             return script_text
-        
+
         pc_html = absolutize_urls(pc_html)
         mo_html = absolutize_urls(mo_html)
         chart_html = absolutize_urls(chart_html)

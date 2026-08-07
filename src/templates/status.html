@@ -1329,20 +1329,7 @@
         tideError = '표 요청 실패: ' + e.message;
       }
 
-      // 2) 그래프 데이터 (항상 시도)
-      let graphHtml = ''; let graphScript = null;
-      try {
-        const gresp = await fetch('/api/tide_graph?port_id=' + portId + '&date=' + encodeURIComponent(date));
-        if (gresp.ok) {
-          const gdata = await gresp.json();
-          if (gdata.success) {
-            graphHtml = (gdata.pc_html || '') + (gdata.chart_html || '');
-            graphScript = gdata.script;
-          }
-        }
-      } catch (ge) {
-        console.warn('그래프 로드 실패:', ge);
-      }
+      const iframeSrc = 'https://www.badatime.com/' + portId + '/graph/' + encodeURIComponent(date);
 
       // 3) HTML 구성
       let resultHtml = '<div class="result-split">';
@@ -1368,17 +1355,9 @@
       }
       resultHtml += '</tbody></table></div>';
       resultHtml += ' <div class="result-right"><div id="graph-panel" class="graph-panel">' +
-        (graphHtml || '<div style="padding:20px;text-align:center;color:#6b7280;">그래프 정보를 불러올 수 없습니다.</div>') +
+        '<iframe id="badatime-graph-iframe" src="' + iframeSrc + '" style="width:100%;min-height:560px;border:0;background:#fff;" loading="lazy" title="Badatime 그래프"></iframe>' +
         '</div></div></div>';
       contentEl.innerHTML = resultHtml;
-
-      // 4) 그래프 스크립트 실행
-      if (graphScript) {
-        setTimeout(() => {
-          const gp = document.getElementById('graph-panel');
-          if (gp) { const se = document.createElement('script'); se.type='text/javascript'; se.text=graphScript; gp.appendChild(se); }
-        }, 60);
-      }
     } catch (err) {
       contentEl.innerHTML = '<div style="padding:20px;color:#ef4444;text-align:center;">에러: ' + err.message + '</div>';
     }
