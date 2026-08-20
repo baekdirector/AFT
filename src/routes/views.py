@@ -269,11 +269,14 @@ def api_status():
                     'source_url': boat.url, 'url_path': boat.url, 'fish': None}]}
 
     def stream_results():
-        configured_workers = current_app.config.get('STATUS_MAX_WORKERS', 20)
-        try:
-            max_workers = max(1, int(configured_workers))
-        except (TypeError, ValueError):
-            max_workers = 20
+        configured_workers = current_app.config.get('STATUS_MAX_WORKERS')
+        if configured_workers is None:
+            max_workers = len(boats) or 1
+        else:
+            try:
+                max_workers = max(1, int(configured_workers))
+            except (TypeError, ValueError):
+                max_workers = len(boats) or 1
         max_workers = min(max_workers, len(boats)) if boats else 1
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
