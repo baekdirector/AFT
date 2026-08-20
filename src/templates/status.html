@@ -950,6 +950,10 @@
           for (const line of lines) {
             if (!line.trim()) continue;
             const result = JSON.parse(line);
+            if (result.type === 'start') {
+              tbody.innerHTML = '<tr><td class="no-results" colspan="9" style="text-align:center;color:#9ca3af;">조회 준비 중...</td></tr>';
+              continue;
+            }
             for (const entry of (result.entries || [])) {
               streamedRows.push({
                 city: result.city || '', port: result.port || '',

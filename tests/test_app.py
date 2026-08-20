@@ -32,7 +32,7 @@ def test_status_without_date_renders_empty_lookup_page(client):
 
 
 def test_status_uses_concurrent_worker_limit_for_all_registered_boats(app):
-    assert app.config['STATUS_MAX_WORKERS'] is None
+    assert app.config['STATUS_MAX_WORKERS'] == 16
 
 
 def test_api_status_returns_every_registered_boat(app, monkeypatch):
@@ -63,7 +63,11 @@ def test_api_status_returns_every_registered_boat(app, monkeypatch):
     })
 
     assert response.status_code == 200
-    assert len(response.get_data(as_text=True).strip().splitlines()) == 62
+    results = [
+        line for line in response.get_data(as_text=True).strip().splitlines()
+        if '"type": "start"' not in line
+    ]
+    assert len(results) == 62
 
 
 def test_existing_boats_are_treated_as_initial_shared_data(app):
