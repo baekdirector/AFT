@@ -269,7 +269,14 @@ def api_status():
                     'source_url': boat.url, 'url_path': boat.url, 'fish': None}]}
 
     def stream_results():
-        with ThreadPoolExecutor(max_workers=min(6, len(boats)) or 1) as executor:
+        configured_workers = current_app.config.get('STATUS_MAX_WORKERS', 20)
+        try:
+            max_workers = max(1, int(configured_workers))
+        except (TypeError, ValueError):
+            max_workers = 20
+        max_workers = min(max_workers, len(boats)) if boats else 1
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(process_boat, boat) for boat in boats]
             for future in as_completed(futures):
                 yield json.dumps(future.result(), ensure_ascii=False) + '\n'

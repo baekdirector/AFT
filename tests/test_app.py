@@ -24,6 +24,13 @@ def test_index(client):
     assert rv.status_code == 200
 
 
+def test_status_without_date_renders_empty_lookup_page(client):
+    rv = client.get('/status')
+
+    assert rv.status_code == 200
+    assert '예약 현황 조회' in rv.get_data(as_text=True)
+
+
 def test_existing_boats_are_treated_as_initial_shared_data(app):
     with app.app_context():
         boat = Boat(name='팀만수호', url='https://example.com', city='인천', port='남항(인천항)', note='seed', is_shared=None)
