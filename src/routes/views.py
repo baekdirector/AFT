@@ -233,9 +233,18 @@ def api_status():
         return jsonify({"error": "invalid date"}), 400
 
     registered_boats = get_all_boats()
-    filter_targets = [region for region in request.form.getlist('regions') if region != '전체']
+
+    def get_values(name):
+        if hasattr(data, 'getlist'):
+            return data.getlist(name)
+        value = data.get(name)
+        if isinstance(value, list):
+            return value
+        return [value] if value else []
+
+    filter_targets = [region for region in get_values('regions') if region != '전체']
     boats = [boat for boat in registered_boats if boat.city in filter_targets] if filter_targets else registered_boats
-    selected_boats = set(request.form.getlist('boats'))
+    selected_boats = set(get_values('boats'))
     if selected_boats:
         boats = [boat for boat in boats if boat.name in selected_boats]
     debug_enabled = current_app.config.get('DEBUG_LOGGING_ENABLED', False)

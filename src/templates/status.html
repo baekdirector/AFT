@@ -1404,11 +1404,14 @@
   });
 
   // 팝업 배경 클릭으로 닫기
-  document.getElementById('weather-popup').addEventListener('click', function(e) {
-    if (e.target === this) {
-      closeWeatherPopup();
-    }
-  });
+  const weatherPopup = document.getElementById('weather-popup');
+  if (weatherPopup) {
+    weatherPopup.addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeWeatherPopup();
+      }
+    });
+  }
 </script>
 
 <!-- 날씨/물때 팝업 모달 -->

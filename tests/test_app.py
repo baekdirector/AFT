@@ -70,6 +70,31 @@ def test_api_status_returns_every_registered_boat(app, monkeypatch):
     assert len(results) == 62
 
 
+def test_api_status_filters_multiple_regions_and_boats(app, monkeypatch):
+    from routes import views
+    from werkzeug.datastructures import MultiDict
+
+    with app.app_context():
+        _db.session.query(Boat).delete()
+        for index in range(16):
+            _db.session.add(Boat(name=f'여수호{index}', url=f'https://example.com/yeosu/{index}', city='여수', port='국동항'))
+        for index in range(4):
+            _db.session.add(Boat(name=f'고흥호{index}', url=f'https://example.com/goheung/{index}', city='고흥', port='녹동방파제'))
+        _db.session.commit()
+
+    monkeypatch.setattr(views, 'check_single_boat', lambda *args, **kwargs: {'entries': []})
+    response = app.test_client().post('/api/status', data=MultiDict([
+        ('year', '2026'), ('month', '10'), ('day', '3'),
+        ('regions', '여수'), ('regions', '고흥'),
+        *[("boats", f'여수호{index}') for index in range(16)],
+        *[("boats", f'고흥호{index}') for index in range(4)],
+    ]))
+
+    result_lines = [line for line in response.get_data(as_text=True).splitlines() if '"type": "start"' not in line]
+    assert response.status_code == 200
+    assert len(result_lines) == 20
+
+
 def test_existing_boats_are_treated_as_initial_shared_data(app):
     with app.app_context():
         boat = Boat(name='팀만수호', url='https://example.com', city='인천', port='남항(인천항)', note='seed', is_shared=None)
