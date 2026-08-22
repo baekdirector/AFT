@@ -31,8 +31,8 @@ def test_status_without_date_renders_empty_lookup_page(client):
     assert '예약 현황 조회' in rv.get_data(as_text=True)
 
 
-def test_status_uses_concurrent_worker_limit_for_all_registered_boats(app):
-    assert app.config['STATUS_MAX_WORKERS'] == 16
+def test_status_uses_single_worker_for_all_registered_boats(app):
+    assert app.config['STATUS_MAX_WORKERS'] == 1
 
 
 def test_api_status_returns_every_registered_boat(app, monkeypatch):
