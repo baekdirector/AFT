@@ -22,7 +22,7 @@ def create_app(test_config=None):
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'change_this_in_production')
     app.config['DEBUG_LOGGING_ENABLED'] = False
-    app.config['STATUS_MAX_WORKERS'] = 1
+    app.config['STATUS_MAX_WORKERS'] = 4
 
     if test_config is not None:
         app.config.from_mapping(test_config)

@@ -10,6 +10,7 @@ from forms import REGION_CHOICES
 from config import CITY_PORT_MAPPING, PORT_COORDINATES, BADA_PORT_IDS
 from services.api_response import success_response, error_response, validation_error_response
 from services.status_service import StatusPageService
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 import json
 import requests
@@ -277,9 +278,18 @@ def api_status():
                     'source_url': boat.url, 'url_path': boat.url, 'fish': None}]}
 
     def stream_results():
+        configured_workers = current_app.config.get('STATUS_MAX_WORKERS', 4)
+        try:
+            max_workers = max(1, int(configured_workers))
+        except (TypeError, ValueError):
+            max_workers = 4
+        max_workers = min(max_workers, len(boats)) if boats else 1
+
         yield json.dumps({'type': 'start', 'total': len(boats)}, ensure_ascii=False) + '\n'
-        for boat in boats:
-            yield json.dumps(process_boat(boat), ensure_ascii=False) + '\n'
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(process_boat, boat) for boat in boats]
+            for future in as_completed(futures):
+                yield json.dumps(future.result(), ensure_ascii=False) + '\n'
 
     return Response(
         stream_with_context(stream_results()),

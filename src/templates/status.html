@@ -995,7 +995,7 @@
         // 모든 선박 조회가 끝난 뒤 예약가능(open) 선박을 최상단에 배치한다.
         sortRows(streamedRows, 'status', 'asc');
         renderRows(streamedRows);
-        updateResultsTitle(true);
+        updateResultsTitle(totalBoats > 0 && completedBoats === totalBoats);
       } catch (error) {
         console.error(error);
         tbody.innerHTML = '<tr><td class="no-results" colspan="9" style="text-align:center;color:#9ca3af;">예약 조회 중 오류가 발생했습니다.</td></tr>';
