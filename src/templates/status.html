@@ -687,7 +687,7 @@
 
 <!-- 조회 결과 섹션 -->
 <div class="results-section">
-  <h3 class="results-title">조회 결과 (실시간)</h3>
+  <h3 id="results-title" class="results-title">조회 결과 (실시간)</h3>
   
   <div class="table-wrapper">
     <table id="results-table">
@@ -930,6 +930,21 @@
     async function loadStatusResults() {
       const params = new URLSearchParams(new FormData(form));
       const streamedRows = [];
+      const resultsTitle = document.getElementById('results-title');
+      let totalBoats = 0;
+      let completedBoats = 0;
+
+      function updateResultsTitle(isComplete = false) {
+        if (!resultsTitle) return;
+        if (totalBoats === 0) {
+          resultsTitle.textContent = '조회 결과 0척 (실시간)';
+        } else if (isComplete) {
+          resultsTitle.textContent = `조회 결과 ${completedBoats}척 (실시간)`;
+        } else {
+          resultsTitle.textContent = `조회 결과 ${completedBoats}/${totalBoats}척 (실시간)`;
+        }
+      }
+
       tbody.innerHTML = '';
       try {
         const response = await fetch('{{ url_for("views.api_status") }}', {
@@ -951,9 +966,14 @@
             if (!line.trim()) continue;
             const result = JSON.parse(line);
             if (result.type === 'start') {
+              totalBoats = Number(result.total) || 0;
+              completedBoats = 0;
+              updateResultsTitle();
               tbody.innerHTML = '<tr><td class="no-results" colspan="9" style="text-align:center;color:#9ca3af;">조회 준비 중...</td></tr>';
               continue;
             }
+            completedBoats += 1;
+            updateResultsTitle();
             for (const entry of (result.entries || [])) {
               streamedRows.push({
                 city: result.city || '', port: result.port || '',
@@ -975,6 +995,7 @@
         // 모든 선박 조회가 끝난 뒤 예약가능(open) 선박을 최상단에 배치한다.
         sortRows(streamedRows, 'status', 'asc');
         renderRows(streamedRows);
+        updateResultsTitle(true);
       } catch (error) {
         console.error(error);
         tbody.innerHTML = '<tr><td class="no-results" colspan="9" style="text-align:center;color:#9ca3af;">예약 조회 중 오류가 발생했습니다.</td></tr>';
