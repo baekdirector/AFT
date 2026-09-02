@@ -50,3 +50,6 @@ temp_views.txt
 
 # 엑셀 다운로드 파일 제외
 boat_list.xlsx
+
+# Phase A0 진단 도구 출력
+probe_boats*.csv

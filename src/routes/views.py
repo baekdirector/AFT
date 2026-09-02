@@ -286,10 +286,23 @@ def api_status():
         max_workers = min(max_workers, len(boats)) if boats else 1
 
         yield json.dumps({'type': 'start', 'total': len(boats)}, ensure_ascii=False) + '\n'
+        completed = 0
+        succeeded = set()
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(process_boat, boat) for boat in boats]
             for future in as_completed(futures):
-                yield json.dumps(future.result(), ensure_ascii=False) + '\n'
+                result = future.result()
+                completed += 1
+                succeeded.add(result.get('registered_name'))
+                yield json.dumps(result, ensure_ascii=False) + '\n'
+
+        # 종료 마커. 이 줄이 도착하지 않았다면 스트림이 중간에 잘린 것이다
+        # (예: gunicorn --timeout 초과로 워커가 강제 종료). 프론트는 이걸로
+        # 완주와 잘림을 구분하고, 못 받은 배만 재조회할 수 있다.
+        missing = [b.name for b in boats if b.name not in succeeded]
+        yield json.dumps({'type': 'end', 'total': len(boats),
+                          'completed': completed, 'missing': missing},
+                         ensure_ascii=False) + '\n'
 
     return Response(
         stream_with_context(stream_results()),

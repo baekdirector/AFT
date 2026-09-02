@@ -688,7 +688,16 @@
 <!-- 조회 결과 섹션 -->
 <div class="results-section">
   <h3 id="results-title" class="results-title">조회 결과 (실시간)</h3>
-  
+
+  <!-- 스트림이 중간에 잘렸을 때(서버 타임아웃 등) 못 받은 배를 알려주고 재조회시킨다 -->
+  <div id="missing-notice" style="display:none;margin:8px 0;padding:10px 12px;border:1px solid #fbbf24;background:#fffbeb;border-radius:6px;font-size:14px;color:#92400e;">
+    <span id="missing-text"></span>
+    <button type="button" id="retry-missing-btn"
+            style="margin-left:8px;padding:4px 10px;border:1px solid #d97706;background:#f59e0b;color:#fff;border-radius:4px;cursor:pointer;">
+      못 받은 배만 다시 조회
+    </button>
+  </div>
+
   <div class="table-wrapper">
     <table id="results-table">
       <thead>
@@ -927,9 +936,19 @@
     updateBoatList();
     // ====== 배 선택 필터 끝 ======
 
-    async function loadStatusResults() {
+    // onlyBoats 를 주면 그 배들만 조회한다 (잘렸을 때 재조회용).
+    async function loadStatusResults(onlyBoats) {
       const params = new URLSearchParams(new FormData(form));
+      if (onlyBoats && onlyBoats.length) {
+        params.delete('boats');
+        for (const name of onlyBoats) params.append('boats', name);
+      }
       const streamedRows = [];
+      let sawEnd = false;
+      let missingBoats = [];
+      const missingNotice = document.getElementById('missing-notice');
+      const missingText = document.getElementById('missing-text');
+      if (missingNotice) missingNotice.style.display = 'none';
       const resultsTitle = document.getElementById('results-title');
       let totalBoats = 0;
       let completedBoats = 0;
@@ -972,6 +991,11 @@
               tbody.innerHTML = '<tr><td class="no-results" colspan="9" style="text-align:center;color:#9ca3af;">조회 준비 중...</td></tr>';
               continue;
             }
+            if (result.type === 'end') {
+              sawEnd = true;
+              missingBoats = result.missing || [];
+              continue;
+            }
             completedBoats += 1;
             updateResultsTitle();
             for (const entry of (result.entries || [])) {
@@ -996,6 +1020,24 @@
         sortRows(streamedRows, 'status', 'asc');
         renderRows(streamedRows);
         updateResultsTitle(totalBoats > 0 && completedBoats === totalBoats);
+
+        // 'end' 마커를 못 받았다면 서버가 스트림을 중간에 끊은 것이다.
+        // 그 경우 프론트는 어떤 배가 빠졌는지 모르므로 개수만 알려준다.
+        if (!sawEnd && totalBoats > 0) {
+          const shortfall = totalBoats - completedBoats;
+          if (shortfall > 0 && missingNotice && missingText) {
+            missingText.textContent =
+              `${totalBoats}척 중 ${completedBoats}척만 받고 연결이 끊겼습니다 (${shortfall}척 누락).`;
+            missingNotice.dataset.missing = '';
+            missingNotice.style.display = '';
+          }
+        } else if (missingBoats.length && missingNotice && missingText) {
+          missingText.textContent =
+            `${missingBoats.length}척을 가져오지 못했습니다: ${missingBoats.slice(0, 5).join(', ')}` +
+            (missingBoats.length > 5 ? ' 외' : '');
+          missingNotice.dataset.missing = JSON.stringify(missingBoats);
+          missingNotice.style.display = '';
+        }
       } catch (error) {
         console.error(error);
         tbody.innerHTML = '<tr><td class="no-results" colspan="9" style="text-align:center;color:#9ca3af;">예약 조회 중 오류가 발생했습니다.</td></tr>';
@@ -1005,6 +1047,20 @@
         if (btn) btn.disabled = false;
       }
     }
+
+    // 누락된 배만 다시 조회. 서버가 어떤 배가 빠졌는지 알려준 경우에만
+    // 부분 재조회가 가능하고, 스트림이 통째로 끊겼으면 전체를 다시 돈다.
+    (function bindRetryMissing() {
+      const retryBtn = document.getElementById('retry-missing-btn');
+      const missingNotice = document.getElementById('missing-notice');
+      if (!retryBtn || !missingNotice) return;
+      retryBtn.addEventListener('click', function () {
+        let names = [];
+        try { names = JSON.parse(missingNotice.dataset.missing || '[]'); } catch (e) { names = []; }
+        missingNotice.style.display = 'none';
+        loadStatusResults(names.length ? names : undefined);
+      });
+    })();
 
     // 폼 제출 시 페이지 이동 없이 선박별 결과를 순차적으로 표시
     const form = document.getElementById('status-form');
