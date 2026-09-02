@@ -23,15 +23,27 @@ def create_app(test_config=None):
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'change_this_in_production')
     app.config['DEBUG_LOGGING_ENABLED'] = False
     # /api/status 의 배별 동시 조회 스레드 수.
-    # 실측(2026-09, Render): 배당 지연이 약 6.6초이고 이 작업은 CPU 가 아니라
-    # IO 대기가 지배적이라 스레드 수에 거의 선형으로 개선된다.
-    # 71척 기준 대략 71*6.6/N 초. N=4 -> 117초(잘림), N=16 -> 29초, N=24 -> 20초.
-    # gunicorn --timeout 을 함께 올리지 않으면 N 을 키워도 잘린다(둘 다 필요).
-    # 문제가 생기면 환경변수로 즉시 되돌릴 수 있게 해 둔다.
+    #
+    # 라이브 실측(2026-09, Render 무료 인스턴스 0.1 CPU / 71척):
+    #     동시요청   워커24    워커4
+    #       1척       6.9s      -
+    #       8척      22.5s    10.6s
+    #      24척      67.8s      -
+    #      71척     122.7s     105s
+    # 처리량이 동시성 8 이상에서 약 0.35척/초로 포화되고, 워커 4 일 때의
+    # 0.68~0.75척/초보다 오히려 나쁘다. IO 대기가 아니라 0.1 CPU 위에서의
+    # 파싱 CPU/GIL 경합이 병목이라, 스레드를 늘리면 손해다. 그래서 4 를 유지한다.
+    #
+    # 잘림(71척 중 19척만 오던 증상)의 실제 원인은 동시성이 아니라 gunicorn
+    # 기본 --timeout 30 이었다. 그건 Procfile / Render Start Command 에서 해결했다.
+    #
+    # 근본 해결은 이 값을 키우는 게 아니라 Phase B(스냅샷) + D(스케줄러)로
+    # 요청 경로에서 라이브 스크래핑을 없애는 것이다. 이건 그때까지의 가교다.
+    # 튜닝은 재배포 없이 환경변수로 한다.
     try:
-        app.config['STATUS_MAX_WORKERS'] = max(1, int(os.environ.get('STATUS_MAX_WORKERS', 24)))
+        app.config['STATUS_MAX_WORKERS'] = max(1, int(os.environ.get('STATUS_MAX_WORKERS', 4)))
     except (TypeError, ValueError):
-        app.config['STATUS_MAX_WORKERS'] = 24
+        app.config['STATUS_MAX_WORKERS'] = 4
 
     if test_config is not None:
         app.config.from_mapping(test_config)

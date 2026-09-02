@@ -34,14 +34,14 @@ def test_status_without_date_renders_empty_lookup_page(client):
 
 
 def test_status_uses_limited_workers_for_all_registered_boats(app):
-    """동시 조회 스레드 수의 기본값과 환경변수 롤백 경로를 고정한다.
+    """동시 조회 스레드 수의 기본값을 고정한다.
 
-    Phase A0 에서 4 -> 24 로 올렸다. 근거는 실측이다(2026-09, Render):
-    배당 지연 약 6.6초이고 CPU 가 아니라 IO 대기가 지배적이라 스레드 수에
-    거의 선형으로 개선된다. 71척 기준 4워커면 약 117초가 걸려 gunicorn
-    timeout 에 잘렸다.
+    라이브 실측(2026-09, Render 0.1 CPU, 71척): 워커 24 는 122.7초, 워커 4 는
+    105초로 오히려 느려졌다. 처리량이 동시성 8 이상에서 포화되므로 스레드를
+    늘리면 손해다. 잘림의 원인은 동시성이 아니라 gunicorn --timeout 30 이었다.
+    이 값을 함부로 올리지 못하게 테스트로 못박는다.
     """
-    assert app.config['STATUS_MAX_WORKERS'] == 24
+    assert app.config['STATUS_MAX_WORKERS'] == 4
 
 
 def test_status_max_workers_can_be_overridden_by_env(monkeypatch):
@@ -52,7 +52,7 @@ def test_status_max_workers_can_be_overridden_by_env(monkeypatch):
 
     monkeypatch.setenv('STATUS_MAX_WORKERS', 'not-a-number')
     fallback = create_app({'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:', 'TESTING': True})
-    assert fallback.config['STATUS_MAX_WORKERS'] == 24
+    assert fallback.config['STATUS_MAX_WORKERS'] == 4
 
 
 def test_api_status_returns_every_registered_boat(app, monkeypatch):

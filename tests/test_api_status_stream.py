@@ -132,7 +132,7 @@ def test_max_workers_config_is_respected(app, client, monkeypatch):
             super().__init__(max_workers=max_workers, **kw)
 
     monkeypatch.setattr(views, 'ThreadPoolExecutor', SpyPool)
-    app.config['STATUS_MAX_WORKERS'] = 24
+    app.config['STATUS_MAX_WORKERS'] = 12
 
     _post(client)
 
@@ -141,6 +141,6 @@ def test_max_workers_config_is_respected(app, client, monkeypatch):
 
     seen.clear()
     _seed(app, 40)
-    app.config['STATUS_MAX_WORKERS'] = 24
+    app.config['STATUS_MAX_WORKERS'] = 12
     _post(client)
-    assert seen['max_workers'] == 24
+    assert seen['max_workers'] == 12
