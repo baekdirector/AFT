@@ -293,6 +293,35 @@
     content: '✓ ';
   }
 
+  /* 감시 목록 칩. 다른 날짜의 감시도 여기서 해제한다. */
+  .watch-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 6px 6px 0;
+    padding: 4px 6px 4px 10px;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    border-radius: 999px;
+    font-size: 12px;
+    color: #1e40af;
+    white-space: nowrap;
+  }
+  .watch-chip-x {
+    border: none;
+    background: transparent;
+    color: #1e40af;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 999px;
+  }
+  .watch-chip-x:hover {
+    background: #dbeafe;
+    color: #b91c1c;
+  }
+
   .table-wrapper {
     width: 100%;
     max-width: 1500px;
@@ -715,6 +744,9 @@
     <span id="watch-status" style="font-size:13px;color:#6b7280;"></span>
   </div>
 
+  <!-- 감시 목록. 다른 날짜에 걸어둔 것도 여기서 해제할 수 있어야 갇히지 않는다. -->
+  <div id="watch-list" style="display:none;margin:0 0 10px;"></div>
+
   <!-- 스트림이 중간에 잘렸을 때(서버 타임아웃 등) 못 받은 배를 알려주고 재조회시킨다 -->
   <div id="missing-notice" style="display:none;margin:8px 0;padding:10px 12px;border:1px solid #fbbf24;background:#fffbeb;border-radius:6px;font-size:14px;color:#92400e;">
     <span id="missing-text"></span>
@@ -991,7 +1023,8 @@
 
     const Watch = (function () {
       let endpoint = null;          // 이 브라우저의 푸시 구독 주소
-      let watched = new Set();      // 'boatName||shipName' 형태의 키
+      let watched = new Set();      // 현재 조회 날짜의 감시 키('boatName||shipName')
+      let allWatches = [];          // 날짜 무관 전체 감시. 상한은 이것으로 센다.
       let limit = 5;
 
       function key(boatName, shipName) { return `${boatName || ''}||${shipName || ''}`; }
@@ -1023,11 +1056,66 @@
 
       function applyServerState(body) {
         limit = body.limit || limit;
-        watched = new Set((body.watches || [])
+        // 상한은 날짜와 무관하게 전체 감시 수로 걸린다. 예전에는 현재 조회
+        // 날짜만 세어 화면에 '3/5' 로 보이는데 서버는 이미 5건이라 등록을
+        // 거절하는 일이 있었다. 세는 기준을 서버와 똑같이 맞춘다.
+        allWatches = (body.watches || []).slice();
+        watched = new Set(allWatches
           .filter(w => w.target_date === currentDate())
           .map(w => key(w.boat_name, w.ship_name)));
         refreshCheckboxes();
         updateBanner();
+        renderWatchList();
+      }
+
+      function atLimit() { return allWatches.length >= limit; }
+
+      // 다른 날짜에 걸어둔 감시는 그 날짜를 다시 조회하지 않으면 화면에 안 보이고
+      // 해제할 수도 없다. 슬롯이 5개뿐이라 그대로 두면 갇힌다. 그래서 날짜와
+      // 무관하게 전체 목록을 항상 보여주고 여기서 바로 해제할 수 있게 한다.
+      function renderWatchList() {
+        const box = document.getElementById('watch-list');
+        if (!box) return;
+        box.innerHTML = '';
+        if (!endpoint || !allWatches.length) { box.style.display = 'none'; return; }
+        box.style.display = '';
+
+        const sorted = allWatches.slice().sort(
+          (a, b) => (a.target_date + a.ship_name).localeCompare(b.target_date + b.ship_name));
+
+        for (const w of sorted) {
+          const item = document.createElement('span');
+          item.className = 'watch-chip';
+          const isToday = w.target_date === currentDate();
+          item.style.opacity = isToday ? '1' : '0.75';
+
+          const text = document.createElement('span');
+          text.textContent = `${w.target_date} · ${w.ship_name}`;
+          item.appendChild(text);
+
+          const del = document.createElement('button');
+          del.type = 'button';
+          del.textContent = '✕';
+          del.title = '이 감시 해제';
+          del.className = 'watch-chip-x';
+          del.addEventListener('click', () => removeWatch(w));
+          item.appendChild(del);
+
+          box.appendChild(item);
+        }
+      }
+
+      async function removeWatch(w) {
+        if (!endpoint) return;
+        const resp = await fetch('/api/watches', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            endpoint, boat_id: w.boat_id,
+            ship_name: w.ship_name, target_date: w.target_date
+          })
+        });
+        if (resp.ok) applyServerState(await resp.json());
       }
 
       function refreshCheckboxes() {
@@ -1038,8 +1126,14 @@
           return;
         }
         document.querySelectorAll('.watch-checkbox').forEach(cb => {
-          cb.checked = isWatched(cb.dataset.boatName, cb.dataset.shipName);
-          cb.disabled = !endpoint;
+          const on = isWatched(cb.dataset.boatName, cb.dataset.shipName);
+          cb.checked = on;
+          // 상한에 찼으면 새로 켤 수 없는 칸은 미리 잠근다. 눌러본 뒤에
+          // 거절당하는 것보다 잠겨 있는 편이 낫다. 이미 켠 것은 끌 수 있어야 한다.
+          cb.disabled = !endpoint || (!on && atLimit());
+          cb.title = cb.disabled && endpoint && !on
+            ? `감시는 최대 ${limit}척입니다. 아래 목록에서 하나를 해제하세요.`
+            : '자리가 나면 알림 받기';
         });
       }
 
@@ -1050,9 +1144,13 @@
           el.textContent = '알림을 받으려면 먼저 "알림 켜기"를 눌러주세요.';
           return;
         }
-        el.textContent = `알림 감시 ${watched.size}/${limit}척`;
-        // 상한에 도달하면 남은 체크박스를 잠가 서버가 거절하기 전에 알려준다
-        el.style.color = watched.size >= limit ? '#b45309' : '#6b7280';
+        // 서버 상한과 같은 기준(날짜 무관 전체)으로 센다
+        const otherDates = allWatches.length - watched.size;
+        let text = `알림 감시 ${allWatches.length}/${limit}척`;
+        if (otherDates > 0) text += ` (다른 날짜 ${otherDates}척 포함)`;
+        if (atLimit()) text += ' — 더 추가하려면 아래에서 하나를 해제하세요';
+        el.textContent = text;
+        el.style.color = atLimit() ? '#b45309' : '#6b7280';
       }
 
       // base64 공개키를 푸시 API 가 요구하는 Uint8Array 로 바꾼다
@@ -1099,6 +1197,24 @@
         setButtonOn(true);
       }
 
+      // 서버 응답 전에 로컬 상태를 먼저 움직인다(그리고 실패 시 되돌린다).
+      // 카운트는 날짜 무관 전체(allWatches)로 세므로 둘 다 손봐야 한다.
+      function applyLocal(on, k, stub) {
+        if (on) {
+          watched.add(k);
+          if (!allWatches.some(w => w.target_date === stub.target_date
+                                 && w.ship_name === stub.ship_name)) {
+            allWatches.push(stub);
+          }
+        } else {
+          watched.delete(k);
+          allWatches = allWatches.filter(w => !(w.target_date === stub.target_date
+                                             && w.ship_name === stub.ship_name));
+        }
+        updateBanner();
+        renderWatchList();
+      }
+
       async function toggle(cb) {
         if (!endpoint) {
           cb.checked = false;
@@ -1112,8 +1228,11 @@
         // 카운트를 서버 응답을 기다리지 않고 즉시 반영한다.
         // 체크한 순간 숫자가 안 움직이면 눌린 건지 아닌지 알 수 없다.
         // 서버가 거절하면 아래에서 되돌린다.
-        if (turningOn) watched.add(k); else watched.delete(k);
-        updateBanner();
+        const stub = {
+          boat_id: null, boat_name: cb.dataset.boatName,
+          ship_name: cb.dataset.shipName, target_date: currentDate()
+        };
+        applyLocal(turningOn, k, stub);
 
         const payload = {
           endpoint,
@@ -1132,18 +1251,16 @@
           body = await resp.json();
         } catch (e) {
           // 네트워크 실패도 되돌린다. 켜진 것처럼 보이는데 실제로는 아닌 상태가 최악이다.
-          if (turningOn) watched.delete(k); else watched.add(k);
+          applyLocal(!turningOn, k, stub);
           cb.checked = !turningOn;
-          updateBanner();
           alert('통신에 실패했습니다. 다시 시도해주세요.');
           return;
         }
 
         if (!resp.ok) {
           // 상한 초과 등. 서버가 거절했으므로 낙관적 반영을 되돌린다.
-          if (turningOn) watched.delete(k); else watched.add(k);
+          applyLocal(!turningOn, k, stub);
           cb.checked = !turningOn;
-          updateBanner();
           alert(body.error || '알림 등록에 실패했습니다.');
           return;
         }
