@@ -85,6 +85,119 @@ class Snapshot(db.Model):
         }
 
 
+#: 한 사람이 걸 수 있는 감시 개수 상한.
+#: 이용자가 친구 5명 안쪽인 취미 규모라 수집량을 작게 유지하는 것이 목적이다.
+#: 감시 대상만 주기 수집하므로 이 숫자가 곧 스케줄러 부하다.
+MAX_WATCHES_PER_SUBSCRIBER = 5
+
+
+class Subscriber(db.Model):
+    """알림을 받을 사람 하나 = 브라우저의 푸시 구독 하나.
+
+    로그인이 없는 서비스라 사람을 식별할 수단이 푸시 구독 endpoint 뿐이다.
+    같은 사람이 다른 기기/브라우저에서 구독하면 별개의 Subscriber 가 된다.
+    친구 5명 규모에서는 그걸로 충분하고, 계정 체계를 만드는 것은 과설계다.
+    """
+    __tablename__ = 'subscribers'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # 푸시 서비스가 주는 URL. 사람을 가르는 유일한 키다.
+    endpoint = db.Column(db.String(512), nullable=False, unique=True)
+    p256dh = db.Column(db.String(255), nullable=False)
+    auth = db.Column(db.String(255), nullable=False)
+
+    label = db.Column(db.String(100), nullable=True)          # 사람이 알아볼 별칭
+    telegram_chat_id = db.Column(db.String(64), nullable=True)  # 보조 채널(추후)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_seen_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<Subscriber {self.id} {self.label or self.endpoint[:40]}>'
+
+    def to_subscription_info(self):
+        """pywebpush 가 요구하는 모양으로 돌려준다."""
+        return {
+            'endpoint': self.endpoint,
+            'keys': {'p256dh': self.p256dh, 'auth': self.auth},
+        }
+
+
+class Watch(db.Model):
+    """'이 배의 이 날짜를 지켜봐 달라' 한 건.
+
+    /status 결과 표의 한 행이 감시 한 건에 대응한다. 그 행이 (배, 선박, 날짜)로
+    특정되므로 Snapshot 과 키가 같다. 그래야 수집 결과를 바로 맞물릴 수 있다.
+    """
+    __tablename__ = 'watches'
+    __table_args__ = (
+        db.UniqueConstraint('subscriber_id', 'boat_id', 'ship_name', 'target_date',
+                            name='uq_watch_subscriber_target'),
+        db.Index('ix_watch_active_date', 'active', 'target_date'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    subscriber_id = db.Column(db.Integer,
+                              db.ForeignKey('subscribers.id', ondelete='CASCADE'),
+                              nullable=False, index=True)
+    boat_id = db.Column(db.Integer, db.ForeignKey('boats.id', ondelete='CASCADE'),
+                        nullable=False, index=True)
+    ship_name = db.Column(db.String(255), nullable=False)
+    target_date = db.Column(db.String(10), nullable=False)   # 'YYYY-MM-DD'
+
+    active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    subscriber = db.relationship('Subscriber',
+                                 backref=db.backref('watches', lazy='dynamic',
+                                                    cascade='all, delete-orphan'))
+    boat = db.relationship('Boat',
+                           backref=db.backref('watches', lazy='dynamic',
+                                              cascade='all, delete-orphan'))
+
+    def __repr__(self):
+        return f'<Watch {self.ship_name} {self.target_date}>'
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'boat_id': self.boat_id,
+            'ship_name': self.ship_name,
+            'target_date': self.target_date,
+            'active': self.active,
+        }
+
+
+class Notification(db.Model):
+    """발송 이력. 존재 이유는 기록이 아니라 중복 방지다.
+
+    dedup_key 는 Transition.dedup_key 를 문자열로 굳힌 것이다. 같은 전환에
+    대해 이미 보낸 기록이 있으면 다시 보내지 않는다. 상태가 원복했다가 다시
+    열리면 키가 달라지므로 재발송된다(PLAN.md 6).
+    """
+    __tablename__ = 'notifications'
+    __table_args__ = (
+        db.Index('ix_notification_dedup', 'watch_id', 'dedup_key'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    watch_id = db.Column(db.Integer, db.ForeignKey('watches.id', ondelete='CASCADE'),
+                         nullable=False, index=True)
+    dedup_key = db.Column(db.String(512), nullable=False)
+    channel = db.Column(db.String(32), nullable=False, default='webpush')
+
+    sent_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    result = db.Column(db.String(32), nullable=False, default='pending')  # sent/failed/expired
+    detail = db.Column(db.Text, nullable=True)
+
+    watch = db.relationship('Watch',
+                            backref=db.backref('notifications', lazy='dynamic',
+                                               cascade='all, delete-orphan'))
+
+    def __repr__(self):
+        return f'<Notification watch={self.watch_id} {self.result}>'
+
+
 class AppSetting(db.Model):
     __tablename__ = 'app_settings'
     key = db.Column(db.String(255), primary_key=True)
