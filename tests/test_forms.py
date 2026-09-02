@@ -8,7 +8,7 @@ def test_boat_registration_form_valid_data(app):
     """유효한 데이터로 폼 검증 테스트"""
     from forms import BoatRegistrationForm
     
-    with app.app_context():
+    with app.test_request_context():
         form = BoatRegistrationForm()
         form.name.data = '테스트선'
         form.url.data = 'https://example.com'
@@ -25,7 +25,7 @@ def test_boat_registration_form_invalid_url(app):
     """잘못된 URL 폼 검증 테스트"""
     from forms import BoatRegistrationForm
     
-    with app.app_context():
+    with app.test_request_context():
         form = BoatRegistrationForm()
         form.name.data = '테스트선'
         form.url.data = 'not-a-url'  # 잘못된 URL
@@ -44,7 +44,7 @@ def test_status_check_form_valid_date(app):
     """유효한 날짜로 상태 조회 폼 검증"""
     from forms import StatusCheckForm
     
-    with app.app_context():
+    with app.test_request_context():
         form = StatusCheckForm()
         form.year.data = 2026
         form.month.data = 8
@@ -59,7 +59,7 @@ def test_status_check_form_invalid_month(app):
     """잘못된 월로 상태 조회 폼 검증"""
     from forms import StatusCheckForm
     
-    with app.app_context():
+    with app.test_request_context():
         form = StatusCheckForm()
         form.year.data = 2026
         form.month.data = 13  # 잘못된 월

@@ -115,7 +115,10 @@ def test_schedule_fleet_detects_bad_weather_status(monkeypatch):
 
     entries = result["entries"]
     assert len(entries) == 1
-    assert entries[0]["status"] == "unknown"
+    # 기상악화는 'unknown' 이 아니라 전용 상태로 분류된다.
+    # PLAN.md 4 상태표의 WEATHER 에 해당하며, 기존 어휘로는 'cancelled' 이다.
+    # (status.html 이 cancelled -> danger 클래스로 렌더링한다)
+    assert entries[0]["status"] == "cancelled"
     assert entries[0]["display_status"] == "기상악화"
     assert entries[0]["raw_status_text"] == "기상악화"
 

@@ -29,14 +29,22 @@ def app():
     })
     
     with app.app_context():
-        from src.db import db
+        # NOTE: 반드시 'db'로 import 한다. 'src.db'로 import 하면
+        # src/app.py 의 'from db import db' 와 서로 다른 모듈 객체가 되어
+        # SQLAlchemy 인스턴스가 2개로 갈리고 create_all() 이 RuntimeError 를 낸다.
+        from db import db
         db.create_all()
         yield app
         db.session.remove()
         db.drop_all()
-    
+        # Windows 에서는 엔진이 sqlite 파일 핸들을 잡고 있으면 unlink 가 WinError 32 로 실패한다.
+        db.engine.dispose()
+
     os.close(db_fd)
-    os.unlink(db_path)
+    try:
+        os.unlink(db_path)
+    except OSError:
+        pass
 
 
 @pytest.fixture
