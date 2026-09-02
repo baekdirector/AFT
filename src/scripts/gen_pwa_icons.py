@@ -61,8 +61,10 @@ def make_icon(size: int, maskable: bool = False):
     draw.text((x+2, y+2), TEXT, font=font, fill=(0,0,0,120))
     draw.text((x, y), TEXT, font=font, fill=TEXT_COLOR)
 
-    suffix = 'maskable-' if maskable else ''
-    out_path = ICON_DIR / f'{suffix}{size}.png'
+    # 파일명은 manifest.json 이 참조하는 이름과 정확히 같아야 한다.
+    # (전에는 '192.png' 로 저장해 manifest 의 'icon-192.png' 와 어긋나 있었다)
+    prefix = 'maskable-' if maskable else 'icon-'
+    out_path = ICON_DIR / f'{prefix}{size}.png'
     img.save(out_path, optimize=True)
     print(f'Generated {out_path}')
 

@@ -316,8 +316,8 @@
     white-space: nowrap;
   }
 
-  #results-table th:nth-child(9),
-  #results-table td:nth-child(9),
+  #results-table th:nth-child(10),
+  #results-table td:nth-child(10),
   .weather-col {
     display: none !important;
   }
@@ -326,8 +326,9 @@
     color: #dc2626 !important;
   }
 
-  /* 남은자리(7번째) / 날씨/물때(9번째) 데이터 칸 중앙 정렬 */
-  #results-table tbody td:nth-child(7) {
+  /* 남은자리(8번째) / 날씨/물때(10번째) 데이터 칸 중앙 정렬 */
+  /* 맨 앞에 알림 열이 생겨 기존 번호가 하나씩 밀렸다 */
+  #results-table tbody td:nth-child(8) {
     text-align: center;
     vertical-align: middle;
   }
@@ -378,7 +379,7 @@
     #results-table td span.status-badge { margin-top:2px; }
     #results-table td.status-col,
     #results-table td.available-col,
-    #results-table td:nth-child(7) {
+    #results-table td:nth-child(8) {
       grid-column:auto;
       width:auto;
       min-width:0;
@@ -390,7 +391,7 @@
     }
     #results-table td.status-col:before,
     #results-table td.available-col:before,
-    #results-table td:nth-child(7):before {
+    #results-table td:nth-child(8):before {
       flex:0 0 auto;
       min-width:34px;
     }
@@ -689,6 +690,15 @@
 <div class="results-section">
   <h3 id="results-title" class="results-title">조회 결과 (실시간)</h3>
 
+  <!-- 알림(감시) 제어. 체크박스를 쓰려면 먼저 여기서 알림을 켜야 한다. -->
+  <div style="display:flex;align-items:center;gap:10px;margin:8px 0;flex-wrap:wrap;">
+    <button type="button" id="enable-push-btn"
+            style="padding:6px 14px;border:1px solid #0066cc;background:#0066cc;color:#fff;border-radius:6px;cursor:pointer;font-size:14px;">
+      알림 켜기
+    </button>
+    <span id="watch-status" style="font-size:13px;color:#6b7280;"></span>
+  </div>
+
   <!-- 스트림이 중간에 잘렸을 때(서버 타임아웃 등) 못 받은 배를 알려주고 재조회시킨다 -->
   <div id="missing-notice" style="display:none;margin:8px 0;padding:10px 12px;border:1px solid #fbbf24;background:#fffbeb;border-radius:6px;font-size:14px;color:#92400e;">
     <span id="missing-text"></span>
@@ -702,6 +712,9 @@
     <table id="results-table">
       <thead>
         <tr>
+          <th style="width: 52px; text-align: center;" title="체크한 배는 자리가 나면 알림을 받습니다">
+            알림
+          </th>
           <th style="width: 60px;">
             지역
             <button type="button" class="sort-btn sort-icon" data-sort-key="city" data-dir="asc">▲▼</button>
@@ -748,6 +761,12 @@
               '예약가능' if is_open
               else ('예약마감' if is_closed else ('점검일' if entry.status == 'maintenance' else (entry.display_status or ('알 수 없음' if entry.status == 'unknown' else entry.status) or '알 수 없음'))) %}
           <tr>
+            <td data-label="알림" style="text-align:center;">
+              <input type="checkbox" class="watch-checkbox" style="cursor:pointer;" disabled
+                     data-boat-name="{{ entry.registered_name or '' }}"
+                     data-ship-name="{{ entry.ship_name or '' }}"
+                     title="자리가 나면 알림 받기">
+            </td>
             <td data-label="지역">{{ entry.city or '-' }}</td>
             <td data-label="항구">{{ entry.port or '-' }}</td>
             <td data-label="등록된 배">{{ entry.registered_name or '-' }}</td>
@@ -779,7 +798,7 @@
         {% endfor %}
       {% else %}
         <tr>
-          <td class="no-results" colspan="9" style="text-align: center; color: #9ca3af;">
+          <td class="no-results" colspan="10" style="text-align: center; color: #9ca3af;">
             조회 결과가 없습니다.<br>상단에서 지역과 날짜를 선택 후 조회하세요.
           </td>
         </tr>
@@ -936,6 +955,148 @@
     updateBoatList();
     // ====== 배 선택 필터 끝 ======
 
+    // ------------------------------------------------------------------
+    // 감시(알림) 등록. 표의 체크박스가 여기를 쓴다.
+    //
+    // 로그인이 없으므로 사람을 가르는 키는 브라우저 푸시 구독 endpoint 하나다.
+    // 구독하기 전에는 체크박스를 켤 수 없다 - 누구에게 보낼지 알 수 없기 때문.
+    // ------------------------------------------------------------------
+    const Watch = (function () {
+      let endpoint = null;          // 이 브라우저의 푸시 구독 주소
+      let watched = new Set();      // 'boatName||shipName' 형태의 키
+      let limit = 5;
+
+      function key(boatName, shipName) { return `${boatName || ''}||${shipName || ''}`; }
+      function currentDate() {
+        const f = document.getElementById('status-form');
+        const y = f.querySelector('[name=year]').value;
+        const m = String(f.querySelector('[name=month]').value).padStart(2, '0');
+        const d = String(f.querySelector('[name=day]').value).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+
+      function isWatched(boatName, shipName) { return watched.has(key(boatName, shipName)); }
+
+      function applyServerState(body) {
+        limit = body.limit || limit;
+        watched = new Set((body.watches || [])
+          .filter(w => w.target_date === currentDate())
+          .map(w => key(w.boat_name, w.ship_name)));
+        refreshCheckboxes();
+        updateBanner();
+      }
+
+      function refreshCheckboxes() {
+        document.querySelectorAll('.watch-checkbox').forEach(cb => {
+          cb.checked = isWatched(cb.dataset.boatName, cb.dataset.shipName);
+          cb.disabled = !endpoint;
+        });
+      }
+
+      function updateBanner() {
+        const el = document.getElementById('watch-status');
+        if (!el) return;
+        if (!endpoint) {
+          el.textContent = '알림을 받으려면 먼저 "알림 켜기"를 눌러주세요.';
+        } else {
+          el.textContent = `알림 감시 ${watched.size}/${limit}척`;
+        }
+      }
+
+      // base64 공개키를 푸시 API 가 요구하는 Uint8Array 로 바꾼다
+      function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const raw = atob(base64);
+        return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+      }
+
+      async function enable() {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+          alert('이 브라우저는 웹 푸시를 지원하지 않습니다.');
+          return;
+        }
+        const info = await (await fetch('/api/push/public-key')).json();
+        if (!info.configured) {
+          alert('서버에 알림 키(VAPID)가 아직 설정되지 않았습니다.');
+          return;
+        }
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          alert('알림 권한이 거부되어 있습니다. 브라우저 설정에서 허용해주세요.');
+          return;
+        }
+
+        const reg = await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(info.public_key)
+          });
+        }
+        endpoint = sub.endpoint;
+
+        const body = await (await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sub.toJSON())
+        })).json();
+
+        applyServerState(body);
+        const btn = document.getElementById('enable-push-btn');
+        if (btn) btn.textContent = '알림 켜짐';
+      }
+
+      async function toggle(cb) {
+        if (!endpoint) {
+          cb.checked = false;
+          alert('먼저 "알림 켜기"를 눌러 알림을 허용해주세요.');
+          return;
+        }
+        const payload = {
+          endpoint,
+          boat_name: cb.dataset.boatName,
+          ship_name: cb.dataset.shipName,
+          target_date: currentDate()
+        };
+        const resp = await fetch('/api/watches', {
+          method: cb.checked ? 'POST' : 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const body = await resp.json();
+
+        if (!resp.ok) {
+          // 상한 초과 등. 서버가 거절했으므로 체크 상태를 되돌린다.
+          cb.checked = false;
+          alert(body.error || '알림 등록에 실패했습니다.');
+          return;
+        }
+        applyServerState(body);
+      }
+
+      // 이미 구독한 브라우저면 화면을 열 때 조용히 상태를 복원한다
+      async function restore() {
+        if (!('serviceWorker' in navigator)) return;
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          const sub = await reg.pushManager.getSubscription();
+          if (!sub) { updateBanner(); return; }
+          endpoint = sub.endpoint;
+          const body = await (await fetch('/api/watches?endpoint=' +
+                                          encodeURIComponent(endpoint))).json();
+          applyServerState(body);
+          const btn = document.getElementById('enable-push-btn');
+          if (btn) btn.textContent = '알림 켜짐';
+        } catch (e) {
+          console.warn('감시 상태 복원 실패', e);
+        }
+      }
+
+      return { isWatched, toggle, enable, restore, refreshCheckboxes };
+    })();
+
     // onlyBoats 를 주면 그 배들만 조회한다 (잘렸을 때 재조회용).
     async function loadStatusResults(onlyBoats) {
       const params = new URLSearchParams(new FormData(form));
@@ -988,7 +1149,7 @@
               totalBoats = Number(result.total) || 0;
               completedBoats = 0;
               updateResultsTitle();
-              tbody.innerHTML = '<tr><td class="no-results" colspan="9" style="text-align:center;color:#9ca3af;">조회 준비 중...</td></tr>';
+              tbody.innerHTML = '<tr><td class="no-results" colspan="10" style="text-align:center;color:#9ca3af;">조회 준비 중...</td></tr>';
               continue;
             }
             if (result.type === 'end') {
@@ -1040,13 +1201,20 @@
         }
       } catch (error) {
         console.error(error);
-        tbody.innerHTML = '<tr><td class="no-results" colspan="9" style="text-align:center;color:#9ca3af;">예약 조회 중 오류가 발생했습니다.</td></tr>';
+        tbody.innerHTML = '<tr><td class="no-results" colspan="10" style="text-align:center;color:#9ca3af;">예약 조회 중 오류가 발생했습니다.</td></tr>';
       } finally {
         overlay.style.display = 'none';
         const btn = form.querySelector('button[type="submit"], #searchBtn');
         if (btn) btn.disabled = false;
       }
     }
+
+    // 알림 켜기 버튼 + 이미 구독한 브라우저의 상태 복원
+    (function bindPush() {
+      const btn = document.getElementById('enable-push-btn');
+      if (btn) btn.addEventListener('click', () => Watch.enable());
+      Watch.restore();
+    })();
 
     // 누락된 배만 다시 조회. 서버가 어떤 배가 빠졌는지 알려준 경우에만
     // 부분 재조회가 가능하고, 스트림이 통째로 끊겼으면 전체를 다시 돈다.
@@ -1200,6 +1368,22 @@
       const frag = document.createDocumentFragment();
       for (const r of rows) {
         const tr = document.createElement('tr');
+
+        // 알림(감시) 체크박스. 체크하면 자리가 났을 때 웹푸시를 받는다.
+        const tdWatch = document.createElement('td');
+        tdWatch.setAttribute('data-label', '알림');
+        tdWatch.style.textAlign = 'center';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'watch-checkbox';
+        cb.style.cursor = 'pointer';
+        cb.dataset.boatName = r.registered_name || '';
+        cb.dataset.shipName = r.ship_name || '';
+        cb.checked = Watch.isWatched(r.registered_name, r.ship_name);
+        cb.title = '자리가 나면 알림 받기';
+        cb.addEventListener('change', () => Watch.toggle(cb));
+        tdWatch.appendChild(cb);
+        tr.appendChild(tdWatch);
 
         // 지역
         const tdCity = document.createElement('td');

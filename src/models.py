@@ -162,6 +162,8 @@ class Watch(db.Model):
         return {
             'id': self.id,
             'boat_id': self.boat_id,
+            # 표의 체크박스는 배 이름으로 행을 찾으므로 이름도 함께 내려준다
+            'boat_name': self.boat.name if self.boat else None,
             'ship_name': self.ship_name,
             'target_date': self.target_date,
             'active': self.active,

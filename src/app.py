@@ -53,6 +53,9 @@ def create_app(test_config=None):
     from routes.views import views
     app.register_blueprint(views, url_prefix='')
 
+    from routes.watch_views import watch_views
+    app.register_blueprint(watch_views, url_prefix='')
+
     import models
 
     with app.app_context():
