@@ -1,0 +1,27 @@
+{
+  "entries": [
+    {
+      "ship_name": "레드헌터",
+      "status": "full",
+      "available": 0,
+      "display_status": "예약마감",
+      "fish": "문어"
+    },
+    {
+      "ship_name": "레드히어로",
+      "status": "full",
+      "available": 0,
+      "display_status": "예약마감",
+      "fish": "문어"
+    },
+    {
+      "ship_name": "레드퀸",
+      "status": "full",
+      "available": 0,
+      "display_status": "예약마감",
+      "fish": "주꾸미"
+    }
+  ],
+  "tide": "조금",
+  "error": null
+}

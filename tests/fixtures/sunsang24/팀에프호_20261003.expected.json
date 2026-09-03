@@ -1,0 +1,20 @@
+{
+  "entries": [
+    {
+      "ship_name": "팀에프원",
+      "status": "full",
+      "available": 0,
+      "display_status": "예약마감",
+      "fish": "갑오징어"
+    },
+    {
+      "ship_name": "팀에프투",
+      "status": "full",
+      "available": 0,
+      "display_status": "예약마감",
+      "fish": "갑오징어"
+    }
+  ],
+  "tide": "조금",
+  "error": null
+}

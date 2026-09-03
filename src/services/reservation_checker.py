@@ -162,11 +162,39 @@ def _clean_ship_name(name: str) -> str:
     name = re.sub(r'\(\s*\d+\s*인승\s*\)', '', name).strip()
     return name
 
-def _is_valid_ship_name(name: str, extra_valid_names: set | None = None) -> bool:
-    """배 이름이 유효한지 검증: '호'를 포함하거나 예외 목록에 있거나, 실제 등록된 배 이름이면 인정"""
+#: 배가 아닌 것이 확실한 행. 낚시점·안내 행이 배로 섞여 들어오는 것을 막는다.
+_NON_SHIP_PATTERNS = re.compile(
+    r'(낚시마트|낚시점|낚시프라자|피싱마트|조황안내|출조안내|공지사항|이벤트)')
+
+
+def _is_valid_ship_name(name: str, extra_valid_names: set | None = None,
+                        has_ship_signals: bool = False) -> bool:
+    """이 행을 배로 볼 것인가.
+
+    원래는 이름만 보고 판단했다. "'호'가 들어있거나 하드코딩 목록에 있어야 배"
+    라는 규칙이었는데, 이름이 '호'로 끝나지 않는 선단이 통째로 사라졌다.
+    실측(2026-10-03 팀에프호): 같은 페이지에 '팀에프원', '팀에프투' 가 각각
+    정원 20명·예약마감으로 버젓이 실려 있는데 파서는 0척을 냈다.
+    fixture: tests/fixtures/sunsang24/팀에프호_20261003.html
+
+    그래서 판단 근거를 이름에서 구조로 옮겼다. 실제 배 행에는 정원(.number)이나
+    예약 상태(.shipping_status)가 붙어 있고, 낚시점 안내 행에는 둘 다 없다.
+    (같은 fixture 의 '동양낚시마트' 행이 그렇다.)
+
+    has_ship_signals 를 주지 않는 호출부에서는 예전 이름 규칙이 그대로 쓰인다.
+    """
     if not name:
         return False
     name = _clean_ship_name(name)
+
+    # 이름만으로 배가 아님이 분명하면 구조 신호가 있어도 제외한다
+    if _NON_SHIP_PATTERNS.search(name):
+        return False
+
+    # 정원/예약상태를 달고 있으면 이름 모양과 무관하게 배로 본다
+    if has_ship_signals:
+        return True
+
     # "~호"를 포함하면 배로 인정
     if '호' in name:
         return True
@@ -368,8 +396,12 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                 display_status = "점검일"
             elif status_code == 'END' or re.search(r'(예약마감|매진|마감)', status_text):
                 status = 'full'
-                if avail is None:
-                    avail = 0
+                # 마감이면 잔여석은 0이다. 예전에는 avail 이 None 일 때만 0으로
+                # 채웠는데, .number 는 잔여석이 아니라 정원이라 마감된 배가
+                # '20자리 남음'으로 저장됐다(실측: 팀에프원 full/20).
+                # 화면은 두 렌더 경로 모두 마감이면 0으로 덮어쓰고 있어 가려져
+                # 있었지만, DB(snapshots)에는 그대로 들어가 알림 판단을 망친다.
+                avail = 0
                 display_status = "예약마감"
             elif re.search(r'예약\s*완료', status_text):
                 status = 'reserved'
@@ -449,10 +481,15 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
             # 배 이름 정리 (예약하기 등 제거)
             ship_name = _clean_ship_name(ship_name)
 
-            # 유효한 배 이름인지 검증
-            if not _is_valid_ship_name(ship_name, {known_ship_name} if known_ship_name else None):
+            # 이 행이 배인지 검증. 이름 모양보다 구조 신호(정원/예약상태)를 우선한다.
+            # 이름이 '호'로 끝나지 않는 선단(팀에프원/팀에프투 등)이 통째로
+            # 사라지던 문제를 막는다.
+            has_ship_signals = bool(num_el or status_text)
+            if not _is_valid_ship_name(ship_name,
+                                       {known_ship_name} if known_ship_name else None,
+                                       has_ship_signals=has_ship_signals):
                 continue
-            
+
             entries.append({
                 "ship_name": ship_name,
                 "status": status,

@@ -1,0 +1,69 @@
+{
+  "entries": [
+    {
+      "ship_name": "제트호",
+      "status": "reserved",
+      "available": 0,
+      "display_status": "예약마감",
+      "fish": "갑오징어 낚시"
+    },
+    {
+      "ship_name": "베스트1호",
+      "status": "reserved",
+      "available": 0,
+      "display_status": "예약마감",
+      "fish": "갑오징어 낚시"
+    },
+    {
+      "ship_name": "베스트3호",
+      "status": "reserved",
+      "available": 0,
+      "display_status": "예약마감",
+      "fish": "갑오징어 낚시"
+    },
+    {
+      "ship_name": "가마우지호",
+      "status": "reserved",
+      "available": 0,
+      "display_status": "예약마감",
+      "fish": "갑오징어 낚시"
+    },
+    {
+      "ship_name": "욜로호",
+      "status": "reserved",
+      "available": 0,
+      "display_status": "예약마감",
+      "fish": "갑오징어 낚시"
+    },
+    {
+      "ship_name": "왕만두호 (25년신조선)",
+      "status": "reserved",
+      "available": 0,
+      "display_status": "예약마감",
+      "fish": "갑오징어 낚시"
+    },
+    {
+      "ship_name": "와이파이호",
+      "status": "reserved",
+      "available": 0,
+      "display_status": "예약마감",
+      "fish": "갑오징어 낚시"
+    },
+    {
+      "ship_name": "시크릿호",
+      "status": "reserved",
+      "available": 0,
+      "display_status": "예약마감",
+      "fish": "갑오징어 낚시"
+    },
+    {
+      "ship_name": "뉴 마린스타호",
+      "status": "reserved",
+      "available": 0,
+      "display_status": "예약마감",
+      "fish": "갑오징어 낚시"
+    }
+  ],
+  "tide": null,
+  "error": null
+}

@@ -1,0 +1,8 @@
+{
+  "source_url": "https://khanfishing.com/index.php?mid=bk",
+  "requested_url": "https://khanfishing.com/index.php?mid=bk&year=2026&month=10&day=03&mode=list&won=1&PA_N_UID=0&sel=day",
+  "target_date": "2026-10-03",
+  "http_status": 200,
+  "captured_at": "2026-09-03T20:59:04",
+  "bytes": 87322
+}
