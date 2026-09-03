@@ -44,6 +44,64 @@ def load_for_dates(target_dates) -> list[Snapshot]:
             .all())
 
 
+def apply_many(target_date: str,
+               observations_by_boat: dict[int, list[Observation]]) -> list[Transition]:
+    """여러 배의 관측을 한 날짜에 대해 한꺼번에 저장한다.
+
+    라이브 조회(/api/status)가 71척을 긁고 나서 그 결과를 캐시로 남길 때 쓴다.
+    배마다 apply_observations 를 부르면 SELECT 와 COMMIT 이 71번씩 붙는데,
+    DB 가 다른 대륙에 있으면(Neon 싱가포르) 왕복 지연만으로 십수 초가 늘어난다.
+    그래서 해당 날짜의 기존 스냅샷을 한 번에 읽고, 메모리에서 비교한 뒤,
+    한 트랜잭션으로 쓴다.
+
+    저장 규칙은 apply_observations 와 같다. 특히 신뢰할 수 없는 관측(unknown)은
+    기존 행을 덮지 않는다.
+    """
+    if not observations_by_boat:
+        return []
+
+    boat_ids = list(observations_by_boat)
+    rows = (Snapshot.query
+            .filter(Snapshot.target_date == target_date,
+                    Snapshot.boat_id.in_(boat_ids))
+            .all())
+    existing = {(r.boat_id, r.target_date, r.ship_name): r for r in rows}
+
+    previous_by_boat: dict[int, list[Observation]] = {}
+    for row in rows:
+        previous_by_boat.setdefault(row.boat_id, []).append(_to_observation(row))
+
+    now = datetime.utcnow()
+    transitions: list[Transition] = []
+
+    for boat_id in sorted(observations_by_boat):
+        observations = observations_by_boat[boat_id]
+        transitions.extend(diff(previous_by_boat.get(boat_id, []), observations))
+
+        for obs in observations:
+            row = existing.get(obs.key)
+
+            if row is not None and not obs.is_reliable:
+                row.checked_at = now
+                continue
+
+            if row is None:
+                row = Snapshot(boat_id=obs.boat_id, target_date=obs.target_date,
+                               ship_name=obs.ship_name)
+                db.session.add(row)
+                existing[obs.key] = row
+
+            row.status = obs.status
+            row.available = obs.available
+            row.display_status = obs.display_status
+            row.fish = obs.fish
+            row.source_url = obs.source_url
+            row.checked_at = now
+
+    db.session.commit()
+    return transitions
+
+
 def apply_observations(boat_id: int, target_date: str,
                        observations: list[Observation],
                        commit: bool = True) -> list[Transition]:

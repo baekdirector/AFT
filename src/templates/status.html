@@ -735,6 +735,10 @@
 <div class="results-section">
   <h3 id="results-title" class="results-title">조회 결과 (실시간)</h3>
 
+  <!-- 지금 보고 있는 값이 저장된 것인지 방금 조회한 것인지 밝힌다.
+       숨기면 낡은 값을 최신으로 착각한다. -->
+  <div id="cache-notice" style="display:none;margin:6px 0;font-size:13px;color:#6b7280;"></div>
+
   <!-- 알림(감시) 제어. 체크박스를 쓰려면 먼저 여기서 알림을 켜야 한다. -->
   <div style="display:flex;align-items:center;gap:10px;margin:8px 0;flex-wrap:wrap;">
     <button type="button" id="enable-push-btn" class="push-btn"
@@ -1295,6 +1299,7 @@
         for (const name of onlyBoats) params.append('boats', name);
       }
       const streamedRows = [];
+      const replacedBoats = new Set();   // 라이브 결과로 이미 갈아끼운 배
       let sawEnd = false;
       let missingBoats = [];
       const missingNotice = document.getElementById('missing-notice');
@@ -1339,8 +1344,27 @@
               totalBoats = Number(result.total) || 0;
               completedBoats = 0;
               updateResultsTitle();
-              tbody.innerHTML = '<tr><td class="no-results" colspan="10" style="text-align:center;color:#9ca3af;">조회 준비 중...</td></tr>';
+              // 캐시가 이미 깔려 있으면 지우지 않는다. 라이브 결과가 하나씩
+              // 도착하는 2분 동안 빈 표를 보여줄 이유가 없다.
+              if (!lastRenderedRows.length) {
+                tbody.innerHTML = '<tr><td class="no-results" colspan="10" style="text-align:center;color:#9ca3af;">조회 준비 중...</td></tr>';
+              }
+              setCacheNotice('실시간 조회 중… 도착하는 대로 갱신됩니다.');
+              // 캐시로 깔린 행을 출발점으로 삼는다. 배별 결과가 도착할 때마다
+              // 그 배의 캐시 행만 걷어내고 갈아끼운다. 그래야 표가 71행에서
+              // 1행으로 줄었다가 다시 차오르는 꼴이 안 난다.
+              streamedRows.length = 0;
+              streamedRows.push(...lastRenderedRows);
               continue;
+            }
+
+            // 이 배의 캐시 행을 걷어낸다 (배당 한 번만)
+            const liveName = result.registered_name;
+            if (liveName && !replacedBoats.has(liveName)) {
+              replacedBoats.add(liveName);
+              for (let i = streamedRows.length - 1; i >= 0; i--) {
+                if (streamedRows[i].registered_name === liveName) streamedRows.splice(i, 1);
+              }
             }
             if (result.type === 'end') {
               sawEnd = true;
@@ -1371,6 +1395,7 @@
         sortRows(streamedRows, 'status', 'asc');
         renderRows(streamedRows);
         updateResultsTitle(totalBoats > 0 && completedBoats === totalBoats);
+        setCacheNotice(sawEnd ? '방금 실시간으로 조회한 결과입니다.' : '');
 
         // 'end' 마커를 못 받았다면 서버가 스트림을 중간에 끊은 것이다.
         // 그 경우 프론트는 어떤 배가 빠졌는지 모르므로 개수만 알려준다.
@@ -1396,6 +1421,96 @@
         overlay.style.display = 'none';
         const btn = form.querySelector('button[type="submit"], #searchBtn');
         if (btn) btn.disabled = false;
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // 캐시 우선 표시.
+    //
+    // 라이브 조회는 71척에 약 2분이 걸린다. 그동안 사용자는 빈 표를 본다.
+    // 저장된 스냅샷이 있으면 그걸 먼저 즉시 깔아놓고, 라이브 결과가 도착하는
+    // 대로 덮어쓴다. 언제 확인된 값인지는 반드시 밝힌다. 숨기면 낡은 값을
+    // 최신으로 착각한다.
+    // ------------------------------------------------------------------
+    function currentQueryDate() {
+      const di = document.getElementById('date');
+      if (di && di.value) return di.value;
+      const f = document.getElementById('status-form');
+      const y = f.querySelector('[name=year]').value;
+      const m = String(f.querySelector('[name=month]').value).padStart(2, '0');
+      const d = String(f.querySelector('[name=day]').value).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function describeAge(iso) {
+      if (!iso) return '';
+      // 서버는 UTC naive 로 내려준다. Z 를 붙여 UTC 임을 명시한다.
+      const then = new Date(/[Zz+]/.test(iso) ? iso : iso + 'Z');
+      const minutes = Math.max(0, Math.round((Date.now() - then.getTime()) / 60000));
+      if (minutes < 1) return '방금';
+      if (minutes < 60) return `${minutes}분 전`;
+      const hours = Math.round(minutes / 60);
+      if (hours < 24) return `${hours}시간 전`;
+      return `${Math.round(hours / 24)}일 전`;
+    }
+
+    function cachedRowToDisplayRow(r) {
+      return {
+        city: r.city || '', port: r.port || '',
+        registered_name: r.registered_name || '',
+        fish: r.fish || '',
+        ship_name: r.ship_name || r.registered_name || '',
+        status_text: r.display_status || (r.status === 'unknown' ? '알 수 없음' : r.status) || '알 수 없음',
+        status_class: (r.status === 'full' || r.status === 'reserved') ? 'closed'
+                      : r.status === 'maintenance' ? 'maintenance'
+                      : r.status === 'cancelled' ? 'danger'
+                      : (r.status || 'unknown'),
+        available: r.available,
+        url: r.source_url || '', url_path: r.source_url || ''
+      };
+    }
+
+    function setCacheNotice(text, tone) {
+      const el = document.getElementById('cache-notice');
+      if (!el) return;
+      if (!text) { el.style.display = 'none'; return; }
+      el.textContent = text;
+      el.style.color = tone === 'stale' ? '#b45309' : '#6b7280';
+      el.style.display = '';
+    }
+
+    async function loadCachedResults() {
+      const params = new URLSearchParams(new FormData(form));
+      params.delete('year'); params.delete('month'); params.delete('day');
+      params.set('date', currentQueryDate());
+
+      try {
+        const resp = await fetch('/api/status/cached?' + params.toString());
+        if (!resp.ok) return false;
+        const body = await resp.json();
+        if (!body.rows || !body.rows.length) {
+          setCacheNotice('저장된 결과가 없습니다. 실시간 조회로 가져옵니다.');
+          return false;
+        }
+
+        const rows = body.rows.map(cachedRowToDisplayRow);
+        sortRows(rows, 'status', 'asc');
+        renderRows(rows);
+
+        const age = describeAge(body.checked_at);
+        const minutes = body.checked_at
+          ? (Date.now() - new Date(body.checked_at + 'Z').getTime()) / 60000 : 0;
+        setCacheNotice(
+          `저장된 결과 (${age} 확인, ${body.boat_count}/${body.total_boats}척). ` +
+          `최신 상태는 "실시간 조회"를 눌러주세요.`,
+          minutes > 180 ? 'stale' : 'fresh');
+
+        const resultsTitle = document.getElementById('results-title');
+        if (resultsTitle) resultsTitle.textContent = `조회 결과 ${body.boat_count}척 (저장된 값)`;
+        return true;
+      } catch (e) {
+        console.warn('캐시 조회 실패', e);
+        return false;
       }
     }
 
@@ -1438,7 +1553,12 @@
           if (mEl) mEl.value = mm;
           if (dEl) dEl.value = dd;
         }
-        overlay.style.display = 'flex';
+        // 캐시를 먼저 깔아 빈 화면을 없앤다. 있으면 즉시 보이고, 그 위로
+        // 라이브 결과가 도착하는 대로 덮인다.
+        loadCachedResults().then(hadCache => {
+          if (!hadCache) overlay.style.display = 'flex';
+        });
+
         const btn = form.querySelector('button[type="submit"], #searchBtn');
         if(btn){ btn.disabled = true; }
         loadStatusResults();

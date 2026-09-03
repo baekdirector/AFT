@@ -249,6 +249,40 @@ def api_status():
         boats = [boat for boat in boats if boat.name in selected_boats]
     debug_enabled = current_app.config.get('DEBUG_LOGGING_ENABLED', False)
 
+    def _persist_snapshots(results, target_date):
+        """라이브 조회 결과를 스냅샷 캐시로 남기고, 감시 중인 변화는 알린다.
+
+        실패해도 조용히 넘어간다. 캐시 저장이 안 됐다고 사용자가 방금 본 조회
+        결과까지 망치면 안 된다. 다음 조회 때 다시 채워진다.
+        """
+        from services.snapshot import entries_to_observations
+        from services.snapshot_repository import apply_many
+        from services.notify.dispatcher import dispatch_all
+
+        try:
+            by_boat = {}
+            names = {}
+            for result in results:
+                boat_id = result.get('boat_id')
+                if boat_id is None:
+                    continue
+                observations = entries_to_observations(
+                    boat_id, target_date, result.get('entries') or [])
+                if observations:
+                    by_boat[boat_id] = observations
+                    names[boat_id] = result.get('registered_name')
+
+            transitions = apply_many(target_date, by_boat)
+
+            # 이 경로에서도 알림을 보내야 한다. 스냅샷만 갱신하고 넘어가면
+            # 스케줄러가 다음에 볼 때는 이미 바뀐 상태라 변화를 못 알아채고,
+            # 감시자는 자리가 났는데도 영영 못 받는다.
+            # 중복은 Notification 이력이 막는다.
+            if transitions:
+                dispatch_all(transitions, names)
+        except Exception as exc:
+            current_app.logger.warning('스냅샷 저장 실패(조회 결과는 정상): %s', exc)
+
     def process_boat(boat):
         boat_name = getattr(boat, 'name', None) or 'unknown'
         try:
@@ -267,11 +301,13 @@ def api_status():
             if not entries:
                 entries = [{'ship_name': boat_name, 'status': 'unknown', 'available': None,
                             'raw_status_text': '', 'source_url': source_url, 'url_path': source_url, 'fish': None}]
-            return {'registered_name': boat_name, 'city': boat.city, 'port': boat.port,
+            return {'boat_id': boat.id,
+                    'registered_name': boat_name, 'city': boat.city, 'port': boat.port,
                     'query_date': f'{year:04d}-{month:02d}-{day:02d}', 'tide': info.get('tide'),
                     'entries': entries}
         except Exception as exc:
-            return {'registered_name': boat_name, 'city': getattr(boat, 'city', ''),
+            return {'boat_id': getattr(boat, 'id', None),
+                    'registered_name': boat_name, 'city': getattr(boat, 'city', ''),
                     'port': getattr(boat, 'port', ''), 'query_date': f'{year:04d}-{month:02d}-{day:02d}',
                     'tide': None, 'entries': [{'ship_name': boat_name, 'status': 'unknown',
                     'available': None, 'raw_status_text': f'조회 오류: {exc}',
@@ -288,13 +324,24 @@ def api_status():
         yield json.dumps({'type': 'start', 'total': len(boats)}, ensure_ascii=False) + '\n'
         completed = 0
         succeeded = set()
+        collected = []
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(process_boat, boat) for boat in boats]
             for future in as_completed(futures):
                 result = future.result()
                 completed += 1
                 succeeded.add(result.get('registered_name'))
+                collected.append(result)
                 yield json.dumps(result, ensure_ascii=False) + '\n'
+
+        # 어차피 71척을 다 긁었으니 그 결과를 스냅샷으로 남긴다. 다음에 같은
+        # 날짜를 열면 이 캐시를 즉시 읽어 조회가 끝난다(현재 라이브 조회 약 114초).
+        # 감시 대상만 수집하는 스케줄러와 달리, 이 경로는 화면에 보이는 전부를 채운다.
+        #
+        # 저장은 워커 스레드가 아니라 여기서 한다. 스레드에는 앱 컨텍스트가 없다.
+        # 그리고 배마다 커밋하지 않고 한 번에 쓴다(apply_many) - DB 가 다른
+        # 대륙에 있으면 왕복 지연만으로 십수 초가 늘어난다.
+        _persist_snapshots(collected, f'{year:04d}-{month:02d}-{day:02d}')
 
         # 종료 마커. 이 줄이 도착하지 않았다면 스트림이 중간에 잘린 것이다
         # (예: gunicorn --timeout 초과로 워커가 강제 종료). 프론트는 이걸로
@@ -309,6 +356,79 @@ def api_status():
         mimetype='application/x-ndjson',
         headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
     )
+
+@views.route('/api/status/cached', methods=['GET'])
+def api_status_cached():
+    """저장된 스냅샷을 즉시 돌려준다. 라이브 스크래핑을 하지 않는다.
+
+    화면을 열자마자 보여줄 값이다. 라이브 조회는 71척에 약 114초가 걸리는데,
+    그 사이 사용자는 빈 화면을 본다. 캐시가 있으면 즉시 채워놓고, 최신이
+    필요할 때만 라이브 조회를 누르게 한다.
+
+    값이 언제 확인된 것인지(checked_at)를 함께 내려준다. 신선도를 숨기면
+    사용자가 낡은 값을 최신으로 착각한다.
+    """
+    from datetime import datetime
+
+    from services.snapshot_repository import load_for_dates
+
+    date_str = request.args.get('date')
+    if not date_str:
+        return jsonify(validation_error_response(
+            error='date 파라미터는 필수입니다.',
+            message='조회할 날짜를 지정해주세요.')), 400
+
+    try:
+        datetime.strptime(date_str, '%Y-%m-%d')
+    except ValueError:
+        return jsonify(validation_error_response(
+            error='date 형식이 잘못되었습니다.',
+            message='YYYY-MM-DD 형식이어야 합니다.')), 400
+
+    boats_by_id = {boat.id: boat for boat in get_all_boats()}
+
+    def get_values(name):
+        return [v for v in request.args.getlist(name) if v and v != '전체']
+
+    regions = set(get_values('regions'))
+    selected = set(get_values('boats'))
+
+    rows = []
+    newest = None
+    for snap in load_for_dates([date_str]):
+        boat = boats_by_id.get(snap.boat_id)
+        if boat is None:
+            continue                      # 배가 지워졌는데 스냅샷이 남은 경우
+        if regions and boat.city not in regions:
+            continue
+        if selected and boat.name not in selected:
+            continue
+
+        if newest is None or (snap.checked_at and snap.checked_at > newest):
+            newest = snap.checked_at
+
+        rows.append({
+            'boat_id': boat.id,
+            'registered_name': boat.name,
+            'city': boat.city,
+            'port': boat.port,
+            'ship_name': snap.ship_name,
+            'status': snap.status,
+            'available': snap.available,
+            'display_status': snap.display_status,
+            'fish': snap.fish,
+            'source_url': snap.source_url or boat.url,
+            'checked_at': snap.checked_at.isoformat() if snap.checked_at else None,
+        })
+
+    return jsonify({
+        'date': date_str,
+        'rows': rows,
+        'boat_count': len({r['boat_id'] for r in rows}),
+        'total_boats': len(boats_by_id),
+        'checked_at': newest.isoformat() if newest else None,
+    })
+
 
 @views.route('/weather')
 def weather():
