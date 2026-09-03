@@ -49,6 +49,16 @@ logger = logging.getLogger('run_scrape')
 DEFAULT_DELAY = float(os.environ.get('SCRAPE_DELAY_SECONDS', '1.0'))
 
 
+class CollectionFailed(Exception):
+    """조회 자체가 실패했다(연결 실패·차단 등).
+
+    예전에는 이 경우 빈 목록을 돌려줬는데, 호출부가 그걸 '성공적으로 수집했고
+    변화가 없었다' 로 세어 집계가 거짓말을 했다. 실측(2026-09, Actions):
+    6척 중 5척이 연결 실패인데 로그에는 collected=6, failed=0 으로 찍혔다.
+    실패를 성공으로 세면 무엇이 망가졌는지 아무도 모른다.
+    """
+
+
 def collect_one(boat, target_date: str, dry_run: bool):
     """배 한 척, 날짜 하나를 수집하고 전환 목록을 돌려준다.
 
@@ -67,7 +77,7 @@ def collect_one(boat, target_date: str, dry_run: bool):
         # 조회 자체가 실패했다. 관측을 만들지 않는다 - 빈 관측을 저장하면
         # 마지막으로 알던 상태를 지우거나 가짜 전환을 만들어낸다.
         logger.warning('  수집 실패 %s %s: %s', boat.name, target_date, info['error'])
-        return []
+        raise CollectionFailed(str(info['error']))
 
     observations = entries_to_observations(boat.id, target_date, entries)
     if dry_run:
@@ -121,6 +131,10 @@ def run(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
             try:
                 transitions = collect_one(boat, target_date, dry_run)
                 summary['collected'] += 1
+            except CollectionFailed:
+                # 이미 위에서 이유를 로그에 남겼다. 스택트레이스는 소음이다.
+                summary['failed'] += 1
+                continue
             except Exception as exc:   # 실패 격리
                 summary['failed'] += 1
                 logger.exception('  예외 %s %s: %s', boat.name, target_date, exc)

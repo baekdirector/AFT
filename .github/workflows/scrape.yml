@@ -74,6 +74,13 @@ jobs:
       - name: 수집 및 알림
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.AFT_DB }}
+          # 러너는 한국 밖에 있다. 한국 공유호스팅에 TCP 연결하는 데만 3초를
+          # 넘기는 일이 흔해서, 기본값으로는 대부분의 배가 연결 실패한다.
+          # 여기는 사용자를 기다리게 하는 경로가 아니므로 넉넉히 준다.
+          SCRAPE_CONNECT_TIMEOUT: '20'
+          SCRAPE_READ_TIMEOUT: '30'
+          # 타임아웃이 길어진 만큼 배 사이 간격은 줄여도 된다.
+          SCRAPE_DELAY_SECONDS: '0.5'
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}

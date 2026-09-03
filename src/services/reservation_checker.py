@@ -4,12 +4,25 @@ from time import time
 from typing import Dict, List
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from config import FISH_KEYWORDS, VALID_SHIP_NAMES
+import os
 import requests
 import re
 import datetime
 import json
 
-REQUEST_TIMEOUT_SECONDS = 3
+# 연결·읽기 타임아웃. (connect, read) 로 나눠 준다.
+#
+# 원격지에서 한국 공유호스팅에 붙으면 TCP 연결만으로 3초를 넘기는 일이 흔하다.
+# 실측(2026-09, GitHub Actions 러너): 감시 6척 중 5척이 connect timeout=3 으로
+# 실패했다(명성호·신명호·금강7호·만수피싱·칸피싱). 같은 배들이 한국에서는
+# 0.5초에 붙는다. 즉 사이트 문제가 아니라 거리 문제다.
+#
+# 환경에 따라 다르게 줄 수 있게 환경변수로 뺀다. 웹 요청 경로는 사용자를
+# 기다리게 하므로 짧게, 스케줄러는 시간 여유가 있으므로 길게 준다
+# (.github/workflows/scrape.yml 에서 올려 준다).
+REQUEST_CONNECT_TIMEOUT = float(os.environ.get('SCRAPE_CONNECT_TIMEOUT', 5))
+REQUEST_READ_TIMEOUT = float(os.environ.get('SCRAPE_READ_TIMEOUT', 10))
+REQUEST_TIMEOUT_SECONDS = (REQUEST_CONNECT_TIMEOUT, REQUEST_READ_TIMEOUT)
 _CACHE_TTL_SECONDS = 300
 _CACHE = {}
 _CACHE_LOCK = Lock()

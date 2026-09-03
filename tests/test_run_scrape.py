@@ -120,6 +120,25 @@ def test_unchanged_state_sends_nothing(scene, monkeypatch, sent):
 
 # --- 실패 격리 --------------------------------------------------------------
 
+def test_fetch_error_is_counted_as_failure_not_success(scene, monkeypatch, sent):
+    """조회 실패를 '수집 성공, 변화 없음' 으로 세면 안 된다.
+
+    실측(2026-09, Actions): 6척 중 5척이 연결 실패인데 로그에는
+    collected=6, failed=0 으로 찍혔다. 실패를 성공으로 세면 무엇이 망가졌는지
+    아무도 모르고, 알림이 안 와도 원인을 찾을 수 없다.
+    """
+    app, _ = scene
+    patch_fetch(monkeypatch, {
+        'https://b0.example/x': {'entries': [], 'error': 'http_error:connect timeout'},
+        'https://b1.example/x': {'entries': [entry('2호', 'full', 0)]},
+    })
+
+    summary = run_scrape.run(delay=0)
+
+    assert summary['collected'] == 1
+    assert summary['failed'] == 1
+
+
 def test_fetch_error_does_not_wipe_last_known_state(scene, monkeypatch, sent):
     """조회 실패는 '상태가 사라졌다'가 아니다. 기존 스냅샷을 지우면 안 된다."""
     app, _ = scene
