@@ -87,77 +87,91 @@ def collect_one(boat, target_date: str, dry_run: bool):
     return apply_observations(boat.id, target_date, observations)
 
 
-def run(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
-    """한 번 돈다. 집계를 돌려준다."""
+def run_pipeline(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
+    """수집 -> 스냅샷 비교 -> 알림. 이미 앱 컨텍스트 안에서 호출해야 한다.
+
+    CLI(run)와 웹 엔드포인트(/api/scrape/run)가 이 함수를 공유한다.
+
+    엔드포인트가 필요한 이유: GitHub Actions 러너에서는 한국 중소 호스팅 상당수에
+    TCP 연결이 되지 않는다. 실측(2026-09) 감시 6척 중 5척이 connect timeout 이고,
+    타임아웃을 20초로 늘려도 같았다. SYN 에 응답이 없다는 뜻이라 방화벽에서
+    드롭되는 것이다. 같은 배들이 Render 에서는 6/6 이 8.9초에 붙는다.
+    그래서 긁는 일은 Render 가 하고 Actions 는 방아쇠만 당긴다.
+    """
     from models import Boat
     from services.notify import webpush
     from services.notify.dispatcher import dispatch_all
     from services.watch_service import active_watch_targets, deactivate_past_watches
 
-    app = create_app()
     summary = {'targets': 0, 'collected': 0, 'failed': 0,
                'transitions': 0, 'sent': 0, 'expired_watches': 0}
 
-    with app.app_context():
-        today = datetime.date.today().isoformat()
-        summary['expired_watches'] = deactivate_past_watches(today)
-        if summary['expired_watches']:
-            logger.info('지난 날짜 감시 %d건을 껐다', summary['expired_watches'])
+    today = datetime.date.today().isoformat()
+    summary['expired_watches'] = deactivate_past_watches(today)
+    if summary['expired_watches']:
+        logger.info('지난 날짜 감시 %d건을 껐다', summary['expired_watches'])
 
-        targets = active_watch_targets()
-        summary['targets'] = len(targets)
+    targets = active_watch_targets()
+    summary['targets'] = len(targets)
 
-        if not targets:
-            logger.info('감시 등록된 대상이 없다. 할 일 없음.')
-            return summary
+    if not targets:
+        logger.info('감시 등록된 대상이 없다. 할 일 없음.')
+        return summary
 
-        if not webpush.is_configured():
-            logger.warning('VAPID 미설정 - 수집은 하되 발송은 건너뛴다.')
+    if not webpush.is_configured():
+        logger.warning('VAPID 미설정 - 수집은 하되 발송은 건너뛴다.')
 
-        logger.info('수집 대상 %d건 (감시 등록된 배·날짜만)', len(targets))
+    logger.info('수집 대상 %d건 (감시 등록된 배·날짜만)', len(targets))
 
-        all_transitions = []
-        boat_names = {}
+    all_transitions = []
+    boat_names = {}
 
-        for index, (boat_id, target_date) in enumerate(targets, 1):
-            boat = Boat.query.get(boat_id)
-            if boat is None:
-                logger.warning('[%d/%d] 배 %s 가 사라졌다 - 건너뛴다',
-                               index, len(targets), boat_id)
-                continue
-            boat_names[boat_id] = boat.name
+    for index, (boat_id, target_date) in enumerate(targets, 1):
+        boat = Boat.query.get(boat_id)
+        if boat is None:
+            logger.warning('[%d/%d] 배 %s 가 사라졌다 - 건너뛴다',
+                           index, len(targets), boat_id)
+            continue
+        boat_names[boat_id] = boat.name
 
-            logger.info('[%d/%d] %s %s', index, len(targets), boat.name, target_date)
-            try:
-                transitions = collect_one(boat, target_date, dry_run)
-                summary['collected'] += 1
-            except CollectionFailed:
-                # 이미 위에서 이유를 로그에 남겼다. 스택트레이스는 소음이다.
-                summary['failed'] += 1
-                continue
-            except Exception as exc:   # 실패 격리
-                summary['failed'] += 1
-                logger.exception('  예외 %s %s: %s', boat.name, target_date, exc)
-                continue
+        logger.info('[%d/%d] %s %s', index, len(targets), boat.name, target_date)
+        try:
+            transitions = collect_one(boat, target_date, dry_run)
+            summary['collected'] += 1
+        except CollectionFailed:
+            # 이미 위에서 이유를 로그에 남겼다. 스택트레이스는 소음이다.
+            summary['failed'] += 1
+            continue
+        except Exception as exc:   # 실패 격리
+            summary['failed'] += 1
+            logger.exception('  예외 %s %s: %s', boat.name, target_date, exc)
+            continue
 
-            for transition in transitions:
-                logger.info('  변화 감지: %s %s -> %s',
-                            transition.ship_name,
-                            transition.previous_status, transition.current_status)
-            all_transitions.extend(transitions)
+        for transition in transitions:
+            logger.info('  변화 감지: %s %s -> %s',
+                        transition.ship_name,
+                        transition.previous_status, transition.current_status)
+        all_transitions.extend(transitions)
 
-            if index < len(targets) and delay > 0:
-                time.sleep(delay)
+        if index < len(targets) and delay > 0:
+            time.sleep(delay)
 
-        if all_transitions and not dry_run:
-            result = dispatch_all(all_transitions, boat_names)
-            summary['transitions'] = result['transitions']
-            summary['sent'] = result['sent']
-            logger.info('발송 결과: %s', result)
-        else:
-            logger.info('알릴 변화 없음')
+    if all_transitions and not dry_run:
+        result = dispatch_all(all_transitions, boat_names)
+        summary['transitions'] = result['transitions']
+        summary['sent'] = result['sent']
+        logger.info('발송 결과: %s', result)
+    else:
+        logger.info('알릴 변화 없음')
 
     return summary
+
+
+def run(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
+    """CLI 진입점용. 앱을 만들고 컨텍스트 안에서 파이프라인을 돌린다."""
+    app = create_app()
+    with app.app_context():
+        return run_pipeline(dry_run=dry_run, delay=delay)
 
 
 def main() -> int:

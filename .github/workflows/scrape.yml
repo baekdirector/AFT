@@ -2,16 +2,18 @@ name: 낚시배 자리 감시
 
 # 감시 등록된 (배, 날짜) 만 수집해서 상태가 바뀌면 웹푸시를 보낸다.
 #
-# 웹(Render 무료)은 15분 무활동 후 잠들기 때문에 수집을 맡길 수 없다.
-# 그래서 Actions 가 수집·발송을 하고 웹은 같은 Neon DB 를 보기만 한다.
+# 러너가 직접 긁지 않고 Render 앱의 엔드포인트를 호출한다.
+# 실측(2026-09): Actions 러너에서는 감시 6척 중 5척이 connect timeout 으로
+# 실패했다. 타임아웃을 20초로 늘려도 같았다 - SYN 에 응답이 없다는 뜻이라
+# 한국 중소 호스팅이 해외 IP 를 방화벽에서 드롭하는 것이다. 같은 배들이
+# Render 에서는 6/6 이 8.9초에 붙는다. 그래서 긁는 일은 Render 가 한다.
+#
+# 덤으로 실행이 짧아져 Actions 무료 분을 아끼고, 매시간 Render 를 깨워
+# 콜드스타트도 줄인다.
 #
 # 필요한 Secrets (Settings -> Secrets and variables -> Actions -> Repository secrets):
-#   DATABASE_URL (또는 AFT_DB), VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
-#
-# DB 주소 시크릿은 DATABASE_URL 과 AFT_DB 두 이름을 모두 받는다. 없는 시크릿을
-# 참조하면 에러가 아니라 빈 문자열이 들어가는데, 그러면 앱이 로컬 SQLite 로
-# 떨어져 감시를 하나도 못 찾고 '할 일 없음' 으로 초록불을 낸다. 실제로 그렇게
-# 24초 만에 성공한 것처럼 끝난 적이 있어, 이름을 하나로 강요하지 않는다.
+#   SCRAPE_TOKEN   Render 의 SCRAPE_TOKEN 환경변수와 같은 값
+#   APP_URL        (선택) 앱 주소. 없으면 아래 기본값을 쓴다.
 
 on:
   schedule:
@@ -35,55 +37,50 @@ concurrency:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    # 감시가 5척이면 1분이면 끝난다. 이보다 오래 걸리면 뭔가 잘못된 것이다.
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: pip
-
-      - name: 시크릿 확인
-        # 시크릿이 없으면 스크래핑은 멀쩡히 돌고도 '감시 대상 없음' 으로 조용히
-        # 끝나 초록불이 된다. 그 상태를 먼저 잡아내 무엇이 빠졌는지 알려준다.
+      - name: 수집 요청
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.AFT_DB }}
-          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
-          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
-          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          APP_URL: ${{ vars.APP_URL || 'https://aft-hcwf.onrender.com' }}
+          SCRAPE_TOKEN: ${{ secrets.SCRAPE_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
         run: |
-          missing=""
-          for name in DATABASE_URL VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT; do
-            if [ -z "${!name}" ]; then missing="$missing $name"; fi
-          done
-          if [ -n "$missing" ]; then
-            echo "::error::다음 Secret 이 비어 있다:$missing"
-            echo "Settings -> Secrets and variables -> Actions 에서 등록한다."
+          set -euo pipefail
+
+          if [ -z "${SCRAPE_TOKEN}" ]; then
+            echo "::error::SCRAPE_TOKEN Secret 이 비어 있다."
+            echo "Settings -> Secrets and variables -> Actions 에 등록하고,"
+            echo "Render 의 환경변수 SCRAPE_TOKEN 과 같은 값인지 확인한다."
             exit 1
           fi
-          # 값은 절대 찍지 않는다. 길이만으로 '들어는 왔다' 를 확인한다.
-          echo "DATABASE_URL 길이: ${#DATABASE_URL}"
-          echo "VAPID_PUBLIC_KEY 길이: ${#VAPID_PUBLIC_KEY}"
 
-      - name: 의존성 설치
-        run: pip install -r requirements.txt
+          # Render 무료 인스턴스는 잠들어 있을 수 있다. 깨어나는 데 1분 가까이
+          # 걸리므로 넉넉히 기다린다. 수집 자체는 감시 수에 비례해 수십 초다.
+          echo "요청: ${APP_URL}/api/scrape/run?dry_run=${DRY_RUN}"
+          http_code=$(curl -sS --max-time 300 \
+            -o response.json -w '%{http_code}' \
+            -X POST "${APP_URL}/api/scrape/run?dry_run=${DRY_RUN}" \
+            -H "X-Scrape-Token: ${SCRAPE_TOKEN}")
 
-      - name: 수집 및 알림
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.AFT_DB }}
-          # 러너는 한국 밖에 있다. 한국 공유호스팅에 TCP 연결하는 데만 3초를
-          # 넘기는 일이 흔해서, 기본값으로는 대부분의 배가 연결 실패한다.
-          # 여기는 사용자를 기다리게 하는 경로가 아니므로 넉넉히 준다.
-          SCRAPE_CONNECT_TIMEOUT: '20'
-          SCRAPE_READ_TIMEOUT: '30'
-          # 타임아웃이 길어진 만큼 배 사이 간격은 줄여도 된다.
-          SCRAPE_DELAY_SECONDS: '0.5'
-          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
-          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
-          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
-        run: |
-          python src/scheduler/run_scrape.py \
-            ${{ inputs.dry_run && '--dry-run' || '' }}
+          echo "HTTP ${http_code}"
+          cat response.json
+          echo
+
+          if [ "${http_code}" != "200" ]; then
+            echo "::error::수집 요청이 실패했다 (HTTP ${http_code})"
+            exit 1
+          fi
+
+          # 감시 대상이 있는데 하나도 수집하지 못했으면 실패로 본다.
+          # 조용히 넘어가면 매시간 초록불을 내면서 알림은 영영 오지 않는다.
+          python - <<'PY'
+          import json, sys
+          s = json.load(open('response.json'))
+          print('요약:', s)
+          if s.get('targets') and not s.get('collected'):
+              print(f"::error::감시 대상 {s['targets']}건 중 하나도 수집하지 못했다")
+              sys.exit(1)
+          if s.get('failed'):
+              print(f"::warning::{s['failed']}건 수집 실패")
+          PY

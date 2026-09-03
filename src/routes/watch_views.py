@@ -7,6 +7,10 @@
 그래서 모든 요청이 endpoint 를 함께 보내고, 서버는 그것으로 Subscriber 를 찾는다.
 친구 5명 규모에서 계정 체계를 만드는 것은 과설계다.
 """
+import hmac
+import os
+import time
+
 from flask import Blueprint, current_app, jsonify, request
 
 from models import MAX_WATCHES_PER_SUBSCRIBER, Boat, Subscriber
@@ -26,6 +30,49 @@ def _find_subscriber(endpoint):
     if not endpoint:
         return None
     return Subscriber.query.filter_by(endpoint=endpoint).one_or_none()
+
+
+@watch_views.route('/api/scrape/run', methods=['POST'])
+def trigger_scrape():
+    """수집 파이프라인을 이 서버에서 한 번 돌린다. GitHub Actions 가 호출한다.
+
+    왜 Actions 가 직접 긁지 않는가:
+    Actions 러너에서는 한국 중소 호스팅 상당수에 TCP 연결이 되지 않는다.
+    실측(2026-09) 감시 6척 중 5척이 connect timeout 이었고, 타임아웃을 20초로
+    늘려도 같았다. SYN 에 응답이 없다는 뜻이라 방화벽 드롭이다. 같은 배들이
+    이 서버에서는 6/6 이 8.9초에 붙는다. 그래서 긁는 일은 여기서 하고 Actions 는
+    방아쇠만 당긴다. 덤으로 Actions 실행 시간이 짧아져 무료 분을 아끼고,
+    매시간 이 서버를 깨워 콜드스타트도 줄인다.
+
+    인증: SCRAPE_TOKEN 환경변수와 X-Scrape-Token 헤더가 일치해야 한다.
+    토큰이 설정돼 있지 않으면 아무도 호출할 수 없다(열어두지 않는다).
+    이 엔드포인트는 외부 사이트로 요청을 내보내므로 공개되면 남용될 수 있다.
+    """
+    expected = os.environ.get('SCRAPE_TOKEN')
+    if not expected:
+        return jsonify({'error': 'SCRAPE_TOKEN 이 설정되지 않아 비활성 상태입니다.'}), 503
+
+    provided = request.headers.get('X-Scrape-Token', '')
+    # 길이/내용 차이로 토큰을 추측하지 못하게 상수 시간 비교를 쓴다
+    if not hmac.compare_digest(provided, expected):
+        return jsonify({'error': '인증에 실패했습니다.'}), 403
+
+    dry_run = str(request.args.get('dry_run', '')).lower() in ('1', 'true', 'yes')
+
+    from scheduler.run_scrape import run_pipeline
+
+    started = time.monotonic()
+    try:
+        summary = run_pipeline(dry_run=dry_run, delay=float(
+            request.args.get('delay', os.environ.get('SCRAPE_DELAY_SECONDS', 0.5))))
+    except Exception as exc:
+        current_app.logger.exception('수집 실행 실패: %s', exc)
+        return jsonify({'error': f'{type(exc).__name__}: {exc}'}), 500
+
+    summary['elapsed_seconds'] = round(time.monotonic() - started, 1)
+    summary['dry_run'] = dry_run
+    current_app.logger.info('수집 완료: %s', summary)
+    return jsonify(summary)
 
 
 @watch_views.route('/api/push/public-key', methods=['GET'])
