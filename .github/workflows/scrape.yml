@@ -1,0 +1,55 @@
+name: 낚시배 자리 감시
+
+# 감시 등록된 (배, 날짜) 만 수집해서 상태가 바뀌면 웹푸시를 보낸다.
+#
+# 웹(Render 무료)은 15분 무활동 후 잠들기 때문에 수집을 맡길 수 없다.
+# 그래서 Actions 가 수집·발송을 하고 웹은 같은 Neon DB 를 보기만 한다.
+#
+# 필요한 Secrets (Settings -> Secrets and variables -> Actions):
+#   DATABASE_URL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
+
+on:
+  schedule:
+    # 매시 정각. cron 은 UTC 기준이고, GitHub 사정으로 10~30분 늦게 도는 일이 흔하다.
+    # 알림이 정시에 온다고 기대하면 안 된다.
+    - cron: '0 * * * *'
+  # 수동 실행 버튼. cron 을 기다리지 않고 바로 돌려볼 때 쓴다.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '저장/발송 없이 수집만 해본다'
+        type: boolean
+        default: false
+
+# 앞 실행이 아직 돌고 있으면 겹쳐 돌리지 않는다.
+# 같은 배를 동시에 두 번 긁으면 원본 사이트에 실례고 중복 알림 위험도 있다.
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    # 감시가 5척이면 1분이면 끝난다. 이보다 오래 걸리면 뭔가 잘못된 것이다.
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: 수집 및 알림
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: |
+          python src/scheduler/run_scrape.py \
+            ${{ inputs.dry_run && '--dry-run' || '' }}

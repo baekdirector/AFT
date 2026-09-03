@@ -108,6 +108,24 @@ def remove_watch(subscriber: Subscriber, boat_id: int, ship_name: str,
     return True
 
 
+def deactivate_past_watches(today: str) -> int:
+    """지난 날짜의 감시를 끈다. 끈 개수를 돌려준다.
+
+    슬롯이 5개뿐이라 지나간 날짜의 감시가 남아 있으면 새 감시를 걸 수 없다.
+    지난 날짜는 알림이 나갈 일도 없으므로 수집 대상에서 빼는 것이 맞다.
+    스케줄러가 매 실행 앞에서 호출한다.
+
+    행은 지우지 않고 비활성으로 둔다. 발송 이력이 이 행을 참조하기 때문이다.
+    """
+    stale = Watch.query.filter(Watch.active.is_(True),
+                               Watch.target_date < today).all()
+    for watch in stale:
+        watch.active = False
+    if stale:
+        db.session.commit()
+    return len(stale)
+
+
 def active_watch_targets() -> list[tuple[int, str]]:
     """스케줄러가 수집해야 할 (boat_id, target_date) 목록.
 
