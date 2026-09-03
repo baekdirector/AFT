@@ -68,6 +68,16 @@ class Observation:
         """
         if not self.is_reliable:
             return False
+
+        # 상태가 '자리 없음'을 뜻하면 숫자와 무관하게 자리가 없다.
+        # 기존 파서는 예약마감일 때 available 에 잔여석이 아니라 정원을 남긴다
+        # (실측: 항성2호 status=full, available=19). 숫자를 먼저 보면 만석을
+        # '자리 19개'로 읽어 가짜 알림이 나간다. 기존 화면도 같은 이유로
+        # status.html 에서 마감 상태의 잔여석을 0 으로 덮어쓰고 있었다.
+        # 파서가 이 값을 바로잡는 것은 Phase A(하네스) 몫이다.
+        if self.status in CLOSED_STATUSES:
+            return False
+
         if self.available is not None:
             return self.available > 0
         return self.status in OPEN_STATUSES

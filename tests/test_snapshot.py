@@ -88,6 +88,32 @@ def test_transition_out_of_unknown_is_ignored():
     assert compare(obs('unknown'), obs('open', 5)) is None
 
 
+def test_full_with_nonzero_available_is_still_full():
+    """예약마감인데 available 에 숫자가 들어있어도 자리가 있는 게 아니다.
+
+    실측(2026-09, 항성2호): 기존 파서는 예약마감일 때 available 에 잔여석이
+    아니라 정원(19)을 남긴다. 숫자를 상태보다 우선하면 만석을 '자리 19개'로
+    읽어 가짜 알림이 나간다.
+    """
+    assert obs('full', 19).has_seat is False
+
+    # 예약완료(0) -> 예약마감(정원 19). 둘 다 자리가 없으므로 SEAT_OPEN 이면 안 된다.
+    # 사유가 바뀌었으니 STATUS_CHANGE 까지는 나올 수 있다.
+    t = compare(obs('reserved', 0), obs('full', 19))
+    assert t is not None and t.kind == STATUS_CHANGE
+
+
+@pytest.mark.parametrize('status', ['full', 'reserved', 'maintenance', 'cancelled'])
+def test_closed_statuses_never_report_seats(status):
+    assert obs(status, 20).has_seat is False
+
+
+def test_real_open_after_full_with_capacity_still_notifies():
+    """위 방어가 진짜 자리남까지 막으면 안 된다."""
+    t = compare(obs('full', 19), obs('open', 3))
+    assert t is not None and t.kind == SEAT_OPEN
+
+
 def test_open_with_zero_seats_is_not_treated_as_open():
     """'남은자리 0명'은 open 표기여도 자리가 없는 것이다."""
     assert compare(obs('full'), obs('open', 0)) is None
