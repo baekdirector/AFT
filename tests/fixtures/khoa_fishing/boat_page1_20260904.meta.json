@@ -1,0 +1,7 @@
+{
+  "source": "KHOA(국립해양조사원) 바다낚시지수 조회 - GetFcstFishingApiServicev2",
+  "endpoint": "https://apis.data.go.kr/1192136/fcstFishingv2/GetFcstFishingApiServicev2",
+  "captured_at": "2026-09-04",
+  "request_params": {"gubun": "선상", "pageNo": 1, "numOfRows": 100},
+  "note": "serviceKey 는 fixture 에 포함하지 않는다(시크릿 미포함 원칙). 응답은 XML 고정 - resultType=json 을 줘도 XML 로 온다."
+}

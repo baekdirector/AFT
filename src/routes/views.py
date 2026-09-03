@@ -728,6 +728,46 @@ def generate_sample_weather_data(port_name, lat, lon):
     return data
 
 # ---------------- Tide (Badatime) Integration -----------------
+@views.route('/api/fishing_index')
+def api_fishing_index():
+    """항구 + 날짜로 KHOA 바다낚시지수를 조회한다. Phase E.
+
+    이 API 는 오늘부터 +5일만 예보한다(실측, 문서에 없음). 그래서 대부분의
+    예약 조회 날짜(보통 몇 주 뒤)에는 데이터가 없다. 그건 오류가 아니라
+    정상이므로 200 과 available=false 로 응답한다 - 프론트가 자리 안내처럼
+    '예보 범위 밖입니다' 를 조용히 보여주면 된다.
+    """
+    from services.tide import khoa_fishing
+
+    port = request.args.get('port')
+    date_str = request.args.get('date')
+    if not port or not date_str:
+        return jsonify(validation_error_response(
+            error='port와 date 파라미터는 필수입니다.',
+            message='항구와 날짜를 입력해주세요.')), 400
+
+    if port not in PORT_COORDINATES:
+        return jsonify(error_response(
+            error='PORT_NOT_FOUND',
+            message=f'{port}의 좌표 정보를 찾을 수 없습니다.')), 404
+
+    if not os.environ.get(khoa_fishing.ENV_KEY):
+        return jsonify(error_response(
+            error='NOT_CONFIGURED',
+            message='낚시지수 API 키가 설정되지 않았습니다.')), 503
+
+    coords = PORT_COORDINATES[port]
+    try:
+        result = khoa_fishing.for_port(coords['lat'], coords['lon'], date_str)
+    except Exception as exc:
+        current_app.logger.warning('낚시지수 조회 실패: %s', exc)
+        return jsonify(error_response(
+            error='UPSTREAM_ERROR',
+            message='낚시지수 조회 중 오류가 발생했습니다.')), 502
+
+    return jsonify(success_response(data=result))
+
+
 @views.route('/api/tide')
 def api_tide():
     """바다타임 특정 항구 번호(port_id)의 주간(week_container) 정보를 파싱하여 시간대별 데이터 반환.
