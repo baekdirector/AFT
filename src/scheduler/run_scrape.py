@@ -79,6 +79,16 @@ def collect_one(boat, target_date: str, dry_run: bool):
         logger.warning('  수집 실패 %s %s: %s', boat.name, target_date, info['error'])
         raise CollectionFailed(str(info['error']))
 
+    # check_single_boat() 의 entries 는 배별 source_url 을 담지 않는다
+    # (result 최상위의 used_url/source_url 만 있다). /api/status 의 라이브
+    # 조회 경로(routes/views.py process_boat)는 이걸 채워 넣어 알림 URL이
+    # 늘 실제 배 페이지였지만, 스케줄러는 raw entries 를 그대로 넘겨서
+    # source_url 이 항상 빈 문자열이었다. 그 결과 자리남 알림을 눌러도
+    # 조회 화면(/status)으로만 갔다. 여기서 같은 보정을 해준다.
+    page_url = info.get('used_url') or info.get('source_url') or boat.url
+    for entry in entries:
+        entry.setdefault('source_url', page_url)
+
     observations = entries_to_observations(boat.id, target_date, entries)
     if dry_run:
         logger.info('  [dry-run] %s %s: 관측 %d건', boat.name, target_date, len(observations))

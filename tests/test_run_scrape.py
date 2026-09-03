@@ -24,9 +24,16 @@ DATE = '2026-12-05'      # 넉넉히 미래. 지난 날짜 정리에 걸리면 �
 
 
 def entry(ship, status, available=None):
+    """check_single_boat() 이 실제로 내놓는 entry 모양.
+
+    중요: 실제 파서는 entry 별로 source_url 을 넣지 않는다(source_url/used_url 은
+    result 최상위에만 있다). 예전에 이 헬퍼가 'source_url' 을 끼워 넣고 있어서,
+    entries_to_observations 가 그 값을 그대로 읽어가는 바람에 스케줄러가
+    per-entry source_url 을 채워주지 않는 버그를 테스트가 못 잡았다.
+    """
     return {'ship_name': ship, 'status': status, 'available': available,
             'display_status': f'{status} {available if available is not None else ""}'.strip(),
-            'fish': '광어', 'source_url': 'https://example.com/x'}
+            'fish': '광어'}
 
 
 @pytest.fixture
@@ -116,6 +123,35 @@ def test_unchanged_state_sends_nothing(scene, monkeypatch, sent):
     summary = run_scrape.run(delay=0)
 
     assert summary['sent'] == 0 and sent == []
+
+
+def test_notification_links_to_the_actual_boat_page_not_status(scene, monkeypatch, sent):
+    """알림을 눌렀을 때 조회 화면(/status)이 아니라 실제 배 예약 페이지로 가야 한다.
+
+    실측 버그: check_single_boat() 의 entries 는 배별 source_url 을 담지 않는다
+    (result 최상위의 used_url/source_url 에만 있다). 스케줄러가 raw entries 를
+    그대로 Observation 으로 옮기면 source_url 이 항상 빈 문자열이 되고,
+    build_payload 가 '' or '/status' 로 폴백해 자리남 알림을 눌러도 조회
+    화면으로만 갔다. 사용자가 실제로 이걸 겪었다.
+    """
+    app, boat_ids = scene
+
+    def fake(boat_url, year, month, day, debug_enabled=False, known_ship_name=None):
+        # 실제 파서처럼 entry 에는 source_url 이 없고, result 최상위에만 있다.
+        return {'entries': [entry('1호', 'full', 0)], 'used_url': boat_url + '/ship/schedule_fleet/202612'}
+
+    monkeypatch.setattr('services.reservation_checker.check_single_boat', fake)
+    run_scrape.run(delay=0)
+
+    def fake_open(boat_url, year, month, day, debug_enabled=False, known_ship_name=None):
+        return {'entries': [entry('1호', 'open', 3)], 'used_url': boat_url + '/ship/schedule_fleet/202612'}
+
+    monkeypatch.setattr('services.reservation_checker.check_single_boat', fake_open)
+    run_scrape.run(delay=0)
+
+    assert len(sent) == 1
+    assert sent[0]['url'] == 'https://b0.example/x/ship/schedule_fleet/202612'
+    assert sent[0]['url'] != '/status'
 
 
 # --- 실패 격리 --------------------------------------------------------------

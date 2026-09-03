@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, render_template
 import webbrowser
 import os
 import sys
@@ -48,6 +48,21 @@ def create_app(test_config=None):
     if test_config is not None:
         app.config.from_mapping(test_config)
 
+    # Neon 은 유휴 커넥션을 서버 쪽에서 먼저 끊는다(자동 절전/유휴 타임아웃).
+    # SQLAlchemy 커넥션 풀은 그 사실을 모른 채 죽은 커넥션을 재사용하려다 500 을
+    # 낸다. 실측(2026-09): 오래 방치된 뒤의 첫 GET /status 가 그렇게 죽었다.
+    # pool_pre_ping 이 커넥션을 쓰기 전에 가벼운 핑으로 살아있는지 확인하고,
+    # 죽었으면 조용히 재연결한다. pool_recycle 은 Neon 이 끊기 전에 앱이 먼저
+    # 갱신하게 한다. test_config 가 최종 URI 를 바꿀 수 있으므로, 이 판단은
+    # test_config 반영 이후 실제 설정된 URI 를 보고 한다(env var 만 보면 테스트가
+    # SQLALCHEMY_DATABASE_URI 를 직접 주는 경우를 놓친다).
+    final_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if final_uri.startswith('postgres'):
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            'pool_pre_ping': True,
+            'pool_recycle': 280,
+        }
+
     db.init_app(app)
 
     from routes.views import views
@@ -57,6 +72,19 @@ def create_app(test_config=None):
     app.register_blueprint(watch_views, url_prefix='')
 
     import models
+
+    @app.errorhandler(500)
+    def _friendly_500(exc):
+        # 원인 불문 전부 여기로 온다. 알림 링크를 눌렀을 때 Render 의 기본
+        # 오류 페이지(설명 없는 영문 텍스트)만 보이는 것보다, 다시 시도하라는
+        # 안내와 조회 화면으로 가는 버튼을 주는 편이 낫다. 실제 원인은 로그에
+        # 남기되 사용자에게는 스택트레이스를 보여주지 않는다.
+        app.logger.error('처리되지 않은 오류: %s', exc, exc_info=exc)
+        try:
+            return render_template('error500.html'), 500
+        except Exception:
+            # 템플릿 렌더링 자체가 실패하는 최악의 경우를 위한 마지막 방어선
+            return '일시적인 오류입니다. 잠시 후 다시 시도해주세요.', 500
 
     with app.app_context():
         db.create_all()

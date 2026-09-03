@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block content %}
+<div style="padding:40px 0; text-align:center;">
+  <h1 style="font-size:32px; margin-bottom:16px;">일시적인 오류가 발생했습니다</h1>
+  <p style="font-size:18px; line-height:1.6; max-width:520px; margin:0 auto 24px;">
+    서버가 오랫동안 쉬고 있다가 깨어나는 중일 수 있습니다.<br>
+    잠시 후 다시 시도해주세요. 계속되면 알림 링크를 다시 눌러도 됩니다.
+  </p>
+  <button onclick="location.reload()" style="background:#0066cc; color:#fff; border:0; padding:12px 24px; font-size:18px; border-radius:8px; cursor:pointer; margin-right:8px;">다시 시도</button>
+  <button onclick="location.href='/status'" style="background:#fff; color:#374151; border:1px solid #d1d5db; padding:12px 24px; font-size:18px; border-radius:8px; cursor:pointer;">조회 화면으로</button>
+</div>
+{% endblock %}
