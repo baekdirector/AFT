@@ -1,1485 +1,714 @@
-{% extends "base.html" %}
+{% extends "base_design.html" %}
 {% block content %}
-
-<style>
-  /* 통합 필터 카드 스타일 */
-  .filter-card {
-    background: #f0fdf4;
-    border-radius: 20px;
-    padding: 30px;
-    margin: 20px auto;
-    max-width: 1400px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-  }
-
-  /* 헤더 섹션 */
-  .header-section {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 20px;
-  }
-
-  .header-section .header-icon {
-    width: 48px;
-    height: 48px;
-    background: #10b981;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    flex-shrink: 0;
-  }
-
-  .header-section h2 {
-    color: #1f2937;
-    font-size: 28px;
-    font-weight: 700;
-    margin: 0;
-  }
-
-  /* 날짜 입력 크기 */
-  .date-input {
-    font-size: 25px;
-    padding: 7px 11px;
-    width: 90%;
-    max-width: 250px;
-    text-align: center;
-    border: 2px solid #e5e7eb;
-    border-radius: 12px;
-    transition: all 0.2s ease;
-  }
-  
-  .date-input:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  }
-
-  /* 조회 버튼 스타일 */
-  .btn-search {
-    padding: 9px 25px;
-    font-size: 20px;
-    font-weight: 600;
-    color: white;
-    background: #3b82f6;
-    border: none;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .btn-search:hover {
-    background: #2563eb;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
-  }
-
-  .btn-search:active {
-    transform: translateY(0);
-  }
-  /* 지역 선택 pill 스타일 */
-  .region-filter label {
-    position: relative;
-    cursor: pointer;
-  }
-
-  .region-filter input[type="checkbox"] {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .region-filter label span {
-    display: inline-block;
-    padding-top: 5px;
-    padding-bottom: 7px;
-    padding-left: 10px;
-    padding-right: 10px;
-    border: 2px solid #e5e7eb;
-    border-radius: 50px;
-    background: white;
-    color: #6b7280;
-    font-size: 15px;
-    font-weight: 500;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-  }
-
-  .region-filter label:hover span {
-    border-color: #d1d5db;
-    transform: translateY(-1px);
-  }
-
-  .region-filter input[type="checkbox"]:checked + span {
-    background: #10b981;
-    border-color: #10b981;
-    color: white;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-  }
-
-  /* 배 선택 pill 스타일 (region-filter와 동일) */
-  .boat-filter label {
-    position: relative;
-    cursor: pointer;
-  }
-
-  .boat-filter input[type="checkbox"] {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .boat-filter label span {
-    display: inline-block;
-    padding-top: 5px;
-    padding-bottom: 7px;
-    padding-left: 10px;
-    padding-right: 10px;
-    border: 2px solid #e5e7eb;
-    border-radius: 50px;
-    background: white;
-    color: #6b7280;
-    font-size: 14px;
-    font-weight: 500;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-  }
-
-  .boat-filter label:hover span {
-    border-color: #d1d5db;
-    transform: translateY(-1px);
-  }
-
-  .boat-filter input[type="checkbox"]:checked + span {
-    background: #3b82f6;
-    border-color: #3b82f6;
-    color: white;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-  }
-
-  .boat-filter-section {
-    margin-bottom: 20px;
-  }
-
-  .boat-filter-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 12px;
-  }
-
-  .boat-toggle-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border: 2px solid #e5e7eb;
-    border-radius: 8px;
-    background: white;
-    color: #374151;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    flex-shrink: 0;
-  }
-
-  .boat-toggle-btn:hover {
-    border-color: #3b82f6;
-    color: #3b82f6;
-  }
-
-  .boat-toggle-btn[aria-expanded="true"] {
-    background: #eff6ff;
-    border-color: #3b82f6;
-    color: #3b82f6;
-  }
-
-  .boat-filter {
-    display: none;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .boat-filter.is-open {
-    display: flex;
-  }
-
-  .boat-selected-summary {
-    font-size: 13px;
-    color: #6b7280;
-  }
-
-  .status-open { color:#ff0000; font-weight:700; }
-  .status-closed { color:#000000; font-weight:700; }
-
-  /* Spinner */
-  @keyframes spin { to { transform: rotate(360deg); } }
-  #loading-overlay{
-    display:none; position:fixed; inset:0; z-index:9999;
-    background:rgba(255,255,255,0.85);
-    align-items:center; justify-content:center;
-  }
-  #loading-overlay .spinner{
-    width:56px; height:56px; border:6px solid #e5e7eb;
-    border-top-color:#0366a6; border-radius:50%;
-    animation:spin 1s linear infinite; margin:0 auto 14px;
-  }
-  #loading-overlay .msg{
-    font-size:18px; color:#0366a6; font-weight:700; text-align:center;
-  }
-
-  /* 정렬 아이콘 버튼 공통 */
-  .sort-icon {
-    border: 0; background: transparent; padding: 0 4px; margin-left: 6px;
-    cursor: pointer; color: #6b7280; font-size: 14px; line-height: 1;
-  }
-  .sort-icon:hover { color: #374151; }
-  .sort-icon i { pointer-events: none; }
-
-  /* 아이콘 폴백(부트스트랩 아이콘 미사용 시) */
-  .sort-icon[data-fallback="up"]::after { content: '▲'; }
-  .sort-icon[data-fallback="down"]::after { content: '▼'; }
-
-  /* 테이블 스타일 */
-  .results-section {
-    width: 1500px;
-    max-width: calc(100vw - 40px);
-    margin: 30px auto;
-    padding: 0;
-    box-sizing: border-box;
-    position: relative;
-    left: 50%;
-    transform: translateX(-50%);
-    overflow-x: hidden; /* 전체 페이지 하단 스크롤 발생 억제 */
-  }
-
-  @media (max-width: 1600px) {
-    .results-section {
-      width: 100%;
-      max-width: 100%;
-      left: 0;
-      transform: none;
-      padding: 0 12px;
-    }
-  }
-
-  .results-title {
-    font-size: 20px;
-    font-weight: 700;
-    color: #1f2937;
-    margin-bottom: 16px;
-  }
-
-  /* 알림 켜기 버튼: 꺼짐=파랑, 켜짐=녹색.
-     색만 봐도 알림이 켜졌는지 알 수 있어야 한다. */
-  .push-btn {
-    border: 1px solid #0066cc;
-    background: #0066cc;
-    color: #fff;
-    transition: background-color .15s, border-color .15s;
-  }
-  .push-btn.on {
-    border-color: #15803d;
-    background: #16a34a;
-  }
-  .push-btn.on:before {
-    content: '✓ ';
-  }
-
-  /* 감시 목록 칩. 다른 날짜의 감시도 여기서 해제한다. */
-  .watch-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin: 0 6px 6px 0;
-    padding: 4px 6px 4px 10px;
-    border: 1px solid #bfdbfe;
-    background: #eff6ff;
-    border-radius: 999px;
-    font-size: 12px;
-    color: #1e40af;
-    white-space: nowrap;
-  }
-  .watch-chip-x {
-    border: none;
-    background: transparent;
-    color: #1e40af;
-    cursor: pointer;
-    font-size: 13px;
-    line-height: 1;
-    padding: 2px 4px;
-    border-radius: 999px;
-  }
-  .watch-chip-x:hover {
-    background: #dbeafe;
-    color: #b91c1c;
-  }
-
-  .table-wrapper {
-    width: 100%;
-    max-width: 1500px;
-    margin: 0 auto;
-    background: white;
-    border-radius: 16px;
-    padding: 20px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-    overflow-x: hidden;
-    box-sizing: border-box;
-  }
-
-  #results-table {
-    width: 100%;
-    min-width: 0;
-    border-collapse: collapse;
-    table-layout: auto;
-  }
-
-  #results-table th.status-col,
-  #results-table td.status-col {
-    width: 120px;
-    min-width: 120px;
-    max-width: 120px;
-    text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  #results-table th.available-col,
-  #results-table td.available-col {
-    width: 140px;
-    min-width: 140px;
-    max-width: 140px;
-    text-align: center;
-    white-space: nowrap;
-  }
-
-  #results-table th:nth-child(10),
-  #results-table td:nth-child(10),
-  .weather-col {
-    display: none !important;
-  }
-
-  .fish-col {
-    color: #dc2626 !important;
-  }
-
-  /* 남은자리(8번째) / 날씨/물때(10번째) 데이터 칸 중앙 정렬 */
-  /* 맨 앞에 알림 열이 생겨 기존 번호가 하나씩 밀렸다 */
-  #results-table tbody td:nth-child(8) {
-    text-align: center;
-    vertical-align: middle;
-  }
-
-  .status-badge {
-    display: inline-block;
-    max-width: 100%;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  
-  @media (max-width:768px){
-    .results-section { padding:0 8px; }
-    .table-wrapper { padding:10px; border-radius:12px; overflow:visible; }
-    #results-table { min-width:0; }
-    #results-table thead { display:none; }
-    #results-table tr {
-      display:grid;
-      grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
-      column-gap:8px;
-      margin:10px 0 12px;
-      border:1px solid #e5e7eb;
-      border-radius:14px;
-      background:#fff;
-      padding:8px;
-      box-shadow:0 2px 6px rgba(0,0,0,0.04);
-    }
-    #results-table td {
-      display:flex;
-      align-items:flex-start;
-      gap:8px;
-      border:0!important;
-      padding:4px 2px;
-      position:relative;
-      width:100%;
-      box-sizing:border-box;
-      grid-column:1 / -1;
-      min-width:0;
-    }
-    #results-table td:before {
-      content:attr(data-label);
-      flex:0 0 90px;
-      font-weight:600;
-      color:#374151;
-      font-size:13px;
-    }
-    #results-table td span.status-badge { margin-top:2px; }
-    #results-table td.status-col,
-    #results-table td.available-col,
-    #results-table td:nth-child(8) {
-      grid-column:auto;
-      width:auto;
-      min-width:0;
-      max-width:none;
-      overflow:visible;
-      text-overflow:clip;
-      align-items:center;
-      gap:6px;
-    }
-    #results-table td.status-col:before,
-    #results-table td.available-col:before,
-    #results-table td:nth-child(8):before {
-      flex:0 0 auto;
-      min-width:34px;
-    }
-    .status-badge {
-      font-size:12px;
-      padding:4px 10px;
-      max-width:none;
-      overflow:visible;
-      text-overflow:clip;
-    }
-    .weather-col { display:none !important; }
-    /* 빈 결과 행은 라벨/플렉스 제거하여 중앙 정렬 유지 */
-    #results-table td.no-results { display:block; text-align:center !important; padding:40px 12px; }
-    #results-table td.no-results:before { content:none; }
-  }
-
-  #results-table thead th {
-    background: #f9fafb;
-    padding: 12px;
-    text-align: left;
-    font-weight: 600;
-    color: #374151;
-    border-bottom: 2px solid #e5e7eb;
-    font-size: 14px;
-    white-space: nowrap;
-  }
-
-  #results-table tbody td {
-    padding: 4px 5px;
-    border-bottom: 1px solid #f3f4f6;
-    font-size: 14px;
-    color: #4b5563;
-  }
-
-  #results-table tbody tr:nth-child(even) {
-    background-color: #f9fafb;
-  }
-
-  #results-table tbody tr:nth-child(odd) {
-    background-color: #ffffff;
-  }
-
-  #results-table tbody tr:hover {
-    background-color: #f3f4f6 !important;
-  }
-
-  #results-table tbody tr:last-child td {
-    border-bottom: none;
-  }
-
-  .status-badge {
-    display: inline-block;
-    padding: 6px 16px;
-    border-radius: 20px;
-    font-size: 14px;
-    font-weight: 500;
-    white-space: nowrap;
-  }
-  
-  .badge-available {
-    background-color: #16a34a;
-    color: #ffffff;
-  }
-  
-  .badge-closed {
-    background-color: #111827;
-    color: #ffffff;
-  }
-  
-  .badge-danger {
-    background-color: #dc2626;
-    color: #ffffff;
-  }
-  
-  .badge-maintenance {
-    background-color: #f3f4f6;
-    color: #6b7280;
-  }
-
-  /* 팝업 버튼 스타일 */
-  @media (max-width:768px){
-    .status-badge {
-      font-size:12px;
-      padding:4px 10px;
-      max-width:none;
-      overflow:visible;
-      text-overflow:clip;
-    }
-  }
-
-  .btn-popup {
-    padding: 6px 12px;
-    background: #0d9488;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .btn-popup:hover {
-    background: #0f766e;
-  }
-
-  /* 팝업 모달 스타일 */
-  .weather-popup {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0,0,0,0.5);
-    z-index: 10000;
-    overflow: auto;
-  }
-
-  .popup-content {
-    position: relative;
-    margin: 32px auto;
-    max-width: 96vw;
-    width: 1200px;
-    background: white;
-    border-radius: 18px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-    max-height: 92vh;
-    overflow: visible;
-  }
-  
-  @media (max-width:768px){
-    .popup-content{max-width:98vw;margin:16px auto;border-radius:12px}
-    .popup-header{padding:14px;border-radius:12px 12px 0 0}
-    .popup-header h3{font-size:18px}
-    .result-split{flex-direction:column;padding:6px;min-height:auto}
-    .result-right{display:flex;flex:1;flex-direction:column;min-width:0}
-    .result-left{border-right:0;border-bottom:1px solid #eef2f7}
-    #tide-table thead{display:none}
-    #tide-table,#tide-table tbody,#tide-table tr,#tide-table td{display:block;width:100%}
-    #tide-table tr{margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;padding:8px;background:#fff}
-    #tide-table td{border:0!important;padding:6px 0;text-align:left!important;position:relative;padding-left:90px}
-    #tide-table td:before{content:attr(data-label);position:absolute;left:0;width:80px;font-weight:600;color:#374151;font-size:12px}
-    .graph-panel{flex:1;height:auto;min-height:300px}
-  }
-
-  .popup-header {
-    background: linear-gradient(135deg,#06b6d4 0%,#0e7490 100%);
-    color: white;
-    padding: 20px;
-    border-radius: 18px 18px 0 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .popup-header h3 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: 700;
-  }
-
-  .popup-close {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 24px;
-    cursor: pointer;
-    padding: 0;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .popup-body {
-    padding: 0;
-    max-height: none;
-    overflow: visible;
-  }
-
-  /* weather.html과 동일한 팝업 내부 레이아웃 스타일 */
-  .result-split{display:flex;gap:16px;background:#fff;border-radius:0 0 18px 18px;box-shadow:0 4px 18px rgba(0,0,0,.08);overflow:hidden;width:1300px;margin:0 auto;min-height:800px}
-  .result-left{flex:1;min-width:0;border-right:1px solid #eef2f7;overflow:visible}
-  .result-right{flex:1;min-width:0;background:#fff;overflow:visible}
-  .graph-panel{padding:8px;background:#fff;height:800px;overflow:visible}
-  /* tide 테이블 전용 스타일 (범위 좁힘) */
-  #tide-table{width:100%;border-collapse:collapse}
-  #tide-table thead th{background:#f9fafb;padding:14px 10px;font-size:16px;font-weight:600;color:#374151;border-bottom:2px solid #e5e7eb;text-align:center;letter-spacing:.5px}
-  #tide-table tbody td{padding:14px 10px;border-bottom:1px solid #f3f4f6;font-size:15px;color:#4b5563;text-align:center}
-  #tide-table tbody tr:nth-child(even){background:#f9fafb}
-  #tide-table tbody tr:hover{background:#f3f4f6}
-  .time-cell{font-weight:600;color:#111827;font-size:15px}
-
-  /* 팝업 폭도 weather 레이아웃과 일치 */
-  .popup-content{width:1300px}
-
-  /* Flatpickr 날짜 입력 컴포넌트 스타일 (weather.html과 유사) */
-  .fp-wrap{position:relative;display:flex;align-items:center;gap:8px}
-  .calendar-btn{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer}
-  .calendar-btn svg{width:28px;height:28px;color:#374151}
-  .form-control{width:100%;padding:12px 16px;border:1px solid #d1d5db;border-radius:8px;font-size:22px;box-sizing:border-box;outline:none}
-  .form-control:focus{outline:none;border-color:#0d9488;box-shadow:0 0 0 1px #0d9488}
-  .date-input{height:48px}
-
-  /* 날짜 행 반응형 정리 */
-  .date-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
-  .date-row .date-col{flex:1 1 280px;min-width:0}
-  .date-row .fp-wrap{width:100%}
-  @media (max-width:768px){
-    .date-row{align-items:center;flex-wrap:nowrap}
-    .date-row .date-col{flex:0 0 auto}
-    .date-row .date-col label{display:block;font-size:16px;margin-bottom:4px}
-    .form-control{font-size:18px;width:160px}
-    .calendar-btn{width:40px;height:40px}
-    .btn-search{flex:0 0 auto;height:44px;padding:0 18px;white-space:nowrap;margin-left:8px}
-  }
-</style>
-
-<!-- 통합 필터 카드 -->
-<div class="filter-card">
-  <form id="status-form" method="get" action="{{ url_for('views.status') }}">
-    {{ form.csrf_token }}
-
-    <!-- 헤더 섹션 -->
-    <div class="header-section">
-      <div class="header-icon">📅</div>
-      <h2>예약 현황 조회</h2>
-    </div>
-
-    <!-- 지역 선택 라벨 -->
-    <div style="margin-bottom: 12px;">
-      <label style="font-size: 14px; font-weight: 600; color: #374151;">지역 선택</label>
-    </div>
-
-    <!-- 지역 체크박스 -->
-    <div class="region-filter" style="margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 8px;">
-      <label>
-        <input type="checkbox" name="regions" value="전체"
-          {{ 'checked' if ('전체' in (selected_regions or [])) else '' }}
-          data-count="{{ total_registered or 0 }}">
-        <span>전체({{ total_registered or 0 }})</span>
-      </label>
-      {% for region in region_names %}
-        <label>
-          <input type="checkbox" name="regions" value="{{ region }}"
-            {{ 'checked' if (region in (selected_regions or [])) else '' }}
-            data-count="{{ region_counts.get(region, 0) }}">
-          <span>{{ region }}({{ region_counts.get(region, 0) }})</span>
-        </label>
-      {% endfor %}
-    </div>
-
-    <!-- 배 선택 섹션 -->
-    <div class="boat-filter-section">
-      <div class="boat-filter-header">
-        <label style="font-size: 14px; font-weight: 600; color: #374151;">배 선택</label>
-        <span id="boat-selected-count" class="boat-selected-summary"></span>
-        <button type="button" id="boat-toggle-btn" class="boat-toggle-btn" aria-expanded="false" aria-label="배 목록 펼치기">▼</button>
+<div class="app-shell status-shell">
+
+  <!-- 상단 스티키 헤더 (G1 index.html 과 동일 패턴) -->
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a href="{{ url_for('views.index') }}" class="brand">
+        <div class="brand-logo">🛥️</div>
+        <div class="brand-text">
+          <div class="brand-title">AFT 배 자리 있냐?</div>
+          <div class="brand-sub">원하는 배 자리, 빠르게 확인</div>
+        </div>
+      </a>
+      <div class="header-spacer"></div>
+      <div class="aux-links">
+        <a href="{{ url_for('views.weather') }}">날씨</a>
+        <span class="aux-dot">·</span>
+        <a href="{{ url_for('views.map_page') }}">지도</a>
       </div>
-      <div id="boat-filter" class="boat-filter"></div>
+      <nav class="header-nav">
+        <a href="{{ url_for('views.index') }}" class="header-nav-btn">배 목록</a>
+        <a href="{{ url_for('views.status') }}" class="header-nav-btn active">예약현황</a>
+        <a href="{{ url_for('views.status') }}" class="header-nav-btn">알림</a>
+      </nav>
     </div>
+  </header>
 
-    <!-- 날짜 입력: Flatpickr 단일 컴포넌트 (간격 축소) -->
-    <div class="date-row">
-      <div class="date-col">
-        <label style="display:block; font-weight:600; color:#6b7280; margin-bottom:8px;" for="date">날짜선택</label>
-        <div class="fp-wrap">
-          <input id="date" class="form-control date-input flatpickr-input" type="text" placeholder="YYYY-MM-DD" required style="padding-top:5px; padding-bottom:5px;">
-          <button type="button" id="open-cal" class="calendar-btn" aria-label="달력 열기">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2"></rect>
-              <path d="M16 2v4M8 2v4M3 10h18"></path>
-            </svg>
-          </button>
-          <button id="searchBtn" type="submit" class="btn-search">🔍 조회</button>
+  <main class="app-main">
+    <section>
+      <h1 class="page-title">예약 현황 조회</h1>
+      <p class="page-subtitle">지역과 배를 고르고 날짜를 선택하면 자리 현황을 모아 보여줍니다</p>
+
+      <form id="status-form" method="get" action="{{ url_for('views.status') }}">
+        {{ form.csrf_token }}
+
+        <!-- 1 · 조회 날짜 -->
+        <div class="filter-card">
+          <div class="filter-card-title">1 · 조회 날짜</div>
+          <div class="date-row">
+            <input type="date" id="date" class="date-native-input" required
+                   value="{% if year and month and day %}{{ year }}-{{ '%02d'|format(month) }}-{{ '%02d'|format(day) }}{% endif %}">
+            <button type="button" class="quick-date-btn" data-offset="0">오늘</button>
+            <button type="button" class="quick-date-btn" data-offset="1">내일</button>
+            <button type="button" class="quick-date-btn" data-weekend="1">이번 주말</button>
+            <button id="searchBtn" type="submit" class="btn-search">🔍 조회</button>
+          </div>
+        </div>
+
+        <!-- 2 · 지역 선택 (기존 checkbox 로직 그대로, 시각만 칩으로) -->
+        <div class="filter-card">
+          <div class="filter-card-title">2 · 지역 선택 <span class="filter-card-hint">복수 선택 가능</span></div>
+          <div class="region-filter">
+            <label class="region-chip-label">
+              <input type="checkbox" name="regions" value="전체" class="region-chip-input"
+                {{ 'checked' if ('전체' in (selected_regions or [])) else '' }}
+                data-count="{{ total_registered or 0 }}">
+              <span class="region-chip">전체<span class="region-chip-count">{{ total_registered or 0 }}</span></span>
+            </label>
+            {% for region in region_names %}
+            <label class="region-chip-label">
+              <input type="checkbox" name="regions" value="{{ region }}" class="region-chip-input"
+                {{ 'checked' if (region in (selected_regions or [])) else '' }}
+                data-count="{{ region_counts.get(region, 0) }}">
+              <span class="region-chip">{{ region }}<span class="region-chip-count">{{ region_counts.get(region, 0) }}</span></span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- 3 · 선택된 배 (기존 checkbox 목록 로직 그대로, 시각만 칩으로) -->
+        <div class="filter-card">
+          <div class="boat-filter-header">
+            <div class="filter-card-title" style="margin-bottom:0;">3 · 배 선택</div>
+            <span id="boat-selected-count" class="boat-selected-summary"></span>
+            <button type="button" id="boat-toggle-btn" class="boat-toggle-btn" aria-expanded="false" aria-label="배 목록 펼치기">▼</button>
+          </div>
+          <div id="boat-filter" class="boat-filter"></div>
+        </div>
+
+        <!-- 서버 라우트 호환을 위한 hidden 필드 -->
+        <input type="hidden" id="year" name="year" value="{{ year or '' }}">
+        <input type="hidden" id="month" name="month" value="{{ month or '' }}">
+        <input type="hidden" id="day" name="day" value="{{ day or '' }}">
+      </form>
+
+      <!-- 통계 카드 4개 -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">조회 대상</div>
+          <div class="stat-value"><span id="stat-total">0</span><span class="stat-unit">척</span></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">여유</div>
+          <div class="stat-value stat-value-open"><span id="stat-open">0</span></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">마감임박</div>
+          <div class="stat-value stat-value-soon"><span id="stat-soon">0</span></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">마감/미운항</div>
+          <div class="stat-value stat-value-closed"><span id="stat-closed">0</span></div>
+        </div>
+      </div>
+
+      <!-- 알림(감시) 제어. 체크박스를 쓰려면 먼저 여기서 알림을 켜야 한다. -->
+      <div class="push-row">
+        <button type="button" id="enable-push-btn" class="push-btn">알림 켜기</button>
+        <!-- 알림이 실제로 도착하는지 자리가 날 때까지 기다려서 확인할 수는 없다.
+             켠 직후 한 통 보내보고 확인할 수 있어야 한다. -->
+        <button type="button" id="test-push-btn" class="push-test-btn" style="display:none;">테스트 알림 받기</button>
+        <span id="watch-status" class="watch-status-text"></span>
+      </div>
+
+      <!-- 감시 목록. 다른 날짜에 걸어둔 것도 여기서 해제할 수 있어야 갇히지 않는다. -->
+      <div id="watch-list" class="watch-list" style="display:none;"></div>
+
+      <!-- 스트림이 중간에 잘렸을 때(서버 타임아웃 등) 못 받은 배를 알려주고 재조회시킨다 -->
+      <div id="missing-notice" class="missing-notice" style="display:none;">
+        <span id="missing-text"></span>
+        <button type="button" id="retry-missing-btn" class="retry-missing-btn">못 받은 배만 다시 조회</button>
+      </div>
+
+      <!-- 지금 보고 있는 값이 저장된 것인지 방금 조회한 것인지 밝힌다.
+           숨기면 낡은 값을 최신으로 착각한다. -->
+      <div id="cache-notice" class="cache-notice" style="display:none;"></div>
+
+      <h2 id="results-title" class="results-title">조회 결과 (실시간)</h2>
+
+      <div id="results-body" class="results-grid">
+        {% if entries and entries|length > 0 %}
+          {% for entry in entries %}
+            {% set is_open = (entry.status == 'open') %}
+            {% set is_closed = (entry.status in ['full','reserved']) %}
+            {% set is_cancelled = (entry.status == 'cancelled') or (entry.display_status in ['기상악화', '출항취소']) %}
+            {% set show_status =
+                '예약가능' if is_open
+                else ('예약마감' if is_closed else ('점검일' if entry.status == 'maintenance' else (entry.display_status or ('알 수 없음' if entry.status == 'unknown' else entry.status) or '알 수 없음'))) %}
+            <article class="result-card">
+              <div class="result-card-meta">
+                <span class="region-badge">{{ entry.city or '-' }}</span>
+                <span class="port-text">{{ entry.port or '-' }}</span>
+                <span class="status-badge {{ 'badge-available' if is_open else 'badge-closed' if is_closed else 'badge-danger' if is_cancelled else 'badge-maintenance' }}">{{ show_status }}</span>
+              </div>
+              <div class="result-card-head">
+                <h3 class="result-ship-name">{{ entry.ship_name or '-' }}{% if entry.tide %} <span class="tide-tag">({{ entry.tide }})</span>{% endif %}</h3>
+                <div class="result-seat-text">
+                  {% if is_closed %}예약마감{% elif entry.available is not none %}남은자리 {{ entry.available }}석{% else %}-{% endif %}
+                </div>
+              </div>
+              <div class="result-bar-track"><div class="result-bar-fill" style="width:{{ '100' if is_open else '4' }}%;"></div></div>
+              <div class="result-card-foot">
+                <div class="fish-tag">{{ entry.fish or '-' }}</div>
+                {% if entry.url %}
+                  <a href="{{ entry.url }}" target="_blank" rel="noopener noreferrer" class="result-link">예약 →</a>
+                {% else %}
+                  <span class="result-link-disabled">-</span>
+                {% endif %}
+              </div>
+              {% if not is_open %}
+              <label class="watch-row">
+                <input type="checkbox" class="watch-checkbox" disabled
+                       data-boat-name="{{ entry.registered_name or '' }}"
+                       data-ship-name="{{ entry.ship_name or '' }}">
+                <span class="watch-check-icon">✓</span>
+                <span class="watch-label-text">빈자리 알림 받기</span>
+              </label>
+              {% endif %}
+            </article>
+          {% endfor %}
+        {% else %}
+          <div class="empty-results">조회 결과가 없습니다.<br>상단에서 지역과 날짜를 선택 후 조회하세요.</div>
+        {% endif %}
+      </div>
+    </section>
+  </main>
+
+  <!-- Spinner Overlay -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="loading-overlay-inner">
+      <div class="spinner"></div>
+      <div class="loading-msg" id="loading-msg">데이터 조회 중...</div>
+      <!-- 저장된 결과가 이미 깔려 있으면 기다리지 않고 볼 수 있게 한다.
+           71척 라이브 조회는 2분 가까이 걸린다. -->
+      <button type="button" id="dismiss-overlay-btn" class="dismiss-overlay-btn" style="display:none;">
+        저장된 결과 먼저 보기
+      </button>
+    </div>
+  </div>
+
+  <!-- 하단 탭바 -->
+  <nav class="bottom-tabbar">
+    <a href="{{ url_for('views.index') }}" class="bottom-tab">
+      <span class="bottom-tab-icon">⛵</span>
+      <span class="bottom-tab-label">배 목록</span>
+    </a>
+    <a href="{{ url_for('views.status') }}" class="bottom-tab active">
+      <span class="bottom-tab-icon">🗓</span>
+      <span class="bottom-tab-label">예약현황</span>
+    </a>
+    <a href="{{ url_for('views.status') }}" class="bottom-tab">
+      <span class="bottom-tab-icon">🔔</span>
+      <span class="bottom-tab-label">알림</span>
+    </a>
+  </nav>
+
+  <!-- 날씨/물때 팝업 모달 -->
+  <div id="weather-popup" class="weather-popup">
+    <div class="popup-content">
+      <div class="popup-header">
+        <h3 id="popup-title">날씨/물때 정보</h3>
+        <button type="button" class="popup-close" onclick="closeWeatherPopup()">&times;</button>
+      </div>
+      <div class="popup-body">
+        <div id="popup-weather-content">
+          <div class="popup-loading">로딩 중...</div>
         </div>
       </div>
     </div>
-    <!-- 서버 라우트 호환을 위한 hidden 필드 -->
-    <input type="hidden" id="year" name="year" value="{{ year or '' }}">
-    <input type="hidden" id="month" name="month" value="{{ month or '' }}">
-    <input type="hidden" id="day" name="day" value="{{ day or '' }}">
-  </form>
-</div>
-
-<!-- Spinner Overlay -->
-<div id="loading-overlay">
-  <div style="text-align:center;">
-    <div class="spinner"></div>
-    <div class="msg" id="loading-msg">데이터 조회 중...</div>
-    <!-- 저장된 결과가 이미 깔려 있으면 기다리지 않고 볼 수 있게 한다.
-         71척 라이브 조회는 2분 가까이 걸린다. -->
-    <button type="button" id="dismiss-overlay-btn"
-            style="display:none;margin-top:14px;padding:6px 14px;border:1px solid #d1d5db;background:#fff;color:#374151;border-radius:6px;cursor:pointer;font-size:13px;">
-      저장된 결과 먼저 보기
-    </button>
   </div>
 </div>
 
-<!-- 조회 결과 섹션 -->
-<div class="results-section">
-  <h3 id="results-title" class="results-title">조회 결과 (실시간)</h3>
+<style>
+:root {
+  --ink: oklch(0.24 0.02 255);
+  --ink-soft: oklch(0.55 0.015 255);
+  --ink-softer: oklch(0.66 0.012 255);
+  --line: oklch(0.92 0.008 250);
+  --line-soft: oklch(0.94 0.006 250);
+  --bg-soft: oklch(0.965 0.006 250);
+  --accent: oklch(0.55 0.14 245);
+  --accent-2: oklch(0.46 0.13 225);
+  --green: oklch(0.58 0.13 155);
+  --amber: oklch(0.7 0.15 70);
+  --red: oklch(0.58 0.18 25);
+}
 
-  <!-- 지금 보고 있는 값이 저장된 것인지 방금 조회한 것인지 밝힌다.
-       숨기면 낡은 값을 최신으로 착각한다. -->
-  <div id="cache-notice" style="display:none;margin:6px 0;font-size:13px;color:#6b7280;"></div>
+.app-shell.status-shell {
+  min-height: 100vh;
+  padding-bottom: 40px;
+  background:
+    radial-gradient(1200px 600px at 50% -280px, oklch(0.93 0.04 245), transparent 70%),
+    oklch(0.975 0.006 250);
+}
 
-  <!-- 알림(감시) 제어. 체크박스를 쓰려면 먼저 여기서 알림을 켜야 한다. -->
-  <div style="display:flex;align-items:center;gap:10px;margin:8px 0;flex-wrap:wrap;">
-    <button type="button" id="enable-push-btn" class="push-btn"
-            style="padding:6px 14px;border-radius:6px;cursor:pointer;font-size:14px;">
-      알림 켜기
-    </button>
-    <!-- 알림이 실제로 도착하는지 자리가 날 때까지 기다려서 확인할 수는 없다.
-         켠 직후 한 통 보내보고 확인할 수 있어야 한다. -->
-    <button type="button" id="test-push-btn"
-            style="display:none;padding:6px 12px;border:1px solid #d1d5db;background:#fff;color:#374151;border-radius:6px;cursor:pointer;font-size:13px;">
-      테스트 알림 받기
-    </button>
-    <span id="watch-status" style="font-size:13px;color:#6b7280;"></span>
-  </div>
+/* 헤더 (index.html 과 동일 패턴, 페이지별로 독립된 style 블록이라 복제한다) */
+.app-header {
+  position: sticky; top: 0; z-index: 40; backdrop-filter: blur(18px);
+  background: oklch(0.99 0.004 250 / 0.82); border-bottom: 1px solid var(--line);
+}
+.app-header-inner {
+  max-width: 1180px; margin: 0 auto; padding: 12px clamp(14px, 3vw, 28px);
+  display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap;
+}
+.brand { display: flex; align-items: center; gap: 11px; min-width: 0; flex: 1 1 170px; }
+.brand-logo {
+  width: 38px; height: 38px; border-radius: 13px; flex: none;
+  background: linear-gradient(145deg, oklch(0.58 0.15 245), oklch(0.5 0.13 215));
+  display: grid; place-items: center; color: #fff; font-size: 19px; line-height: 1;
+  box-shadow: 0 6px 16px oklch(0.55 0.14 245 / 0.35);
+}
+.brand-text { min-width: 0; }
+.brand-title { font-size: 15px; font-weight: 750; letter-spacing: -0.4px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brand-sub { font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.header-spacer { flex: 1 1 0; min-width: 0; }
+.aux-links { font-size: 12px; font-weight: 600; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; flex: none; }
+.aux-links a { color: var(--ink-soft); }
+.aux-links a:hover { color: var(--accent); }
+.aux-dot { color: var(--ink-softer); }
+.header-nav { display: flex; gap: 4px; padding: 4px; background: oklch(0.94 0.008 250); border-radius: 13px; flex: none; }
+.header-nav-btn {
+  height: 34px; padding: 0 15px; border-radius: 10px; border: none; font-size: 13px; font-weight: 700;
+  white-space: nowrap; display: flex; align-items: center; color: var(--ink-soft); background: transparent;
+}
+.header-nav-btn.active { background: #fff; color: oklch(0.3 0.02 255); box-shadow: 0 1px 4px oklch(0.4 0.02 250 / 0.14); }
+.header-nav-btn:hover { color: var(--accent); }
 
-  <!-- 감시 목록. 다른 날짜에 걸어둔 것도 여기서 해제할 수 있어야 갇히지 않는다. -->
-  <div id="watch-list" style="display:none;margin:0 0 10px;"></div>
+/* 메인 */
+.app-main { max-width: 1180px; margin: 0 auto; padding: clamp(16px, 3vw, 30px) clamp(14px, 3vw, 28px) 110px; }
+.page-title { margin: 0; font-size: clamp(22px, 4.4vw, 30px); font-weight: 800; letter-spacing: -1.1px; color: var(--ink); }
+.page-subtitle { margin: 6px 0 18px; font-size: 13.5px; color: var(--ink-soft); }
 
-  <!-- 스트림이 중간에 잘렸을 때(서버 타임아웃 등) 못 받은 배를 알려주고 재조회시킨다 -->
-  <div id="missing-notice" style="display:none;margin:8px 0;padding:10px 12px;border:1px solid #fbbf24;background:#fffbeb;border-radius:6px;font-size:14px;color:#92400e;">
-    <span id="missing-text"></span>
-    <button type="button" id="retry-missing-btn"
-            style="margin-left:8px;padding:4px 10px;border:1px solid #d97706;background:#f59e0b;color:#fff;border-radius:4px;cursor:pointer;">
-      못 받은 배만 다시 조회
-    </button>
-  </div>
+/* 필터 카드 공통 */
+.filter-card {
+  background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 16px; margin-bottom: 12px;
+}
+.filter-card-title { font-size: 12px; font-weight: 750; color: oklch(0.5 0.02 255); letter-spacing: 0.2px; margin-bottom: 10px; }
+.filter-card-hint { font-weight: 600; color: var(--ink-softer); margin-left: 4px; }
 
-  <div class="table-wrapper">
-    <table id="results-table">
-      <thead>
-        <tr>
-          <th style="width: 52px; text-align: center;" title="체크한 배는 자리가 나면 알림을 받습니다">
-            알림
-          </th>
-          <th style="width: 60px;">
-            지역
-            <button type="button" class="sort-btn sort-icon" data-sort-key="city" data-dir="asc">▲▼</button>
-          </th>
-          <th style="width: 70px;">
-            항구
-            <button type="button" class="sort-btn sort-icon" data-sort-key="port" data-dir="asc">▲▼</button>
-          </th>
-          <th style="width: 100px;">
-            등록된 배
-            <button type="button" class="sort-btn sort-icon" data-sort-key="registered_name" data-dir="asc">▲▼</button>
-          </th>
-          <th style="width: 200px;">
-            어종
-            <button type="button" class="sort-btn sort-icon" data-sort-key="fish" data-dir="asc">▲▼</button>
-          </th>
-          <th style="width: 200px;">
-            배 이름
-            <button type="button" class="sort-btn sort-icon" data-sort-key="ship_name" data-dir="asc">▲▼</button>
-          </th>
-          <th class="status-col">
-            상태
-            <button type="button" class="sort-btn sort-icon" data-sort-key="status" data-dir="asc">▲▼</button>
-          </th>
-          <th class="available-col">
-            남은자리
-            <button type="button" class="sort-btn sort-icon" data-sort-key="available" data-dir="asc">▲▼</button>
-          </th>
-          <th style="width: 92px;">
-            URL
-          </th>
-          <th style="width: 120px; text-align: center;">
-            날씨/물때
-          </th>
-        </tr>
-      </thead>
-      <tbody id="results-body">
-      {% if entries and entries|length > 0 %}
-        {% for entry in entries %}
-          {% set is_open = (entry.status == 'open') %}
-          {% set is_closed = (entry.status in ['full','reserved']) %}
-          {% set is_cancelled = (entry.status == 'cancelled') or (entry.display_status in ['기상악화', '출항취소']) %}
-          {% set show_status =
-              '예약가능' if is_open
-              else ('예약마감' if is_closed else ('점검일' if entry.status == 'maintenance' else (entry.display_status or ('알 수 없음' if entry.status == 'unknown' else entry.status) or '알 수 없음'))) %}
-          <tr>
-            <td data-label="알림" style="text-align:center;">
-              {# 예약가능한 배는 바로 예약하면 되므로 감시 대상이 아니다.
-                 이미 감시 중이면 끌 수 있어야 하므로 JS 가 다시 채워 넣는다. #}
-              {% if not is_open %}
-                <input type="checkbox" class="watch-checkbox" style="cursor:pointer;" disabled
-                       data-boat-name="{{ entry.registered_name or '' }}"
-                       data-ship-name="{{ entry.ship_name or '' }}"
-                       title="자리가 나면 알림 받기">
-              {% else %}
-                <span style="color:#d1d5db;" title="예약가능한 배는 감시가 필요 없습니다">–</span>
-              {% endif %}
-            </td>
-            <td data-label="지역">{{ entry.city or '-' }}</td>
-            <td data-label="항구">{{ entry.port or '-' }}</td>
-            <td data-label="등록된 배">{{ entry.registered_name or '-' }}</td>
-            <td data-label="어종" class="fish-col">{{ entry.fish or '-' }}</td>
-            <td data-label="배 이름" style="font-weight: 600;">{{ entry.ship_name or '-' }} {% if entry.tide %}({{ entry.tide }}){% endif %}</td>
-            <td data-label="상태" class="status-col">
-              <span class="status-badge {{ 'badge-available' if is_open else 'badge-closed' if is_closed else 'badge-danger' if is_cancelled else 'badge-maintenance' }}">
-                {{ show_status }}
-              </span>
-            </td>
-            <td data-label="남은자리">
-              {{ 0 if is_closed else (entry.available if entry.available is not none else '-') }}
-            </td>
-            <td data-label="URL">
-              {% if entry.url %}
-                <a href="{{ entry.url }}" target="_blank" rel="noopener noreferrer" style="color: #3b82f6; text-decoration: none;">
-                  URL 링크
-                </a>
-              {% else %}
-                -
-              {% endif %}
-            </td>
-            <td data-label="날씨/물때" >
-              <button type="button" class="btn-popup" data-city="{{ entry.city or '' }}" data-port="{{ entry.port or '' }}" data-date="{{ year }}-{{ '%02d'|format(month) }}-{{ '%02d'|format(day) }}">
-                팝업 보기
-              </button>
-            </td>
-          </tr>
-        {% endfor %}
-      {% else %}
-        <tr>
-          <td class="no-results" colspan="10" style="text-align: center; color: #9ca3af;">
-            조회 결과가 없습니다.<br>상단에서 지역과 날짜를 선택 후 조회하세요.
-          </td>
-        </tr>
-      {% endif %}
-    </tbody>
-  </table>
-</div>
-</div>
+/* 날짜 */
+.date-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.date-native-input {
+  height: 44px; padding: 0 14px; border-radius: 13px; border: 1px solid var(--line);
+  background: var(--bg-soft); font-size: 15px; font-weight: 680; color: inherit; outline: none;
+}
+.date-native-input:focus { border-color: var(--accent); }
+.quick-date-btn {
+  display: inline-flex; align-items: center; height: 34px; padding: 0 13px; border-radius: 999px;
+  border: 1px solid var(--line); background: #fff; color: oklch(0.42 0.02 255); font-size: 12.5px;
+  font-weight: 650; cursor: pointer; white-space: nowrap;
+}
+.quick-date-btn:hover { border-color: oklch(0.7 0.09 245); }
+.btn-search {
+  margin-left: auto; height: 44px; padding: 0 20px; border-radius: 13px; border: none; cursor: pointer;
+  background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225)); color: #fff;
+  font-size: 14px; font-weight: 750; box-shadow: 0 8px 20px oklch(0.55 0.14 245 / 0.3);
+}
+
+/* 지역/배 칩 (checkbox + label span, 로직은 기존 그대로, 시각만 칩) */
+.region-filter, .boat-filter { display: flex; flex-wrap: wrap; gap: 7px; }
+.boat-filter { display: none; margin-top: 10px; }
+.boat-filter.is-open { display: flex; }
+.region-chip-label, .boat-chip-label { position: relative; cursor: pointer; }
+.region-chip-label input, .boat-chip-label input { position: absolute; opacity: 0; pointer-events: none; }
+.region-chip, .boat-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 13px; border-radius: 999px;
+  border: 1px solid var(--line); background: #fff; color: oklch(0.42 0.02 255); font-size: 12.5px;
+  font-weight: 650; white-space: nowrap; transition: all 0.15s ease;
+}
+.region-chip-label:hover .region-chip, .boat-chip-label:hover .boat-chip { border-color: oklch(0.78 0.02 250); }
+.region-chip-count {
+  font-size: 11px; font-weight: 700; background: oklch(0.95 0.008 250); color: oklch(0.55 0.015 255);
+  padding: 1px 7px; border-radius: 99px;
+}
+.region-chip-input:checked + .region-chip {
+  border-color: transparent; background: var(--green); color: #fff; font-weight: 700;
+}
+.region-chip-input:checked + .region-chip .region-chip-count { background: oklch(1 0 0 / 0.22); color: #fff; }
+.boat-chip-input:checked + .boat-chip { border-color: transparent; background: var(--accent); color: #fff; font-weight: 700; }
+
+.boat-filter-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.boat-selected-summary { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
+.boat-toggle-btn {
+  margin-left: auto; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border: 1px solid var(--line); border-radius: 9px; background: #fff; color: oklch(0.42 0.02 255);
+  font-size: 13px; cursor: pointer;
+}
+.boat-toggle-btn[aria-expanded="true"] { background: oklch(0.95 0.025 245); border-color: oklch(0.7 0.09 245); color: var(--accent); }
+
+/* 통계 카드 */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.stat-card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 13px 15px; }
+.stat-label { font-size: 11.5px; color: var(--ink-soft); font-weight: 620; }
+.stat-value { font-size: 24px; font-weight: 800; letter-spacing: -1px; color: var(--ink); }
+.stat-value-open { color: var(--green); }
+.stat-value-soon { color: var(--amber); }
+.stat-value-closed { color: oklch(0.6 0.02 255); }
+.stat-unit { font-size: 13px; font-weight: 600; color: var(--ink-softer); margin-left: 2px; }
+
+/* 알림(Watch) 제어 */
+.push-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
+.push-btn {
+  height: 38px; padding: 0 16px; border-radius: 12px; border: 1px solid oklch(0.5 0.14 245);
+  background: oklch(0.5 0.14 245); color: #fff; font-size: 13px; font-weight: 730; cursor: pointer;
+  transition: background-color .15s, border-color .15s; white-space: nowrap;
+}
+.push-btn.on { border-color: oklch(0.5 0.12 155); background: var(--green); }
+.push-btn.on:before { content: '✓ '; }
+.push-test-btn {
+  height: 34px; padding: 0 12px; border: 1px solid var(--line); background: #fff; color: oklch(0.42 0.02 255);
+  border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 650;
+}
+.watch-status-text { font-size: 12.5px; font-weight: 620; color: var(--ink-soft); }
+
+/* 감시 목록 칩 */
+.watch-list { margin: 0 0 10px; }
+.watch-chip {
+  display: inline-flex; align-items: center; gap: 6px; margin: 0 6px 6px 0; padding: 4px 6px 4px 10px;
+  border: 1px solid oklch(0.85 0.05 245); background: oklch(0.96 0.02 245); border-radius: 999px;
+  font-size: 12px; color: oklch(0.4 0.11 245); white-space: nowrap;
+}
+.watch-chip-x {
+  border: none; background: transparent; color: oklch(0.4 0.11 245); cursor: pointer; font-size: 13px;
+  line-height: 1; padding: 2px 4px; border-radius: 999px;
+}
+.watch-chip-x:hover { background: oklch(0.9 0.04 245); color: var(--red); }
+
+/* 누락/재조회 안내 */
+.missing-notice {
+  margin: 8px 0; padding: 10px 12px; border: 1px solid oklch(0.8 0.13 80); background: oklch(0.97 0.04 85);
+  border-radius: 12px; font-size: 13.5px; color: oklch(0.42 0.1 60);
+}
+.retry-missing-btn {
+  margin-left: 8px; padding: 4px 10px; border: none; background: oklch(0.68 0.15 60); color: #fff;
+  border-radius: 8px; cursor: pointer; font-size: 12.5px; font-weight: 650;
+}
+.cache-notice { margin: 6px 0 10px; font-size: 12.5px; color: var(--ink-soft); }
+
+.results-title { margin: 4px 0 12px; font-size: 17px; font-weight: 780; letter-spacing: -0.4px; color: var(--ink); }
+
+/* 결과 카드 그리드 */
+.results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 11px; }
+.result-card {
+  background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 15px 16px;
+  box-shadow: 0 2px 10px oklch(0.5 0.02 250 / 0.04);
+}
+.result-card-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.region-badge {
+  font-size: 10.5px; font-weight: 750; color: oklch(0.48 0.12 245); background: oklch(0.94 0.03 245);
+  padding: 3px 8px; border-radius: 7px;
+}
+.port-text { font-size: 11.5px; font-weight: 620; color: var(--ink-soft); }
+.status-badge {
+  margin-left: auto; display: inline-block; max-width: 100%; padding: 3px 10px; border-radius: 99px;
+  font-size: 11px; font-weight: 750; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff;
+}
+.badge-available { background: var(--green); }
+.badge-closed { background: oklch(0.3 0.02 255); }
+.badge-danger { background: var(--red); }
+.badge-maintenance { background: oklch(0.85 0.01 250); color: oklch(0.45 0.015 255); }
+
+.result-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.result-ship-name { margin: 0; font-size: 16.5px; font-weight: 760; letter-spacing: -0.4px; color: var(--ink); }
+.tide-tag { font-weight: 600; color: var(--ink-softer); font-size: 12.5px; }
+.result-seat-text { font-size: 12.5px; font-weight: 750; color: oklch(0.4 0.02 255); white-space: nowrap; }
+
+.result-bar-track { height: 6px; border-radius: 99px; background: oklch(0.94 0.006 250); margin: 10px 0; overflow: hidden; }
+.result-bar-fill { height: 100%; border-radius: 99px; background: var(--green); }
+.result-bar-fill.bar-soon { background: var(--amber); }
+.result-bar-fill.bar-off { background: oklch(0.82 0.01 250); }
+
+.result-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.fish-tag { font-size: 12px; font-weight: 650; color: oklch(0.55 0.18 25); }
+.result-link { font-size: 12px; font-weight: 730; color: var(--accent); }
+.result-link-disabled { font-size: 12px; color: var(--ink-softer); }
+
+.result-popup-row { margin-top: 10px; }
+.btn-popup {
+  padding: 5px 11px; background: oklch(0.55 0.09 195); color: #fff; border: none; border-radius: 8px;
+  font-size: 11.5px; font-weight: 650; cursor: pointer;
+}
+.btn-popup:hover { background: oklch(0.48 0.09 195); }
+
+.watch-row {
+  display: flex; align-items: center; gap: 9px; margin-top: 12px; padding: 9px 11px; border-radius: 12px;
+  cursor: pointer; user-select: none; border: 1px solid var(--line-soft); background: oklch(0.975 0.005 250);
+  color: var(--ink-soft);
+}
+.watch-row input.watch-checkbox { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+.watch-check-icon {
+  width: 19px; height: 19px; flex: none; border-radius: 6px; display: grid; place-items: center; font-size: 11px;
+  line-height: 1; border: 1.5px solid oklch(0.85 0.01 250); background: #fff; color: transparent;
+}
+.watch-row.watch-row-on {
+  border-color: oklch(0.72 0.09 200); background: oklch(0.96 0.03 200); color: oklch(0.34 0.08 210);
+}
+.watch-row.watch-row-on .watch-check-icon { border-color: oklch(0.55 0.11 205); background: oklch(0.55 0.11 205); color: #fff; }
+.watch-row.watch-row-disabled { opacity: 0.55; cursor: not-allowed; }
+.watch-label-text { font-size: 12.5px; font-weight: 700; }
+
+.empty-results {
+  grid-column: 1 / -1; text-align: center; padding: 56px 20px; background: #fff;
+  border: 1px dashed oklch(0.88 0.01 250); border-radius: 20px; color: var(--ink-softer); font-size: 13.5px; line-height: 1.7;
+}
+
+/* 로딩 오버레이 */
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-overlay {
+  display: none; position: fixed; inset: 0; z-index: 9999; background: oklch(1 0 0 / 0.85);
+  align-items: center; justify-content: center;
+}
+.loading-overlay-inner { text-align: center; }
+.spinner {
+  width: 56px; height: 56px; border: 6px solid var(--line); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 14px;
+}
+.loading-msg { font-size: 16px; color: var(--accent); font-weight: 750; text-align: center; }
+.dismiss-overlay-btn {
+  display: none; margin-top: 14px; padding: 6px 14px; border: 1px solid var(--line); background: #fff;
+  color: var(--ink-soft); border-radius: 9px; cursor: pointer; font-size: 13px;
+}
+
+/* 하단 탭바 */
+.bottom-tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; display: flex; gap: 6px;
+  padding: 8px 12px calc(env(safe-area-inset-bottom, 0px) + 8px);
+  background: oklch(0.99 0.004 250 / 0.9); backdrop-filter: blur(18px); border-top: 1px solid var(--line);
+}
+.bottom-tab {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  height: 52px; border-radius: 15px; color: oklch(0.6 0.015 255);
+}
+.bottom-tab.active { background: oklch(0.95 0.025 245); color: oklch(0.42 0.14 245); }
+.bottom-tab-icon { font-size: 17px; line-height: 1; }
+.bottom-tab-label { font-size: 11px; font-weight: 700; }
+
+/* 날씨/물때 팝업 (원본 유지, 색만 토큰화) */
+.weather-popup {
+  display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.5); z-index: 10000; overflow: auto;
+}
+.popup-content {
+  position: relative; margin: 32px auto; max-width: 96vw; width: 1300px; background: #fff;
+  border-radius: 18px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); max-height: 92vh; overflow: visible;
+}
+.popup-header {
+  background: linear-gradient(135deg,#06b6d4 0%,#0e7490 100%); color: #fff; padding: 20px;
+  border-radius: 18px 18px 0 0; display: flex; justify-content: space-between; align-items: center;
+}
+.popup-header h3 { margin: 0; font-size: 22px; font-weight: 750; }
+.popup-close {
+  background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; padding: 0;
+  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+}
+.popup-body { padding: 0; max-height: none; overflow: visible; }
+.popup-loading { text-align: center; padding: 40px; color: var(--ink-soft); }
+.result-split { display: flex; gap: 16px; background: #fff; border-radius: 0 0 18px 18px; overflow: hidden; min-height: 800px; }
+.result-left { flex: 1; min-width: 0; border-right: 1px solid var(--line-soft); overflow: visible; }
+.result-right { flex: 1; min-width: 0; background: #fff; overflow: visible; }
+.graph-panel { padding: 8px; background: #fff; height: 800px; overflow: visible; }
+#tide-table { width: 100%; border-collapse: collapse; }
+#tide-table thead th {
+  background: var(--bg-soft); padding: 14px 10px; font-size: 15px; font-weight: 650; color: oklch(0.35 0.02 255);
+  border-bottom: 2px solid var(--line); text-align: center;
+}
+#tide-table tbody td { padding: 14px 10px; border-bottom: 1px solid var(--line-soft); font-size: 14px; color: oklch(0.4 0.02 255); text-align: center; }
+#tide-table tbody tr:nth-child(even) { background: var(--bg-soft); }
+.time-cell { font-weight: 650; color: var(--ink); font-size: 14.5px; }
+
+@media (max-width: 900px) {
+  .result-split { flex-direction: column; }
+  #tide-table thead { display: none; }
+  #tide-table, #tide-table tbody, #tide-table tr, #tide-table td { display: block; width: 100%; }
+  #tide-table tr { margin-bottom: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: #fff; }
+  #tide-table td { border: 0 !important; padding: 6px 0; text-align: left !important; position: relative; padding-left: 90px; }
+  #tide-table td:before { content: attr(data-label); position: absolute; left: 0; width: 80px; font-weight: 650; color: oklch(0.35 0.02 255); font-size: 12px; }
+  .graph-panel { height: auto; min-height: 300px; }
+}
+
+@media (max-width: 768px) {
+  .header-nav { display: none; }
+  .aux-links { order: 2; }
+  .btn-search { margin-left: 0; }
+  .results-grid { grid-template-columns: 1fr; }
+  .popup-content { max-width: 98vw; margin: 16px auto; border-radius: 12px; }
+  .popup-header { padding: 14px; border-radius: 12px 12px 0 0; }
+  .popup-header h3 { font-size: 17px; }
+}
+</style>
 
 <script>
-  document.addEventListener('DOMContentLoaded', function(){
-    // Flatpickr 초기화: yyyy-mm-dd, 한국어, 기본 날짜는 템플릿 year/month/day 또는 오늘
-    const dateInput = document.getElementById('date');
-    const openBtn = document.getElementById('open-cal');
-    let defaultDate = null;
-    try {
-      const yInit = "{{ year or '' }}";
-      const mInit = "{{ month or '' }}";
-      const dInit = "{{ day or '' }}";
-      if (yInit && mInit && dInit) {
-        defaultDate = `${String(yInit).padStart(4,'0')}-${String(mInit).padStart(2,'0')}-${String(dInit).padStart(2,'0')}`;
-      }
-    } catch (e) {}
+document.addEventListener('DOMContentLoaded', function(){
+  // 날짜 입력 초기화: 값이 비어 있으면 오늘 날짜를 기본값으로 채운다.
+  const dateInput = document.getElementById('date');
+  function fmtDate(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  if (dateInput && !dateInput.value) { dateInput.value = fmtDate(new Date()); }
 
-    if (typeof flatpickr !== 'undefined' && dateInput) {
-      const fp = flatpickr(dateInput, {
-        dateFormat: 'Y-m-d',
-        defaultDate: defaultDate || new Date(),
-        locale: (window.flatpickr && window.flatpickr.l10ns && window.flatpickr.l10ns.ko) ? window.flatpickr.l10ns.ko : undefined,
-        allowInput: true,
-        disableMobile: true
-      });
-      if (openBtn) openBtn.addEventListener('click', () => fp.open());
-    }
-    // '전체' 선택 시 다른 지역 해제, 개별 지역 선택 시 '전체' 해제
-    const allBox = document.querySelector('input[name="regions"][value="전체"]');
-    const regionBoxes = Array.from(document.querySelectorAll('input[name="regions"]')).filter(cb => cb.value !== '전체');
-    if(allBox){
-      allBox.addEventListener('change', function(){
-        if(allBox.checked){ regionBoxes.forEach(cb => cb.checked = false); }
+  // 퀵버튼: 오늘 / 내일 / 이번 주말. #date 값만 채워주고, 실제 조회 트리거는 검색 버튼(제출)이다.
+  document.querySelectorAll('.quick-date-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const now = new Date();
+      let target;
+      if (btn.dataset.weekend) {
+        const diff = (6 - now.getDay() + 7) % 7; // 이번주 토요일까지 남은 일수
+        target = new Date(now); target.setDate(now.getDate() + diff);
+      } else {
+        const offset = parseInt(btn.dataset.offset || '0', 10);
+        target = new Date(now); target.setDate(now.getDate() + offset);
+      }
+      if (dateInput) dateInput.value = fmtDate(target);
+    });
+  });
+
+  // '전체' 선택 시 다른 지역 해제, 개별 지역 선택 시 '전체' 해제
+  const allBox = document.querySelector('input[name="regions"][value="전체"]');
+  const regionBoxes = Array.from(document.querySelectorAll('input[name="regions"]')).filter(cb => cb.value !== '전체');
+  if(allBox){
+    allBox.addEventListener('change', function(){
+      if(allBox.checked){ regionBoxes.forEach(cb => cb.checked = false); }
+      updateBoatList();
+    });
+    regionBoxes.forEach(cb => {
+      cb.addEventListener('change', function(){
+        if(cb.checked) allBox.checked = false;
+        if(!regionBoxes.some(b => b.checked)) allBox.checked = true; // 모두 해제 시 '전체' 자동 선택
         updateBoatList();
       });
-      regionBoxes.forEach(cb => {
-        cb.addEventListener('change', function(){
-          if(cb.checked) allBox.checked = false;
-          if(!regionBoxes.some(b => b.checked)) allBox.checked = true; // 모두 해제 시 '전체' 자동 선택
-          updateBoatList();
-        });
+    });
+  }
+
+  // ====== 배 선택 필터 ======
+  const regionBoatsData = {{ region_boats | tojson }};
+  const initialSelectedBoats = {{ selected_boats | tojson }};
+  const boatFilterEl = document.getElementById('boat-filter');
+  const boatToggleBtn = document.getElementById('boat-toggle-btn');
+  const boatSelectedCountEl = document.getElementById('boat-selected-count');
+
+  function getSelectedRegions() {
+    const allChecked = allBox && allBox.checked;
+    if (allChecked) return Object.keys(regionBoatsData);
+    return regionBoxes.filter(cb => cb.checked).map(cb => cb.value);
+  }
+
+  function updateBoatCount() {
+    if (!boatFilterEl || !boatSelectedCountEl) return;
+    const total = boatFilterEl.querySelectorAll('input[name="boats"]').length;
+    const checked = boatFilterEl.querySelectorAll('input[name="boats"]:checked').length;
+    if (total === 0) {
+      boatSelectedCountEl.textContent = '지역을 선택하세요';
+    } else {
+      boatSelectedCountEl.textContent = `선택 ${checked} / ${total}척`;
+    }
+  }
+
+  let prevRegionBoats = new Set();  // 이전 지역들의 배 세트
+
+  function updateBoatList() {
+    if (!boatFilterEl) return;
+
+    const regions = getSelectedRegions();
+
+    // 현재 선택된 지역들의 배 세트 구성
+    const currentRegionBoats = new Set();
+    const boats = [];
+    const seen = new Set();
+
+    regions.forEach(region => {
+      (regionBoatsData[region] || []).forEach(boat => {
+        currentRegionBoats.add(boat.name);
+        if (!seen.has(boat.name)) {
+          seen.add(boat.name);
+          boats.push(boat);
+        }
       });
-    }
+    });
+    boats.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 
-    // ====== 배 선택 필터 ======
-    const regionBoatsData = {{ region_boats | tojson }};
-    const initialSelectedBoats = {{ selected_boats | tojson }};
-    const boatFilterEl = document.getElementById('boat-filter');
-    const boatToggleBtn = document.getElementById('boat-toggle-btn');
-    const boatSelectedCountEl = document.getElementById('boat-selected-count');
+    // 이전에 선택된 배들
+    const prevChecked = new Set(
+      Array.from(boatFilterEl.querySelectorAll('input[name="boats"]:checked')).map(cb => cb.value)
+    );
 
-    function getSelectedRegions() {
-      const allChecked = allBox && allBox.checked;
-      if (allChecked) return Object.keys(regionBoatsData);
-      return regionBoxes.filter(cb => cb.checked).map(cb => cb.value);
-    }
+    const hasInitial = initialSelectedBoats && initialSelectedBoats.length > 0;
+    const useInitial = hasInitial && !window._boatListInitialized;
 
-    function updateBoatCount() {
-      if (!boatFilterEl || !boatSelectedCountEl) return;
-      const total = boatFilterEl.querySelectorAll('input[name="boats"]').length;
-      const checked = boatFilterEl.querySelectorAll('input[name="boats"]:checked').length;
-      if (total === 0) {
-        boatSelectedCountEl.textContent = '지역을 선택하세요';
+    boatFilterEl.innerHTML = '';
+    boats.forEach(boat => {
+      const label = document.createElement('label');
+      label.className = 'boat-chip-label';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.name = 'boats';
+      input.value = boat.name;
+      input.className = 'boat-chip-input';
+
+      let shouldCheck = false;
+      if (useInitial) {
+        // 첫 초기화: 초기 선택된 배들만 선택
+        shouldCheck = initialSelectedBoats.includes(boat.name);
       } else {
-        boatSelectedCountEl.textContent = `선택 ${checked} / ${total}척`;
+        // 지역 변경 시 로직:
+        // 1. 새로 추가된 배: 자동 선택
+        const isNewBoat = !prevRegionBoats.has(boat.name);
+        // 2. 이전에 선택되었던 배이고 현재도 같은 지역에 속함: 유지
+        const isPrevCheckedAndStillInRegion = prevChecked.has(boat.name) && prevRegionBoats.has(boat.name);
+
+        shouldCheck = isNewBoat || isPrevCheckedAndStillInRegion;
       }
-    }
+      input.checked = shouldCheck;
 
-    let prevRegionBoats = new Set();  // 이전 지역들의 배 세트
+      const span = document.createElement('span');
+      span.className = 'boat-chip';
+      span.textContent = boat.name;
+      label.appendChild(input);
+      label.appendChild(span);
+      input.addEventListener('change', updateBoatCount);
+      boatFilterEl.appendChild(label);
+    });
 
-    function updateBoatList() {
-      if (!boatFilterEl) return;
+    // 현재 지역의 배 세트를 다음 업데이트를 위해 저장
+    prevRegionBoats = new Set(currentRegionBoats);
 
-      const regions = getSelectedRegions();
-      
-      // 현재 선택된 지역들의 배 세트 구성
-      const currentRegionBoats = new Set();
-      const boats = [];
-      const seen = new Set();
-      
-      regions.forEach(region => {
-        (regionBoatsData[region] || []).forEach(boat => {
-          currentRegionBoats.add(boat.name);
-          if (!seen.has(boat.name)) {
-            seen.add(boat.name);
-            boats.push(boat);
-          }
-        });
-      });
-      boats.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    window._boatListInitialized = true;
+    updateBoatCount();
+  }
 
-      // 이전에 선택된 배들
-      const prevChecked = new Set(
-        Array.from(boatFilterEl.querySelectorAll('input[name="boats"]:checked')).map(cb => cb.value)
-      );
-      
-      const hasInitial = initialSelectedBoats && initialSelectedBoats.length > 0;
-      const useInitial = hasInitial && !window._boatListInitialized;
+  if (boatToggleBtn && boatFilterEl) {
+    boatToggleBtn.addEventListener('click', function() {
+      const isOpen = boatFilterEl.classList.toggle('is-open');
+      boatToggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      boatToggleBtn.textContent = isOpen ? '▲' : '▼';
+      boatToggleBtn.setAttribute('aria-label', isOpen ? '배 목록 접기' : '배 목록 펼치기');
+    });
+  }
 
-      boatFilterEl.innerHTML = '';
-      boats.forEach(boat => {
-        const label = document.createElement('label');
-        const input = document.createElement('input');
-        input.type = 'checkbox';
-        input.name = 'boats';
-        input.value = boat.name;
+  updateBoatList();
+  // ====== 배 선택 필터 끝 ======
 
-        let shouldCheck = false;
-        if (useInitial) {
-          // 첫 초기화: 초기 선택된 배들만 선택
-          shouldCheck = initialSelectedBoats.includes(boat.name);
-        } else {
-          // 지역 변경 시 로직:
-          // 1. 새로 추가된 배: 자동 선택
-          const isNewBoat = !prevRegionBoats.has(boat.name);
-          // 2. 이전에 선택되었던 배이고 현재도 같은 지역에 속함: 유지
-          const isPrevCheckedAndStillInRegion = prevChecked.has(boat.name) && prevRegionBoats.has(boat.name);
-          
-          shouldCheck = isNewBoat || isPrevCheckedAndStillInRegion;
-        }
-        input.checked = shouldCheck;
+  // ------------------------------------------------------------------
+  // 감시(알림) 등록. 결과 카드의 '빈자리 알림 받기' 토글이 여기를 쓴다.
+  //
+  // 로그인이 없으므로 사람을 가르는 키는 브라우저 푸시 구독 endpoint 하나다.
+  // 구독하기 전에는 토글을 켤 수 없다 - 누구에게 보낼지 알 수 없기 때문.
+  // ------------------------------------------------------------------
+  // 마지막으로 그린 행. 감시 목록이 바뀌면 이걸로 표를 다시 그린다.
+  // Watch 모듈보다 먼저 선언해야 한다. 아래 bindPush() 가 화면 로드 직후
+  // Watch.restore() -> refreshCheckboxes() 로 이 변수를 읽는데, let 은 선언
+  // 전에는 typeof 조차 ReferenceError 를 던지기 때문이다.
+  let lastRenderedRows = [];
 
-        const span = document.createElement('span');
-        span.textContent = boat.name;
-        label.appendChild(input);
-        label.appendChild(span);
-        input.addEventListener('change', updateBoatCount);
-        boatFilterEl.appendChild(label);
-      });
+  const Watch = (function () {
+    let endpoint = null;          // 이 브라우저의 푸시 구독 주소
+    let watched = new Set();      // 현재 조회 날짜의 감시 키('boatName||shipName')
+    let allWatches = [];          // 날짜 무관 전체 감시. 상한은 이것으로 센다.
+    let limit = 5;
 
-      // 현재 지역의 배 세트를 다음 업데이트를 위해 저장
-      prevRegionBoats = new Set(currentRegionBoats);
-      
-      window._boatListInitialized = true;
-      updateBoatCount();
-    }
-
-    if (boatToggleBtn && boatFilterEl) {
-      boatToggleBtn.addEventListener('click', function() {
-        const isOpen = boatFilterEl.classList.toggle('is-open');
-        boatToggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        boatToggleBtn.textContent = isOpen ? '▲' : '▼';
-        boatToggleBtn.setAttribute('aria-label', isOpen ? '배 목록 접기' : '배 목록 펼치기');
-      });
-    }
-
-    updateBoatList();
-    // ====== 배 선택 필터 끝 ======
-
-    // ------------------------------------------------------------------
-    // 감시(알림) 등록. 표의 체크박스가 여기를 쓴다.
-    //
-    // 로그인이 없으므로 사람을 가르는 키는 브라우저 푸시 구독 endpoint 하나다.
-    // 구독하기 전에는 체크박스를 켤 수 없다 - 누구에게 보낼지 알 수 없기 때문.
-    // ------------------------------------------------------------------
-    // 마지막으로 그린 행. 감시 목록이 바뀌면 이걸로 표를 다시 그린다.
-    // Watch 모듈보다 먼저 선언해야 한다. 아래 bindPush() 가 화면 로드 직후
-    // Watch.restore() -> refreshCheckboxes() 로 이 변수를 읽는데, let 은 선언
-    // 전에는 typeof 조차 ReferenceError 를 던지기 때문이다.
-    let lastRenderedRows = [];
-
-    const Watch = (function () {
-      let endpoint = null;          // 이 브라우저의 푸시 구독 주소
-      let watched = new Set();      // 현재 조회 날짜의 감시 키('boatName||shipName')
-      let allWatches = [];          // 날짜 무관 전체 감시. 상한은 이것으로 센다.
-      let limit = 5;
-
-      function key(boatName, shipName) { return `${boatName || ''}||${shipName || ''}`; }
-      function currentDate() {
-        const f = document.getElementById('status-form');
-        const y = f.querySelector('[name=year]').value;
-        const m = String(f.querySelector('[name=month]').value).padStart(2, '0');
-        const d = String(f.querySelector('[name=day]').value).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-      }
-
-      function isWatched(boatName, shipName) { return watched.has(key(boatName, shipName)); }
-
-      // 자리가 이미 있는 배는 감시할 이유가 없다. 바로 예약하면 된다.
-      // 감시는 '자리가 없는 배에 자리가 나는 순간'을 잡는 것이 목적이므로
-      // 예약가능 행에는 체크박스를 두지 않는다.
-      // 다만 이미 감시 중이던 배가 열린 경우에는 끌 수 있어야 하므로 남겨둔다.
-      function canWatch(row) {
-        if (isWatched(row.registered_name, row.ship_name)) return true;
-        return row.status_class !== 'open';
-      }
-
-      function setButtonOn(on) {
-        const btn = document.getElementById('enable-push-btn');
-        if (btn) {
-          btn.classList.toggle('on', on);
-          btn.textContent = on ? '알림 켜짐' : '알림 켜기';
-        }
-        // 테스트 버튼은 구독한 뒤에만 의미가 있다
-        const test = document.getElementById('test-push-btn');
-        if (test) test.style.display = on ? '' : 'none';
-      }
-
-      async function sendTest() {
-        if (!endpoint) { alert('먼저 "알림 켜기"를 눌러주세요.'); return; }
-        const btn = document.getElementById('test-push-btn');
-        if (btn) { btn.disabled = true; btn.textContent = '보내는 중…'; }
-        try {
-          const resp = await fetch('/api/push/test', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ endpoint })
-          });
-          const body = await resp.json();
-          if (resp.ok) {
-            alert('보냈습니다. 잠시 후 알림이 도착합니다.\n\n'
-                  + '이 화면을 보고 있으면 알림이 안 뜰 수 있습니다. '
-                  + '홈으로 나가거나 화면을 끄고 기다려보세요.');
-          } else {
-            alert(body.error || '발송에 실패했습니다.');
-            if (resp.status === 410) { endpoint = null; setButtonOn(false); }
-          }
-        } catch (e) {
-          alert('통신에 실패했습니다.');
-        } finally {
-          if (btn) { btn.disabled = false; btn.textContent = '테스트 알림 받기'; }
-        }
-      }
-
-      function applyServerState(body) {
-        limit = body.limit || limit;
-        // 상한은 날짜와 무관하게 전체 감시 수로 걸린다. 예전에는 현재 조회
-        // 날짜만 세어 화면에 '3/5' 로 보이는데 서버는 이미 5건이라 등록을
-        // 거절하는 일이 있었다. 세는 기준을 서버와 똑같이 맞춘다.
-        allWatches = (body.watches || []).slice();
-        watched = new Set(allWatches
-          .filter(w => w.target_date === currentDate())
-          .map(w => key(w.boat_name, w.ship_name)));
-        refreshCheckboxes();
-        updateBanner();
-        renderWatchList();
-      }
-
-      function atLimit() { return allWatches.length >= limit; }
-
-      // 다른 날짜에 걸어둔 감시는 그 날짜를 다시 조회하지 않으면 화면에 안 보이고
-      // 해제할 수도 없다. 슬롯이 5개뿐이라 그대로 두면 갇힌다. 그래서 날짜와
-      // 무관하게 전체 목록을 항상 보여주고 여기서 바로 해제할 수 있게 한다.
-      function renderWatchList() {
-        const box = document.getElementById('watch-list');
-        if (!box) return;
-        box.innerHTML = '';
-        if (!endpoint || !allWatches.length) { box.style.display = 'none'; return; }
-        box.style.display = '';
-
-        const sorted = allWatches.slice().sort(
-          (a, b) => (a.target_date + a.ship_name).localeCompare(b.target_date + b.ship_name));
-
-        for (const w of sorted) {
-          const item = document.createElement('span');
-          item.className = 'watch-chip';
-          const isToday = w.target_date === currentDate();
-          item.style.opacity = isToday ? '1' : '0.75';
-
-          const text = document.createElement('span');
-          text.textContent = `${w.target_date} · ${w.ship_name}`;
-          item.appendChild(text);
-
-          const del = document.createElement('button');
-          del.type = 'button';
-          del.textContent = '✕';
-          del.title = '이 감시 해제';
-          del.className = 'watch-chip-x';
-          del.addEventListener('click', () => removeWatch(w));
-          item.appendChild(del);
-
-          box.appendChild(item);
-        }
-      }
-
-      async function removeWatch(w) {
-        if (!endpoint) return;
-        const resp = await fetch('/api/watches', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            endpoint, boat_id: w.boat_id,
-            ship_name: w.ship_name, target_date: w.target_date
-          })
-        });
-        if (resp.ok) applyServerState(await resp.json());
-      }
-
-      function refreshCheckboxes() {
-        // 체크박스를 보일지 말지가 감시 상태에 달려 있으므로(감시 중인 배는
-        // 자리가 나도 끌 수 있어야 한다) 목록이 바뀌면 표를 다시 그린다.
-        if (typeof lastRenderedRows !== 'undefined' && lastRenderedRows.length) {
-          renderRows(lastRenderedRows);
-          return;
-        }
-        document.querySelectorAll('.watch-checkbox').forEach(cb => {
-          const on = isWatched(cb.dataset.boatName, cb.dataset.shipName);
-          cb.checked = on;
-          // 상한에 찼으면 새로 켤 수 없는 칸은 미리 잠근다. 눌러본 뒤에
-          // 거절당하는 것보다 잠겨 있는 편이 낫다. 이미 켠 것은 끌 수 있어야 한다.
-          cb.disabled = !endpoint || (!on && atLimit());
-          cb.title = cb.disabled && endpoint && !on
-            ? `감시는 최대 ${limit}척입니다. 아래 목록에서 하나를 해제하세요.`
-            : '자리가 나면 알림 받기';
-        });
-      }
-
-      function updateBanner() {
-        const el = document.getElementById('watch-status');
-        if (!el) return;
-        if (!endpoint) {
-          el.textContent = '알림을 받으려면 먼저 "알림 켜기"를 눌러주세요.';
-          return;
-        }
-        // 서버 상한과 같은 기준(날짜 무관 전체)으로 센다
-        const otherDates = allWatches.length - watched.size;
-        let text = `알림 감시 ${allWatches.length}/${limit}척`;
-        if (otherDates > 0) text += ` (다른 날짜 ${otherDates}척 포함)`;
-        if (atLimit()) text += ' — 더 추가하려면 아래에서 하나를 해제하세요';
-        el.textContent = text;
-        el.style.color = atLimit() ? '#b45309' : '#6b7280';
-      }
-
-      // base64 공개키를 푸시 API 가 요구하는 Uint8Array 로 바꾼다
-      function urlBase64ToUint8Array(base64String) {
-        const padding = '='.repeat((4 - base64String.length % 4) % 4);
-        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-        const raw = atob(base64);
-        return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
-      }
-
-      async function enable() {
-        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-          alert('이 브라우저는 웹 푸시를 지원하지 않습니다.');
-          return;
-        }
-        const info = await (await fetch('/api/push/public-key')).json();
-        if (!info.configured) {
-          alert('서버에 알림 키(VAPID)가 아직 설정되지 않았습니다.');
-          return;
-        }
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-          alert('알림 권한이 거부되어 있습니다. 브라우저 설정에서 허용해주세요.');
-          return;
-        }
-
-        const reg = await navigator.serviceWorker.ready;
-        let sub = await reg.pushManager.getSubscription();
-        if (!sub) {
-          sub = await reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(info.public_key)
-          });
-        }
-        endpoint = sub.endpoint;
-
-        const body = await (await fetch('/api/push/subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(sub.toJSON())
-        })).json();
-
-        applyServerState(body);
-        setButtonOn(true);
-      }
-
-      // 서버 응답 전에 로컬 상태를 먼저 움직인다(그리고 실패 시 되돌린다).
-      // 카운트는 날짜 무관 전체(allWatches)로 세므로 둘 다 손봐야 한다.
-      function applyLocal(on, k, stub) {
-        if (on) {
-          watched.add(k);
-          if (!allWatches.some(w => w.target_date === stub.target_date
-                                 && w.ship_name === stub.ship_name)) {
-            allWatches.push(stub);
-          }
-        } else {
-          watched.delete(k);
-          allWatches = allWatches.filter(w => !(w.target_date === stub.target_date
-                                             && w.ship_name === stub.ship_name));
-        }
-        updateBanner();
-        renderWatchList();
-      }
-
-      async function toggle(cb) {
-        if (!endpoint) {
-          cb.checked = false;
-          alert('먼저 "알림 켜기"를 눌러 알림을 허용해주세요.');
-          return;
-        }
-
-        const k = key(cb.dataset.boatName, cb.dataset.shipName);
-        const turningOn = cb.checked;
-
-        // 카운트를 서버 응답을 기다리지 않고 즉시 반영한다.
-        // 체크한 순간 숫자가 안 움직이면 눌린 건지 아닌지 알 수 없다.
-        // 서버가 거절하면 아래에서 되돌린다.
-        const stub = {
-          boat_id: null, boat_name: cb.dataset.boatName,
-          ship_name: cb.dataset.shipName, target_date: currentDate()
-        };
-        applyLocal(turningOn, k, stub);
-
-        const payload = {
-          endpoint,
-          boat_name: cb.dataset.boatName,
-          ship_name: cb.dataset.shipName,
-          target_date: currentDate()
-        };
-
-        let resp, body;
-        try {
-          resp = await fetch('/api/watches', {
-            method: turningOn ? 'POST' : 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          body = await resp.json();
-        } catch (e) {
-          // 네트워크 실패도 되돌린다. 켜진 것처럼 보이는데 실제로는 아닌 상태가 최악이다.
-          applyLocal(!turningOn, k, stub);
-          cb.checked = !turningOn;
-          alert('통신에 실패했습니다. 다시 시도해주세요.');
-          return;
-        }
-
-        if (!resp.ok) {
-          // 상한 초과 등. 서버가 거절했으므로 낙관적 반영을 되돌린다.
-          applyLocal(!turningOn, k, stub);
-          cb.checked = !turningOn;
-          alert(body.error || '알림 등록에 실패했습니다.');
-          return;
-        }
-        applyServerState(body);
-      }
-
-      // 이미 구독한 브라우저면 화면을 열 때 조용히 상태를 복원한다
-      async function restore() {
-        if (!('serviceWorker' in navigator)) return;
-        try {
-          const reg = await navigator.serviceWorker.ready;
-          const sub = await reg.pushManager.getSubscription();
-          if (!sub) { updateBanner(); return; }
-          endpoint = sub.endpoint;
-          const body = await (await fetch('/api/watches?endpoint=' +
-                                          encodeURIComponent(endpoint))).json();
-          applyServerState(body);
-          setButtonOn(true);
-        } catch (e) {
-          console.warn('감시 상태 복원 실패', e);
-        }
-      }
-
-      return { isWatched, canWatch, toggle, enable, restore, refreshCheckboxes, sendTest };
-    })();
-
-    // onlyBoats 를 주면 그 배들만 조회한다 (잘렸을 때 재조회용).
-    async function loadStatusResults(onlyBoats) {
-      const params = new URLSearchParams(new FormData(form));
-      if (onlyBoats && onlyBoats.length) {
-        params.delete('boats');
-        for (const name of onlyBoats) params.append('boats', name);
-      }
-      const streamedRows = [];
-      const replacedBoats = new Set();   // 라이브 결과로 이미 갈아끼운 배
-      let sawEnd = false;
-      let missingBoats = [];
-      const missingNotice = document.getElementById('missing-notice');
-      const missingText = document.getElementById('missing-text');
-      if (missingNotice) missingNotice.style.display = 'none';
-      const resultsTitle = document.getElementById('results-title');
-      let totalBoats = 0;
-      let completedBoats = 0;
-
-      function updateResultsTitle(isComplete = false) {
-        if (!resultsTitle) return;
-        if (totalBoats === 0) {
-          resultsTitle.textContent = '조회 결과 0척 (실시간)';
-        } else if (isComplete) {
-          resultsTitle.textContent = `조회 결과 ${completedBoats}척 (실시간)`;
-        } else {
-          resultsTitle.textContent = `조회 결과 ${completedBoats}/${totalBoats}척 (실시간)`;
-        }
-      }
-
-      tbody.innerHTML = '';
-      try {
-        const response = await fetch('{{ url_for("views.api_status") }}', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-          body: params
-        });
-        if (!response.ok || !response.body) throw new Error('예약 조회 API 오류: ' + response.status);
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        while (true) {
-          const {value, done} = await reader.read();
-          buffer += decoder.decode(value || new Uint8Array(), {stream: !done});
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            const result = JSON.parse(line);
-            if (result.type === 'start') {
-              totalBoats = Number(result.total) || 0;
-              completedBoats = 0;
-              updateResultsTitle();
-              // 캐시가 이미 깔려 있으면 지우지 않는다. 라이브 결과가 하나씩
-              // 도착하는 2분 동안 빈 표를 보여줄 이유가 없다.
-              if (!lastRenderedRows.length) {
-                tbody.innerHTML = '<tr><td class="no-results" colspan="10" style="text-align:center;color:#9ca3af;">조회 준비 중...</td></tr>';
-              }
-              setCacheNotice('실시간 조회 중… 도착하는 대로 갱신됩니다.');
-              // 캐시로 깔린 행을 출발점으로 삼는다. 배별 결과가 도착할 때마다
-              // 그 배의 캐시 행만 걷어내고 갈아끼운다. 그래야 표가 71행에서
-              // 1행으로 줄었다가 다시 차오르는 꼴이 안 난다.
-              streamedRows.length = 0;
-              streamedRows.push(...lastRenderedRows);
-              continue;
-            }
-
-            // 이 배의 캐시 행을 걷어낸다 (배당 한 번만)
-            const liveName = result.registered_name;
-            if (liveName && !replacedBoats.has(liveName)) {
-              replacedBoats.add(liveName);
-              for (let i = streamedRows.length - 1; i >= 0; i--) {
-                if (streamedRows[i].registered_name === liveName) streamedRows.splice(i, 1);
-              }
-            }
-            if (result.type === 'end') {
-              sawEnd = true;
-              missingBoats = result.missing || [];
-              continue;
-            }
-            completedBoats += 1;
-            updateResultsTitle();
-            // 오버레이에도 진행률을 보여준다. 2분 동안 '조회 중...' 만 떠 있으면
-            // 멈춘 것인지 도는 것인지 알 수 없다.
-            setLoadingMessage(`데이터 조회 중... ${completedBoats}/${totalBoats}척`);
-            for (const entry of (result.entries || [])) {
-              streamedRows.push({
-                city: result.city || '', port: result.port || '',
-                registered_name: result.registered_name || '',
-                fish: entry.fish || '', ship_name: entry.ship_name || result.registered_name || '',
-                status_text: entry.display_status || entry.raw_status_text || (entry.status === 'unknown' ? '알 수 없음' : entry.status) || '알 수 없음',
-                status_class: entry.status === 'full' || entry.status === 'reserved' ? 'closed'
-                              : entry.status === 'maintenance' ? 'maintenance'
-                              : entry.status === 'cancelled' ? 'danger'
-                              : (entry.status || 'unknown'),
-                available: entry.available, url: entry.source_url || '', url_path: entry.url_path || ''
-              });
-            }
-            renderRows(streamedRows);
-          }
-          if (done) break;
-        }
-        if (buffer.trim()) renderRows(streamedRows);
-        // 모든 선박 조회가 끝난 뒤 예약가능(open) 선박을 최상단에 배치한다.
-        sortRows(streamedRows, 'status', 'asc');
-        renderRows(streamedRows);
-        updateResultsTitle(totalBoats > 0 && completedBoats === totalBoats);
-        setCacheNotice(sawEnd ? '방금 실시간으로 조회한 결과입니다.' : '');
-
-        // 'end' 마커를 못 받았다면 서버가 스트림을 중간에 끊은 것이다.
-        // 그 경우 프론트는 어떤 배가 빠졌는지 모르므로 개수만 알려준다.
-        if (!sawEnd && totalBoats > 0) {
-          const shortfall = totalBoats - completedBoats;
-          if (shortfall > 0 && missingNotice && missingText) {
-            missingText.textContent =
-              `${totalBoats}척 중 ${completedBoats}척만 받고 연결이 끊겼습니다 (${shortfall}척 누락).`;
-            missingNotice.dataset.missing = '';
-            missingNotice.style.display = '';
-          }
-        } else if (missingBoats.length && missingNotice && missingText) {
-          missingText.textContent =
-            `${missingBoats.length}척을 가져오지 못했습니다: ${missingBoats.slice(0, 5).join(', ')}` +
-            (missingBoats.length > 5 ? ' 외' : '');
-          missingNotice.dataset.missing = JSON.stringify(missingBoats);
-          missingNotice.style.display = '';
-        }
-      } catch (error) {
-        console.error(error);
-        tbody.innerHTML = '<tr><td class="no-results" colspan="10" style="text-align:center;color:#9ca3af;">예약 조회 중 오류가 발생했습니다.</td></tr>';
-      } finally {
-        overlay.style.display = 'none';
-        const btn = form.querySelector('button[type="submit"], #searchBtn');
-        if (btn) btn.disabled = false;
-      }
-    }
-
-    // ------------------------------------------------------------------
-    // 캐시 우선 표시.
-    //
-    // 라이브 조회는 71척에 약 2분이 걸린다. 그동안 사용자는 빈 표를 본다.
-    // 저장된 스냅샷이 있으면 그걸 먼저 즉시 깔아놓고, 라이브 결과가 도착하는
-    // 대로 덮어쓴다. 언제 확인된 값인지는 반드시 밝힌다. 숨기면 낡은 값을
-    // 최신으로 착각한다.
-    // ------------------------------------------------------------------
-    function currentQueryDate() {
-      const di = document.getElementById('date');
-      if (di && di.value) return di.value;
+    function key(boatName, shipName) { return `${boatName || ''}||${shipName || ''}`; }
+    function currentDate() {
       const f = document.getElementById('status-form');
       const y = f.querySelector('[name=year]').value;
       const m = String(f.querySelector('[name=month]').value).padStart(2, '0');
@@ -1487,569 +716,922 @@
       return `${y}-${m}-${d}`;
     }
 
-    function describeAge(iso) {
-      if (!iso) return '';
-      // 서버는 UTC naive 로 내려준다. Z 를 붙여 UTC 임을 명시한다.
-      const then = new Date(/[Zz+]/.test(iso) ? iso : iso + 'Z');
-      const minutes = Math.max(0, Math.round((Date.now() - then.getTime()) / 60000));
-      if (minutes < 1) return '방금';
-      if (minutes < 60) return `${minutes}분 전`;
-      const hours = Math.round(minutes / 60);
-      if (hours < 24) return `${hours}시간 전`;
-      return `${Math.round(hours / 24)}일 전`;
+    function isWatched(boatName, shipName) { return watched.has(key(boatName, shipName)); }
+
+    // 자리가 이미 있는 배는 감시할 이유가 없다. 바로 예약하면 된다.
+    // 감시는 '자리가 없는 배에 자리가 나는 순간'을 잡는 것이 목적이므로
+    // 예약가능 카드에는 토글을 두지 않는다.
+    // 다만 이미 감시 중이던 배가 열린 경우에는 끌 수 있어야 하므로 남겨둔다.
+    function canWatch(row) {
+      if (isWatched(row.registered_name, row.ship_name)) return true;
+      return row.status_class !== 'open';
     }
 
-    function cachedRowToDisplayRow(r) {
-      return {
-        city: r.city || '', port: r.port || '',
-        registered_name: r.registered_name || '',
-        fish: r.fish || '',
-        ship_name: r.ship_name || r.registered_name || '',
-        status_text: r.display_status || (r.status === 'unknown' ? '알 수 없음' : r.status) || '알 수 없음',
-        status_class: (r.status === 'full' || r.status === 'reserved') ? 'closed'
-                      : r.status === 'maintenance' ? 'maintenance'
-                      : r.status === 'cancelled' ? 'danger'
-                      : (r.status || 'unknown'),
-        available: r.available,
-        url: r.source_url || '', url_path: r.source_url || ''
-      };
-    }
-
-    function setLoadingMessage(text) {
-      const el = document.getElementById('loading-msg');
-      if (el) el.textContent = text;
-    }
-
-    function setCacheNotice(text, tone) {
-      const el = document.getElementById('cache-notice');
-      if (!el) return;
-      if (!text) { el.style.display = 'none'; return; }
-      el.textContent = text;
-      el.style.color = tone === 'stale' ? '#b45309' : '#6b7280';
-      el.style.display = '';
-    }
-
-    async function loadCachedResults() {
-      const params = new URLSearchParams(new FormData(form));
-      params.delete('year'); params.delete('month'); params.delete('day');
-      params.set('date', currentQueryDate());
-
-      try {
-        const resp = await fetch('/api/status/cached?' + params.toString());
-        if (!resp.ok) return false;
-        const body = await resp.json();
-        if (!body.rows || !body.rows.length) {
-          setCacheNotice('저장된 결과가 없습니다. 실시간 조회로 가져옵니다.');
-          return false;
-        }
-
-        const rows = body.rows.map(cachedRowToDisplayRow);
-        sortRows(rows, 'status', 'asc');
-        renderRows(rows);
-
-        const age = describeAge(body.checked_at);
-        const minutes = body.checked_at
-          ? (Date.now() - new Date(body.checked_at + 'Z').getTime()) / 60000 : 0;
-        setCacheNotice(
-          `저장된 결과 (${age} 확인, ${body.boat_count}/${body.total_boats}척). ` +
-          `최신 상태는 "실시간 조회"를 눌러주세요.`,
-          minutes > 180 ? 'stale' : 'fresh');
-
-        const resultsTitle = document.getElementById('results-title');
-        if (resultsTitle) resultsTitle.textContent = `조회 결과 ${body.boat_count}척 (저장된 값)`;
-        return true;
-      } catch (e) {
-        console.warn('캐시 조회 실패', e);
-        return false;
-      }
-    }
-
-    // 오버레이 닫기. 조회는 계속 돌고, 도착하는 대로 표가 갱신된다.
-    (function bindDismissOverlay() {
-      const btn = document.getElementById('dismiss-overlay-btn');
-      const el = document.getElementById('loading-overlay');
-      if (!btn || !el) return;
-      btn.addEventListener('click', () => { el.style.display = 'none'; });
-    })();
-
-    // 알림 켜기 버튼 + 테스트 발송 + 이미 구독한 브라우저의 상태 복원
-    (function bindPush() {
+    function setButtonOn(on) {
       const btn = document.getElementById('enable-push-btn');
-      if (btn) btn.addEventListener('click', () => Watch.enable());
+      if (btn) {
+        btn.classList.toggle('on', on);
+        btn.textContent = on ? '알림 켜짐' : '알림 켜기';
+      }
+      // 테스트 버튼은 구독한 뒤에만 의미가 있다
       const test = document.getElementById('test-push-btn');
-      if (test) test.addEventListener('click', () => Watch.sendTest());
-      Watch.restore();
-    })();
-
-    // 누락된 배만 다시 조회. 서버가 어떤 배가 빠졌는지 알려준 경우에만
-    // 부분 재조회가 가능하고, 스트림이 통째로 끊겼으면 전체를 다시 돈다.
-    (function bindRetryMissing() {
-      const retryBtn = document.getElementById('retry-missing-btn');
-      const missingNotice = document.getElementById('missing-notice');
-      if (!retryBtn || !missingNotice) return;
-      retryBtn.addEventListener('click', function () {
-        let names = [];
-        try { names = JSON.parse(missingNotice.dataset.missing || '[]'); } catch (e) { names = []; }
-        missingNotice.style.display = 'none';
-        loadStatusResults(names.length ? names : undefined);
-      });
-    })();
-
-    // 폼 제출 시 페이지 이동 없이 선박별 결과를 순차적으로 표시
-    const form = document.getElementById('status-form');
-    const overlay = document.getElementById('loading-overlay');
-    if(form && overlay){
-      form.addEventListener('submit', function(e){
-        e.preventDefault();
-        // 선택된 날짜를 year/month/day hidden 필드로 분해
-        const di = document.getElementById('date');
-        const val = di && di.value ? di.value : '';
-        if (val) {
-          const [yy, mm, dd] = val.split('-');
-          const yEl = document.getElementById('year');
-          const mEl = document.getElementById('month');
-          const dEl = document.getElementById('day');
-          if (yEl) yEl.value = yy;
-          if (mEl) mEl.value = mm;
-          if (dEl) dEl.value = dd;
-        }
-        // 라이브 조회는 71척에 2분 가까이 걸린다. 진행 중임을 반드시 보여준다.
-        // 캐시는 뒤에서 조용히 깔아두고, 사용자가 원하면 오버레이를 닫고
-        // 저장된 결과를 먼저 볼 수 있게 한다.
-        overlay.style.display = 'flex';
-        setLoadingMessage('데이터 조회 중...');
-        loadCachedResults().then(hadCache => {
-          const dismiss = document.getElementById('dismiss-overlay-btn');
-          if (dismiss) dismiss.style.display = hadCache ? '' : 'none';
-        });
-
-        const btn = form.querySelector('button[type="submit"], #searchBtn');
-        if(btn){ btn.disabled = true; }
-        loadStatusResults();
-      });
+      if (test) test.style.display = on ? '' : 'none';
     }
 
-    // 날씨 데이터 로드 함수 (전역 스코프의 fetchWeatherData를 사용)
-    async function loadWeatherData(city, port, date, contentEl) {
+    async function sendTest() {
+      if (!endpoint) { alert('먼저 "알림 켜기"를 눌러주세요.'); return; }
+      const btn = document.getElementById('test-push-btn');
+      if (btn) { btn.disabled = true; btn.textContent = '보내는 중…'; }
       try {
-        const BADA_PORT_IDS = {
-          '남항(인천항)': 158, '연안부두': 158, '영흥항': 151, '오이도항': 380,
-          '전곡항': 618, '평택항': 149, '장고항': 370, '삼길포항': 144,
-          '마검포항': 1400, '모항항': 134, '영목항': 354, '신진도항': 965,
-          '오천항': 355, '구매항': 1385, '대천항': 126, '무창포항': 236,
-          '남당항': 356, '홍원항': 523, '비응항': 118, '야미도항': 348,
-          '격포항': 430, '돌산항': 270, '국동항': 271, '소호항': 826,
-          '신추항': 885, '종포항': 886, '녹동방파제': 443
-        };
-        
-        const portId = BADA_PORT_IDS[port];
-        if (!portId) {
-          throw new Error('해당 항구의 바다타임 ID를 찾을 수 없습니다: ' + port);
-        }
-        
-        const response = await fetch('/api/tide?port_id=' + portId + '&date=' + date);
-        if (!response.ok) {
-          throw new Error('API 호출 실패: ' + response.status);
-        }
-        
-        const data = await response.json();
-        if (data.error) {
-          throw new Error(data.error);
-        }
-        
-        // 간단한 테이블 표시
-        let html = '<table style="width: 100%; border-collapse: collapse;">';
-        html += '<thead><tr style="background: #f9fafb;">';
-        html += '<th style="padding: 12px; border: 1px solid #e5e7eb;">시간</th>';
-        html += '<th style="padding: 12px; border: 1px solid #e5e7eb;">풍향</th>';
-        html += '<th style="padding: 12px; border: 1px solid #e5e7eb;">풍속</th>';
-        html += '<th style="padding: 12px; border: 1px solid #e5e7eb;">날씨</th>';
-        html += '<th style="padding: 12px; border: 1px solid #e5e7eb;">기온</th>';
-        html += '<th style="padding: 12px; border: 1px solid #e5e7eb;">파고</th>';
-        html += '</tr></thead><tbody>';
-        
-        if (data.data && data.data.length > 0) {
-          data.data.forEach(function(row) {
-            html += '<tr>';
-            html += '<td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">' + (row.time || '') + '</td>';
-            html += '<td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">' + (row.wind_dir || '') + '</td>';
-            html += '<td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">' + (row.wind_speed || '') + '</td>';
-            html += '<td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">' + (row.weather_text || '') + '</td>';
-            html += '<td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">' + (row.temperature || '') + '</td>';
-            html += '<td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">' + (row.wave_height || '') + '</td>';
-            html += '</tr>';
-          });
-        } else {
-          html += '<tr><td colspan="6" style="padding: 20px; text-align: center;">데이터가 없습니다.</td></tr>';
-        }
-        
-        html += '</tbody></table>';
-        contentEl.innerHTML = html;
-        
-      } catch (error) {
-        console.error('데이터 로드 에러:', error);
-        contentEl.innerHTML = '<div style="padding: 20px; color: red; text-align: center;">에러: ' + error.message + '</div>';
-      }
-    }
-
-    // ====== 정렬 동작 로직 (행 단위로 변경) ======
-    const tbody = document.getElementById('results-body');
-    const sortBtns = document.querySelectorAll('thead .sort-btn');
-    if (!tbody) return;
-
-    function parseRows() {
-      const rows = [];
-      for (const tr of Array.from(tbody.querySelectorAll('tr'))) {
-        const tds = tr.querySelectorAll('td');
-        if (tds.length < 8) continue;
-
-        let i = 0;
-        const city = tds[i++]?.textContent.trim() || '';
-        const port = tds[i++]?.textContent.trim() || '';
-        const registered_name = tds[i++]?.textContent.trim() || '';
-        const fish = tds[i++]?.textContent.trim() || '';
-        const ship_name = tds[i++]?.textContent.trim() || '';
-
-        const statusTd = tds[i++];
-        const statusBadge = statusTd?.querySelector('.status-badge');
-        const status_text = statusBadge?.textContent.trim() || statusTd?.textContent.trim() || '';
-        
-        let status_class = 'unknown';
-        if (statusBadge) {
-          if (statusBadge.classList.contains('badge-available')) status_class = 'open';
-          else if (statusBadge.classList.contains('badge-closed')) status_class = 'closed';
-          else if (statusBadge.classList.contains('badge-maintenance')) status_class = 'maintenance';
-          else if (statusBadge.classList.contains('badge-danger')) status_class = 'danger';
-        }
-
-        const availText = tds[i++]?.textContent.trim() || '';
-        const available = /^\d+$/.test(availText) ? parseInt(availText, 10) : null;
-
-        const urlTd = tds[i++];
-        const a = urlTd?.querySelector('a');
-        const url = a ? a.getAttribute('href') : '';
-        const url_path = a ? (a.textContent || '').trim() : '';
-
-        rows.push({
-          city, port, registered_name, fish, ship_name,
-          status_text, status_class, available, url, url_path
+        const resp = await fetch('/api/push/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint })
         });
+        const body = await resp.json();
+        if (resp.ok) {
+          alert('보냈습니다. 잠시 후 알림이 도착합니다.\n\n'
+                + '이 화면을 보고 있으면 알림이 안 뜰 수 있습니다. '
+                + '홈으로 나가거나 화면을 끄고 기다려보세요.');
+        } else {
+          alert(body.error || '발송에 실패했습니다.');
+          if (resp.status === 410) { endpoint = null; setButtonOn(false); }
+        }
+      } catch (e) {
+        alert('통신에 실패했습니다.');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '테스트 알림 받기'; }
       }
-      return rows;
     }
 
-    function renderRows(rows) {
-      lastRenderedRows = rows;
-      const frag = document.createDocumentFragment();
-      for (const r of rows) {
-        const tr = document.createElement('tr');
+    function applyServerState(body) {
+      limit = body.limit || limit;
+      // 상한은 날짜와 무관하게 전체 감시 수로 걸린다. 예전에는 현재 조회
+      // 날짜만 세어 화면에 '3/5' 로 보이는데 서버는 이미 5건이라 등록을
+      // 거절하는 일이 있었다. 세는 기준을 서버와 똑같이 맞춘다.
+      allWatches = (body.watches || []).slice();
+      watched = new Set(allWatches
+        .filter(w => w.target_date === currentDate())
+        .map(w => key(w.boat_name, w.ship_name)));
+      refreshCheckboxes();
+      updateBanner();
+      renderWatchList();
+    }
 
-        // 알림(감시) 체크박스. 체크하면 자리가 났을 때 웹푸시를 받는다.
-        // 이미 자리가 있는 배는 감시할 이유가 없으므로 체크박스를 두지 않는다.
-        const tdWatch = document.createElement('td');
-        tdWatch.setAttribute('data-label', '알림');
-        tdWatch.style.textAlign = 'center';
-        if (Watch.canWatch(r)) {
-          const cb = document.createElement('input');
-          cb.type = 'checkbox';
-          cb.className = 'watch-checkbox';
-          cb.style.cursor = 'pointer';
-          cb.dataset.boatName = r.registered_name || '';
-          cb.dataset.shipName = r.ship_name || '';
-          cb.checked = Watch.isWatched(r.registered_name, r.ship_name);
-          cb.title = '자리가 나면 알림 받기';
-          cb.addEventListener('change', () => Watch.toggle(cb));
-          tdWatch.appendChild(cb);
-        } else {
-          // 예약가능한 배는 바로 예약하면 되므로 감시 대상이 아니다
-          const dash = document.createElement('span');
-          dash.textContent = '–';
-          dash.style.color = '#d1d5db';
-          dash.title = '예약가능한 배는 감시가 필요 없습니다';
-          tdWatch.appendChild(dash);
-        }
-        tr.appendChild(tdWatch);
+    function atLimit() { return allWatches.length >= limit; }
 
-        // 지역
-        const tdCity = document.createElement('td');
-        tdCity.setAttribute('data-label', '지역');
-        tdCity.textContent = r.city;
-        tr.appendChild(tdCity);
+    // 다른 날짜에 걸어둔 감시는 그 날짜를 다시 조회하지 않으면 화면에 안 보이고
+    // 해제할 수도 없다. 슬롯이 5개뿐이라 그대로 두면 갇힌다. 그래서 날짜와
+    // 무관하게 전체 목록을 항상 보여주고 여기서 바로 해제할 수 있게 한다.
+    function renderWatchList() {
+      const box = document.getElementById('watch-list');
+      if (!box) return;
+      box.innerHTML = '';
+      if (!endpoint || !allWatches.length) { box.style.display = 'none'; return; }
+      box.style.display = '';
 
-        // 항구
-        const tdPort = document.createElement('td');
-        tdPort.setAttribute('data-label', '항구');
-        tdPort.textContent = r.port;
-        tr.appendChild(tdPort);
+      const sorted = allWatches.slice().sort(
+        (a, b) => (a.target_date + a.ship_name).localeCompare(b.target_date + b.ship_name));
 
-        // 등록된 배
-        const tdRN = document.createElement('td');
-        tdRN.setAttribute('data-label', '등록된 배');
-        tdRN.textContent = r.registered_name || '-';
-        tr.appendChild(tdRN);
+      for (const w of sorted) {
+        const item = document.createElement('span');
+        item.className = 'watch-chip';
+        const isToday = w.target_date === currentDate();
+        item.style.opacity = isToday ? '1' : '0.75';
 
-        // 어종
-        const tdFish = document.createElement('td');
-        tdFish.className = 'fish-col';
-        tdFish.setAttribute('data-label', '어종');
-        tdFish.textContent = r.fish || '-';
-        tr.appendChild(tdFish);
+        const text = document.createElement('span');
+        text.textContent = `${w.target_date} · ${w.ship_name}`;
+        item.appendChild(text);
 
-        // 배 이름
-        const tdShip = document.createElement('td');
-        tdShip.setAttribute('data-label', '배 이름');
-        tdShip.style.fontWeight = '600';
-        tdShip.textContent = r.ship_name || '-';
-        tr.appendChild(tdShip);
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.textContent = '✕';
+        del.title = '이 감시 해제';
+        del.className = 'watch-chip-x';
+        del.addEventListener('click', () => removeWatch(w));
+        item.appendChild(del);
 
-        // 상태 (badge 스타일 적용)
-        const tdStatus = document.createElement('td');
-        tdStatus.className = 'status-col';
-        tdStatus.setAttribute('data-label', '상태');
-        tdStatus.style.textAlign = 'center';
-        const badge = document.createElement('span');
-        badge.className = 'status-badge';
-        
-        if (r.status_class === 'open') {
-          badge.classList.add('badge-available');
-          badge.textContent = '예약가능';
-        } else if (r.status_class === 'closed') {
-          badge.classList.add('badge-closed');
-          badge.textContent = '예약마감';
-        } else if (r.status_class === 'maintenance') {
-          badge.classList.add('badge-maintenance');
-          badge.textContent = '점검일';
-        } else if (r.status_class === 'danger') {
-          badge.classList.add('badge-danger');
-          badge.textContent = r.status_text || '알 수 없음';
-        } else {
-          badge.textContent = r.status_text || '알 수 없음';
-        }
-        tdStatus.appendChild(badge);
-        tr.appendChild(tdStatus);
-
-        // 남은자리
-        const tdAvail = document.createElement('td');
-        tdAvail.className = 'available-col';
-        tdAvail.setAttribute('data-label', '남은자리');
-        tdAvail.style.textAlign = 'center';
-        tdAvail.textContent = (r.status_class === 'closed') ? '0' : (r.available != null ? String(r.available) : '-');
-        tr.appendChild(tdAvail);
-
-        // URL
-        const tdUrl = document.createElement('td');
-        tdUrl.setAttribute('data-label', 'URL');
-        if (r.url) {
-          const link = document.createElement('a');
-          link.href = r.url;
-          link.target = '_blank';
-          link.rel = 'noopener noreferrer';
-          link.style.cssText = 'color: #3b82f6; text-decoration: none;';
-          link.textContent = 'URL 링크';
-          tdUrl.appendChild(link);
-        } else {
-          tdUrl.textContent = '-';
-        }
-        tr.appendChild(tdUrl);
-
-        // 날씨/물때 팝업
-        const tdWeather = document.createElement('td');
-        tdWeather.className = 'weather-col';
-        tdWeather.setAttribute('data-label', '날씨/물때');
-        tdWeather.style.textAlign = 'center';
-        const popupBtn = document.createElement('button');
-        popupBtn.className = 'btn-popup';
-        popupBtn.textContent = '팝업 보기';
-        popupBtn.setAttribute('data-city', r.city || '');
-        popupBtn.setAttribute('data-port', r.port || '');
-        
-        // 현재 선택된 날짜 (flatpickr 입력 값)
-        const di2 = document.getElementById('date');
-        const formattedDate = (di2 && di2.value) ? di2.value : getCurrentDate();
-        
-        popupBtn.setAttribute('data-date', formattedDate);
-        console.log('팝업 버튼 생성:', { city: r.city, port: r.port, date: formattedDate }); // 디버깅용
-        tdWeather.appendChild(popupBtn);
-        tr.appendChild(tdWeather);
-
-        frag.appendChild(tr);
+        box.appendChild(item);
       }
-      tbody.innerHTML = '';
-      tbody.appendChild(frag);
     }
 
-    function compareStr(a, b) {
-      return (a || '').localeCompare((b || ''), 'ko');
-    }
-    function statusRank(s) {
-      if (s === 'open') return 0;
-      if (s === 'maintenance') return 1;
-      if (s === 'closed') return 2;
-      return 3;
+    async function removeWatch(w) {
+      if (!endpoint) return;
+      const resp = await fetch('/api/watches', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint, boat_id: w.boat_id,
+          ship_name: w.ship_name, target_date: w.target_date
+        })
+      });
+      if (resp.ok) applyServerState(await resp.json());
     }
 
-    function sortRows(rows, key, dir) {
-      const asc = dir === 'asc' ? 1 : -1;
-      return rows.sort((r1, r2) => {
-
-        if (key === 'status') {
-          return (statusRank(r1.status_class) - statusRank(r2.status_class)) * asc;
-        }
-        if (['city','port','registered_name','fish','ship_name'].includes(key)) {
-          return compareStr(r1[key], r2[key]) * asc;
-        }
-        return 0;
+    function refreshCheckboxes() {
+      // 토글을 보일지 말지가 감시 상태에 달려 있으므로(감시 중인 배는
+      // 자리가 나도 끌 수 있어야 한다) 목록이 바뀌면 카드 전체를 다시 그린다.
+      if (typeof lastRenderedRows !== 'undefined' && lastRenderedRows.length) {
+        renderRows(lastRenderedRows);
+        return;
+      }
+      document.querySelectorAll('.watch-checkbox').forEach(cb => {
+        const on = isWatched(cb.dataset.boatName, cb.dataset.shipName);
+        cb.checked = on;
+        // 상한에 찼으면 새로 켤 수 없는 칸은 미리 잠근다. 눌러본 뒤에
+        // 거절당하는 것보다 잠겨 있는 편이 낫다. 이미 켠 것은 끌 수 있어야 한다.
+        cb.disabled = !endpoint || (!on && atLimit());
+        cb.title = cb.disabled && endpoint && !on
+          ? `감시는 최대 ${limit}척입니다. 아래 목록에서 하나를 해제하세요.`
+          : '자리가 나면 알림 받기';
+        syncWatchRowVisual(cb);
       });
     }
 
-    function handleSortClick(e) {
-      const btn = e.currentTarget;
-      const key = btn.dataset.sortKey;
-      const dir = btn.dataset.dir || 'asc';
-      if (!key) return;
-
-      const rows = parseRows();
-      sortRows(rows, key, dir);
-      renderRows(rows);
+    function updateBanner() {
+      const el = document.getElementById('watch-status');
+      if (!el) return;
+      if (!endpoint) {
+        el.textContent = '알림을 받으려면 먼저 "알림 켜기"를 눌러주세요.';
+        return;
+      }
+      // 서버 상한과 같은 기준(날짜 무관 전체)으로 센다
+      const otherDates = allWatches.length - watched.size;
+      let text = `알림 감시 ${allWatches.length}/${limit}척`;
+      if (otherDates > 0) text += ` (다른 날짜 ${otherDates}척 포함)`;
+      if (atLimit()) text += ' — 더 추가하려면 아래에서 하나를 해제하세요';
+      el.textContent = text;
+      el.style.color = atLimit() ? '#b45309' : '';
     }
 
-    sortBtns.forEach(b => b.addEventListener('click', handleSortClick));
-    if (document.getElementById('year')?.value && document.getElementById('month')?.value && document.getElementById('day')?.value) {
-      overlay.style.display = 'flex';
-      loadStatusResults();
+    // base64 공개키를 푸시 API 가 요구하는 Uint8Array 로 바꾼다
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const raw = atob(base64);
+      return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
     }
-    // ====== 정렬 로직 끝 ======
-  });
 
-  // 날씨/물때 팝업 관련 함수들
-  function getCurrentDate() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-
-  function openWeatherPopup(city, port, date) {
-    console.log('openWeatherPopup 호출됨:', { city, port, date }); // 디버깅용
-    const popup = document.getElementById('weather-popup');
-    const title = document.getElementById('popup-title');
-    const content = document.getElementById('popup-weather-content');
-    
-    if (!popup) {
-      console.error('팝업 요소를 찾을 수 없음!');
-      return;
-    }
-    
-    // 이미 팝업이 열려있으면 무시
-    if (popup.style.display === 'block' && content.querySelector('#popup-graph-panel')) {
-      console.log('팝업이 이미 열려있음, 무시'); // 디버깅용
-      return;
-    }
-    
-    title.textContent = port + ' 날씨/물때 정보 (' + date + ')';
-    content.innerHTML = '<div style="text-align: center; padding: 40px; color: #6b7280;">로딩 중...</div>';
-    popup.style.display = 'block';
-    
-    console.log('팝업 표시됨'); // 디버깅용
-    
-    // 바다타임 데이터 가져오기
-    fetchWeatherData(city, port, date, content);
-  }
-
-  function closeWeatherPopup() {
-    document.getElementById('weather-popup').style.display = 'none';
-  }
-
-  async function fetchWeatherData(city, port, date, contentEl) {
-    try {
-      const BADA_PORT_IDS = {
-        '남항(인천항)': 158,'연안부두': 158,'영흥항': 151,'오이도항': 380,'전곡항': 618,'평택항': 149,'장고항': 370,'삼길포항': 144,
-        '마검포항': 1400,'모항항': 134,'영목항': 354,'신진도항': 965,'오천항': 355,'구매항': 1385,'대천항': 126,'무창포항': 236,
-        '남당항': 356,'홍원항': 523,'비응항': 118,'야미도항': 348,'격포항': 430,'돌산항': 270,'국동항': 271,'소호항': 826,
-        '신추항': 885,'종포항': 886,'녹동방파제': 443
-      };
-      console.log('팝업 데이터:', { city, port, date });
-      const portId = BADA_PORT_IDS[port];
-      if (!portId) {
-        contentEl.innerHTML = '<div style="padding:20px;color:#ef4444;">항구 ID를 찾을 수 없습니다: ' + port + '</div>';
+    async function enable() {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        alert('이 브라우저는 웹 푸시를 지원하지 않습니다.');
+        return;
+      }
+      const info = await (await fetch('/api/push/public-key')).json();
+      if (!info.configured) {
+        alert('서버에 알림 키(VAPID)가 아직 설정되지 않았습니다.');
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        alert('알림 권한이 거부되어 있습니다. 브라우저 설정에서 허용해주세요.');
         return;
       }
 
-      // 1) 표 데이터 시도 (실패해도 계속 진행)
-      let tideData = { data: [] };
-      let tideError = null;
-      try {
-        const qs = new URLSearchParams({ port_id: String(portId), date });
-        const resp = await fetch('/api/tide?' + qs.toString());
-        if (!resp.ok) {
-          // 10일 이후 조회 제한 안내 문구로 통일
-          tideError = '10일 이후에 날씨 정보는 조회가 안됩니다.';
-        } else {
-          const json = await resp.json();
-            if (json.error) tideError = json.error; else tideData = json;
-        }
-      } catch (e) {
-        tideError = '표 요청 실패: ' + e.message;
-      }
-
-      const iframeSrc = 'https://www.badatime.com/' + portId + '/graph/' + encodeURIComponent(date);
-
-      // 3) HTML 구성
-      let resultHtml = '<div class="result-split">';
-      resultHtml += ' <div class="result-left"><table id="tide-table"><thead><tr>' +
-        '<th>시간</th><th>풍향</th><th>풍속</th><th>날씨</th><th>기온</th><th>파고/주기</th>' +
-        '</tr></thead><tbody id="tide-tbody">';
-      if (!tideError && tideData.data && tideData.data.length) {
-        tideData.data.forEach((r, idx) => {
-          const weatherDisplay = r.weather_icon_url ? '<img src="' + r.weather_icon_url + '" alt="" width="28" style="vertical-align:middle;margin-right:4px;">' + (r.weather_text||'') : (r.weather_text||'');
-          const windDirDisplay = r.wind_dir_icon_url ? '<img src="' + r.wind_dir_icon_url + '" alt="" width="16" style="vertical-align:middle;margin-right:4px;">' + (r.wind_dir||'') : (r.wind_dir||'');
-          let windSpeedColor = '#4b5563';
-          const ws = parseFloat(r.wind_speed || '0');
-          if (ws >= 5 && ws <= 7.9) windSpeedColor = '#f1c40f'; else if (ws >= 8 && ws <= 15) windSpeedColor = '#c0392b';
-          const bg = (idx % 2 === 0) ? '#fff' : '#f9fafb';
-          resultHtml += `<tr style="background:${bg}" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='${bg}'">` +
-            `<td class='time-cell' data-label='시간'>${r.time||''}</td><td data-label='풍향'>${windDirDisplay}</td>` +
-            `<td data-label='풍속' style='color:${windSpeedColor}'>${r.wind_speed||''}</td><td data-label='날씨'>${weatherDisplay}</td>` +
-            `<td data-label='기온'>${r.temperature||''}</td><td data-label='파고/주기'>${r.wave_height||''}</td></tr>`;
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(info.public_key)
         });
-      } else {
-        const msg = tideError ? `<span style='color:#dc2626'>${tideError}</span>` : '데이터가 없습니다.';
-        resultHtml += `<tr><td colspan='6' style='padding:24px;text-align:center;'>${msg}</td></tr>`;
       }
-      resultHtml += '</tbody></table></div>';
-      resultHtml += ' <div class="result-right"><div id="graph-panel" class="graph-panel">' +
-        '<iframe id="badatime-graph-iframe" src="' + iframeSrc + '" style="width:100%;min-height:560px;border:0;background:#fff;" loading="lazy" title="Badatime 그래프"></iframe>' +
-        '</div></div></div>';
-      contentEl.innerHTML = resultHtml;
-    } catch (err) {
-      contentEl.innerHTML = '<div style="padding:20px;color:#ef4444;text-align:center;">에러: ' + err.message + '</div>';
+      endpoint = sub.endpoint;
+
+      const body = await (await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub.toJSON())
+      })).json();
+
+      applyServerState(body);
+      setButtonOn(true);
+    }
+
+    // 서버 응답 전에 로컬 상태를 먼저 움직인다(그리고 실패 시 되돌린다).
+    // 카운트는 날짜 무관 전체(allWatches)로 세므로 둘 다 손봐야 한다.
+    function applyLocal(on, k, stub) {
+      if (on) {
+        watched.add(k);
+        if (!allWatches.some(w => w.target_date === stub.target_date
+                               && w.ship_name === stub.ship_name)) {
+          allWatches.push(stub);
+        }
+      } else {
+        watched.delete(k);
+        allWatches = allWatches.filter(w => !(w.target_date === stub.target_date
+                                           && w.ship_name === stub.ship_name));
+      }
+      updateBanner();
+      renderWatchList();
+    }
+
+    async function toggle(cb) {
+      if (!endpoint) {
+        cb.checked = false;
+        alert('먼저 "알림 켜기"를 눌러 알림을 허용해주세요.');
+        return;
+      }
+
+      const k = key(cb.dataset.boatName, cb.dataset.shipName);
+      const turningOn = cb.checked;
+
+      // 카운트를 서버 응답을 기다리지 않고 즉시 반영한다.
+      // 체크한 순간 숫자가 안 움직이면 눌린 건지 아닌지 알 수 없다.
+      // 서버가 거절하면 아래에서 되돌린다.
+      const stub = {
+        boat_id: null, boat_name: cb.dataset.boatName,
+        ship_name: cb.dataset.shipName, target_date: currentDate()
+      };
+      applyLocal(turningOn, k, stub);
+
+      const payload = {
+        endpoint,
+        boat_name: cb.dataset.boatName,
+        ship_name: cb.dataset.shipName,
+        target_date: currentDate()
+      };
+
+      let resp, body;
+      try {
+        resp = await fetch('/api/watches', {
+          method: turningOn ? 'POST' : 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        body = await resp.json();
+      } catch (e) {
+        // 네트워크 실패도 되돌린다. 켜진 것처럼 보이는데 실제로는 아닌 상태가 최악이다.
+        applyLocal(!turningOn, k, stub);
+        cb.checked = !turningOn;
+        alert('통신에 실패했습니다. 다시 시도해주세요.');
+        return;
+      }
+
+      if (!resp.ok) {
+        // 상한 초과 등. 서버가 거절했으므로 낙관적 반영을 되돌린다.
+        applyLocal(!turningOn, k, stub);
+        cb.checked = !turningOn;
+        alert(body.error || '알림 등록에 실패했습니다.');
+        return;
+      }
+      applyServerState(body);
+    }
+
+    // 이미 구독한 브라우저면 화면을 열 때 조용히 상태를 복원한다
+    async function restore() {
+      if (!('serviceWorker' in navigator)) return;
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (!sub) { updateBanner(); return; }
+        endpoint = sub.endpoint;
+        const body = await (await fetch('/api/watches?endpoint=' +
+                                        encodeURIComponent(endpoint))).json();
+        applyServerState(body);
+        setButtonOn(true);
+      } catch (e) {
+        console.warn('감시 상태 복원 실패', e);
+      }
+    }
+
+    return { isWatched, canWatch, toggle, enable, restore, refreshCheckboxes, sendTest };
+  })();
+
+  // watch-checkbox 의 checked/disabled 상태를 감싸는 .watch-row 의 시각(라벨 텍스트,
+  // on/off 색)에 즉시 반영한다. Watch 모듈 내부 상태와는 무관한 순수 표시용 로직이다.
+  function syncWatchRowVisual(cb) {
+    const row = cb.closest('.watch-row');
+    if (!row) return;
+    row.classList.toggle('watch-row-on', cb.checked);
+    row.classList.toggle('watch-row-disabled', !!cb.disabled);
+    const label = row.querySelector('.watch-label-text');
+    if (label) label.textContent = cb.checked ? '빈자리 알림 받는 중' : '빈자리 알림 받기';
+  }
+
+  // onlyBoats 를 주면 그 배들만 조회한다 (잘렸을 때 재조회용).
+  async function loadStatusResults(onlyBoats) {
+    const params = new URLSearchParams(new FormData(form));
+    if (onlyBoats && onlyBoats.length) {
+      params.delete('boats');
+      for (const name of onlyBoats) params.append('boats', name);
+    }
+    const streamedRows = [];
+    const replacedBoats = new Set();   // 라이브 결과로 이미 갈아끼운 배
+    let sawEnd = false;
+    let missingBoats = [];
+    const missingNotice = document.getElementById('missing-notice');
+    const missingText = document.getElementById('missing-text');
+    if (missingNotice) missingNotice.style.display = 'none';
+    const resultsTitle = document.getElementById('results-title');
+    let totalBoats = 0;
+    let completedBoats = 0;
+
+    function updateResultsTitle(isComplete = false) {
+      if (!resultsTitle) return;
+      if (totalBoats === 0) {
+        resultsTitle.textContent = '조회 결과 0척 (실시간)';
+      } else if (isComplete) {
+        resultsTitle.textContent = `조회 결과 ${completedBoats}척 (실시간)`;
+      } else {
+        resultsTitle.textContent = `조회 결과 ${completedBoats}/${totalBoats}척 (실시간)`;
+      }
+    }
+
+    tbody.innerHTML = '';
+    try {
+      const response = await fetch('{{ url_for("views.api_status") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: params
+      });
+      if (!response.ok || !response.body) throw new Error('예약 조회 API 오류: ' + response.status);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const {value, done} = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), {stream: !done});
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const result = JSON.parse(line);
+          if (result.type === 'start') {
+            totalBoats = Number(result.total) || 0;
+            completedBoats = 0;
+            updateResultsTitle();
+            // 캐시가 이미 깔려 있으면 지우지 않는다. 라이브 결과가 하나씩
+            // 도착하는 2분 동안 빈 화면을 보여줄 이유가 없다.
+            if (!lastRenderedRows.length) {
+              tbody.innerHTML = '<div class="empty-results">조회 준비 중...</div>';
+            }
+            setCacheNotice('실시간 조회 중… 도착하는 대로 갱신됩니다.');
+            // 캐시로 깔린 행을 출발점으로 삼는다. 배별 결과가 도착할 때마다
+            // 그 배의 캐시 행만 걷어내고 갈아끼운다. 그래야 카드가 71장에서
+            // 1장으로 줄었다가 다시 차오르는 꼴이 안 난다.
+            streamedRows.length = 0;
+            streamedRows.push(...lastRenderedRows);
+            continue;
+          }
+
+          // 이 배의 캐시 행을 걷어낸다 (배당 한 번만)
+          const liveName = result.registered_name;
+          if (liveName && !replacedBoats.has(liveName)) {
+            replacedBoats.add(liveName);
+            for (let i = streamedRows.length - 1; i >= 0; i--) {
+              if (streamedRows[i].registered_name === liveName) streamedRows.splice(i, 1);
+            }
+          }
+          if (result.type === 'end') {
+            sawEnd = true;
+            missingBoats = result.missing || [];
+            continue;
+          }
+          completedBoats += 1;
+          updateResultsTitle();
+          // 오버레이에도 진행률을 보여준다. 2분 동안 '조회 중...' 만 떠 있으면
+          // 멈춘 것인지 도는 것인지 알 수 없다.
+          setLoadingMessage(`데이터 조회 중... ${completedBoats}/${totalBoats}척`);
+          for (const entry of (result.entries || [])) {
+            streamedRows.push({
+              city: result.city || '', port: result.port || '',
+              registered_name: result.registered_name || '',
+              fish: entry.fish || '', ship_name: entry.ship_name || result.registered_name || '',
+              status_text: entry.display_status || entry.raw_status_text || (entry.status === 'unknown' ? '알 수 없음' : entry.status) || '알 수 없음',
+              status_class: entry.status === 'full' || entry.status === 'reserved' ? 'closed'
+                            : entry.status === 'maintenance' ? 'maintenance'
+                            : entry.status === 'cancelled' ? 'danger'
+                            : (entry.status || 'unknown'),
+              available: entry.available, url: entry.source_url || '', url_path: entry.url_path || ''
+            });
+          }
+          renderRows(streamedRows);
+        }
+        if (done) break;
+      }
+      if (buffer.trim()) renderRows(streamedRows);
+      // 모든 선박 조회가 끝난 뒤 예약가능(open) 선박을 최상단에 배치한다.
+      sortRows(streamedRows, 'status', 'asc');
+      renderRows(streamedRows);
+      updateResultsTitle(totalBoats > 0 && completedBoats === totalBoats);
+      setCacheNotice(sawEnd ? '방금 실시간으로 조회한 결과입니다.' : '');
+
+      // 'end' 마커를 못 받았다면 서버가 스트림을 중간에 끊은 것이다.
+      // 그 경우 프론트는 어떤 배가 빠졌는지 모르므로 개수만 알려준다.
+      if (!sawEnd && totalBoats > 0) {
+        const shortfall = totalBoats - completedBoats;
+        if (shortfall > 0 && missingNotice && missingText) {
+          missingText.textContent =
+            `${totalBoats}척 중 ${completedBoats}척만 받고 연결이 끊겼습니다 (${shortfall}척 누락).`;
+          missingNotice.dataset.missing = '';
+          missingNotice.style.display = '';
+        }
+      } else if (missingBoats.length && missingNotice && missingText) {
+        missingText.textContent =
+          `${missingBoats.length}척을 가져오지 못했습니다: ${missingBoats.slice(0, 5).join(', ')}` +
+          (missingBoats.length > 5 ? ' 외' : '');
+        missingNotice.dataset.missing = JSON.stringify(missingBoats);
+        missingNotice.style.display = '';
+      }
+    } catch (error) {
+      console.error(error);
+      tbody.innerHTML = '<div class="empty-results">예약 조회 중 오류가 발생했습니다.</div>';
+    } finally {
+      overlay.style.display = 'none';
+      const btn = form.querySelector('button[type="submit"], #searchBtn');
+      if (btn) btn.disabled = false;
     }
   }
 
-  // 팝업 버튼 클릭 이벤트 위임
-  document.addEventListener('click', function(e) {
-    console.log('클릭 이벤트:', e.target, 'class:', e.target.className); // 디버깅용
-    if (e.target.classList.contains('btn-popup')) {
+  // ------------------------------------------------------------------
+  // 캐시 우선 표시.
+  //
+  // 라이브 조회는 71척에 약 2분이 걸린다. 그동안 사용자는 빈 화면을 본다.
+  // 저장된 스냅샷이 있으면 그걸 먼저 즉시 깔아놓고, 라이브 결과가 도착하는
+  // 대로 덮어쓴다. 언제 확인된 값인지는 반드시 밝힌다. 숨기면 낡은 값을
+  // 최신으로 착각한다.
+  // ------------------------------------------------------------------
+  function currentQueryDate() {
+    const di = document.getElementById('date');
+    if (di && di.value) return di.value;
+    const f = document.getElementById('status-form');
+    const y = f.querySelector('[name=year]').value;
+    const m = String(f.querySelector('[name=month]').value).padStart(2, '0');
+    const d = String(f.querySelector('[name=day]').value).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  function describeAge(iso) {
+    if (!iso) return '';
+    // 서버는 UTC naive 로 내려준다. Z 를 붙여 UTC 임을 명시한다.
+    const then = new Date(/[Zz+]/.test(iso) ? iso : iso + 'Z');
+    const minutes = Math.max(0, Math.round((Date.now() - then.getTime()) / 60000));
+    if (minutes < 1) return '방금';
+    if (minutes < 60) return `${minutes}분 전`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours}시간 전`;
+    return `${Math.round(hours / 24)}일 전`;
+  }
+
+  function cachedRowToDisplayRow(r) {
+    return {
+      city: r.city || '', port: r.port || '',
+      registered_name: r.registered_name || '',
+      fish: r.fish || '',
+      ship_name: r.ship_name || r.registered_name || '',
+      status_text: r.display_status || (r.status === 'unknown' ? '알 수 없음' : r.status) || '알 수 없음',
+      status_class: (r.status === 'full' || r.status === 'reserved') ? 'closed'
+                    : r.status === 'maintenance' ? 'maintenance'
+                    : r.status === 'cancelled' ? 'danger'
+                    : (r.status || 'unknown'),
+      available: r.available,
+      url: r.source_url || '', url_path: r.source_url || ''
+    };
+  }
+
+  function setLoadingMessage(text) {
+    const el = document.getElementById('loading-msg');
+    if (el) el.textContent = text;
+  }
+
+  function setCacheNotice(text, tone) {
+    const el = document.getElementById('cache-notice');
+    if (!el) return;
+    if (!text) { el.style.display = 'none'; return; }
+    el.textContent = text;
+    el.style.color = tone === 'stale' ? '#b45309' : '';
+    el.style.display = '';
+  }
+
+  async function loadCachedResults() {
+    const params = new URLSearchParams(new FormData(form));
+    params.delete('year'); params.delete('month'); params.delete('day');
+    params.set('date', currentQueryDate());
+
+    try {
+      const resp = await fetch('/api/status/cached?' + params.toString());
+      if (!resp.ok) return false;
+      const body = await resp.json();
+      if (!body.rows || !body.rows.length) {
+        setCacheNotice('저장된 결과가 없습니다. 실시간 조회로 가져옵니다.');
+        return false;
+      }
+
+      const rows = body.rows.map(cachedRowToDisplayRow);
+      sortRows(rows, 'status', 'asc');
+      renderRows(rows);
+
+      const age = describeAge(body.checked_at);
+      const minutes = body.checked_at
+        ? (Date.now() - new Date(body.checked_at + 'Z').getTime()) / 60000 : 0;
+      setCacheNotice(
+        `저장된 결과 (${age} 확인, ${body.boat_count}/${body.total_boats}척). ` +
+        `최신 상태는 "실시간 조회"를 눌러주세요.`,
+        minutes > 180 ? 'stale' : 'fresh');
+
+      const resultsTitle = document.getElementById('results-title');
+      if (resultsTitle) resultsTitle.textContent = `조회 결과 ${body.boat_count}척 (저장된 값)`;
+      return true;
+    } catch (e) {
+      console.warn('캐시 조회 실패', e);
+      return false;
+    }
+  }
+
+  // 오버레이 닫기. 조회는 계속 돌고, 도착하는 대로 카드가 갱신된다.
+  (function bindDismissOverlay() {
+    const btn = document.getElementById('dismiss-overlay-btn');
+    const el = document.getElementById('loading-overlay');
+    if (!btn || !el) return;
+    btn.addEventListener('click', () => { el.style.display = 'none'; });
+  })();
+
+  // 알림 켜기 버튼 + 테스트 발송 + 이미 구독한 브라우저의 상태 복원
+  (function bindPush() {
+    const btn = document.getElementById('enable-push-btn');
+    if (btn) btn.addEventListener('click', () => Watch.enable());
+    const test = document.getElementById('test-push-btn');
+    if (test) test.addEventListener('click', () => Watch.sendTest());
+    Watch.restore();
+  })();
+
+  // 누락된 배만 다시 조회. 서버가 어떤 배가 빠졌는지 알려준 경우에만
+  // 부분 재조회가 가능하고, 스트림이 통째로 끊겼으면 전체를 다시 돈다.
+  (function bindRetryMissing() {
+    const retryBtn = document.getElementById('retry-missing-btn');
+    const missingNotice = document.getElementById('missing-notice');
+    if (!retryBtn || !missingNotice) return;
+    retryBtn.addEventListener('click', function () {
+      let names = [];
+      try { names = JSON.parse(missingNotice.dataset.missing || '[]'); } catch (e) { names = []; }
+      missingNotice.style.display = 'none';
+      loadStatusResults(names.length ? names : undefined);
+    });
+  })();
+
+  // 폼 제출 시 페이지 이동 없이 선박별 결과를 순차적으로 표시
+  const form = document.getElementById('status-form');
+  const overlay = document.getElementById('loading-overlay');
+  if(form && overlay){
+    form.addEventListener('submit', function(e){
       e.preventDefault();
-      e.stopPropagation();
-      console.log('팝업 버튼 클릭됨!'); // 디버깅용
-      const city = e.target.getAttribute('data-city');
-      const port = e.target.getAttribute('data-port');
-      const date = e.target.getAttribute('data-date');
-      console.log('팝업 데이터:', { city, port, date }); // 디버깅용
-      openWeatherPopup(city, port, date);
-    }
-  });
+      // 선택된 날짜를 year/month/day hidden 필드로 분해
+      const di = document.getElementById('date');
+      const val = di && di.value ? di.value : '';
+      if (val) {
+        const [yy, mm, dd] = val.split('-');
+        const yEl = document.getElementById('year');
+        const mEl = document.getElementById('month');
+        const dEl = document.getElementById('day');
+        if (yEl) yEl.value = yy;
+        if (mEl) mEl.value = mm;
+        if (dEl) dEl.value = dd;
+      }
+      // 라이브 조회는 71척에 2분 가까이 걸린다. 진행 중임을 반드시 보여준다.
+      // 캐시는 뒤에서 조용히 깔아두고, 사용자가 원하면 오버레이를 닫고
+      // 저장된 결과를 먼저 볼 수 있게 한다.
+      overlay.style.display = 'flex';
+      setLoadingMessage('데이터 조회 중...');
+      loadCachedResults().then(hadCache => {
+        const dismiss = document.getElementById('dismiss-overlay-btn');
+        if (dismiss) dismiss.style.display = hadCache ? '' : 'none';
+      });
 
-  // ESC 키로 팝업 닫기
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-      closeWeatherPopup();
-    }
-  });
+      const btn = form.querySelector('button[type="submit"], #searchBtn');
+      if(btn){ btn.disabled = true; }
+      loadStatusResults();
+    });
+  }
 
-  // 팝업 배경 클릭으로 닫기
+  // ====== 결과 카드 렌더링 + 통계 카드 ======
+  const tbody = document.getElementById('results-body');
+  if (!tbody) return;
+
+  function compareStr(a, b) {
+    return (a || '').localeCompare((b || ''), 'ko');
+  }
+  function statusRank(s) {
+    if (s === 'open') return 0;
+    if (s === 'maintenance') return 1;
+    if (s === 'closed') return 2;
+    return 3;
+  }
+
+  function sortRows(rows, key, dir) {
+    const asc = dir === 'asc' ? 1 : -1;
+    return rows.sort((r1, r2) => {
+      if (key === 'status') {
+        return (statusRank(r1.status_class) - statusRank(r2.status_class)) * asc;
+      }
+      if (['city','port','registered_name','fish','ship_name'].includes(key)) {
+        return compareStr(r1[key], r2[key]) * asc;
+      }
+      return 0;
+    });
+  }
+
+  // 표시용 근사치: 실제 총 좌석수(정원)는 저장하지 않으므로 남은자리 수만으로
+  // 진행바 길이를 어림한다. 조회/알림 로직에는 전혀 영향을 주지 않는 순수 시각 효과다.
+  const SOON_THRESHOLD = 3;
+
+  function seatBarClass(r) {
+    if (r.status_class !== 'open') return 'bar-off';
+    if (r.available != null && r.available <= SOON_THRESHOLD) return 'bar-soon';
+    return '';
+  }
+  function seatBarWidth(r) {
+    if (r.status_class !== 'open') return 4;
+    if (r.available == null) return 55;
+    return Math.max(6, Math.min(100, r.available * 8));
+  }
+  function seatText(r) {
+    if (r.status_class === 'closed') return '예약마감';
+    if (r.status_class === 'maintenance') return '점검일';
+    if (r.status_class === 'danger') return r.status_text || '운항불가';
+    if (r.available != null) return `남은자리 ${r.available}석`;
+    return '-';
+  }
+  function statusBadge(r) {
+    if (r.status_class === 'open') return { cls: 'badge-available', text: '예약가능' };
+    if (r.status_class === 'closed') return { cls: 'badge-closed', text: '예약마감' };
+    if (r.status_class === 'maintenance') return { cls: 'badge-maintenance', text: '점검일' };
+    if (r.status_class === 'danger') return { cls: 'badge-danger', text: r.status_text || '알 수 없음' };
+    return { cls: '', text: r.status_text || '알 수 없음' };
+  }
+
+  function setStatText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  }
+
+  function updateStatsCards(rows) {
+    let openCount = 0, soonCount = 0, closedCount = 0;
+    for (const r of rows) {
+      if (r.status_class === 'open') {
+        if (r.available != null && r.available <= SOON_THRESHOLD) soonCount++;
+        else openCount++;
+      } else {
+        closedCount++;
+      }
+    }
+    setStatText('stat-total', rows.length);
+    setStatText('stat-open', openCount);
+    setStatText('stat-soon', soonCount);
+    setStatText('stat-closed', closedCount);
+  }
+
+  function renderRows(rows) {
+    lastRenderedRows = rows;
+    updateStatsCards(rows);
+
+    if (!rows.length) {
+      tbody.innerHTML = '<div class="empty-results">조회 결과가 없습니다.<br>상단에서 지역과 날짜를 선택 후 조회하세요.</div>';
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    for (const r of rows) {
+      const card = document.createElement('article');
+      card.className = 'result-card';
+
+      // 상단: 지역/항구/상태 배지
+      const meta = document.createElement('div');
+      meta.className = 'result-card-meta';
+      const region = document.createElement('span');
+      region.className = 'region-badge';
+      region.textContent = r.city || '-';
+      meta.appendChild(region);
+      const port = document.createElement('span');
+      port.className = 'port-text';
+      port.textContent = r.port || '-';
+      meta.appendChild(port);
+      const badgeInfo = statusBadge(r);
+      const badge = document.createElement('span');
+      badge.className = 'status-badge' + (badgeInfo.cls ? ' ' + badgeInfo.cls : '');
+      badge.textContent = badgeInfo.text;
+      meta.appendChild(badge);
+      card.appendChild(meta);
+
+      // 배 이름 + 남은자리 텍스트
+      const head = document.createElement('div');
+      head.className = 'result-card-head';
+      const name = document.createElement('h3');
+      name.className = 'result-ship-name';
+      name.textContent = r.ship_name || r.registered_name || '-';
+      head.appendChild(name);
+      const seat = document.createElement('div');
+      seat.className = 'result-seat-text';
+      seat.textContent = seatText(r);
+      head.appendChild(seat);
+      card.appendChild(head);
+
+      // 진행바 (자리 비율 근사치)
+      const barTrack = document.createElement('div');
+      barTrack.className = 'result-bar-track';
+      const barFill = document.createElement('div');
+      barFill.className = 'result-bar-fill ' + seatBarClass(r);
+      barFill.style.width = seatBarWidth(r) + '%';
+      barTrack.appendChild(barFill);
+      card.appendChild(barTrack);
+
+      // 어종 + 예약 링크
+      const foot = document.createElement('div');
+      foot.className = 'result-card-foot';
+      const fish = document.createElement('div');
+      fish.className = 'fish-tag';
+      fish.textContent = r.fish || '-';
+      foot.appendChild(fish);
+      if (r.url) {
+        const link = document.createElement('a');
+        link.href = r.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.className = 'result-link';
+        link.textContent = '예약 →';
+        foot.appendChild(link);
+      } else {
+        const span = document.createElement('span');
+        span.className = 'result-link-disabled';
+        span.textContent = '-';
+        foot.appendChild(span);
+      }
+      card.appendChild(foot);
+
+      // 날씨/물때 팝업 버튼
+      const popupRow = document.createElement('div');
+      popupRow.className = 'result-popup-row';
+      const popupBtn = document.createElement('button');
+      popupBtn.type = 'button';
+      popupBtn.className = 'btn-popup';
+      popupBtn.textContent = '🌊 날씨/물때';
+      popupBtn.setAttribute('data-city', r.city || '');
+      popupBtn.setAttribute('data-port', r.port || '');
+      const di2 = document.getElementById('date');
+      const formattedDate = (di2 && di2.value) ? di2.value : getCurrentDate();
+      popupBtn.setAttribute('data-date', formattedDate);
+      popupRow.appendChild(popupBtn);
+      card.appendChild(popupRow);
+
+      // 알림(감시) 토글. 이미 자리가 있는 배는 감시할 이유가 없으므로 표시하지 않는다.
+      if (Watch.canWatch(r)) {
+        const row = document.createElement('label');
+        row.className = 'watch-row';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'watch-checkbox';
+        cb.dataset.boatName = r.registered_name || '';
+        cb.dataset.shipName = r.ship_name || '';
+        cb.checked = Watch.isWatched(r.registered_name, r.ship_name);
+        cb.title = '자리가 나면 알림 받기';
+        cb.addEventListener('change', () => { syncWatchRowVisual(cb); Watch.toggle(cb); });
+        const icon = document.createElement('span');
+        icon.className = 'watch-check-icon';
+        icon.textContent = '✓';
+        const label = document.createElement('span');
+        label.className = 'watch-label-text';
+        label.textContent = cb.checked ? '빈자리 알림 받는 중' : '빈자리 알림 받기';
+        row.appendChild(cb);
+        row.appendChild(icon);
+        row.appendChild(label);
+        row.classList.toggle('watch-row-on', cb.checked);
+        card.appendChild(row);
+      }
+
+      frag.appendChild(card);
+    }
+    tbody.innerHTML = '';
+    tbody.appendChild(frag);
+  }
+
+  if (document.getElementById('year')?.value && document.getElementById('month')?.value && document.getElementById('day')?.value) {
+    overlay.style.display = 'flex';
+    loadStatusResults();
+  }
+  // ====== 결과 카드 렌더링 끝 ======
+});
+
+// 날씨/물때 팝업 관련 함수들 (전역 스코프 - onclick 속성에서 호출된다)
+function getCurrentDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function openWeatherPopup(city, port, date) {
+  const popup = document.getElementById('weather-popup');
+  const title = document.getElementById('popup-title');
+  const content = document.getElementById('popup-weather-content');
+
+  if (!popup) return;
+
+  // 이미 팝업이 열려있으면 무시
+  if (popup.style.display === 'block' && content.querySelector('#badatime-graph-iframe')) {
+    return;
+  }
+
+  title.textContent = port + ' 날씨/물때 정보 (' + date + ')';
+  content.innerHTML = '<div class="popup-loading">로딩 중...</div>';
+  popup.style.display = 'block';
+
+  // 바다타임 데이터 가져오기
+  fetchWeatherData(city, port, date, content);
+}
+
+function closeWeatherPopup() {
+  const popup = document.getElementById('weather-popup');
+  if (popup) popup.style.display = 'none';
+}
+
+async function fetchWeatherData(city, port, date, contentEl) {
+  try {
+    const BADA_PORT_IDS = {
+      '남항(인천항)': 158,'연안부두': 158,'영흥항': 151,'오이도항': 380,'전곡항': 618,'평택항': 149,'장고항': 370,'삼길포항': 144,
+      '마검포항': 1400,'모항항': 134,'영목항': 354,'신진도항': 965,'오천항': 355,'구매항': 1385,'대천항': 126,'무창포항': 236,
+      '남당항': 356,'홍원항': 523,'비응항': 118,'야미도항': 348,'격포항': 430,'돌산항': 270,'국동항': 271,'소호항': 826,
+      '신추항': 885,'종포항': 886,'녹동방파제': 443
+    };
+    const portId = BADA_PORT_IDS[port];
+    if (!portId) {
+      contentEl.innerHTML = '<div style="padding:20px;color:#ef4444;">항구 ID를 찾을 수 없습니다: ' + port + '</div>';
+      return;
+    }
+
+    // 1) 표 데이터 시도 (실패해도 계속 진행)
+    let tideData = { data: [] };
+    let tideError = null;
+    try {
+      const qs = new URLSearchParams({ port_id: String(portId), date });
+      const resp = await fetch('/api/tide?' + qs.toString());
+      if (!resp.ok) {
+        // 10일 이후 조회 제한 안내 문구로 통일
+        tideError = '10일 이후에 날씨 정보는 조회가 안됩니다.';
+      } else {
+        const json = await resp.json();
+          if (json.error) tideError = json.error; else tideData = json;
+      }
+    } catch (e) {
+      tideError = '표 요청 실패: ' + e.message;
+    }
+
+    const iframeSrc = 'https://www.badatime.com/' + portId + '/graph/' + encodeURIComponent(date);
+
+    // 3) HTML 구성
+    let resultHtml = '<div class="result-split">';
+    resultHtml += ' <div class="result-left"><table id="tide-table"><thead><tr>' +
+      '<th>시간</th><th>풍향</th><th>풍속</th><th>날씨</th><th>기온</th><th>파고/주기</th>' +
+      '</tr></thead><tbody id="tide-tbody">';
+    if (!tideError && tideData.data && tideData.data.length) {
+      tideData.data.forEach((r, idx) => {
+        const weatherDisplay = r.weather_icon_url ? '<img src="' + r.weather_icon_url + '" alt="" width="28" style="vertical-align:middle;margin-right:4px;">' + (r.weather_text||'') : (r.weather_text||'');
+        const windDirDisplay = r.wind_dir_icon_url ? '<img src="' + r.wind_dir_icon_url + '" alt="" width="16" style="vertical-align:middle;margin-right:4px;">' + (r.wind_dir||'') : (r.wind_dir||'');
+        let windSpeedColor = '#4b5563';
+        const ws = parseFloat(r.wind_speed || '0');
+        if (ws >= 5 && ws <= 7.9) windSpeedColor = '#f1c40f'; else if (ws >= 8 && ws <= 15) windSpeedColor = '#c0392b';
+        const bg = (idx % 2 === 0) ? '#fff' : '#f9fafb';
+        resultHtml += `<tr style="background:${bg}" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='${bg}'">` +
+          `<td class='time-cell' data-label='시간'>${r.time||''}</td><td data-label='풍향'>${windDirDisplay}</td>` +
+          `<td data-label='풍속' style='color:${windSpeedColor}'>${r.wind_speed||''}</td><td data-label='날씨'>${weatherDisplay}</td>` +
+          `<td data-label='기온'>${r.temperature||''}</td><td data-label='파고/주기'>${r.wave_height||''}</td></tr>`;
+      });
+    } else {
+      const msg = tideError ? `<span style='color:#dc2626'>${tideError}</span>` : '데이터가 없습니다.';
+      resultHtml += `<tr><td colspan='6' style='padding:24px;text-align:center;'>${msg}</td></tr>`;
+    }
+    resultHtml += '</tbody></table></div>';
+    resultHtml += ' <div class="result-right"><div id="graph-panel" class="graph-panel">' +
+      '<iframe id="badatime-graph-iframe" src="' + iframeSrc + '" style="width:100%;min-height:560px;border:0;background:#fff;" loading="lazy" title="Badatime 그래프"></iframe>' +
+      '</div></div></div>';
+    contentEl.innerHTML = resultHtml;
+  } catch (err) {
+    contentEl.innerHTML = '<div style="padding:20px;color:#ef4444;text-align:center;">에러: ' + err.message + '</div>';
+  }
+}
+
+// 팝업 버튼 클릭 이벤트 위임
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('btn-popup')) {
+    e.preventDefault();
+    e.stopPropagation();
+    const city = e.target.getAttribute('data-city');
+    const port = e.target.getAttribute('data-port');
+    const date = e.target.getAttribute('data-date');
+    openWeatherPopup(city, port, date);
+  }
+});
+
+// ESC 키로 팝업 닫기
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeWeatherPopup();
+  }
+});
+
+// 팝업 배경 클릭으로 닫기
+document.addEventListener('DOMContentLoaded', function () {
   const weatherPopup = document.getElementById('weather-popup');
   if (weatherPopup) {
     weatherPopup.addEventListener('click', function(e) {
@@ -2058,35 +1640,6 @@
       }
     });
   }
+});
 </script>
-
-<!-- 날씨/물때 팝업 모달 -->
-<div id="weather-popup" class="weather-popup">
-  <div class="popup-content">
-    <div class="popup-header">
-      <h3 id="popup-title">날씨/물때 정보</h3>
-      <button type="button" class="popup-close" onclick="closeWeatherPopup()">&times;</button>
-    </div>
-    <div class="popup-body">
-      <div id="popup-weather-content">
-        <div style="text-align: center; padding: 40px; color: #6b7280;">
-          로딩 중...
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- amCharts v4 스크립트 추가 (그래프 렌더링용) -->
-<!-- Flatpickr CDN (날짜 선택용) -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ko.js"></script>
-
-<!-- 그래프 렌더링 -->
-<script src="https://cdn.amcharts.com/lib/4/core.js"></script>
-<script src="https://cdn.amcharts.com/lib/4/charts.js"></script>
-<script src="https://cdn.amcharts.com/lib/4/themes/animated.js"></script>
-<script src="https://cdn.amcharts.com/lib/4/lang/ko_KR.js"></script>
-
 {% endblock %}
