@@ -152,15 +152,35 @@ def main() -> int:
                     help='저장도 발송도 하지 않고 수집만 해본다')
     ap.add_argument('--delay', type=float, default=DEFAULT_DELAY,
                     help='배 사이 요청 간격(초)')
+    ap.add_argument('--allow-local-db', action='store_true',
+                    help='DATABASE_URL 없이(로컬 SQLite) 실행을 허용한다. 개발용.')
     args = ap.parse_args()
 
-    if not os.environ.get('DATABASE_URL'):
-        logger.warning('DATABASE_URL 이 없다. 로컬 SQLite 를 쓰게 되는데, '
-                       '웹과 다른 DB 라 감시 대상이 없을 것이다.')
+    # DATABASE_URL 이 없으면 create_app() 이 로컬 SQLite 로 떨어진다. 그 DB 에는
+    # 감시가 하나도 없으므로 '할 일 없음' 으로 조용히 끝나고 종료코드 0을 낸다.
+    # CI 에서는 초록불로 보이는데 실제로는 아무 일도 안 한 것이다. 이런 실패가
+    # 가장 나쁘다 - 알림이 안 오는데 아무도 이유를 모른다. 그래서 크게 실패한다.
+    if not os.environ.get('DATABASE_URL') and not args.allow_local_db:
+        logger.error(
+            'DATABASE_URL 이 설정되지 않았다. 이대로 돌면 웹과 다른 로컬 SQLite 를 '
+            '보게 되어 감시 대상을 하나도 찾지 못하고, 아무 일도 하지 않은 채 '
+            '성공한 것처럼 끝난다.')
+        logger.error(
+            'GitHub Actions 라면 Settings -> Secrets and variables -> Actions 에 '
+            'DATABASE_URL 을 등록했는지, 워크플로의 env 에 넘기고 있는지 확인한다.')
+        logger.error('개발 중 로컬 DB 로 돌려보려면 --allow-local-db 를 준다.')
+        return 2
 
     started = time.monotonic()
     summary = run(dry_run=args.dry_run, delay=args.delay)
-    logger.info('완료 (%.1f초) %s', time.monotonic() - started, summary)
+    elapsed = time.monotonic() - started
+    logger.info('완료 (%.1f초) %s', elapsed, summary)
+
+    # 감시가 있는데 하나도 수집하지 못했다면 그것도 실패다. 조용히 넘어가면
+    # 매시간 초록불을 내면서 알림은 영영 오지 않는다.
+    if summary['targets'] and summary['collected'] == 0:
+        logger.error('감시 대상 %d건이 있는데 하나도 수집하지 못했다.', summary['targets'])
+        return 1
     return 0
 
 

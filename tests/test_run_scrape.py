@@ -209,6 +209,41 @@ def test_past_date_watches_are_deactivated(app, monkeypatch, sent):
         assert Watch.query.filter_by(active=True).count() == 1
 
 
+def test_main_refuses_to_run_without_database_url(monkeypatch, capsys):
+    """DATABASE_URL 없이 돌면 로컬 SQLite 를 보게 되어 감시를 하나도 못 찾고,
+    아무 일도 안 한 채 성공한 것처럼 끝난다. CI 에서 초록불인데 알림은 영영
+    안 오는 상태가 되므로 크게 실패해야 한다."""
+    monkeypatch.delenv('DATABASE_URL', raising=False)
+    monkeypatch.setattr('sys.argv', ['run_scrape.py'])
+
+    called = []
+    monkeypatch.setattr(run_scrape, 'run', lambda **kw: called.append(kw) or {})
+
+    assert run_scrape.main() == 2
+    assert called == [], '수집을 시도조차 하면 안 된다'
+
+
+def test_allow_local_db_opt_out(app, monkeypatch):
+    """개발 중에는 로컬 DB 로 돌려볼 수 있어야 한다."""
+    monkeypatch.delenv('DATABASE_URL', raising=False)
+    monkeypatch.setattr('sys.argv', ['run_scrape.py', '--allow-local-db'])
+    monkeypatch.setattr(run_scrape, 'create_app', lambda: app)
+
+    assert run_scrape.main() == 0
+
+
+def test_main_fails_when_nothing_could_be_collected(app, monkeypatch):
+    """감시가 있는데 하나도 못 긁었으면 실패다. 조용히 넘어가면 매시간
+    초록불을 내면서 알림은 오지 않는다."""
+    monkeypatch.setenv('DATABASE_URL', 'postgresql://x/y')
+    monkeypatch.setattr('sys.argv', ['run_scrape.py'])
+    monkeypatch.setattr(run_scrape, 'run',
+                        lambda **kw: {'targets': 5, 'collected': 0, 'failed': 5,
+                                      'transitions': 0, 'sent': 0, 'expired_watches': 0})
+
+    assert run_scrape.main() == 1
+
+
 def test_no_targets_is_a_clean_noop(app, monkeypatch):
     monkeypatch.setattr(run_scrape, 'create_app', lambda: app)
     summary = run_scrape.run(delay=0)

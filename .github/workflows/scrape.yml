@@ -5,8 +5,13 @@ name: 낚시배 자리 감시
 # 웹(Render 무료)은 15분 무활동 후 잠들기 때문에 수집을 맡길 수 없다.
 # 그래서 Actions 가 수집·발송을 하고 웹은 같은 Neon DB 를 보기만 한다.
 #
-# 필요한 Secrets (Settings -> Secrets and variables -> Actions):
-#   DATABASE_URL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
+# 필요한 Secrets (Settings -> Secrets and variables -> Actions -> Repository secrets):
+#   DATABASE_URL (또는 AFT_DB), VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
+#
+# DB 주소 시크릿은 DATABASE_URL 과 AFT_DB 두 이름을 모두 받는다. 없는 시크릿을
+# 참조하면 에러가 아니라 빈 문자열이 들어가는데, 그러면 앱이 로컬 SQLite 로
+# 떨어져 감시를 하나도 못 찾고 '할 일 없음' 으로 초록불을 낸다. 실제로 그렇게
+# 24초 만에 성공한 것처럼 끝난 적이 있어, 이름을 하나로 강요하지 않는다.
 
 on:
   schedule:
@@ -41,12 +46,34 @@ jobs:
           python-version: '3.12'
           cache: pip
 
+      - name: 시크릿 확인
+        # 시크릿이 없으면 스크래핑은 멀쩡히 돌고도 '감시 대상 없음' 으로 조용히
+        # 끝나 초록불이 된다. 그 상태를 먼저 잡아내 무엇이 빠졌는지 알려준다.
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.AFT_DB }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: |
+          missing=""
+          for name in DATABASE_URL VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::다음 Secret 이 비어 있다:$missing"
+            echo "Settings -> Secrets and variables -> Actions 에서 등록한다."
+            exit 1
+          fi
+          # 값은 절대 찍지 않는다. 길이만으로 '들어는 왔다' 를 확인한다.
+          echo "DATABASE_URL 길이: ${#DATABASE_URL}"
+          echo "VAPID_PUBLIC_KEY 길이: ${#VAPID_PUBLIC_KEY}"
+
       - name: 의존성 설치
         run: pip install -r requirements.txt
 
       - name: 수집 및 알림
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.AFT_DB }}
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
