@@ -751,6 +751,12 @@
             style="padding:6px 14px;border-radius:6px;cursor:pointer;font-size:14px;">
       알림 켜기
     </button>
+    <!-- 알림이 실제로 도착하는지 자리가 날 때까지 기다려서 확인할 수는 없다.
+         켠 직후 한 통 보내보고 확인할 수 있어야 한다. -->
+    <button type="button" id="test-push-btn"
+            style="display:none;padding:6px 12px;border:1px solid #d1d5db;background:#fff;color:#374151;border-radius:6px;cursor:pointer;font-size:13px;">
+      테스트 알림 받기
+    </button>
     <span id="watch-status" style="font-size:13px;color:#6b7280;"></span>
   </div>
 
@@ -1059,9 +1065,39 @@
 
       function setButtonOn(on) {
         const btn = document.getElementById('enable-push-btn');
-        if (!btn) return;
-        btn.classList.toggle('on', on);
-        btn.textContent = on ? '알림 켜짐' : '알림 켜기';
+        if (btn) {
+          btn.classList.toggle('on', on);
+          btn.textContent = on ? '알림 켜짐' : '알림 켜기';
+        }
+        // 테스트 버튼은 구독한 뒤에만 의미가 있다
+        const test = document.getElementById('test-push-btn');
+        if (test) test.style.display = on ? '' : 'none';
+      }
+
+      async function sendTest() {
+        if (!endpoint) { alert('먼저 "알림 켜기"를 눌러주세요.'); return; }
+        const btn = document.getElementById('test-push-btn');
+        if (btn) { btn.disabled = true; btn.textContent = '보내는 중…'; }
+        try {
+          const resp = await fetch('/api/push/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint })
+          });
+          const body = await resp.json();
+          if (resp.ok) {
+            alert('보냈습니다. 잠시 후 알림이 도착합니다.\n\n'
+                  + '이 화면을 보고 있으면 알림이 안 뜰 수 있습니다. '
+                  + '홈으로 나가거나 화면을 끄고 기다려보세요.');
+          } else {
+            alert(body.error || '발송에 실패했습니다.');
+            if (resp.status === 410) { endpoint = null; setButtonOn(false); }
+          }
+        } catch (e) {
+          alert('통신에 실패했습니다.');
+        } finally {
+          if (btn) { btn.disabled = false; btn.textContent = '테스트 알림 받기'; }
+        }
       }
 
       function applyServerState(body) {
@@ -1294,7 +1330,7 @@
         }
       }
 
-      return { isWatched, canWatch, toggle, enable, restore, refreshCheckboxes };
+      return { isWatched, canWatch, toggle, enable, restore, refreshCheckboxes, sendTest };
     })();
 
     // onlyBoats 를 주면 그 배들만 조회한다 (잘렸을 때 재조회용).
@@ -1536,10 +1572,12 @@
       btn.addEventListener('click', () => { el.style.display = 'none'; });
     })();
 
-    // 알림 켜기 버튼 + 이미 구독한 브라우저의 상태 복원
+    // 알림 켜기 버튼 + 테스트 발송 + 이미 구독한 브라우저의 상태 복원
     (function bindPush() {
       const btn = document.getElementById('enable-push-btn');
       if (btn) btn.addEventListener('click', () => Watch.enable());
+      const test = document.getElementById('test-push-btn');
+      if (test) test.addEventListener('click', () => Watch.sendTest());
       Watch.restore();
     })();
 

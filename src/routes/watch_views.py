@@ -13,6 +13,7 @@ import time
 
 from flask import Blueprint, current_app, jsonify, request
 
+from db import db
 from models import MAX_WATCHES_PER_SUBSCRIBER, Boat, Subscriber
 from services.notify import webpush
 from services.watch_service import (
@@ -106,6 +107,45 @@ def push_subscribe():
         'limit': MAX_WATCHES_PER_SUBSCRIBER,
         'watches': [w.to_dict() for w in list_watches(subscriber)],
     })
+
+
+@watch_views.route('/api/push/test', methods=['POST'])
+def push_test():
+    """이 브라우저로 테스트 알림을 한 통 보낸다.
+
+    알림이 실제로 도착하는지는 자리가 날 때까지 기다려야만 알 수 있는데,
+    그때 안 오면 무엇이 잘못됐는지 뒤늦게 찾게 된다. VAPID 키, 구독 정보,
+    서비스워커 push 핸들러가 모두 맞물려 있는지 지금 확인할 수 있어야 한다.
+
+    구독 endpoint 자체가 긴 난수라 그것을 아는 것이 곧 인증이다.
+    감시나 스냅샷을 건드리지 않고, 발송 이력도 남기지 않는다.
+    """
+    data = request.get_json(silent=True) or {}
+    subscriber = _find_subscriber(data.get('endpoint'))
+    if subscriber is None:
+        return jsonify({'error': '구독 정보를 찾을 수 없습니다. 먼저 알림을 켜주세요.'}), 404
+
+    if not webpush.is_configured():
+        return jsonify({'error': '서버에 VAPID 키가 설정되지 않았습니다.'}), 503
+
+    result, detail = webpush.send(subscriber.to_subscription_info(), {
+        'title': '🎣 테스트 알림',
+        'body': '알림이 정상 동작합니다. 감시 중인 배에 자리가 나면 이렇게 옵니다.',
+        'url': '/status',
+        'tag': 'aft-test',
+    })
+
+    if result == webpush.SENT:
+        return jsonify({'result': result})
+
+    if result == webpush.EXPIRED:
+        # 죽은 구독이다. 지우고 다시 켜게 안내한다.
+        db.session.delete(subscriber)
+        db.session.commit()
+        return jsonify({'result': result,
+                        'error': '구독이 만료되었습니다. 알림을 다시 켜주세요.'}), 410
+
+    return jsonify({'result': result, 'error': detail}), 502
 
 
 @watch_views.route('/api/watches', methods=['GET'])
