@@ -76,6 +76,24 @@
   .date-row .form-control{width:200px}
   .date-row .calendar-btn{width:48px;height:48px}
   .date-row .btn-fetch{height:48px;padding:0 18px;display:inline-flex;align-items:center;white-space:nowrap}
+
+  /* 낚시지수 카드. KHOA 바다낚시지수 API - 오늘부터 +5일만 예보한다.
+     범위 밖 날짜가 훨씬 흔하므로 '없음'을 오류가 아니라 담담한 안내로 보인다. */
+  .fishing-card{max-width:1300px;margin:0 auto 28px}
+  .fishing-empty{color:#6b7280;font-size:14px;line-height:1.6;padding:4px 0}
+  .fishing-meta{color:#6b7280;font-size:13px;margin-bottom:14px}
+  .fishing-noon{font-weight:700;color:#374151;margin:14px 0 8px;font-size:15px}
+  .fishing-noon:first-of-type{margin-top:0}
+  .fishing-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f3f4f6;flex-wrap:wrap}
+  .fishing-row:last-child{border-bottom:none}
+  .fishing-fish{font-weight:600;color:#1f2937;min-width:70px}
+  .fishing-idx{padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+  .idx-매우좋음{background:#dcfce7;color:#166534}
+  .idx-좋음{background:#dcfce7;color:#15803d}
+  .idx-보통{background:#fef9c3;color:#854d0e}
+  .idx-나쁨{background:#fee2e2;color:#b91c1c}
+  .idx-매우나쁨{background:#fee2e2;color:#991b1b}
+  .fishing-detail{color:#6b7280;font-size:12px}
 </style>
 
 <div class="tide-container">
@@ -128,6 +146,12 @@
         <div id="graph-panel" class="graph-panel"></div>
       </div>
     </div>
+  </div>
+
+  <!-- 바다낚시지수(KHOA). 오늘부터 +5일만 예보되므로 대부분은 '범위 밖' 안내가 뜬다. -->
+  <div id="fishing-index-wrap" class="tide-card fishing-card" style="display:none;">
+    <h2 class="tide-title" style="font-size:18px;margin-bottom:10px;">🎣 바다낚시지수</h2>
+    <div id="fishing-index-body"><div class="fishing-empty">조회 중…</div></div>
   </div>
 </div>
 
@@ -212,7 +236,72 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const tideUrl = `https://www.badatime.com/${portId}/tide/${dateStr}`;
     subEl.innerHTML = `${dateStr} · <a href="${tideUrl}" target="_blank" rel="noopener">${tideUrl}</a>`;
+
+    loadFishingIndex(portName, dateStr);
   });
+
+  // 바다낚시지수(KHOA). 오늘부터 +5일만 예보되므로 대부분은 '범위 밖'이 정상이다.
+  async function loadFishingIndex(portName, dateStr) {
+    const wrap = document.getElementById('fishing-index-wrap');
+    const body = document.getElementById('fishing-index-body');
+    wrap.style.display = '';
+    body.innerHTML = '<div class="fishing-empty">조회 중…</div>';
+
+    let resp, payload;
+    try {
+      resp = await fetch(`/api/fishing_index?port=${encodeURIComponent(portName)}&date=${encodeURIComponent(dateStr)}`);
+      payload = await resp.json();
+    } catch (e) {
+      body.innerHTML = '<div class="fishing-empty">낚시지수를 불러오지 못했습니다.</div>';
+      return;
+    }
+
+    if (resp.status === 503) {
+      // 서버에 API 키가 아직 설정되지 않았다. 기능 자체를 조용히 숨긴다.
+      wrap.style.display = 'none';
+      return;
+    }
+    if (!resp.ok) {
+      body.innerHTML = '<div class="fishing-empty">낚시지수를 불러오지 못했습니다.</div>';
+      return;
+    }
+
+    const data = payload.data || {};
+    if (!data.available) {
+      const msg = data.reason === 'forecast_range_exceeded'
+        ? `이 API는 오늘부터 5일 뒤까지만 예보합니다. 선택한 날짜(${dateStr})는 예보 범위 밖입니다.`
+        + (data.available_dates ? `<br>예보 가능 날짜: ${data.available_dates.join(', ')}` : '')
+        : '이 항구 근처의 낚시지수 예보를 찾을 수 없습니다.';
+      body.innerHTML = `<div class="fishing-empty">${msg}</div>`;
+      return;
+    }
+
+    const byNoon = { '오전': [], '오후': [] };
+    for (const e of data.entries) {
+      (byNoon[e.noon] || (byNoon[e.noon] = [])).push(e);
+    }
+
+    let html = `<div class="fishing-meta">가장 가까운 예보 지점: ${data.position}`
+      + (data.distance_km != null ? ` (약 ${data.distance_km}km)` : '') + '</div>';
+
+    for (const noon of ['오전', '오후']) {
+      const entries = byNoon[noon];
+      if (!entries || !entries.length) continue;
+      html += `<div class="fishing-noon">${noon}</div>`;
+      const tide = entries[0].tide_period;
+      html += `<div class="fishing-detail" style="margin-bottom:6px;">`
+        + `물때 ${tide} · 파고 ${entries[0].wave_m[0]}~${entries[0].wave_m[1]}m · `
+        + `수온 ${entries[0].water_temp_c[0]}~${entries[0].water_temp_c[1]}℃ · `
+        + `풍속 ${entries[0].wind_ms[0]}~${entries[0].wind_ms[1]}m/s</div>`;
+      for (const e of entries) {
+        html += `<div class="fishing-row">`
+          + `<span class="fishing-fish">${e.fish}</span>`
+          + `<span class="fishing-idx idx-${e.total_index}">${e.total_index}</span>`
+          + `</div>`;
+      }
+    }
+    body.innerHTML = html;
+  }
 });
 </script>
 {% endblock %}
