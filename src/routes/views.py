@@ -49,7 +49,8 @@ def index():
         boats=boats,
         boats_json=boats_dict,
         form=form,
-        city_port_map=_city_port_map_with_registered_ports(boats)
+        city_port_map=_city_port_map_with_registered_ports(boats),
+        port_coordinates=PORT_COORDINATES
     )
 
 @views.route('/watches')

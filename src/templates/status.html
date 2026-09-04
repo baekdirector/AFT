@@ -15,8 +15,6 @@
       <div class="header-spacer"></div>
       <div class="aux-links">
         <a href="{{ url_for('views.weather') }}">날씨</a>
-        <span class="aux-dot">·</span>
-        <a href="{{ url_for('views.map_page') }}">지도</a>
       </div>
       <nav class="header-nav">
         <a href="{{ url_for('views.index') }}" class="header-nav-btn">배 목록</a>
@@ -302,7 +300,6 @@
 .aux-links { font-size: 12px; font-weight: 600; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; flex: none; }
 .aux-links a { color: var(--ink-soft); }
 .aux-links a:hover { color: var(--accent); }
-.aux-dot { color: var(--ink-softer); }
 .header-nav { display: flex; gap: 4px; padding: 4px; background: oklch(0.94 0.008 250); border-radius: 13px; flex: none; }
 .header-nav-btn {
   height: 34px; padding: 0 15px; border-radius: 10px; border: none; font-size: 13px; font-weight: 700;

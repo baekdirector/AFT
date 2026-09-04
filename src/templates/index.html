@@ -15,8 +15,6 @@
       <div class="header-spacer"></div>
       <div class="aux-links">
         <a href="{{ url_for('views.weather') }}">날씨</a>
-        <span class="aux-dot">·</span>
-        <a href="{{ url_for('views.map_page') }}">지도</a>
       </div>
       <nav class="header-nav">
         <a href="{{ url_for('views.index') }}" class="header-nav-btn active">배 목록</a>
@@ -291,7 +289,6 @@
 .aux-links { font-size: 12px; font-weight: 600; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; flex: none; }
 .aux-links a { color: var(--ink-soft); }
 .aux-links a:hover { color: var(--accent); }
-.aux-dot { color: var(--ink-softer); }
 .header-nav {
   display: flex; gap: 4px; padding: 4px; background: oklch(0.94 0.008 250); border-radius: 13px; flex: none;
 }
@@ -449,6 +446,16 @@
 /* 지도 탭 */
 .map-card { background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 14px; box-shadow: 0 2px 10px oklch(0.5 0.02 250 / 0.04); }
 .map-view { width: 100%; height: 520px; border-radius: 14px; }
+/* leaflet.css 의 .leaflet-div-icon 이 이 스타일 블록보다 나중에 로드되어
+   background/border 를 덮어쓰므로, 같은 specificity 두 클래스로 묶어
+   순서와 무관하게 항상 이기게 한다(index.html 셀렉션바 hidden 버그와 동일 교훈). */
+.port-count-marker.leaflet-div-icon {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225));
+  border: 2px solid #fff; box-shadow: 0 2px 8px oklch(0.4 0.14 245 / 0.4);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 13px; font-weight: 800;
+}
 .tab-content.hidden { display: none; }
 
 /* 플로팅 선택바 */
@@ -558,6 +565,7 @@
 <script>
 // 전역 변수
 const cityPortMapping = {{ city_port_map|tojson }};
+const portCoordinates = {{ port_coordinates|tojson }};
 let allShips = [];
 let map = null;
 let filteredShips = [];
@@ -589,7 +597,9 @@ function initializeData() {
     renderShips(filteredShips);
 }
 
-// 지도 초기화
+// 지도 초기화. 항구 하나에 등록된 배가 여러 척이면 겹쳐 찍는 대신 그 항구
+// 위치에 뱃지 하나로 모아서 척수를 숫자로 보여준다(직접 입력으로 새로 추가된
+// 항구처럼 좌표가 없는 곳은 기존과 동일하게 조용히 건너뛴다).
 function initMap() {
     if (map) return;
 
@@ -599,36 +609,42 @@ function initMap() {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // 선박 위치 마커 추가
+    const portGroups = {};
     allShips.forEach(ship => {
         const coords = getPortCoordinates(ship.port);
-        if (coords) {
-            const marker = L.marker(coords).addTo(map);
-            marker.bindPopup(`
-                <div style="text-align: center;">
-                    <h4 style="margin: 0 0 8px 0; color: #1e293b;">${ship.name}</h4>
-                    <p style="margin: 0 0 8px 0; color: #64748b;">${ship.region} ${ship.port}</p>
-                    <a href="${ship.url}" target="_blank" style="color: #3b82f6; text-decoration: none;">URL 링크 →</a>
-                </div>
-            `);
+        if (!coords) return;
+        const key = ship.region + '|' + ship.port;
+        if (!portGroups[key]) {
+            portGroups[key] = { coords, region: ship.region, port: ship.port, ships: [] };
         }
+        portGroups[key].ships.push(ship);
+    });
+
+    Object.values(portGroups).forEach(group => {
+        const icon = L.divIcon({
+            className: 'port-count-marker',
+            html: `<span>${group.ships.length}</span>`,
+            iconSize: [30, 30],
+        });
+        const marker = L.marker(group.coords, { icon }).addTo(map);
+        const shipRows = group.ships.map(s =>
+            `<a href="${s.url}" target="_blank" style="display:block; color:#3b82f6; text-decoration:none; padding:2px 0;">${s.name}</a>`
+        ).join('');
+        marker.bindPopup(`
+            <div style="text-align: center;">
+                <h4 style="margin: 0 0 8px 0; color: #1e293b;">${group.region} ${group.port}</h4>
+                <div style="color: #64748b; font-size: 12px; text-align: left;">${shipRows}</div>
+            </div>
+        `);
     });
 }
 
-// 항구 좌표 데이터
+// 항구 좌표 데이터. 서버가 config/constants.py 의 PORT_COORDINATES 를 그대로
+// 내려준다 - 항구 목록(city_port_map)과 소스가 갈리면 새 항구를 추가해도
+// 지도에 좌표가 안 맞는 일이 생기므로 단일 출처를 쓴다.
 function getPortCoordinates(port) {
-    const coords = {
-        '아미도항': [35.9784, 126.5569],
-        '비응항': [35.8976, 126.4892],
-        '돌산항': [34.6893, 127.8152],
-        '국동항': [34.7344, 127.7894],
-        '소호항': [34.7234, 127.7234],
-        '선구항': [34.8456, 128.1234],
-        '평택항': [36.9981, 126.8225],
-        '고흥항': [34.6117, 127.2753],
-        // 더 많은 항구 좌표 추가 가능
-    };
-    return coords[port] || null;
+    const c = portCoordinates[port];
+    return c ? [c.lat, c.lon] : null;
 }
 
 // 목록/지도 뷰 전환 (새 디자인 전용)
