@@ -21,7 +21,7 @@
       <nav class="header-nav">
         <a href="{{ url_for('views.index') }}" class="header-nav-btn">배 목록</a>
         <a href="{{ url_for('views.status') }}" class="header-nav-btn active">예약현황</a>
-        <a href="{{ url_for('views.status') }}" class="header-nav-btn">알림</a>
+        <a href="{{ url_for('views.watches') }}" class="header-nav-btn">알림</a>
       </nav>
     </div>
   </header>
@@ -233,7 +233,7 @@
       <span class="bottom-tab-icon">🗓</span>
       <span class="bottom-tab-label">예약현황</span>
     </a>
-    <a href="{{ url_for('views.status') }}" class="bottom-tab">
+    <a href="{{ url_for('views.watches') }}" class="bottom-tab">
       <span class="bottom-tab-icon">🔔</span>
       <span class="bottom-tab-label">알림</span>
     </a>

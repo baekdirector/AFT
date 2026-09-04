@@ -34,6 +34,19 @@ def index():
         city_port_map=CITY_PORT_MAPPING
     )
 
+@views.route('/watches')
+def watches():
+    """빈자리 알림 전용 페이지. Phase G3.
+
+    이 페이지의 진짜 데이터(감시 목록)는 서버가 모른다 - 사람을 식별하는 수단이
+    브라우저 푸시 구독 endpoint 하나뿐인데(로그인 없음), 그 endpoint 는 브라우저
+    에서만 알 수 있다. 그래서 여기서는 헤더/탭바/빈 상태 같은 정적 셸만 서버사이드로
+    렌더하고, 실제 목록은 클라이언트 JS 가 GET /api/watches?endpoint=... 를 호출해서
+    채운다(status.html 의 Watch.restore() 와 동일한 패턴).
+    """
+    return render_template('watches.html')
+
+
 @views.route('/download_excel')
 def download_excel():
     boats = get_all_boats()

@@ -26,6 +26,13 @@ def test_index(client):
     assert rv.status_code == 200
 
 
+def test_watches_page_renders(client):
+    rv = client.get('/watches')
+
+    assert rv.status_code == 200
+    assert '빈자리 알림' in rv.get_data(as_text=True)
+
+
 def test_status_without_date_renders_empty_lookup_page(client):
     rv = client.get('/status')
 
