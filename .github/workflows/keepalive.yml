@@ -1,0 +1,34 @@
+name: Render Keep-alive (06:00~24:00 KST)
+
+# Render 무료 티어는 15분 무활동 후 슬립되고, 재기동에 최대 1분 가까이 걸린다.
+# 그 지연을 없애려고 10분 간격으로 /healthz 를 찔러 깨어있게 유지한다.
+#
+# 하루 종일이 아니라 06:00~24:00 KST(하루 18시간)만 깨어있게 한다 - Render 무료
+# 티어는 워크스페이스 전체 월 750 instance-hour 한도가 있는데, 24시간 내내
+# 깨어있으면 31일짜리 달엔 744시간을 써서 여유가 6시간뿐이다(한도를 넘기면 그 달
+# 서비스가 통째로 정지된다 - 막으려던 상황이 그대로 재현됨). 18시간만 깨어있으면
+# 31일 기준 558시간이라 여유가 크다. 00:00~06:00 KST 새벽엔 기존처럼 슬립 후
+# 콜드스타트가 날 수 있다 - 의도적으로 남겨둔 것이다.
+#
+# cron 은 UTC 기준이고(KST 는 UTC+9, 서머타임 없음), 10~30분씩 늦게 도는 일이
+# 흔하다(scrape.yml 참고) - 그래서 Render 의 15분 슬립 임계값보다 여유 있게
+# 10분 간격으로 찌른다. 그래도 완벽히 정시로 보장되진 않는다.
+#
+# 실패해도 알림처럼 사람이 알아야 하는 일이 아니라 조용히 넘어간다(|| true).
+
+on:
+  schedule:
+    # UTC 0-14시, 21-23시 = KST 06:00~24:00
+    - cron: '*/10 0-14,21-23 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: 핑
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://aft-hcwf.onrender.com' }}
+        run: curl -sS --max-time 90 -o /dev/null -w 'HTTP %{http_code}\n' "${APP_URL}/healthz" || true

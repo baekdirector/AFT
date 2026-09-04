@@ -17,6 +17,16 @@ import requests
 
 views = Blueprint('views', __name__, template_folder='templates')
 
+
+@views.route('/healthz')
+def healthz():
+    """GitHub Actions keep-alive 핑 전용. DB 접근·인증 없이 떠있는지만 알린다.
+
+    '/'는 get_all_boats() 를 호출하므로 10분마다 치기엔 낭비다.
+    """
+    return 'ok', 200
+
+
 def _city_port_map_with_registered_ports(boats):
     """CITY_PORT_MAPPING 에 실제 등록된 배의 (지역, 항구)를 더한 사본.
 

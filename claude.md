@@ -51,7 +51,13 @@ UI는 Claude Design 기반으로 3화면(배 목록/예약현황/빈자리 알�
   N물 숫자가 아니라 소조기/대조기 단위만 제공.
 - 감시 상한: `MAX_WATCHES_PER_SUBSCRIBER = 5`(`src/models.py`). GitHub Actions
   무료 분(월 2,000, private repo)과 직결되므로 임의로 올리지 말 것 — 올리려면
-  cron 주기(현재 매시)도 같이 조정해야 한다.
+  cron 주기(현재 매시)도 같이 조정해야 한다. (이 리포는 실제로 public이라 Actions
+  분 자체는 무제한이지만, 규칙은 그대로 유지 — private로 바뀔 가능성을 열어둔다.)
+- **Render keep-alive는 24시간이 아니라 06:00~24:00 KST만**(`.github/workflows/keepalive.yml`,
+  10분 간격으로 `/healthz` 핑). Render 무료 티어는 워크스페이스 전체 월 750
+  instance-hour 한도가 있어서, 24시간 내내 깨우면 31일 달엔 744시간을 써서
+  한도를 넘길 위험이 있다(넘기면 그 달 서비스가 통째로 정지 — 막으려던 콜드스타트
+  보다 더 나쁘다). 사용자가 직접 이 시간대로 범위를 정했다(PLAN.md D14).
 - 새 UI 디자인 원본(Claude Design export)은 리포 밖 스크래치패드에 있다 — 재이식이
   필요하면 사용자에게 다시 export를 요청해야 한다(리포에 커밋된 원본 없음).
 - 이 환경(Windows Git-Bash)에서 `lsof`가 포트 점유 프로세스를 못 찾는다. 로컬 서버

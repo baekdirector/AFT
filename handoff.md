@@ -26,8 +26,9 @@ Web Push 발송. 웹 UI는 3화면(배 목록/예약현황/빈자리 알림)이 
 | 조석/물때 | KHOA 낚시지수 API로 대체 구현, +5일 한정 | `src/services/tide/khoa_fishing.py`, `/weather` |
 | UI 재디자인 | 3화면 완료(배 목록/예약현황/알림) | `index.html`/`status.html`/`watches.html` + `base_design.html` |
 | 나머지 화면 | 옛 디자인 그대로 | `weather.html`/`map.html`/`register.html`/`edit_boat.html` |
+| Render keep-alive | 완료. 06:00~24:00 KST만 10분 간격 핑 | `/healthz`, `.github/workflows/keepalive.yml` |
 
-`pytest` 221 passed, 1 xfailed(badatime 아이콘 파싱 — fixture 확보 전까지 의도적 보류).
+`pytest` 226 passed, 1 xfailed(badatime 아이콘 파싱 — fixture 확보 전까지 의도적 보류).
 
 ## 계획과 실제가 갈린 지점 (다음 세션이 헷갈리지 않도록)
 
@@ -67,6 +68,13 @@ Web Push 발송. 웹 UI는 3화면(배 목록/예약현황/빈자리 알림)이 
   세션에서 "미사용이라 제거했다"는 보고를 실제로 `git show`로 대조해서
   확인한 사례, 로컬 검증에서 옛 서버 프로세스를 새 서버로 착각한 사례가
   둘 다 있었다.
+- **Render 무료 티어를 24시간 내내 깨워두지 말 것.** 워크스페이스 전체 월
+  750 instance-hour 한도가 있어서, 31일짜리 달에 24시간 always-on을 하면
+  744시간을 써서 여유가 6시간뿐이다 — 한도를 넘기면 그 달 서비스가 통째로
+  정지된다(막으려던 콜드스타트보다 더 나쁜 상황). 그래서 keep-alive 핑은
+  06:00~24:00 KST(하루 18시간, 월 최대 558시간)로만 범위를 좁혔다(D14,
+  `.github/workflows/keepalive.yml`). 이 시간대를 넓히자는 얘기가 나오면
+  이 한도부터 다시 계산할 것.
 
 ## 다음 후보 작업 (우선순위는 사용자와 상의)
 
