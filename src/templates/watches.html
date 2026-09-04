@@ -542,7 +542,10 @@ document.addEventListener('DOMContentLoaded', function () {
     // 체크 기록 로그: "내가 언제 이 배를 체크했는지"를 최신순으로 보여준다.
     function fmtLogTime(iso) {
       if (!iso) return '-';
-      const d = new Date(iso);
+      // 서버(datetime.utcnow().isoformat())가 내려주는 값엔 타임존이 없다 -
+      // 'Z'를 안 붙이면 new Date() 가 이걸 UTC 가 아니라 브라우저 로컬 시간으로
+      // 오해해서 9시간(KST) 어긋난다. status.html 의 동일 패턴을 그대로 따른다.
+      const d = new Date(/[Zz+]/.test(iso) ? iso : iso + 'Z');
       if (isNaN(d.getTime())) return '-';
       const pad = n => String(n).padStart(2, '0');
       return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
