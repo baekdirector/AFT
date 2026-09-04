@@ -17,6 +17,24 @@ import requests
 
 views = Blueprint('views', __name__, template_folder='templates')
 
+def _city_port_map_with_registered_ports(boats):
+    """CITY_PORT_MAPPING 에 실제 등록된 배의 (지역, 항구)를 더한 사본.
+
+    등록 화면에서 "직접 입력"으로 새 항구를 추가하면, 그 배가 등록되는 순간부터
+    이 함수가 그 항구를 목록에 포함시킨다 - 별도 테이블 없이 다음 등록부터
+    바로 선택지로 나타나게 하기 위함이다. CITY_PORT_MAPPING 원본은 건드리지 않는다.
+    """
+    merged = {city: list(ports) for city, ports in CITY_PORT_MAPPING.items()}
+    for boat in boats:
+        city, port = boat.city, boat.port
+        if not city or not port:
+            continue
+        ports = merged.setdefault(city, [])
+        if port not in ports:
+            ports.append(port)
+    return merged
+
+
 @views.route('/')
 def index():
     boats = get_all_boats()
@@ -31,7 +49,7 @@ def index():
         boats=boats,
         boats_json=boats_dict,
         form=form,
-        city_port_map=CITY_PORT_MAPPING
+        city_port_map=_city_port_map_with_registered_ports(boats)
     )
 
 @views.route('/watches')
@@ -80,11 +98,6 @@ def download_excel():
 @views.route('/register', methods=['GET', 'POST'])
 def register():
     form = BoatRegistrationForm()
-    if request.method == 'POST':
-        city = request.form.get('city')
-        if city in CITY_PORT_MAPPING:
-            form.port.choices = [(port, port) for port in CITY_PORT_MAPPING[city]]
-    
     if form.validate_on_submit():
         try:
             add_boat_instance(form.name.data, form.url.data, form.city.data, form.port.data, form.note.data)
@@ -132,10 +145,6 @@ def edit_boat(boat_id):
 
     form = BoatEditForm(obj=boat)
     if request.method == 'POST':
-        city = request.form.get('city')
-        if city in CITY_PORT_MAPPING:
-            form.port.choices = [(port, port) for port in CITY_PORT_MAPPING[city]]
-
         if form.validate_on_submit():
             try:
                 update_boat(boat_id, form.name.data, form.url.data, form.city.data, form.port.data, form.note.data)
@@ -143,10 +152,6 @@ def edit_boat(boat_id):
                 return redirect(url_for('views.index'))
             except Exception as e:
                 flash(f'수정 중 오류: {e}', 'danger')
-    else:
-        # GET 요청 시, 현재 도시의 항구 목록을 설정
-        if boat.city in CITY_PORT_MAPPING:
-            form.port.choices = [(port, port) for port in CITY_PORT_MAPPING[boat.city]]
 
     return render_template('edit_boat.html', form=form, boat_id=boat_id)
 

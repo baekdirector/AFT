@@ -187,7 +187,6 @@
   <!-- 등록/수정 모달 -->
   <div id="register-modal" class="modal-overlay" aria-hidden="true">
     <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="register-title">
-      <div class="modal-drag-handle"></div>
       <div class="modal-header">
         <h2 class="modal-title" id="register-title">선박 정보 등록</h2>
         <button id="register-close" class="modal-close" aria-label="닫기">×</button>
@@ -213,6 +212,12 @@
             <input id="register-url" name="url" type="url" placeholder="https://example.com/ship/schedule_fleet" required>
           </label>
         </div>
+        <!-- 지역을 골라도 그 항구가 목록에 없을 때 쓴다. 여기서 입력한 값이 그대로
+             등록되고, 다음부터는 해당 지역의 선택지에도 나타난다 -->
+        <label class="modal-field modal-field-note" id="register-port-custom-wrap" style="display:none;">
+          <span class="modal-field-label">새 항구 이름 <span class="required">*</span></span>
+          <input id="register-port-custom" type="text" placeholder="예: OO항" maxlength="100">
+        </label>
         <label class="modal-field modal-field-note">
           <span class="modal-field-label">비고</span>
           <textarea id="register-note" name="note" placeholder="선장 스타일, 추천 어종 등"></textarea>
@@ -494,18 +499,17 @@
 .bottom-tab-icon { font-size: 17px; line-height: 1; }
 .bottom-tab-label { font-size: 11px; font-weight: 700; }
 
-/* 등록/수정 모달 (바텀시트) */
+/* 등록/수정 모달 (중앙 팝업) */
 .modal-overlay {
   position: fixed; inset: 0; z-index: 100; background: oklch(0.2 0.02 255 / 0.45); backdrop-filter: blur(4px);
-  display: none; align-items: flex-end; justify-content: center;
+  display: none; align-items: center; justify-content: center; padding: 20px;
 }
 .modal-overlay.active { display: flex; }
 .modal-panel {
-  width: min(560px, 100%); max-height: 92vh; overflow-y: auto; background: oklch(0.99 0.003 250);
-  border-radius: 26px 26px 0 0; padding: 20px clamp(16px, 4vw, 26px) calc(env(safe-area-inset-bottom, 0px) + 20px);
-  margin: auto auto 0;
+  width: min(720px, 96vw); max-height: 88vh; overflow-y: auto; background: oklch(0.99 0.003 250);
+  border-radius: 24px; padding: 30px clamp(20px, 5vw, 40px) calc(env(safe-area-inset-bottom, 0px) + 30px);
+  margin: auto;
 }
-.modal-drag-handle { width: 38px; height: 4px; border-radius: 99px; background: oklch(0.88 0.01 250); margin: 0 auto 16px; }
 .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
 .modal-title { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.8px; color: var(--ink); }
 .modal-close {
@@ -969,6 +973,9 @@ function initializeRegisterModal() {
     const registerForm = overlay?.querySelector('form');
     const modalTitle = document.getElementById('register-title');
     const boatIdInput = document.getElementById('boat-id');
+    const portCustomWrap = document.getElementById('register-port-custom-wrap');
+    const portCustomInput = document.getElementById('register-port-custom');
+    const CUSTOM_PORT_VALUE = '__custom__';
 
     let isEditMode = false;
 
@@ -1009,6 +1016,8 @@ function initializeRegisterModal() {
         registerForm?.reset();
         citySelect.value = '';
         portSelect.innerHTML = '<option value="">항구를 선택하세요</option>';
+        if (portCustomWrap) portCustomWrap.style.display = 'none';
+        if (portCustomInput) portCustomInput.value = '';
         boatIdInput.value = '';
         validateForm();
     }
@@ -1026,19 +1035,39 @@ function initializeRegisterModal() {
         citySelect.innerHTML = '<option value="">지역을 선택하세요</option>' +
             orderedCities.map(c=>`<option value="${c}">${c}</option>`).join('');
     }
+    // 항구 select 옵션 HTML: 등록된(또는 매핑된) 항구 뒤에 "직접 입력"을 항상 붙인다.
+    // 지역을 골라도 원하는 항구가 없을 때 여기서 새로 적어 넣을 수 있어야 한다.
+    function portOptionsHtml(ports){
+        return '<option value="">항구를 선택하세요</option>' +
+            ports.map(p=>`<option value="${p}">${p}</option>`).join('') +
+            `<option value="${CUSTOM_PORT_VALUE}">+ 새 항구 직접 입력</option>`;
+    }
+
     // 도시 변경 시 항구 채우기
     citySelect?.addEventListener('change', function(){
         const city = this.value;
         const ports = mapping[city] || [];
-        portSelect.innerHTML = '<option value="">항구를 선택하세요</option>' +
-            ports.map(p=>`<option value="${p}">${p}</option>`).join('');
+        portSelect.innerHTML = portOptionsHtml(ports);
+        if (portCustomWrap) portCustomWrap.style.display = 'none';
+        if (portCustomInput) portCustomInput.value = '';
         validateForm();
     });
 
+    // 항구 select 에서 "직접 입력"을 고르면 텍스트 입력칸을 보여준다
+    portSelect?.addEventListener('change', function(){
+        const isCustom = this.value === CUSTOM_PORT_VALUE;
+        if (portCustomWrap) portCustomWrap.style.display = isCustom ? '' : 'none';
+        if (isCustom && portCustomInput) portCustomInput.focus();
+    });
+
     // 폼 검증 (필수 필드)
+    function effectivePort(){
+        if (portSelect?.value === CUSTOM_PORT_VALUE) return (portCustomInput?.value || '').trim();
+        return portSelect?.value || '';
+    }
     function validateForm(){
         const city = citySelect?.value || '';
-        const port = portSelect?.value || '';
+        const port = effectivePort();
         const name = nameInput?.value.trim() || '';
         const url = urlInput?.value.trim() || '';
         const allFilled = city && port && name && url;
@@ -1046,7 +1075,7 @@ function initializeRegisterModal() {
     }
 
     // 필드 입력 시 검증
-    [citySelect, portSelect, nameInput, urlInput].forEach(el=>{
+    [citySelect, portSelect, portCustomInput, nameInput, urlInput].forEach(el=>{
         el?.addEventListener('input', validateForm);
         el?.addEventListener('change', validateForm);
     });
@@ -1055,6 +1084,9 @@ function initializeRegisterModal() {
     registerForm?.addEventListener('submit', function(e){
         e.preventDefault();
         const formData = new FormData(this);
+        if (portSelect?.value === CUSTOM_PORT_VALUE) {
+            formData.set('port', (portCustomInput?.value || '').trim());
+        }
 
         // 제출 버튼 비활성화
         if (submitBtn) submitBtn.disabled = true;
@@ -1089,10 +1121,12 @@ function initializeRegisterModal() {
         // 폼 필드 채우기
         citySelect.value = region;
 
-        // 항구 옵션 채우기
+        // 항구 옵션 채우기. 이 배의 기존 항구는 city_port_map 이 이미 지역
+        // 목록에 합쳐서 내려주므로(서버 로직) 별도 처리 없이 그대로 선택된다.
         const ports = mapping[region] || [];
-        portSelect.innerHTML = '<option value="">항구를 선택하세요</option>' +
-            ports.map(p=>`<option value="${p}">${p}</option>`).join('');
+        portSelect.innerHTML = portOptionsHtml(ports);
+        if (portCustomWrap) portCustomWrap.style.display = 'none';
+        if (portCustomInput) portCustomInput.value = '';
         portSelect.value = port;
 
         nameInput.value = name;

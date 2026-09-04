@@ -13,7 +13,8 @@
 
   <div class="form-row">
     <label class="form-label" for="port">항구</label>
-    {{ form.port(class_="form-control", id="port") }}
+    {{ form.port(class_="form-control", id="port", list="port-datalist", placeholder="목록에서 고르거나 새 항구 이름을 입력하세요") }}
+    <datalist id="port-datalist"></datalist>
   </div>
 
   <div class="form-row">
@@ -52,42 +53,27 @@ const cityPortMapping = {
   '고흥': ['녹동방파제']
 };
 
-// 지역 선택 시 항구 옵션 업데이트
-document.getElementById('city').addEventListener('change', function() {
-  const city = this.value;
-  const portSelect = document.getElementById('port');
-  
-  // 기존 옵션 제거
-  portSelect.innerHTML = '';
-  
+// 지역 선택/페이지 로드 시 항구 자동완성 목록(datalist) 갱신.
+// port 는 자유 입력 텍스트필드라 목록에 없는 항구도 그대로 입력해서 저장할 수 있고,
+// 현재 값은 WTForms 가 이미 input value 로 채워주므로 여기서 따로 선택할 필요가 없다.
+function refreshPortDatalist(city) {
+  const datalist = document.getElementById('port-datalist');
+  datalist.innerHTML = '';
   if (city && cityPortMapping[city]) {
-    // 새 옵션 추가
     cityPortMapping[city].forEach(port => {
       const option = document.createElement('option');
       option.value = port;
-      option.textContent = port;
-      portSelect.appendChild(option);
+      datalist.appendChild(option);
     });
   }
+}
+
+document.getElementById('city').addEventListener('change', function() {
+  refreshPortDatalist(this.value);
 });
 
-// 페이지 로드 시 초기 항구 목록 설정
 document.addEventListener('DOMContentLoaded', function() {
-    const city = document.getElementById('city').value;
-    const portSelect = document.getElementById('port');
-    const currentPort = '{{ form.port.data }}'; // 현재 설정된 항구
-
-    if (city && cityPortMapping[city]) {
-        cityPortMapping[city].forEach(port => {
-            const option = document.createElement('option');
-            option.value = port;
-            option.textContent = port;
-            if (port === currentPort) {
-                option.selected = true;
-            }
-            portSelect.appendChild(option);
-        });
-    }
+  refreshPortDatalist(document.getElementById('city').value);
 });
 </script>
 
