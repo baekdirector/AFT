@@ -71,7 +71,6 @@
             <button type="button" class="quick-date-btn" data-offset="0">오늘</button>
             <button type="button" class="quick-date-btn" data-offset="1">내일</button>
             <button type="button" class="quick-date-btn" data-weekend="1">이번 주말</button>
-            <button id="searchBtn" type="submit" class="btn-search">🔍 조회</button>
           </div>
         </div>
 
@@ -94,6 +93,8 @@
             </label>
             {% endfor %}
           </div>
+          <!-- 날짜(1단계)·지역(2단계)을 고른 흐름 그대로 여기서 조회한다 -->
+          <button id="searchBtn" type="submit" class="btn-search btn-search-full">🔍 조회</button>
         </div>
 
         <!-- 3 · 선택된 배 (기존 checkbox 목록 로직 그대로, 시각만 칩으로) -->
@@ -397,10 +398,11 @@
 }
 .quick-date-btn:hover { border-color: oklch(0.7 0.09 245); }
 .btn-search {
-  margin-left: auto; height: 44px; padding: 0 20px; border-radius: 13px; border: none; cursor: pointer;
+  height: 44px; padding: 0 20px; border-radius: 13px; border: none; cursor: pointer;
   background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225)); color: #fff;
   font-size: 14px; font-weight: 750; box-shadow: 0 8px 20px oklch(0.55 0.14 245 / 0.3);
 }
+.btn-search-full { width: 100%; margin-top: 14px; }
 
 /* 지역/배 칩 (checkbox + label span, 로직은 기존 그대로, 시각만 칩) */
 .region-filter, .boat-filter { display: flex; flex-wrap: wrap; gap: 7px; }
@@ -636,7 +638,6 @@
 @media (max-width: 768px) {
   .header-nav { display: none; }
   .aux-links { order: 2; }
-  .btn-search { margin-left: 0; }
   .results-grid { grid-template-columns: 1fr; }
   .popup-content { max-width: 98vw; margin: 16px auto; border-radius: 12px; }
   .popup-header { padding: 14px; border-radius: 12px 12px 0 0; }
