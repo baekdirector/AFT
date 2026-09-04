@@ -38,7 +38,35 @@
         <div class="filter-card">
           <div class="filter-card-title">1 · 조회 날짜</div>
           <div class="date-row">
-            <input type="date" id="date" class="date-native-input" required
+            <div class="date-picker-wrap">
+              <button type="button" id="date-btn" class="date-btn" aria-expanded="false" aria-haspopup="true">
+                <span class="date-btn-icon">📅</span>
+                <span id="date-btn-label">날짜 선택</span>
+                <span class="date-btn-caret">⌄</span>
+              </button>
+              <div id="cal-popover" class="cal-popover" style="display:none;" role="dialog" aria-label="날짜 선택 달력">
+                <div class="cal-popover-header">
+                  <button type="button" id="cal-prev-btn" class="cal-nav-btn" aria-label="이전 달">‹</button>
+                  <div id="cal-month-label" class="cal-month-label"></div>
+                  <button type="button" id="cal-next-btn" class="cal-nav-btn" aria-label="다음 달">›</button>
+                </div>
+                <div class="cal-weekdays">
+                  <div class="cal-weekday cal-weekday-sun">일</div>
+                  <div class="cal-weekday">월</div>
+                  <div class="cal-weekday">화</div>
+                  <div class="cal-weekday">수</div>
+                  <div class="cal-weekday">목</div>
+                  <div class="cal-weekday">금</div>
+                  <div class="cal-weekday cal-weekday-sat">토</div>
+                </div>
+                <div id="cal-days" class="cal-days"></div>
+                <div class="cal-popover-foot">
+                  <button type="button" id="cal-today-btn" class="cal-foot-btn">오늘로</button>
+                  <button type="button" id="cal-confirm-btn" class="cal-foot-btn cal-foot-btn-primary">확인</button>
+                </div>
+              </div>
+            </div>
+            <input type="hidden" id="date"
                    value="{% if year and month and day %}{{ year }}-{{ '%02d'|format(month) }}-{{ '%02d'|format(day) }}{% endif %}">
             <button type="button" class="quick-date-btn" data-offset="0">오늘</button>
             <button type="button" class="quick-date-btn" data-offset="1">내일</button>
@@ -126,7 +154,13 @@
            숨기면 낡은 값을 최신으로 착각한다. -->
       <div id="cache-notice" class="cache-notice" style="display:none;"></div>
 
-      <h2 id="results-title" class="results-title">조회 결과 (실시간)</h2>
+      <div class="results-header-row">
+        <h2 id="results-title" class="results-title">조회 결과 (실시간)</h2>
+        <div id="sort-toggle" class="sort-toggle" role="group" aria-label="정렬 기준">
+          <button type="button" class="sort-toggle-btn is-active" data-sort-key="status">예약가능순</button>
+          <button type="button" class="sort-toggle-btn" data-sort-key="city">지역별</button>
+        </div>
+      </div>
 
       <div id="results-body" class="results-grid">
         {% if entries and entries|length > 0 %}
@@ -288,13 +322,74 @@
 .filter-card-title { font-size: 12px; font-weight: 750; color: oklch(0.5 0.02 255); letter-spacing: 0.2px; margin-bottom: 10px; }
 .filter-card-hint { font-weight: 600; color: var(--ink-softer); margin-left: 4px; }
 
-/* 날짜 */
+/* 날짜: 팝오버 커스텀 달력 */
 .date-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.date-native-input {
-  height: 44px; padding: 0 14px; border-radius: 13px; border: 1px solid var(--line);
-  background: var(--bg-soft); font-size: 15px; font-weight: 680; color: inherit; outline: none;
+.date-picker-wrap { position: relative; }
+.date-btn {
+  display: inline-flex; align-items: center; gap: 9px; height: 44px; padding: 0 16px;
+  border-radius: 15px; cursor: pointer; font-size: 14.5px; font-weight: 700; letter-spacing: -0.3px;
+  white-space: nowrap; border: 1px solid var(--line); background: #fff; color: oklch(0.28 0.02 255);
+  box-shadow: 0 2px 8px oklch(0.5 0.02 250 / 0.05); transition: all 0.18s ease;
 }
-.date-native-input:focus { border-color: var(--accent); }
+.date-btn.is-open {
+  border-color: transparent; color: #fff;
+  background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225));
+  box-shadow: 0 8px 20px oklch(0.55 0.14 245 / 0.3);
+}
+.date-btn-icon { font-size: 16px; line-height: 1; }
+.date-btn-caret { font-size: 13px; line-height: 1; opacity: 0.6; transition: transform 0.2s ease; }
+.date-btn.is-open .date-btn-caret { transform: rotate(180deg); }
+
+.cal-popover {
+  position: absolute; top: calc(100% + 10px); left: 0; z-index: 70;
+  width: min(324px, calc(100vw - 44px)); padding: 16px; border-radius: 22px;
+  background: oklch(0.995 0.002 250); border: 1px solid var(--line);
+  box-shadow: 0 18px 44px oklch(0.35 0.03 255 / 0.16);
+  animation: calPopIn 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+@keyframes calPopIn { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+.cal-popover-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.cal-nav-btn {
+  width: 34px; height: 34px; border-radius: 12px; border: none; background: oklch(0.96 0.006 250);
+  color: oklch(0.4 0.02 255); font-size: 15px; cursor: pointer;
+}
+.cal-nav-btn:hover { background: oklch(0.92 0.01 250); }
+.cal-month-label { font-size: 15px; font-weight: 770; letter-spacing: -0.4px; color: var(--ink); }
+
+.cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 4px; }
+.cal-weekday { text-align: center; padding: 6px 0; font-size: 11.5px; font-weight: 700; color: oklch(0.62 0.012 255); }
+.cal-weekday-sun { color: oklch(0.62 0.15 25); }
+.cal-weekday-sat { color: oklch(0.58 0.11 250); }
+
+.cal-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.cal-day {
+  height: 40px; border-radius: 13px; cursor: pointer; font-size: 14px; font-weight: 620;
+  border: 1px solid transparent; background: transparent; color: oklch(0.3 0.02 255); transition: all 0.15s ease;
+}
+.cal-day:disabled { visibility: hidden; pointer-events: none; }
+.cal-day.cal-day-sun { color: oklch(0.6 0.15 25); }
+.cal-day.cal-day-sat { color: oklch(0.55 0.11 250); }
+.cal-day.cal-day-past { color: oklch(0.78 0.012 255); }
+.cal-day.cal-day-today {
+  font-weight: 760; border-color: oklch(0.8 0.07 245); background: oklch(0.97 0.015 245); color: oklch(0.42 0.13 245);
+}
+.cal-day.cal-day-selected {
+  font-weight: 780; border-color: transparent; color: #fff;
+  background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225));
+  box-shadow: 0 6px 14px oklch(0.55 0.14 245 / 0.32);
+}
+
+.cal-popover-foot { display: flex; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.cal-foot-btn {
+  flex: 1; height: 40px; border-radius: 13px; border: 1px solid var(--line); background: #fff;
+  font-size: 13px; font-weight: 700; color: oklch(0.42 0.02 255); cursor: pointer;
+}
+.cal-foot-btn-primary {
+  border: none; color: #fff; font-weight: 740;
+  background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225));
+}
+
 .quick-date-btn {
   display: inline-flex; align-items: center; height: 34px; padding: 0 13px; border-radius: 999px;
   border: 1px solid var(--line); background: #fff; color: oklch(0.42 0.02 255); font-size: 12.5px;
@@ -387,7 +482,17 @@
 }
 .cache-notice { margin: 6px 0 10px; font-size: 12.5px; color: var(--ink-soft); }
 
-.results-title { margin: 4px 0 12px; font-size: 17px; font-weight: 780; letter-spacing: -0.4px; color: var(--ink); }
+.results-header-row { display: flex; align-items: center; justify-content: space-between; gap: 10px 14px; flex-wrap: wrap; margin: 4px 0 12px; }
+.results-title { margin: 0; font-size: 17px; font-weight: 780; letter-spacing: -0.4px; color: var(--ink); }
+
+/* 결과 정렬 세그먼트 버튼 (헤더 탭과 같은 시각 언어: pill 컨테이너 + 활성 흰 배경) */
+.sort-toggle { display: flex; gap: 4px; padding: 4px; background: oklch(0.94 0.008 250); border-radius: 13px; flex: none; }
+.sort-toggle-btn {
+  height: 32px; padding: 0 14px; border-radius: 10px; border: none; font-size: 12.5px; font-weight: 700;
+  white-space: nowrap; color: var(--ink-soft); background: transparent; cursor: pointer;
+}
+.sort-toggle-btn.is-active { background: #fff; color: oklch(0.3 0.02 255); box-shadow: 0 1px 4px oklch(0.4 0.02 250 / 0.14); }
+.sort-toggle-btn:hover { color: var(--accent); }
 
 /* 결과 카드 그리드 */
 .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 11px; }
@@ -542,11 +647,140 @@
 <script>
 document.addEventListener('DOMContentLoaded', function(){
   // 날짜 입력 초기화: 값이 비어 있으면 오늘 날짜를 기본값으로 채운다.
+  // #date 는 이제 화면에 보이지 않는 hidden 필드다 - 실제 값 저장소는 그대로이고
+  // (currentQueryDate() 등 기존 계약이 그대로 이걸 읽는다), 화면에는 아래 커스텀
+  // 팝오버 달력이 대신 그려진다.
   const dateInput = document.getElementById('date');
   function fmtDate(d) {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
   if (dateInput && !dateInput.value) { dateInput.value = fmtDate(new Date()); }
+
+  // ====== 커스텀 팝오버 달력 ======
+  // 디자인 참고: 선박 관리.dc.html 의 "1 · 조회 날짜" 섹션(calOpen/calMonth 상태,
+  // toggleCal/closeCal/prevMonth/nextMonth/pickToday, fmtDate/shiftMonth/buildMonth
+  // 헬퍼). 여기선 React state 대신 vanilla JS DOM 조작 + 이벤트 리스너로 재구현한다.
+  // 최종 선택 값은 그대로 hidden #date 에 YYYY-MM-DD 로 저장된다 - 기존 계약 불변.
+  (function () {
+    const dateBtn = document.getElementById('date-btn');
+    const dateBtnLabel = document.getElementById('date-btn-label');
+    const popover = document.getElementById('cal-popover');
+    const monthLabel = document.getElementById('cal-month-label');
+    const daysEl = document.getElementById('cal-days');
+    const prevBtn = document.getElementById('cal-prev-btn');
+    const nextBtn = document.getElementById('cal-next-btn');
+    const todayBtn = document.getElementById('cal-today-btn');
+    const confirmBtn = document.getElementById('cal-confirm-btn');
+    if (!dateBtn || !popover || !daysEl || !dateInput) return;
+
+    function todayIso() { return fmtDate(new Date()); }
+    let calMonth = (dateInput.value || todayIso()).slice(0, 7); // 팝오버가 보여주는 월(YYYY-MM)
+
+    function fmtDateLabel(iso) {
+      const p = iso.split('-');
+      const d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+      return Number(p[1]) + '월 ' + Number(p[2]) + '일 (' + ['일', '월', '화', '수', '목', '금', '토'][d.getDay()] + ')';
+    }
+    function shiftMonth(ym, n) {
+      const p = ym.split('-');
+      const d = new Date(Number(p[0]), Number(p[1]) - 1 + n, 1);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    }
+    function buildMonth(ym) {
+      const p = ym.split('-');
+      const y = Number(p[0]), m = Number(p[1]) - 1;
+      const first = new Date(y, m, 1).getDay();
+      const len = new Date(y, m + 1, 0).getDate();
+      const cells = [];
+      for (let i = 0; i < first; i++) cells.push(null);
+      for (let d = 1; d <= len; d++) {
+        cells.push({ day: d, dow: new Date(y, m, d).getDay(), iso: y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0') });
+      }
+      while (cells.length % 7) cells.push(null);
+      return cells;
+    }
+
+    function updateLabel() {
+      if (dateBtnLabel) dateBtnLabel.textContent = dateInput.value ? fmtDateLabel(dateInput.value) : '날짜 선택';
+    }
+
+    function renderCalendar() {
+      const p = calMonth.split('-');
+      if (monthLabel) monthLabel.textContent = p[0] + '년 ' + Number(p[1]) + '월';
+      daysEl.innerHTML = '';
+      const today = todayIso();
+      const selected = dateInput.value;
+      buildMonth(calMonth).forEach(function (c) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'cal-day';
+        if (!c) {
+          btn.disabled = true;
+          daysEl.appendChild(btn);
+          return;
+        }
+        btn.textContent = String(c.day);
+        if (c.dow === 0) btn.classList.add('cal-day-sun');
+        if (c.dow === 6) btn.classList.add('cal-day-sat');
+        if (c.iso < today) btn.classList.add('cal-day-past');
+        if (c.iso === today) btn.classList.add('cal-day-today');
+        if (c.iso === selected) btn.classList.add('cal-day-selected');
+        btn.addEventListener('click', function () {
+          // 여기서 채워진 값이 폼 제출 시 year/month/day hidden 필드로 쪼개지는
+          // 기존 로직(submit 핸들러)이 그대로 이 값을 읽는다.
+          dateInput.value = c.iso;
+          updateLabel();
+          closeCal();
+        });
+        daysEl.appendChild(btn);
+      });
+    }
+
+    function openCal() {
+      calMonth = (dateInput.value || todayIso()).slice(0, 7);
+      renderCalendar();
+      popover.style.display = '';
+      dateBtn.classList.add('is-open');
+      dateBtn.setAttribute('aria-expanded', 'true');
+    }
+    function closeCal() {
+      popover.style.display = 'none';
+      dateBtn.classList.remove('is-open');
+      dateBtn.setAttribute('aria-expanded', 'false');
+    }
+    function toggleCal() {
+      if (popover.style.display === 'none') openCal(); else closeCal();
+    }
+
+    dateBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleCal(); });
+    if (prevBtn) prevBtn.addEventListener('click', function () { calMonth = shiftMonth(calMonth, -1); renderCalendar(); });
+    if (nextBtn) nextBtn.addEventListener('click', function () { calMonth = shiftMonth(calMonth, 1); renderCalendar(); });
+    if (todayBtn) todayBtn.addEventListener('click', function () {
+      dateInput.value = todayIso();
+      calMonth = dateInput.value.slice(0, 7);
+      updateLabel();
+      renderCalendar();
+    });
+    if (confirmBtn) confirmBtn.addEventListener('click', function () { closeCal(); });
+    // 팝오버 내부 클릭은 바깥 클릭 핸들러로 전파되지 않게 막는다.
+    popover.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    // 바깥 클릭 / ESC 로 닫기 (디자인엔 명시 안 됐지만 팝오버 UX 상식)
+    document.addEventListener('click', function (e) {
+      if (popover.style.display !== 'none' && !popover.contains(e.target) &&
+          e.target !== dateBtn && !dateBtn.contains(e.target)) {
+        closeCal();
+      }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && popover.style.display !== 'none') closeCal();
+    });
+
+    updateLabel();
+    // 퀵버튼(오늘/내일/이번 주말)이 #date 값을 바꾼 뒤 버튼 라벨도 갱신할 수 있게 노출한다.
+    window._calRefreshLabel = updateLabel;
+  })();
+  // ====== 커스텀 팝오버 달력 끝 ======
 
   // 퀵버튼: 오늘 / 내일 / 이번 주말. #date 값만 채워주고, 실제 조회 트리거는 검색 버튼(제출)이다.
   document.querySelectorAll('.quick-date-btn').forEach(function (btn) {
@@ -561,6 +795,7 @@ document.addEventListener('DOMContentLoaded', function(){
         target = new Date(now); target.setDate(now.getDate() + offset);
       }
       if (dateInput) dateInput.value = fmtDate(target);
+      if (window._calRefreshLabel) window._calRefreshLabel();
     });
   });
 
@@ -700,6 +935,10 @@ document.addEventListener('DOMContentLoaded', function(){
   // Watch.restore() -> refreshCheckboxes() 로 이 변수를 읽는데, let 은 선언
   // 전에는 typeof 조차 ReferenceError 를 던지기 때문이다.
   let lastRenderedRows = [];
+
+  // 현재 선택된 정렬 기준('status'=예약가능순, 'city'=지역별). 스트리밍 도중
+  // 사용자가 바꿔도 이후 도착하는 결과가 계속 이 기준을 따르도록 여기 들고 있는다.
+  let currentSortKey = 'status';
 
   const Watch = (function () {
     let endpoint = null;          // 이 브라우저의 푸시 구독 주소
@@ -1107,13 +1346,17 @@ document.addEventListener('DOMContentLoaded', function(){
               available: entry.available, url: entry.source_url || '', url_path: entry.url_path || ''
             });
           }
+          // 도착할 때마다 현재 선택된 정렬 기준으로 다시 정렬해서 그린다. 그래야
+          // 스트리밍 도중 사용자가 정렬을 바꿔도 이후 도착분이 도착 순서로
+          // 뒤에 붙지 않고 계속 그 기준을 따른다.
+          sortRows(streamedRows, currentSortKey, 'asc');
           renderRows(streamedRows);
         }
         if (done) break;
       }
-      if (buffer.trim()) renderRows(streamedRows);
-      // 모든 선박 조회가 끝난 뒤 예약가능(open) 선박을 최상단에 배치한다.
-      sortRows(streamedRows, 'status', 'asc');
+      if (buffer.trim()) { sortRows(streamedRows, currentSortKey, 'asc'); renderRows(streamedRows); }
+      // 스트림이 끝난 뒤에도 같은 기준으로 마지막 정렬을 한 번 더 보장한다.
+      sortRows(streamedRows, currentSortKey, 'asc');
       renderRows(streamedRows);
       updateResultsTitle(totalBoats > 0 && completedBoats === totalBoats);
       setCacheNotice(sawEnd ? '방금 실시간으로 조회한 결과입니다.' : '');
@@ -1220,7 +1463,7 @@ document.addEventListener('DOMContentLoaded', function(){
       }
 
       const rows = body.rows.map(cachedRowToDisplayRow);
-      sortRows(rows, 'status', 'asc');
+      sortRows(rows, currentSortKey, 'asc');
       renderRows(rows);
 
       const age = describeAge(body.checked_at);
@@ -1268,6 +1511,27 @@ document.addEventListener('DOMContentLoaded', function(){
       try { names = JSON.parse(missingNotice.dataset.missing || '[]'); } catch (e) { names = []; }
       missingNotice.style.display = 'none';
       loadStatusResults(names.length ? names : undefined);
+    });
+  })();
+
+  // 결과 정렬 버튼: 예약가능순 / 지역별. 누르는 즉시 현재 화면의 결과(lastRenderedRows)를
+  // 재정렬해서 다시 그린다 - 다시 조회할 필요 없다. 고른 기준은 currentSortKey 에
+  // 저장되고, 스트리밍 중 새로 도착하는 결과도 그 기준을 계속 따른다(loadStatusResults 참고).
+  (function bindSortToggle() {
+    const box = document.getElementById('sort-toggle');
+    if (!box) return;
+    const buttons = Array.from(box.querySelectorAll('.sort-toggle-btn'));
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const sortKey = btn.dataset.sortKey;
+        if (!sortKey || sortKey === currentSortKey) return;
+        currentSortKey = sortKey;
+        buttons.forEach(function (b) { b.classList.toggle('is-active', b === btn); });
+        if (lastRenderedRows.length) {
+          sortRows(lastRenderedRows, currentSortKey, 'asc');
+          renderRows(lastRenderedRows);
+        }
+      });
     });
   })();
 
