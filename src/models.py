@@ -167,6 +167,9 @@ class Watch(db.Model):
             'ship_name': self.ship_name,
             'target_date': self.target_date,
             'active': self.active,
+            # 언제 체크(감시 등록)했는지. /watches 화면의 체크 기록 로그에 쓴다 -
+            # "내가 이 배를 정확히 체크했는지"를 시각으로 확인할 수 있어야 한다.
+            'created_at': self.created_at.isoformat() if self.created_at else None,
         }
 
 

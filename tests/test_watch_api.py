@@ -169,6 +169,22 @@ def test_watch_list_carries_fields_needed_to_unregister(client, boats):
     assert w['target_date'] == DATE
 
 
+def test_watch_carries_registration_timestamp(client, boats):
+    """/watches 화면의 체크 기록 로그가 '언제 체크했는지' 보여주려면 필요하다."""
+    import datetime
+    before = datetime.datetime.utcnow()
+
+    subscribe(client)
+    client.post('/api/watches', json={
+        'endpoint': EP, 'boat_id': boats[0], 'ship_name': '1호', 'target_date': DATE})
+
+    w = client.get('/api/watches', query_string={'endpoint': EP}).get_json()['watches'][0]
+
+    assert w['created_at'] is not None
+    parsed = datetime.datetime.fromisoformat(w['created_at'])
+    assert before <= parsed <= datetime.datetime.utcnow() + datetime.timedelta(seconds=5)
+
+
 def test_unknown_boat_returns_400(client, boats):
     subscribe(client)
     rv = client.post('/api/watches', json={

@@ -61,6 +61,15 @@
         <div class="watch-empty-desc">예약현황 조회 결과에서 “빈자리 알림 받기”를 체크해 주세요</div>
         <a href="{{ url_for('views.status') }}" class="watch-empty-btn">예약현황 조회로 가기</a>
       </div>
+
+      <!-- 체크 기록 로그. 기본은 접힌 상태 - 언제 어떤 배를 체크했는지 확인하고 싶을 때만 편다 -->
+      <details id="watch-log" class="watch-log">
+        <summary class="watch-log-toggle">
+          <span>체크 기록 로그</span>
+          <span class="watch-log-toggle-icon">▾</span>
+        </summary>
+        <div id="watch-log-body" class="watch-log-body"></div>
+      </details>
     </section>
   </main>
 
@@ -231,6 +240,29 @@
   border-radius: 13px; border: none; background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225));
   color: #fff; font-size: 13.5px; font-weight: 730; white-space: nowrap;
 }
+
+/* 체크 기록 로그. "내가 언제 이 배를 체크했는지" 를 시간순으로 확인하는 용도라
+   기본은 접혀 있고 눌러야 펼쳐진다 - 평소엔 안 볼 정보다. */
+.watch-log {
+  margin-top: 18px; background: #fff; border: 1px solid var(--line); border-radius: 18px;
+  overflow: hidden;
+}
+.watch-log-toggle {
+  width: 100%; display: flex; align-items: center; gap: 8px; padding: 14px 16px;
+  border: none; background: transparent; cursor: pointer; text-align: left;
+  font-size: 13.5px; font-weight: 700; color: var(--ink);
+}
+.watch-log-toggle-icon { margin-left: auto; font-size: 12px; color: var(--ink-soft); transition: transform 0.18s; }
+.watch-log[open] .watch-log-toggle-icon { transform: rotate(180deg); }
+.watch-log-body { padding: 0 16px 14px; }
+.watch-log-row {
+  display: flex; align-items: baseline; gap: 10px; padding: 8px 0;
+  border-top: 1px solid oklch(0.95 0.006 250); font-size: 12.5px;
+}
+.watch-log-row:first-child { border-top: none; }
+.watch-log-time { flex: none; width: 92px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.watch-log-what { color: var(--ink); font-weight: 600; }
+.watch-log-empty { padding: 4px 0 8px; font-size: 12.5px; color: var(--ink-soft); }
 
 /* 하단 탭바 */
 .bottom-tabbar {
@@ -510,9 +542,51 @@ document.addEventListener('DOMContentLoaded', function () {
       if (deleteBtn) deleteBtn.disabled = checked.size === 0;
     }
 
+    // 체크 기록 로그: "내가 언제 이 배를 체크했는지"를 최신순으로 보여준다.
+    function fmtLogTime(iso) {
+      if (!iso) return '-';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '-';
+      const pad = n => String(n).padStart(2, '0');
+      return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function renderLog() {
+      const body = document.getElementById('watch-log-body');
+      if (!body) return;
+      body.innerHTML = '';
+
+      if (!watches.length) {
+        const empty = document.createElement('div');
+        empty.className = 'watch-log-empty';
+        empty.textContent = '체크 기록이 없습니다';
+        body.appendChild(empty);
+        return;
+      }
+
+      const sorted = watches.slice().sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+      sorted.forEach(function (w) {
+        const row = document.createElement('div');
+        row.className = 'watch-log-row';
+
+        const time = document.createElement('span');
+        time.className = 'watch-log-time';
+        time.textContent = fmtLogTime(w.created_at);
+        row.appendChild(time);
+
+        const what = document.createElement('span');
+        what.className = 'watch-log-what';
+        what.textContent = `${w.ship_name || w.boat_name || '-'} · ${w.target_date || '-'}`;
+        row.appendChild(what);
+
+        body.appendChild(row);
+      });
+    }
+
     function renderAll() {
       renderGrid();
       renderActionbar();
+      renderLog();
     }
 
     return { enable, sendTest, restore, remove, removeMany, toggleSelectAll, checked, watches: () => watches };
