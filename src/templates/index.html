@@ -458,6 +458,7 @@
 .selection-btn {
   height: 38px; padding: 0 15px; border-radius: 12px; border: none; background: oklch(1 0 0 / 0.14);
   color: #fff; font-size: 13px; font-weight: 700; cursor: pointer;
+  white-space: nowrap; flex: none;
 }
 .selection-btn-danger { background: oklch(0.58 0.18 25); }
 .selection-btn-close { width: 38px; padding: 0; background: transparent; color: oklch(0.85 0.01 255); font-size: 17px; }
@@ -784,6 +785,13 @@ function updateSelectionUI() {
     if (countLabel) countLabel.textContent = checkedCount + '척 선택';
     if (selectedHint) selectedHint.textContent = checkedCount ? checkedCount + '척 선택됨' : '체크해서 수정 · 삭제할 수 있어요';
     if (bar) bar.hidden = checkedCount === 0;
+
+    // 선택바와 '새 배 등록' 플로팅 버튼이 같은 하단 위치를 두고 겹친다
+    // (좁은 화면에서 실제로 서로 밀고 들어가 '수정'/'삭제' 글자가 세로로
+    // 밀리는 문제가 있었다). 위치를 계산으로 갈라놓는 대신, 배를 고르는
+    // 중에는 새로 등록할 때가 아니므로 등록 버튼을 잠깐 숨긴다.
+    const fab = document.getElementById('fab-register');
+    if (fab) fab.hidden = checkedCount > 0;
 }
 
 // 체크박스 이벤트 초기화
