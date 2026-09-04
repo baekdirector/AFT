@@ -444,12 +444,15 @@
 }
 
 /* 지도 탭 */
-.map-card { background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 14px; box-shadow: 0 2px 10px oklch(0.5 0.02 250 / 0.04); }
-.map-view { width: 100%; height: 520px; border-radius: 14px; }
-/* leaflet.css 의 .leaflet-div-icon 이 이 스타일 블록보다 나중에 로드되어
-   background/border 를 덮어쓰므로, 같은 specificity 두 클래스로 묶어
-   순서와 무관하게 항상 이기게 한다(index.html 셀렉션바 hidden 버그와 동일 교훈). */
-.port-count-marker.leaflet-div-icon {
+.map-card { background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 14px; box-shadow: 0 2px 10px oklch(0.5 0.02 250 / 0.04); margin-bottom: 84px; }
+.map-view { width: 100%; height: 520px; border-radius: 14px; overflow: hidden; }
+/* L.divIcon({className:'port-count-marker'})를 주면 Leaflet 이 기본 클래스인
+   leaflet-div-icon 을 아예 갈아 끼운다(추가가 아니라 대체) - 그래서 이전에
+   ".port-count-marker.leaflet-div-icon" 로 묶었던 셀렉터는 두 클래스가 동시에
+   존재한 적이 없어 한 번도 매치되지 않았고, 배지에 아무 스타일도 안 먹혀
+   숫자만 덩그러니 보였다. leaflet-marker-icon 은 Leaflet 이 항상 붙이는
+   클래스라 이것과 묶어야 확실히, 그리고 순서와 무관하게 이긴다. */
+.port-count-marker.leaflet-marker-icon {
   width: 30px; height: 30px; border-radius: 50%;
   background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225));
   border: 2px solid #fff; box-shadow: 0 2px 8px oklch(0.4 0.14 245 / 0.4);
@@ -625,6 +628,7 @@ function initMap() {
             className: 'port-count-marker',
             html: `<span>${group.ships.length}</span>`,
             iconSize: [30, 30],
+            iconAnchor: [15, 15], // 기본값(핀처럼 하단 중앙)이 아니라 원의 중심을 좌표에 맞춘다
         });
         const marker = L.marker(group.coords, { icon }).addTo(map);
         const shipRows = group.ships.map(s =>
@@ -659,8 +663,11 @@ function setView(view) {
     if (mapBtn) mapBtn.classList.toggle('active', view === 'map');
 
     if (view === 'map') {
+        // #mapTab 이 display:none 이었다가 막 보이는 시점이라 Leaflet 이 컨테이너
+        // 크기를 잘못 잴 수 있다 - 초기화 직후에도 invalidateSize 로 한 번 더
+        // 맞춰줘야 지도가 .map-view 의 520px 를 벗어나지 않는다.
         if (!map) {
-            setTimeout(() => initMap(), 100);
+            setTimeout(() => { initMap(); map.invalidateSize(); }, 100);
         } else {
             setTimeout(() => map.invalidateSize(), 100);
         }
