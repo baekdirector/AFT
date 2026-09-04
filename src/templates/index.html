@@ -454,6 +454,13 @@
   background: oklch(0.26 0.02 255); color: #fff; box-shadow: 0 14px 34px oklch(0.25 0.03 255 / 0.35);
   max-width: calc(100vw - 24px);
 }
+/* 진짜 원인: 위 규칙이 display:flex 를 직접 못박아 두고 있어서, hidden
+   속성의 브라우저 기본 display:none 과 우선순위가 동률이 되고, 나중에
+   선언된 이 클래스 규칙이 이겨버린다 - 그래서 selectedRow.hidden = true 를
+   아무리 해도 실제로는 계속 떠 있었다(항상 "0척 선택"으로 보이던 원인).
+   class+속성 조합(.selection-bar[hidden])은 .selection-bar 단독보다
+   명세상 우선순위가 항상 높으므로 이걸로 확실히 이긴다. */
+.selection-bar[hidden] { display: none; }
 .selection-count { font-size: 13.5px; font-weight: 700; white-space: nowrap; }
 .selection-btn {
   height: 38px; padding: 0 15px; border-radius: 12px; border: none; background: oklch(1 0 0 / 0.14);
