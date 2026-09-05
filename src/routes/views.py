@@ -1,12 +1,13 @@
 import io
 import os
 import openpyxl
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, Response, stream_with_context
 from flask import send_from_directory
 from forms import BoatRegistrationForm, StatusCheckForm, BoatEditForm
 from db import add_boat_instance, get_all_boats, delete_boat, get_boat_by_id, update_boat
 from services.reservation_checker import check_single_boat
+from services.tide.mulddae import get_mulddae
 from forms import REGION_CHOICES
 from config import CITY_PORT_MAPPING, PORT_COORDINATES, BADA_PORT_IDS
 from services.api_response import success_response, error_response, validation_error_response
@@ -350,12 +351,14 @@ def api_status():
             return {'boat_id': boat.id,
                     'registered_name': boat_name, 'city': boat.city, 'port': boat.port,
                     'query_date': f'{year:04d}-{month:02d}-{day:02d}', 'tide': info.get('tide'),
+                    'mulddae': get_mulddae(date(year, month, day), boat.city),
                     'entries': entries}
         except Exception as exc:
             return {'boat_id': getattr(boat, 'id', None),
                     'registered_name': boat_name, 'city': getattr(boat, 'city', ''),
                     'port': getattr(boat, 'port', ''), 'query_date': f'{year:04d}-{month:02d}-{day:02d}',
-                    'tide': None, 'entries': [{'ship_name': boat_name, 'status': 'unknown',
+                    'tide': None, 'mulddae': get_mulddae(date(year, month, day), getattr(boat, 'city', '')),
+                    'entries': [{'ship_name': boat_name, 'status': 'unknown',
                     'available': None, 'raw_status_text': f'조회 오류: {exc}',
                     'source_url': boat.url, 'url_path': boat.url, 'fish': None}]}
 
@@ -425,7 +428,7 @@ def api_status_cached():
             message='조회할 날짜를 지정해주세요.')), 400
 
     try:
-        datetime.strptime(date_str, '%Y-%m-%d')
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
     except ValueError:
         return jsonify(validation_error_response(
             error='date 형식이 잘못되었습니다.',
@@ -458,6 +461,7 @@ def api_status_cached():
             'registered_name': boat.name,
             'city': boat.city,
             'port': boat.port,
+            'mulddae': get_mulddae(target_date, boat.city),
             'ship_name': snap.ship_name,
             'status': snap.status,
             'available': snap.available,

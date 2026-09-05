@@ -8,3 +8,4 @@ pytest
 openpyxl
 Pillow
 pywebpush
+korean_lunar_calendar

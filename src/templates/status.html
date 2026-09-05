@@ -505,6 +505,10 @@
   padding: 3px 8px; border-radius: 7px;
 }
 .port-text { font-size: 11.5px; font-weight: 620; color: var(--ink-soft); }
+.mulddae-badge {
+  font-size: 10.5px; font-weight: 750; color: oklch(0.5 0.1 195); background: oklch(0.94 0.035 195);
+  padding: 3px 8px; border-radius: 7px;
+}
 .status-badge {
   margin-left: auto; display: inline-block; max-width: 100%; padding: 3px 10px; border-radius: 99px;
   font-size: 11px; font-weight: 750; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff;
@@ -1335,6 +1339,7 @@ document.addEventListener('DOMContentLoaded', function(){
             streamedRows.push({
               city: result.city || '', port: result.port || '',
               registered_name: result.registered_name || '',
+              mulddae: result.mulddae || '',
               fish: entry.fish || '', ship_name: entry.ship_name || result.registered_name || '',
               status_text: entry.display_status || entry.raw_status_text || (entry.status === 'unknown' ? '알 수 없음' : entry.status) || '알 수 없음',
               status_class: entry.status === 'full' || entry.status === 'reserved' ? 'closed'
@@ -1420,6 +1425,7 @@ document.addEventListener('DOMContentLoaded', function(){
     return {
       city: r.city || '', port: r.port || '',
       registered_name: r.registered_name || '',
+      mulddae: r.mulddae || '',
       fish: r.fish || '',
       ship_name: r.ship_name || r.registered_name || '',
       status_text: r.display_status || (r.status === 'unknown' ? '알 수 없음' : r.status) || '알 수 없음',
@@ -1669,6 +1675,14 @@ document.addEventListener('DOMContentLoaded', function(){
       port.className = 'port-text';
       port.textContent = r.port || '-';
       meta.appendChild(port);
+      // 음력 계산 물때(N물). KHOA API와 달리 날짜 제약 없이 항상 계산되지만,
+      // 등록 안 된 지역이면 서버가 null을 주므로 그럴 땐 조용히 생략한다.
+      if (r.mulddae) {
+        const mulddae = document.createElement('span');
+        mulddae.className = 'mulddae-badge';
+        mulddae.textContent = r.mulddae;
+        meta.appendChild(mulddae);
+      }
       const badgeInfo = statusBadge(r);
       const badge = document.createElement('span');
       badge.className = 'status-badge' + (badgeInfo.cls ? ' ' + badgeInfo.cls : '');
