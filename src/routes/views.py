@@ -1,6 +1,7 @@
 import io
 import os
 import openpyxl
+from datetime import datetime, timedelta, timezone
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, Response, stream_with_context
 from flask import send_from_directory
 from forms import BoatRegistrationForm, StatusCheckForm, BoatEditForm
@@ -17,14 +18,30 @@ import requests
 
 views = Blueprint('views', __name__, template_folder='templates')
 
+#: 한국은 서머타임이 없어 고정 오프셋으로 충분하다. zoneinfo.ZoneInfo('Asia/Seoul')는
+#: 시스템에 tzdata 가 없으면(예: 이 프로젝트를 개발하는 일부 Windows 환경) 예외를
+#: 던지므로 의존성 없는 고정 오프셋을 쓴다.
+KST = timezone(timedelta(hours=9))
+
 
 @views.route('/healthz')
 def healthz():
-    """GitHub Actions keep-alive 핑 전용. DB 접근·인증 없이 떠있는지만 알린다.
+    """Uptime 모니터링(예: UptimeRobot) keep-alive 핑 전용.
 
-    '/'는 get_all_boats() 를 호출하므로 10분마다 치기엔 낭비다.
+    DB 접근·인증 없이 떠있는지만 알린다 - '/'는 get_all_boats() 를 호출하므로
+    5분마다 치기엔 낭비다.
+
+    06:00~24:00 KST 활동시간대에만 200을 준다. Render 무료 티어는 워크스페이스
+    전체 월 750 instance-hour 한도가 있어서, 24시간 내내 깨워두면 31일짜리
+    달엔 744시간을 써서 한도를 넘길 위험이 있다(넘기면 그 달 서비스가 통째로
+    정지된다 - 막으려던 콜드스타트보다 더 나쁘다). 외부 핑 서비스는 시간대별
+    on/off를 무료로 지원하지 않는 경우가 많아서, 그 판단을 라우트 자체가
+    맡는다 - 새벽엔 503을 줘서 "찔러도 안 깨우는" 상태로 만든다.
     """
-    return 'ok', 200
+    now_kst = datetime.now(KST)
+    if 6 <= now_kst.hour < 24:
+        return 'ok', 200
+    return 'sleeping window', 503
 
 
 def _city_port_map_with_registered_ports(boats):

@@ -53,11 +53,17 @@ UI는 Claude Design 기반으로 3화면(배 목록/예약현황/빈자리 알�
   무료 분(월 2,000, private repo)과 직결되므로 임의로 올리지 말 것 — 올리려면
   cron 주기(현재 매시)도 같이 조정해야 한다. (이 리포는 실제로 public이라 Actions
   분 자체는 무제한이지만, 규칙은 그대로 유지 — private로 바뀔 가능성을 열어둔다.)
-- **Render keep-alive는 24시간이 아니라 06:00~24:00 KST만**(`.github/workflows/keepalive.yml`,
-  10분 간격으로 `/healthz` 핑). Render 무료 티어는 워크스페이스 전체 월 750
-  instance-hour 한도가 있어서, 24시간 내내 깨우면 31일 달엔 744시간을 써서
-  한도를 넘길 위험이 있다(넘기면 그 달 서비스가 통째로 정지 — 막으려던 콜드스타트
-  보다 더 나쁘다). 사용자가 직접 이 시간대로 범위를 정했다(PLAN.md D14).
+- **Render keep-alive는 GitHub Actions가 아니라 UptimeRobot(외부 무료)이 5분
+  간격으로 `/healthz`를 찌른다.** GitHub Actions `schedule`로 10분 간격 핑을
+  먼저 시도했는데, 실행 이력을 API로 추적해보니 자동 실행이 1.75~5.5시간
+  간격에 그쳐(기대치 10분) 고빈도 폴링엔 못 쓴다고 실측됨 — `scrape.yml`처럼
+  매시간 1회는 안정적이지만 그 이상은 신뢰하지 말 것(PLAN.md D14→D15).
+  `/healthz`는 06:00~24:00 KST에만 200을 주고 그 외엔 503이다(24시간 내내
+  깨우면 Render 무료 티어의 워크스페이스 월 750 instance-hour 한도를 31일
+  달엔 744시간까지 써서 한도 초과 위험 — 넘기면 그 달 서비스가 통째로 정지돼
+  막으려던 콜드스타트보다 더 나쁘다). 이 시간대 게이팅은 라우트 자체
+  (`src/routes/views.py`)가 하므로, 외부 핑 서비스는 그냥 자주 찌르기만
+  하면 된다.
 - 새 UI 디자인 원본(Claude Design export)은 리포 밖 스크래치패드에 있다 — 재이식이
   필요하면 사용자에게 다시 export를 요청해야 한다(리포에 커밋된 원본 없음).
 - 이 환경(Windows Git-Bash)에서 `lsof`가 포트 점유 프로세스를 못 찾는다. 로컬 서버
