@@ -6,8 +6,8 @@
 """
 import pytest
 
-from db import add_boat_instance
-from models import MAX_WATCHES_PER_SUBSCRIBER, Watch
+from db import add_boat_instance, db
+from models import MAX_WATCHES_PER_SUBSCRIBER, Snapshot, Watch
 
 DATE = '2026-09-05'
 EP = 'https://push.example/aaa'
@@ -183,6 +183,38 @@ def test_watch_carries_registration_timestamp(client, boats):
     assert w['created_at'] is not None
     parsed = datetime.datetime.fromisoformat(w['created_at'])
     assert before <= parsed <= datetime.datetime.utcnow() + datetime.timedelta(seconds=5)
+
+
+def test_watch_carries_last_checked_time_from_snapshot(client, boats, app):
+    """체크 기록 로그가 보여주려는 건 '언제 체크박스를 켰는지'가 아니라
+    '시스템이 실제로 이 배를 언제 확인했는지'다 - 등록 시각과 혼동해서
+    보여주면, 감시 5건을 서로 다른 날 등록했을 때 매시간 다같이 검사돼도
+    로그엔 등록한 날짜가 제각각으로 보이는 버그가 난다.
+    """
+    subscribe(client)
+    client.post('/api/watches', json={
+        'endpoint': EP, 'boat_id': boats[0], 'ship_name': '1호', 'target_date': DATE})
+
+    with app.app_context():
+        snap = Snapshot(boat_id=boats[0], target_date=DATE, ship_name='1호',
+                         status='reserved', available=0)
+        db.session.add(snap)
+        db.session.commit()
+        expected = snap.checked_at.isoformat()
+
+    w = client.get('/api/watches', query_string={'endpoint': EP}).get_json()['watches'][0]
+    assert w['last_checked_at'] == expected
+
+
+def test_watch_last_checked_is_null_before_first_scrape(client, boats):
+    """아직 한 번도 스크래핑되지 않은 감시는 확인 시각이 없어야 한다(거짓으로
+    지어내면 안 된다)."""
+    subscribe(client)
+    client.post('/api/watches', json={
+        'endpoint': EP, 'boat_id': boats[0], 'ship_name': '1호', 'target_date': DATE})
+
+    w = client.get('/api/watches', query_string={'endpoint': EP}).get_json()['watches'][0]
+    assert w['last_checked_at'] is None
 
 
 def test_unknown_boat_returns_400(client, boats):

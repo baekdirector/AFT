@@ -21,6 +21,7 @@ from services.watch_service import (
     add_watch,
     list_watches,
     remove_watch,
+    serialize_watches,
     upsert_subscriber,
 )
 
@@ -105,7 +106,7 @@ def push_subscribe():
     return jsonify({
         'subscriber_id': subscriber.id,
         'limit': MAX_WATCHES_PER_SUBSCRIBER,
-        'watches': [w.to_dict() for w in list_watches(subscriber)],
+        'watches': serialize_watches(list_watches(subscriber)),
     })
 
 
@@ -155,7 +156,7 @@ def get_watches():
     if subscriber is None:
         return jsonify({'watches': [], 'limit': MAX_WATCHES_PER_SUBSCRIBER})
     return jsonify({
-        'watches': [w.to_dict() for w in list_watches(subscriber)],
+        'watches': serialize_watches(list_watches(subscriber)),
         'limit': MAX_WATCHES_PER_SUBSCRIBER,
     })
 
@@ -187,7 +188,7 @@ def create_watch():
 
     return jsonify({
         'watch': watch.to_dict(),
-        'watches': [w.to_dict() for w in list_watches(subscriber)],
+        'watches': serialize_watches(list_watches(subscriber)),
         'limit': MAX_WATCHES_PER_SUBSCRIBER,
     })
 
@@ -209,6 +210,6 @@ def delete_watch():
                            data.get('ship_name'), data.get('target_date'))
     return jsonify({
         'removed': removed,
-        'watches': [w.to_dict() for w in list_watches(subscriber)],
+        'watches': serialize_watches(list_watches(subscriber)),
         'limit': MAX_WATCHES_PER_SUBSCRIBER,
     })

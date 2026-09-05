@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from db import db
-from models import MAX_WATCHES_PER_SUBSCRIBER, Boat, Subscriber, Watch
+from models import MAX_WATCHES_PER_SUBSCRIBER, Boat, Snapshot, Subscriber, Watch
 
 
 class WatchLimitExceeded(Exception):
@@ -54,6 +54,39 @@ def list_watches(subscriber: Subscriber) -> list[Watch]:
 
 def count_watches(subscriber: Subscriber) -> int:
     return Watch.query.filter_by(subscriber_id=subscriber.id, active=True).count()
+
+
+def serialize_watches(watches: list[Watch]) -> list[dict]:
+    """Watch 목록을 API 응답 모양으로 바꾸면서 마지막 실제 확인 시각을 붙인다.
+
+    Watch.created_at 은 "언제 체크박스를 켰는지"일 뿐이다. /watches 화면의
+    체크 기록 로그는 "시스템이 실제로 이 배의 자리를 언제 확인했는지"를
+    보여주려는 것이었는데 둘을 혼동해서 등록 시각을 대신 보여주는 버그가
+    있었다 - 감시 5건을 서로 다른 날 등록했으면 매시간 다같이 검사돼도
+    로그엔 등록한 날짜가 제각각으로 보였다. Snapshot 이 (boat_id,
+    target_date, ship_name) 키를 Watch 와 공유하므로(모델 주석 참고) 그걸로
+    조인해 마지막 확인 시각(checked_at)을 구한다.
+    """
+    if not watches:
+        return []
+
+    boat_ids = {w.boat_id for w in watches}
+    dates = {w.target_date for w in watches}
+    snapshots = Snapshot.query.filter(
+        Snapshot.boat_id.in_(boat_ids),
+        Snapshot.target_date.in_(dates),
+    ).all()
+    checked_at_by_key = {
+        (s.boat_id, s.target_date, s.ship_name): s.checked_at for s in snapshots
+    }
+
+    result = []
+    for w in watches:
+        d = w.to_dict()
+        checked_at = checked_at_by_key.get((w.boat_id, w.target_date, w.ship_name))
+        d['last_checked_at'] = checked_at.isoformat() if checked_at else None
+        result.append(d)
+    return result
 
 
 def add_watch(subscriber: Subscriber, boat_id: int, ship_name: str,

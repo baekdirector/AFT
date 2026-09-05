@@ -238,8 +238,8 @@
   color: #fff; font-size: 13.5px; font-weight: 730; white-space: nowrap;
 }
 
-/* 체크 기록 로그. "내가 언제 이 배를 체크했는지" 를 시간순으로 확인하는 용도라
-   기본은 접혀 있고 눌러야 펼쳐진다 - 평소엔 안 볼 정보다. */
+/* 체크 기록 로그. "시스템이 언제 이 배를 실제로 확인했는지"를 시간순으로
+   보여주는 용도라 기본은 접혀 있고 눌러야 펼쳐진다 - 평소엔 안 볼 정보다. */
 .watch-log {
   margin-top: 18px; background: #fff; border: 1px solid var(--line); border-radius: 18px;
   overflow: hidden;
@@ -539,7 +539,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (deleteBtn) deleteBtn.disabled = checked.size === 0;
     }
 
-    // 체크 기록 로그: "내가 언제 이 배를 체크했는지"를 최신순으로 보여준다.
+    // 체크 기록 로그: "시스템이 언제 이 배를 실제로 확인했는지"를 최신순으로 보여준다.
     function fmtLogTime(iso) {
       if (!iso) return '-';
       // 서버(datetime.utcnow().isoformat())가 내려주는 값엔 타임존이 없다 -
@@ -564,14 +564,19 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
       }
 
-      const sorted = watches.slice().sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+      // '언제 체크박스를 켰는지'(created_at)가 아니라 '시스템이 실제로 이
+      // 배를 언제 확인했는지'(last_checked_at, Snapshot.checked_at)를
+      // 보여준다 - 등록 시각을 쓰면 감시 5건을 서로 다른 날 걸어도 매시간
+      // 다같이 검사되는 게 로그에 안 드러난다.
+      const sorted = watches.slice().sort(
+        (a, b) => (b.last_checked_at || '').localeCompare(a.last_checked_at || ''));
       sorted.forEach(function (w) {
         const row = document.createElement('div');
         row.className = 'watch-log-row';
 
         const time = document.createElement('span');
         time.className = 'watch-log-time';
-        time.textContent = fmtLogTime(w.created_at);
+        time.textContent = w.last_checked_at ? fmtLogTime(w.last_checked_at) : '확인 전';
         row.appendChild(time);
 
         const what = document.createElement('span');
