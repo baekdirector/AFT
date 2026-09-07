@@ -67,7 +67,7 @@ def collect_one(boat, target_date: str, dry_run: bool):
     from models import Boat  # noqa: F401  (관계 로딩용)
     from services.reservation_checker import check_single_boat
     from services.snapshot import entries_to_observations
-    from services.snapshot_repository import apply_observations
+    from services.snapshot_repository import apply_observations, record_check_log
 
     year, month, day = (int(part) for part in target_date.split('-'))
     info = check_single_boat(boat.url, year, month, day, known_ship_name=boat.name)
@@ -77,6 +77,12 @@ def collect_one(boat, target_date: str, dry_run: bool):
         # 조회 자체가 실패했다. 관측을 만들지 않는다 - 빈 관측을 저장하면
         # 마지막으로 알던 상태를 지우거나 가짜 전환을 만들어낸다.
         logger.warning('  수집 실패 %s %s: %s', boat.name, target_date, info['error'])
+        try:
+            record_check_log(boat.id, target_date, observations=None)
+        except Exception:
+            # 체크 기록 로그는 부가 정보다. 이게 실패했다고 실제 실패 처리
+            # (CollectionFailed)까지 막으면 안 된다.
+            logger.exception('  체크 기록 로그 저장 실패(실패 케이스) %s %s', boat.name, target_date)
         raise CollectionFailed(str(info['error']))
 
     # check_single_boat() 의 entries 는 배별 source_url 을 담지 않는다
@@ -94,7 +100,14 @@ def collect_one(boat, target_date: str, dry_run: bool):
         logger.info('  [dry-run] %s %s: 관측 %d건', boat.name, target_date, len(observations))
         return []
 
-    return apply_observations(boat.id, target_date, observations)
+    transitions = apply_observations(boat.id, target_date, observations)
+    try:
+        record_check_log(boat.id, target_date, observations, transitions)
+    except Exception:
+        # 체크 기록 로그는 부가 정보다. 이게 실패했다고 이미 성공한 수집·
+        # 스냅샷 저장까지 실패로 되돌리면 안 된다.
+        logger.exception('  체크 기록 로그 저장 실패 %s %s', boat.name, target_date)
+    return transitions
 
 
 def run_pipeline(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
@@ -111,15 +124,24 @@ def run_pipeline(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
     from models import Boat
     from services.notify import webpush
     from services.notify.dispatcher import dispatch_all
+    from services.snapshot_repository import purge_old_check_logs
     from services.watch_service import active_watch_targets, deactivate_past_watches
 
     summary = {'targets': 0, 'collected': 0, 'failed': 0,
-               'transitions': 0, 'sent': 0, 'expired_watches': 0}
+               'transitions': 0, 'sent': 0, 'expired_watches': 0, 'purged_check_logs': 0}
 
     today = datetime.date.today().isoformat()
     summary['expired_watches'] = deactivate_past_watches(today)
     if summary['expired_watches']:
         logger.info('지난 날짜 감시 %d건을 껐다', summary['expired_watches'])
+
+    try:
+        summary['purged_check_logs'] = purge_old_check_logs()
+        if summary['purged_check_logs']:
+            logger.info('체크 기록 로그 %d건 정리(2일 초과)', summary['purged_check_logs'])
+    except Exception:
+        # 정리 실패가 수집·알림을 막으면 안 된다. 다음 실행에서 다시 시도된다.
+        logger.exception('체크 기록 로그 정리 실패')
 
     targets = active_watch_targets()
     summary['targets'] = len(targets)

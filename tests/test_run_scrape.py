@@ -14,8 +14,8 @@ SCHEDULER_DIR = Path(__file__).resolve().parents[1] / 'src'
 if str(SCHEDULER_DIR) not in sys.path:
     sys.path.insert(0, str(SCHEDULER_DIR))
 
-from db import add_boat_instance
-from models import Notification, Snapshot, Watch
+from db import add_boat_instance, db
+from models import Notification, Snapshot, Watch, WatchCheckLog
 from scheduler import run_scrape
 from services.notify import webpush
 from services.watch_service import add_watch, upsert_subscriber
@@ -319,3 +319,112 @@ def test_dry_run_writes_nothing(scene, monkeypatch, sent):
     with app.app_context():
         assert Snapshot.query.count() == 0
     assert sent == []
+
+
+# --- 체크 기록 로그 ----------------------------------------------------------
+
+def test_watched_ship_gets_a_check_log_row(scene, monkeypatch, sent):
+    """감시 중인 선박은 확인할 때마다 이력이 한 줄 남아야 한다."""
+    app, boat_ids = scene
+    patch_fetch(monkeypatch, {
+        'https://b0.example/x': {'entries': [entry('1호', 'open', 3)]},
+        'https://b1.example/x': {'entries': [entry('2호', 'full', 0)]},
+    })
+
+    run_scrape.run(delay=0)
+
+    with app.app_context():
+        rows = WatchCheckLog.query.filter_by(boat_id=boat_ids[0], ship_name='1호').all()
+        assert len(rows) == 1
+        assert rows[0].available == 3
+        assert rows[0].target_date == DATE
+
+
+def test_check_log_changed_flag_matches_whether_a_notification_fired(scene, monkeypatch, sent):
+    """자리가 나서 알림이 간 확인은 changed=True, 그대로인 확인은 False."""
+    app, boat_ids = scene
+    patch_fetch(monkeypatch, {
+        'https://b0.example/x': {'entries': [entry('1호', 'full', 0)]},
+        'https://b1.example/x': {'entries': [entry('2호', 'full', 0)]},
+    })
+    run_scrape.run(delay=0)  # 1회차: 최초 저장, 전환 없음
+
+    patch_fetch(monkeypatch, {
+        'https://b0.example/x': {'entries': [entry('1호', 'open', 3)]},   # 자리 남 - 변화
+        'https://b1.example/x': {'entries': [entry('2호', 'full', 0)]},   # 그대로
+    })
+    run_scrape.run(delay=0)  # 2회차: 배0만 변화
+
+    with app.app_context():
+        latest_b0 = (WatchCheckLog.query.filter_by(boat_id=boat_ids[0], ship_name='1호')
+                    .order_by(WatchCheckLog.id.desc()).first())
+        latest_b1 = (WatchCheckLog.query.filter_by(boat_id=boat_ids[1], ship_name='2호')
+                    .order_by(WatchCheckLog.id.desc()).first())
+        assert latest_b0.changed is True
+        assert latest_b1.changed is False
+
+
+def test_check_log_skips_ships_nobody_is_watching(app, monkeypatch):
+    """같은 배 페이지에 실린 다른 선박(감시 안 함)은 기록하지 않는다.
+
+    sunsang24 선단 페이지처럼 한 배 URL이 여러 선박을 같이 내놓을 수 있다.
+    체크 기록 로그는 '내가 감시하는 것을 확인했다'는 확인용이지 전체 수집
+    로그가 아니다.
+    """
+    monkeypatch.setattr(run_scrape, 'create_app', lambda: app)
+    with app.app_context():
+        boat = add_boat_instance(name='선단호', url='https://fleet.example/x',
+                                 city='인천', port='남항(인천항)', note='', is_shared=False)
+        sub = upsert_subscriber('https://push.example/aaa', 'k', 'a', '나')
+        add_watch(sub, boat.id, '감시함호', DATE)   # '감시안함호'는 안 건다
+        boat_id = boat.id
+
+    patch_fetch(monkeypatch, {
+        'https://fleet.example/x': {'entries': [
+            entry('감시함호', 'open', 5), entry('감시안함호', 'open', 2),
+        ]},
+    })
+    run_scrape.run(delay=0)
+
+    with app.app_context():
+        ship_names = {row.ship_name for row in WatchCheckLog.query.filter_by(boat_id=boat_id).all()}
+        assert ship_names == {'감시함호'}
+
+
+def test_collection_failure_still_logs_an_attempted_check(scene, monkeypatch, sent):
+    """수집이 실패해도 '확인을 시도는 했다'를 정직하게 남긴다(자리 수는 모름)."""
+    app, boat_ids = scene
+    patch_fetch(monkeypatch, {
+        'https://b0.example/x': {'entries': [], 'error': 'http_error:connect timeout'},
+        'https://b1.example/x': {'entries': [entry('2호', 'full', 0)]},
+    })
+
+    run_scrape.run(delay=0)
+
+    with app.app_context():
+        row = WatchCheckLog.query.filter_by(boat_id=boat_ids[0], ship_name='1호').one()
+        assert row.available is None
+        assert row.changed is False
+
+
+def test_purge_removes_only_logs_older_than_retention(app):
+    """2일 지난 체크 기록만 정리하고, 최근 것은 남긴다."""
+    from datetime import datetime, timedelta
+
+    from services.snapshot_repository import purge_old_check_logs
+
+    with app.app_context():
+        boat = add_boat_instance(name='배호', url='https://x.example/x',
+                                 city='인천', port='남항(인천항)', note='', is_shared=False)
+        old = WatchCheckLog(boat_id=boat.id, ship_name='1호', target_date=DATE,
+                            checked_at=datetime.utcnow() - timedelta(days=3), available=1)
+        fresh = WatchCheckLog(boat_id=boat.id, ship_name='1호', target_date=DATE,
+                              checked_at=datetime.utcnow() - timedelta(hours=1), available=2)
+        db.session.add_all([old, fresh])
+        db.session.commit()
+
+        deleted = purge_old_check_logs()
+
+        assert deleted == 1
+        remaining = WatchCheckLog.query.all()
+        assert len(remaining) == 1 and remaining[0].id == fresh.id

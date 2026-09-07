@@ -19,6 +19,7 @@ from services.notify import webpush
 from services.watch_service import (
     WatchLimitExceeded,
     add_watch,
+    check_log_history,
     list_watches,
     remove_watch,
     serialize_watches,
@@ -159,6 +160,15 @@ def get_watches():
         'watches': serialize_watches(list_watches(subscriber)),
         'limit': MAX_WATCHES_PER_SUBSCRIBER,
     })
+
+
+@watch_views.route('/api/watches/history', methods=['GET'])
+def get_watches_history():
+    """이 브라우저가 지금 걸어둔 감시들의 확인 이력(최근 2일). 체크 기록 로그용."""
+    subscriber = _find_subscriber(request.args.get('endpoint'))
+    if subscriber is None:
+        return jsonify({'history': []})
+    return jsonify({'history': check_log_history(subscriber)})
 
 
 @watch_views.route('/api/watches', methods=['POST'])

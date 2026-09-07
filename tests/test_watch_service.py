@@ -1,7 +1,8 @@
 """
 감시 등록 규칙 테스트 (Phase C).
 
-핵심은 5척 상한이다. 이 숫자가 곧 스케줄러 수집량이라 느슨하면 수집이 터진다.
+핵심은 MAX_WATCHES_PER_SUBSCRIBER 상한이다. 이 숫자가 곧 스케줄러 수집량이라
+느슨하면 수집이 터진다.
 """
 import pytest
 
@@ -23,12 +24,13 @@ DATE = '2026-09-05'
 
 @pytest.fixture
 def ctx(app):
-    """배 6척과 구독자 하나를 만들어 둔다."""
+    """배 (상한+1)척과 구독자 하나를 만들어 둔다 - 상한을 다 채우고도
+    '한 척 더' 시도할 여유가 있어야 한다."""
     with app.app_context():
         boats = [
             add_boat_instance(name=f'배{i}호', url=f'https://b{i}.example/x',
                               city='인천', port='남항(인천항)', note='', is_shared=False)
-            for i in range(6)
+            for i in range(MAX_WATCHES_PER_SUBSCRIBER + 1)
         ]
         sub = upsert_subscriber('https://push.example/aaa', 'p256dh-aaa', 'auth-aaa', '나')
         yield sub, [b.id for b in boats]
@@ -70,10 +72,10 @@ def test_exceeding_the_limit_is_rejected(app, ctx):
             add_watch(sub, boat_ids[i], f'선박{i}', DATE)
 
         with pytest.raises(WatchLimitExceeded) as exc:
-            add_watch(sub, boat_ids[5], '한척더', DATE)
+            add_watch(sub, boat_ids[MAX_WATCHES_PER_SUBSCRIBER], '한척더', DATE)
 
-        assert exc.value.limit == 5
-        assert count_watches(sub) == 5
+        assert exc.value.limit == MAX_WATCHES_PER_SUBSCRIBER
+        assert count_watches(sub) == MAX_WATCHES_PER_SUBSCRIBER
 
 
 def test_removing_frees_a_slot(app, ctx):
@@ -83,9 +85,9 @@ def test_removing_frees_a_slot(app, ctx):
             add_watch(sub, boat_ids[i], f'선박{i}', DATE)
 
         assert remove_watch(sub, boat_ids[0], '선박0', DATE) is True
-        add_watch(sub, boat_ids[5], '새배', DATE)   # 예외가 나면 안 된다
+        add_watch(sub, boat_ids[MAX_WATCHES_PER_SUBSCRIBER], '새배', DATE)   # 예외가 나면 안 된다
 
-        assert count_watches(sub) == 5
+        assert count_watches(sub) == MAX_WATCHES_PER_SUBSCRIBER
 
 
 def test_limit_is_per_subscriber_not_global(app, ctx):
@@ -97,7 +99,7 @@ def test_limit_is_per_subscriber_not_global(app, ctx):
 
         add_watch(other, boat_ids[0], '선박0', DATE)  # 다른 사람은 영향 없음
 
-        assert count_watches(sub) == 5 and count_watches(other) == 1
+        assert count_watches(sub) == MAX_WATCHES_PER_SUBSCRIBER and count_watches(other) == 1
 
 
 # --- 중복 등록 -------------------------------------------------------------
@@ -129,7 +131,7 @@ def test_reactivating_still_respects_the_limit(app, ctx):
     with app.app_context():
         w0 = add_watch(sub, boat_ids[0], '선박0', DATE)
         remove_watch(sub, boat_ids[0], '선박0', DATE)
-        for i in range(1, 6):
+        for i in range(1, MAX_WATCHES_PER_SUBSCRIBER + 1):
             add_watch(sub, boat_ids[i], f'선박{i}', DATE)
 
         with pytest.raises(WatchLimitExceeded):

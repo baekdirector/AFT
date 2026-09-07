@@ -87,8 +87,11 @@ class Snapshot(db.Model):
 
 #: 한 사람이 걸 수 있는 감시 개수 상한.
 #: 이용자가 친구 5명 안쪽인 취미 규모라 수집량을 작게 유지하는 것이 목적이다.
-#: 감시 대상만 주기 수집하므로 이 숫자가 곧 스케줄러 부하다.
-MAX_WATCHES_PER_SUBSCRIBER = 5
+#: 감시 대상만 주기 수집하므로 이 숫자가 곧 스케줄러 부하다. 원래 5였는데,
+#: 그 근거였던 "GitHub Actions 무료 분(private repo)"이 이 리포가 public이라
+#: 해당 없어져서 20으로 올렸다 - 5명×20척=100척도 지금 71척 라이브 조회
+#: (~100초)보다 감당 가능한 수준이다.
+MAX_WATCHES_PER_SUBSCRIBER = 20
 
 
 class Subscriber(db.Model):
@@ -201,6 +204,48 @@ class Notification(db.Model):
 
     def __repr__(self):
         return f'<Notification watch={self.watch_id} {self.result}>'
+
+
+class WatchCheckLog(db.Model):
+    """감시 확인 이력 1건. "언제 어떤 배를 확인했더니 자리가 몇 개였고 변화가
+    있었는지"를 시간순으로 보여주기 위한 표다.
+
+    Snapshot 은 (배,날짜,선박)당 최신 상태 1행만 들고 있어서 "지난 확인들"을
+    복원할 수 없다 - 그래서 이 표가 따로 필요하다. 무한정 쌓아두지 않고
+    최근 2일만 남기고 스케줄러가 정리한다(run_scrape.run_pipeline).
+    """
+    __tablename__ = 'watch_check_logs'
+    __table_args__ = (
+        db.Index('ix_checklog_key_time', 'boat_id', 'ship_name', 'target_date', 'checked_at'),
+        db.Index('ix_checklog_checked_at', 'checked_at'),  # 2일 지난 행 정리용
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    boat_id = db.Column(db.Integer, db.ForeignKey('boats.id', ondelete='CASCADE'),
+                        nullable=False, index=True)
+    ship_name = db.Column(db.String(255), nullable=False)
+    target_date = db.Column(db.String(10), nullable=False)   # 'YYYY-MM-DD'
+
+    checked_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    available = db.Column(db.Integer, nullable=True)  # 그 시점 남은 자리. 수집 실패 시 None
+    changed = db.Column(db.Boolean, nullable=False, default=False)  # 이 확인이 알림을 발생시켰는지
+
+    boat = db.relationship('Boat', backref=db.backref('check_logs', lazy='dynamic',
+                                                       cascade='all, delete-orphan'))
+
+    def __repr__(self):
+        return f'<WatchCheckLog boat={self.boat_id} {self.ship_name} {self.target_date}>'
+
+    def to_dict(self):
+        return {
+            'boat_id': self.boat_id,
+            'boat_name': self.boat.name if self.boat else None,
+            'ship_name': self.ship_name,
+            'target_date': self.target_date,
+            'checked_at': self.checked_at.isoformat() if self.checked_at else None,
+            'available': self.available,
+            'changed': self.changed,
+        }
 
 
 class AppSetting(db.Model):

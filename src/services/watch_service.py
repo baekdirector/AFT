@@ -7,10 +7,10 @@
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from db import db
-from models import MAX_WATCHES_PER_SUBSCRIBER, Boat, Snapshot, Subscriber, Watch
+from models import MAX_WATCHES_PER_SUBSCRIBER, Boat, Snapshot, Subscriber, Watch, WatchCheckLog
 
 
 class WatchLimitExceeded(Exception):
@@ -87,6 +87,35 @@ def serialize_watches(watches: list[Watch]) -> list[dict]:
         d['last_checked_at'] = checked_at.isoformat() if checked_at else None
         result.append(d)
     return result
+
+
+def check_log_history(subscriber: Subscriber, days: int = 2) -> list[dict]:
+    """이 구독자가 지금 걸어둔 감시들의 확인 이력을 최신순으로 돌려준다.
+
+    WatchCheckLog 는 구독자별로 나뉘어 있지 않다(확인 자체는 시스템 공용
+    이벤트라 누가 감시하든 같다) - 그래서 이 구독자의 현재 활성 감시 키
+    (boat_id, ship_name, target_date) 집합을 먼저 구하고, 그 키에 해당하는
+    로그만 걸러낸다. 같은 배를 여러 사람이 감시해도 이력 자체는 동일하게
+    보인다 - 정상이다.
+    """
+    watches = list_watches(subscriber)
+    if not watches:
+        return []
+
+    watched_keys = {(w.boat_id, w.ship_name, w.target_date) for w in watches}
+    boat_ids = {w.boat_id for w in watches}
+    dates = {w.target_date for w in watches}
+
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    rows = (WatchCheckLog.query
+           .filter(WatchCheckLog.boat_id.in_(boat_ids),
+                   WatchCheckLog.target_date.in_(dates),
+                   WatchCheckLog.checked_at >= cutoff)
+           .order_by(WatchCheckLog.checked_at.desc())
+           .all())
+
+    return [row.to_dict() for row in rows
+           if (row.boat_id, row.ship_name, row.target_date) in watched_keys]
 
 
 def add_watch(subscriber: Subscriber, boat_id: int, ship_name: str,

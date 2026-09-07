@@ -47,12 +47,17 @@ UI는 Claude Design 기반으로 3화면(배 목록/예약현황/빈자리 알�
 - 조석/낚시지수: `src/services/tide/khoa_fishing.py` — KHOA 바다낚시지수 API
   (`GetFcstFishingApiServicev2`, `gubun=선상`). **오늘부터 +5일만 예보한다**(문서에
   없는 실측 제약). 그 밖 날짜는 오류가 아니라 `available:false`로 응답 — 몇 주 뒤
-  예약 날짜 대부분이 이 범위 밖이라는 것을 UI가 담담히 알려야 한다. 물때는
-  N물 숫자가 아니라 소조기/대조기 단위만 제공.
-- 감시 상한: `MAX_WATCHES_PER_SUBSCRIBER = 5`(`src/models.py`). GitHub Actions
-  무료 분(월 2,000, private repo)과 직결되므로 임의로 올리지 말 것 — 올리려면
-  cron 주기(현재 매시)도 같이 조정해야 한다. (이 리포는 실제로 public이라 Actions
-  분 자체는 무제한이지만, 규칙은 그대로 유지 — private로 바뀔 가능성을 열어둔다.)
+  예약 날짜 대부분이 이 범위 밖이라는 것을 UI가 담담히 알려야 한다. 이 API는
+  N물 숫자가 아니라 소조기/대조기 단위만 준다 — **실제 N물 표시는 이 API와
+  무관하게 `src/services/tide/mulddae.py`(음력 계산, 순수 함수)가 담당한다.**
+  서해/남해 규칙이 달라서(바다타임 실측 검증, PLAN.md §4b.2) 지역별 lookup
+  table 두 개를 쓴다. 예약현황 카드에 표시(`/api/status`, `/api/status/cached`
+  의 `mulddae` 필드).
+- 감시 상한: `MAX_WATCHES_PER_SUBSCRIBER = 20`(`src/models.py`). 원래 5였고
+  "GitHub Actions 무료 분(월 2,000, private repo)"이 근거였는데, 이 리포가
+  실제로 public이라 Actions 분 자체는 무제한임을 확인하고 사용자 결정으로
+  20으로 올렸다(PLAN.md D16). 더 올리려면 스크래핑 부하(사람수×상한이 매시간
+  수집 대상)를 먼저 가늠할 것.
 - **Render keep-alive는 GitHub Actions가 아니라 UptimeRobot(외부 무료)이 5분
   간격으로 `/healthz`를 찌른다.** GitHub Actions `schedule`로 10분 간격 핑을
   먼저 시도했는데, 실행 이력을 API로 추적해보니 자동 실행이 1.75~5.5시간
@@ -64,6 +69,12 @@ UI는 Claude Design 기반으로 3화면(배 목록/예약현황/빈자리 알�
   막으려던 콜드스타트보다 더 나쁘다). 이 시간대 게이팅은 라우트 자체
   (`src/routes/views.py`)가 하므로, 외부 핑 서비스는 그냥 자주 찌르기만
   하면 된다.
+- **체크 기록 로그**(`/watches`)는 `WatchCheckLog`(`src/models.py`) 이력
+  테이블로 동작한다 - Snapshot 은 최신 1건만 들고 있어 과거 확인을 복원 못 해서
+  따로 뒀다. `run_scrape.collect_one()`이 감시 중인 ship만 골라 기록하고(같은
+  배 페이지의 감시 안 하는 다른 선박은 안 남김), `run_pipeline()`이 매 실행마다
+  2일 초과분을 정리한다(`purge_old_check_logs`, 별도 cron 불필요). 조회는
+  `GET /api/watches/history`.
 - 새 UI 디자인 원본(Claude Design export)은 리포 밖 스크래치패드에 있다 — 재이식이
   필요하면 사용자에게 다시 export를 요청해야 한다(리포에 커밋된 원본 없음).
 - 이 환경(Windows Git-Bash)에서 `lsof`가 포트 점유 프로세스를 못 찾는다. 로컬 서버

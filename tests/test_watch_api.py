@@ -7,7 +7,7 @@
 import pytest
 
 from db import add_boat_instance, db
-from models import MAX_WATCHES_PER_SUBSCRIBER, Snapshot, Watch
+from models import MAX_WATCHES_PER_SUBSCRIBER, Snapshot, Watch, WatchCheckLog
 
 DATE = '2026-09-05'
 EP = 'https://push.example/aaa'
@@ -17,10 +17,12 @@ SUB_BODY = {'endpoint': EP, 'keys': {'p256dh': 'k', 'auth': 'a'}, 'label': '나'
 @pytest.fixture
 def boats(app):
     with app.app_context():
+        # 상한(MAX_WATCHES_PER_SUBSCRIBER)만큼 채우고도 '한 척 더' 시도할 여유가
+        # 있어야 하므로 +1척을 더 만든다.
         made = [
             add_boat_instance(name=f'배{i}호', url=f'https://b{i}.example/x',
                               city='인천', port='남항(인천항)', note='', is_shared=False)
-            for i in range(6)
+            for i in range(MAX_WATCHES_PER_SUBSCRIBER + 1)
         ]
         yield [b.id for b in made]
 
@@ -117,12 +119,13 @@ def test_exceeding_limit_returns_409_with_message(client, boats):
             'ship_name': f'{i}호', 'target_date': DATE})
 
     rv = client.post('/api/watches', json={
-        'endpoint': EP, 'boat_id': boats[5],
+        'endpoint': EP, 'boat_id': boats[MAX_WATCHES_PER_SUBSCRIBER],
         'ship_name': '한척더', 'target_date': DATE})
 
     assert rv.status_code == 409
     body = rv.get_json()
-    assert body['limit'] == 5 and '5척' in body['error']
+    assert body['limit'] == MAX_WATCHES_PER_SUBSCRIBER
+    assert f'{MAX_WATCHES_PER_SUBSCRIBER}척' in body['error']
 
 
 def test_limit_counts_across_all_dates_not_per_date(client, boats):
@@ -130,28 +133,31 @@ def test_limit_counts_across_all_dates_not_per_date(client, boats):
 
     실제로 겪은 문제: 9월 4일에 2척, 10월 3일에 3척을 걸어둔 상태에서 화면은
     '3/5' 로 보였다. 프론트가 조회 중인 날짜만 세고 있었기 때문이다. 서버는
-    이미 5척이라 4번째 등록을 거절했고, 사용자는 왜 막히는지 알 수 없었다.
+    이미 상한이라 4번째 등록을 거절했고, 사용자는 왜 막히는지 알 수 없었다.
     세는 기준이 서버와 화면에서 갈리지 않도록 서버 규칙을 여기에 고정한다.
     """
     subscribe(client)
-    for i in range(2):
+    first_batch = MAX_WATCHES_PER_SUBSCRIBER // 2
+    second_batch = MAX_WATCHES_PER_SUBSCRIBER - first_batch
+    for i in range(first_batch):
         client.post('/api/watches', json={
             'endpoint': EP, 'boat_id': boats[i],
             'ship_name': f'{i}호', 'target_date': '2026-09-04'})
-    for i in range(2, 5):
+    for i in range(first_batch, MAX_WATCHES_PER_SUBSCRIBER):
         client.post('/api/watches', json={
             'endpoint': EP, 'boat_id': boats[i],
             'ship_name': f'{i}호', 'target_date': '2026-10-03'})
 
     rv = client.post('/api/watches', json={
-        'endpoint': EP, 'boat_id': boats[5],
-        'ship_name': '6호', 'target_date': '2026-10-03'})
+        'endpoint': EP, 'boat_id': boats[MAX_WATCHES_PER_SUBSCRIBER],
+        'ship_name': '한척더', 'target_date': '2026-10-03'})
 
     assert rv.status_code == 409, '날짜가 달라도 상한은 합산된다'
+    assert second_batch > 0  # 두 날짜에 실제로 나뉘어 걸렸는지 자체 점검
 
     # 화면이 카운트를 맞게 셀 수 있도록 응답에는 모든 날짜의 감시가 들어있어야 한다
     listed = client.get('/api/watches', query_string={'endpoint': EP}).get_json()['watches']
-    assert len(listed) == 5
+    assert len(listed) == MAX_WATCHES_PER_SUBSCRIBER
     assert {w['target_date'] for w in listed} == {'2026-09-04', '2026-10-03'}
 
 
@@ -303,3 +309,52 @@ def test_each_browser_sees_only_its_own_watches(client, boats):
 
     assert [w['ship_name'] for w in mine['watches']] == ['내배']
     assert [w['ship_name'] for w in theirs['watches']] == ['친구배']
+
+
+# --- 체크 기록 이력 (/api/watches/history) -----------------------------------
+
+def test_history_returns_only_this_subscribers_watched_keys(client, boats, app):
+    """다른 사람이 감시하는 배의 체크 기록은 안 보여야 한다."""
+    other_ep = 'https://push.example/bbb'
+    subscribe(client)
+    subscribe(client, endpoint=other_ep, label='친구')
+    client.post('/api/watches', json={
+        'endpoint': EP, 'boat_id': boats[0], 'ship_name': '내배', 'target_date': DATE})
+    client.post('/api/watches', json={
+        'endpoint': other_ep, 'boat_id': boats[1], 'ship_name': '친구배', 'target_date': DATE})
+
+    with app.app_context():
+        db.session.add(WatchCheckLog(boat_id=boats[0], ship_name='내배', target_date=DATE, available=3))
+        db.session.add(WatchCheckLog(boat_id=boats[1], ship_name='친구배', target_date=DATE, available=1))
+        db.session.commit()
+
+    mine = client.get('/api/watches/history', query_string={'endpoint': EP}).get_json()
+
+    assert [h['ship_name'] for h in mine['history']] == ['내배']
+
+
+def test_history_excludes_entries_older_than_two_days(client, boats, app):
+    import datetime
+
+    subscribe(client)
+    client.post('/api/watches', json={
+        'endpoint': EP, 'boat_id': boats[0], 'ship_name': '1호', 'target_date': DATE})
+
+    with app.app_context():
+        old = WatchCheckLog(boat_id=boats[0], ship_name='1호', target_date=DATE, available=1,
+                            checked_at=datetime.datetime.utcnow() - datetime.timedelta(days=3))
+        fresh = WatchCheckLog(boat_id=boats[0], ship_name='1호', target_date=DATE, available=2,
+                              checked_at=datetime.datetime.utcnow() - datetime.timedelta(hours=1))
+        db.session.add_all([old, fresh])
+        db.session.commit()
+
+    body = client.get('/api/watches/history', query_string={'endpoint': EP}).get_json()
+
+    assert len(body['history']) == 1
+    assert body['history'][0]['available'] == 2
+
+
+def test_history_for_unknown_endpoint_is_empty_not_error(client):
+    rv = client.get('/api/watches/history', query_string={'endpoint': 'https://nope/x'})
+    assert rv.status_code == 200
+    assert rv.get_json()['history'] == []

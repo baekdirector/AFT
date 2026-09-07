@@ -60,12 +60,20 @@
         <a href="{{ url_for('views.status') }}" class="watch-empty-btn">예약현황 조회로 가기</a>
       </div>
 
-      <!-- 체크 기록 로그. 기본은 접힌 상태 - 언제 어떤 배를 체크했는지 확인하고 싶을 때만 편다 -->
+      <!-- 체크 기록 로그. 기본은 접힌 상태 - 언제 어떤 배를 체크했는지 확인하고 싶을 때만 편다.
+           최근 2일치 확인 이력을 전부 보여준다(GET /api/watches/history). -->
       <details id="watch-log" class="watch-log">
         <summary class="watch-log-toggle">
           <span>체크 기록 로그</span>
           <span class="watch-log-toggle-icon">▾</span>
         </summary>
+        <div class="watch-log-header">
+          <span>체크 시간</span>
+          <span>배 이름</span>
+          <span>날짜</span>
+          <span class="watch-log-col-available">남은 자리</span>
+          <span class="watch-log-col-changed">변경</span>
+        </div>
         <div id="watch-log-body" class="watch-log-body"></div>
       </details>
     </section>
@@ -251,14 +259,25 @@
 }
 .watch-log-toggle-icon { margin-left: auto; font-size: 12px; color: var(--ink-soft); transition: transform 0.18s; }
 .watch-log[open] .watch-log-toggle-icon { transform: rotate(180deg); }
-.watch-log-body { padding: 0 16px 14px; }
+.watch-log-body { padding: 0 16px 14px; max-height: 320px; overflow-y: auto; }
+.watch-log-header, .watch-log-row {
+  display: grid; grid-template-columns: 84px 1fr 64px 60px 68px;
+  align-items: baseline; gap: 8px;
+}
+.watch-log-header {
+  padding: 0 16px 8px; font-size: 11px; font-weight: 700; color: var(--ink-softer);
+}
+.watch-log-col-available, .watch-log-col-changed { text-align: right; }
 .watch-log-row {
-  display: flex; align-items: baseline; gap: 10px; padding: 8px 0;
-  border-top: 1px solid oklch(0.95 0.006 250); font-size: 12.5px;
+  padding: 8px 0; border-top: 1px solid oklch(0.95 0.006 250); font-size: 12.5px;
 }
 .watch-log-row:first-child { border-top: none; }
-.watch-log-time { flex: none; width: 92px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-.watch-log-what { color: var(--ink); font-weight: 600; }
+.watch-log-time { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.watch-log-what { color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.watch-log-date { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.watch-log-available { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+.watch-log-changed { text-align: right; color: var(--ink-softer); }
+.watch-log-changed.is-changed { color: oklch(0.55 0.15 155); font-weight: 700; }
 .watch-log-empty { padding: 4px 0 8px; font-size: 12.5px; color: var(--ink-soft); }
 
 /* 하단 탭바 */
@@ -299,7 +318,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const Watch = (function () {
     let endpoint = null;
     let watches = [];   // GET /api/watches 가 내려준 원본 목록 (boat_id, boat_name, ship_name, target_date, active)
-    let limit = 5;
+    let history = [];   // GET /api/watches/history 가 내려준 확인 이력(최근 2일)
+    let limit = 20;
 
     function setButtonOn(on) {
       const btn = document.getElementById('enable-push-btn');
@@ -401,6 +421,7 @@ document.addEventListener('DOMContentLoaded', function () {
         watches = body.watches || [];
         setButtonOn(true);
         renderAll();
+        await refreshHistory();
       } catch (e) {
         console.warn('감시 상태 복원 실패', e);
         renderAll();
@@ -408,8 +429,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // 체크된 항목들을 기존 DELETE /api/watches 를 반복 호출해 지운다.
-    // 새 일괄삭제 엔드포인트는 만들지 않는다 - 사람당 최대 5개뿐이라
-    // 병렬 호출로도 성능 문제가 없다.
+    // 새 일괄삭제 엔드포인트는 만들지 않는다 - 사람당 최대 MAX_WATCHES_PER_SUBSCRIBER
+    // (현재 20)개뿐이라 병렬 호출로도 성능 문제가 없다.
     async function removeMany(items) {
       if (!endpoint || !items.length) return;
       await Promise.all(items.map(w => fetch('/api/watches', {
@@ -551,12 +572,27 @@ document.addEventListener('DOMContentLoaded', function () {
       return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
 
+    // 이 구독자가 지금 감시 중인 것들의 확인 이력(최근 2일)을 서버에서 다시
+    // 받아온다. watches 목록과 별개 fetch다 - 이력은 "지금 감시 중인가"가
+    // 아니라 "그 확인이 있었던 시점"을 보여주는 것이라 갱신 주기가 다르다.
+    async function refreshHistory() {
+      if (!endpoint) return;
+      try {
+        const body = await (await fetch('/api/watches/history?endpoint=' +
+                                        encodeURIComponent(endpoint))).json();
+        history = body.history || [];
+      } catch (e) {
+        console.warn('체크 기록 이력 조회 실패', e);
+      }
+      renderLog();
+    }
+
     function renderLog() {
       const body = document.getElementById('watch-log-body');
       if (!body) return;
       body.innerHTML = '';
 
-      if (!watches.length) {
+      if (!history.length) {
         const empty = document.createElement('div');
         empty.className = 'watch-log-empty';
         empty.textContent = '체크 기록이 없습니다';
@@ -564,25 +600,38 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
       }
 
-      // '언제 체크박스를 켰는지'(created_at)가 아니라 '시스템이 실제로 이
-      // 배를 언제 확인했는지'(last_checked_at, Snapshot.checked_at)를
-      // 보여준다 - 등록 시각을 쓰면 감시 5건을 서로 다른 날 걸어도 매시간
-      // 다같이 검사되는 게 로그에 안 드러난다.
-      const sorted = watches.slice().sort(
-        (a, b) => (b.last_checked_at || '').localeCompare(a.last_checked_at || ''));
-      sorted.forEach(function (w) {
+      // 서버가 이미 checked_at 최신순으로 내려주지만, 방어적으로 한 번 더 정렬한다.
+      const sorted = history.slice().sort(
+        (a, b) => (b.checked_at || '').localeCompare(a.checked_at || ''));
+      sorted.forEach(function (h) {
         const row = document.createElement('div');
         row.className = 'watch-log-row';
 
         const time = document.createElement('span');
         time.className = 'watch-log-time';
-        time.textContent = w.last_checked_at ? fmtLogTime(w.last_checked_at) : '확인 전';
+        time.textContent = fmtLogTime(h.checked_at);
         row.appendChild(time);
 
         const what = document.createElement('span');
         what.className = 'watch-log-what';
-        what.textContent = `${w.ship_name || w.boat_name || '-'} · ${w.target_date || '-'}`;
+        what.textContent = h.boat_name || h.ship_name || '-';
         row.appendChild(what);
+
+        const date = document.createElement('span');
+        date.className = 'watch-log-date';
+        date.textContent = h.target_date || '-';
+        row.appendChild(date);
+
+        const available = document.createElement('span');
+        available.className = 'watch-log-available';
+        available.textContent = (h.available === null || h.available === undefined)
+          ? '확인 전' : `${h.available}`;
+        row.appendChild(available);
+
+        const changed = document.createElement('span');
+        changed.className = 'watch-log-changed' + (h.changed ? ' is-changed' : '');
+        changed.textContent = h.changed ? '✅ 변경됨' : '–';
+        row.appendChild(changed);
 
         body.appendChild(row);
       });

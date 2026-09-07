@@ -18,17 +18,18 @@ Web Push 발송. 웹 UI는 3화면(배 목록/예약현황/빈자리 알림)이 
 |---|---|---|
 | 예약 파서 | 실측 버그 2건 수정, fixture 하네스 5건 | `src/services/reservation_checker.py`, `tests/fixtures/` |
 | 스냅샷/변화감지 | 완료 | `src/services/snapshot.py`, `snapshot_repository.py` |
-| 감시 등록 | 완료(5척/사람 상한) | `src/services/watch_service.py`, `/api/watches` |
+| 감시 등록 | 완료(20척/사람 상한) | `src/services/watch_service.py`, `/api/watches` |
+| 체크 기록 로그 | 완료. 확인 이력 전체(2일 보관) | `WatchCheckLog`, `/api/watches/history` |
 | Web Push | 완료(테스트발송 기능 포함) | `src/services/notify/webpush.py`, `/api/push/*` |
 | 텔레그램 | **미구현**(의도적 보류) | — |
 | 스케줄러 | 완료, Actions는 트리거만 | `src/scheduler/run_scrape.py`, `.github/workflows/scrape.yml` |
 | `/status` 성능 | 캐시우선표시로 해결 | `/api/status/cached`, ≈1초 |
-| 조석/물때 | KHOA 낚시지수 API로 대체 구현, +5일 한정 | `src/services/tide/khoa_fishing.py`, `/weather` |
+| 조석/물때 | KHOA 낚시지수(소조기/대조기, +5일 한정)는 `/weather`. 실제 N물은 별도 음력 계산(날짜 제약 없음) | `src/services/tide/khoa_fishing.py`, `src/services/tide/mulddae.py`, `/api/status` |
 | UI 재디자인 | 3화면 완료(배 목록/예약현황/알림) | `index.html`/`status.html`/`watches.html` + `base_design.html` |
 | 나머지 화면 | 옛 디자인 그대로 | `weather.html`/`map.html`/`register.html`/`edit_boat.html` |
 | Render keep-alive | 완료. UptimeRobot(외부) 5분 핑, `/healthz`가 06:00~24:00 KST만 200 | `/healthz`(`src/routes/views.py`) |
 
-`pytest` 229 passed, 1 xfailed(badatime 아이콘 파싱 — fixture 확보 전까지 의도적 보류).
+`pytest` 256 passed, 1 xfailed(badatime 아이콘 파싱 — fixture 확보 전까지 의도적 보류).
 
 ## 계획과 실제가 갈린 지점 (다음 세션이 헷갈리지 않도록)
 

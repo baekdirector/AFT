@@ -404,6 +404,7 @@ R1이 우려하던 케이스와 정확히 같은지는 별도 확인 안 됨). �
 | **D13** | 계획 단계=상위 모델(Opus), 코딩 단계=Sonnet 5 | 사용자 지시(토큰 최적화). `CLAUDE.md` 작업 프로토콜 4번에 반영. |
 | **D14** | ~~Render keep-alive = GitHub Actions로 06:00~24:00 KST만 10분 간격 핑~~ | **D15로 대체**: GitHub Actions API로 직접 실행 이력을 추적해보니 고빈도(10분) `schedule`이 신뢰할 수 없는 것으로 실측됨. |
 | **D15** | Render keep-alive = **UptimeRobot(외부 무료)** 5분 간격 핑 + `/healthz`가 **06:00~24:00 KST에만 200**(그 외 503) | D14(GitHub Actions 10분 cron)를 배포했더니 1시간+ 동안 자동 실행이 전혀 없었고(콤마+범위 혼합 cron 문법 문제로 판명, 두 줄로 분리), 고친 뒤에도 자동 실행이 13:25/16:59/22:35/00:19 UTC로 1.75~5.5시간 간격에 그침(기대치 10분, 60회 이상) — GitHub Actions `schedule`은 매시간 1회(scrape.yml)엔 안정적이지만 고빈도 폴링엔 원래 안 맞는다고 결론. UptimeRobot처럼 이 용도로 만들어진 외부 서비스로 옮기고, 활동시간대 제한(750h/월 한도 때문— D14와 동일 이유)은 라우트 자체가 KST 시각을 보고 503으로 게이트한다. |
+| **D16** | 감시 상한 `MAX_WATCHES_PER_SUBSCRIBER` **5 → 20**, 체크 기록 로그를 **이력 테이블화**(`WatchCheckLog`, 최근 2일 보관) | 5의 근거였던 "GitHub Actions 무료 분(private repo)"이 이 리포가 public이라 해당 없어져 20으로 상향(사용자 결정). 곁들여 `/watches`의 체크 기록 로그가 Snapshot(최신 1건만 보관) 한계로 "감시별 최신 확인 1건"만 보여주던 것을, 실제 확인 이력 전체(체크시간·배이름·날짜·남은자리·변경여부)를 보여주게 새 테이블로 바꿨다 — `run_scrape.collect_one()`이 감시 중인 ship만 골라 기록하고, `run_pipeline()`이 매 실행마다 2일 초과분을 정리한다(`GET /api/watches/history`). |
 
 ---
 

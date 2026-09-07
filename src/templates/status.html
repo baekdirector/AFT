@@ -1022,7 +1022,7 @@ document.addEventListener('DOMContentLoaded', function(){
     function atLimit() { return allWatches.length >= limit; }
 
     // 다른 날짜에 걸어둔 감시는 그 날짜를 다시 조회하지 않으면 화면에 안 보이고
-    // 해제할 수도 없다. 슬롯이 5개뿐이라 그대로 두면 갇힌다. 그래서 날짜와
+    // 해제할 수도 없다. 슬롯이 한정돼 있어 그대로 두면 갇힌다. 그래서 날짜와
     // 무관하게 전체 목록을 항상 보여주고 여기서 바로 해제할 수 있게 한다.
     function renderWatchList() {
       const box = document.getElementById('watch-list');
