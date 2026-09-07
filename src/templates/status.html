@@ -192,12 +192,12 @@
                 {% endif %}
               </div>
               {% if not is_open %}
-              <label class="watch-row">
+              <label class="bell-toggle bell-disabled">
                 <input type="checkbox" class="watch-checkbox" disabled
                        data-boat-name="{{ entry.registered_name or '' }}"
                        data-ship-name="{{ entry.ship_name or '' }}">
-                <span class="watch-check-icon">✓</span>
-                <span class="watch-label-text">빈자리 알림 받기</span>
+                <span class="bell-toggle-icon">🔕</span>
+                <span class="bell-toggle-label">알림</span>
               </label>
               {% endif %}
             </article>
@@ -545,25 +545,38 @@
 }
 .btn-popup:hover { background: oklch(0.48 0.09 195); }
 
-.watch-row {
-  display: flex; align-items: center; gap: 9px; margin-top: 12px; padding: 9px 11px; border-radius: 12px;
+/* 빈자리 알림 토글 - "빈자리 알림 토글 스펙" 반영. 예전엔 꺼진 상태를 빈
+   동그라미로만 표현해 눌러보기 전엔 기능을 알기 어려웠다 - 이제 켜짐/꺼짐/
+   비활성 3상태 모두 종 아이콘 + 글자 라벨을 항상 같이 보여준다. */
+.bell-toggle {
+  display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 9px 12px; border-radius: 12px;
   cursor: pointer; user-select: none; border: 1px solid var(--line-soft); background: oklch(0.975 0.005 250);
-  color: var(--ink-soft);
+  color: var(--ink-soft); transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
 }
-.watch-row input.watch-checkbox { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
-.watch-check-icon {
-  width: 19px; height: 19px; flex: none; border-radius: 6px; display: grid; place-items: center; font-size: 11px;
-  line-height: 1; border: 1.5px solid oklch(0.85 0.01 250); background: #fff; color: transparent;
+.bell-toggle input.watch-checkbox { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+.bell-toggle:not(.bell-disabled):hover,
+.bell-toggle:not(.bell-disabled):focus-within {
+  border-color: oklch(0.52 0.1 168); box-shadow: 0 0 0 2px oklch(0.95 0.035 168);
 }
-.watch-row.watch-row-on {
-  border-color: oklch(0.72 0.09 200); background: oklch(0.96 0.03 200); color: oklch(0.34 0.08 210);
+.bell-toggle-icon {
+  width: 22px; height: 22px; flex: none; display: grid; place-items: center; font-size: 13px; line-height: 1;
 }
-.watch-row.watch-row-on .watch-check-icon { border-color: oklch(0.55 0.11 205); background: oklch(0.55 0.11 205); color: #fff; }
-.watch-row.watch-row-disabled { opacity: 0.55; cursor: not-allowed; }
-.watch-label-text { font-size: 12.5px; font-weight: 700; }
+.bell-toggle-label { font-size: 12.5px; font-weight: 700; }
+.bell-toggle.bell-on {
+  border-color: oklch(0.52 0.1 168); background: oklch(0.95 0.035 168); color: oklch(0.3 0.08 168);
+}
+.bell-toggle.bell-on .bell-toggle-icon { animation: ringOn 450ms ease; }
+@media (prefers-reduced-motion: reduce) {
+  .bell-toggle.bell-on .bell-toggle-icon { animation: none; }
+}
+@keyframes ringOn {
+  0% { transform: rotate(0deg); } 20% { transform: rotate(-14deg); } 40% { transform: rotate(11deg); }
+  60% { transform: rotate(-7deg); } 80% { transform: rotate(4deg); } 100% { transform: rotate(0deg); }
+}
+.bell-toggle.bell-disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* 선단(한 배 URL이 여러 척을 내놓는 경우) - 카드 하나에 배별 행을 나열하고
-   각자 따로 알림을 걸 수 있게 종 모양 압축 토글을 붙인다. */
+   각자 따로 알림을 걸 수 있게 압축 토글을 붙인다. */
 .fleet-ship-list {
   display: flex; flex-direction: column; gap: 6px; margin: 10px 0;
   padding: 10px; border-radius: 13px; background: oklch(0.975 0.005 250); border: 1px solid var(--line-soft);
@@ -571,13 +584,38 @@
 .fleet-ship-row { display: flex; align-items: center; gap: 9px; }
 .fleet-ship-name { font-size: 13px; font-weight: 730; color: var(--ink); flex: 1; min-width: 0; }
 .fleet-ship-seat { font-size: 11.5px; font-weight: 650; color: var(--ink-soft); white-space: nowrap; }
-.watch-row.watch-row-bell {
-  margin-top: 0; padding: 0; border: none; background: transparent; flex: none;
+.bell-toggle.bell-toggle-compact {
+  margin-top: 0; padding: 5px 9px; border-radius: 99px; flex: none; gap: 5px;
 }
-.watch-row.watch-row-bell .watch-check-icon {
-  width: 28px; height: 28px; border-radius: 99px; font-size: 14px;
+.bell-toggle.bell-toggle-compact .bell-toggle-icon { width: 17px; height: 17px; font-size: 11px; }
+.bell-toggle.bell-toggle-compact .bell-toggle-label { font-size: 11px; }
+
+/* 선단 카드 전체를 한 번에 켜고 끄는 마스터 토글. all-on(✓)/partial(–)/none(빈칸)
+   3상태를 색과 기호로 함께 보여준다. */
+.fleet-master-toggle {
+  display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 8px; padding: 9px 12px;
+  border-radius: 12px; border: 1px dashed var(--line-soft); background: transparent; color: var(--ink-soft);
+  font-size: 12.5px; font-weight: 700; cursor: pointer; transition: background 160ms ease, border-color 160ms ease;
 }
-.watch-row.watch-row-bell.watch-row-on { background: transparent; }
+.fleet-master-toggle:hover { border-color: oklch(0.52 0.1 168); }
+.fleet-master-mark {
+  width: 18px; height: 18px; flex: none; border-radius: 6px; display: grid; place-items: center; font-size: 11px;
+  border: 1.5px solid oklch(0.85 0.01 250); background: #fff; color: #fff;
+}
+.fleet-master-label { flex: 1; text-align: left; }
+.fleet-master-count { font-size: 11px; font-weight: 650; color: var(--ink-softer); }
+.fleet-master-toggle.all-on {
+  border-style: solid; border-color: oklch(0.52 0.1 168); background: oklch(0.95 0.035 168); color: oklch(0.3 0.08 168);
+}
+.fleet-master-toggle.all-on .fleet-master-mark { border-color: oklch(0.52 0.1 168); background: oklch(0.52 0.1 168); }
+.fleet-master-toggle.partial { border-style: solid; }
+.fleet-master-toggle.partial .fleet-master-mark { border-color: oklch(0.6 0.08 168); color: oklch(0.4 0.08 168); background: #fff; }
+
+@media (max-width: 420px) {
+  .bell-toggle-label { display: none; }
+  .bell-toggle { padding: 9px; width: 40px; height: 40px; justify-content: center; }
+  .bell-toggle.bell-toggle-compact { width: 36px; height: 36px; padding: 0; }
+}
 
 .empty-results {
   grid-column: 1 / -1; text-align: center; padding: 56px 20px; background: #fff;
@@ -1313,15 +1351,24 @@ document.addEventListener('DOMContentLoaded', function(){
     return { isWatched, canWatch, toggle, enable, disable, restore, refreshCheckboxes, sendTest };
   })();
 
-  // watch-checkbox 의 checked/disabled 상태를 감싸는 .watch-row 의 시각(라벨 텍스트,
-  // on/off 색)에 즉시 반영한다. Watch 모듈 내부 상태와는 무관한 순수 표시용 로직이다.
+  // watch-checkbox 의 checked/disabled 상태를 감싸는 .bell-toggle 의 시각(아이콘
+  // 글리프, 라벨 텍스트, on 색)에 즉시 반영한다. Watch 모듈 내부 상태와는 무관한
+  // 순수 표시용 로직이다.
+  //
+  // Claude Design 스펙(빈자리 알림 토글 스펙.dc.html)의 지적: 예전 빈 원(◯)은
+  // 체크박스인지 라디오인지 알림인지 구분되지 않고, 선택 후에야 아이콘이
+  // 나타나 "눌러봐야 아는" 상태였다. 그래서 꺼짐에도 음소거 종(🔕)+라벨을
+  // 항상 보여주고, 켜지면 울리는 종(🔔)+초록 배경으로 바뀌게 한다.
   function syncWatchRowVisual(cb) {
-    const row = cb.closest('.watch-row');
+    const row = cb.closest('.bell-toggle');
     if (!row) return;
-    row.classList.toggle('watch-row-on', cb.checked);
-    row.classList.toggle('watch-row-disabled', !!cb.disabled);
-    const label = row.querySelector('.watch-label-text');
-    if (label) label.textContent = cb.checked ? '빈자리 알림 받는 중' : '빈자리 알림 받기';
+    row.classList.toggle('bell-on', cb.checked);
+    const icon = row.querySelector('.bell-toggle-icon');
+    if (icon) icon.textContent = cb.checked ? '🔔' : '🔕';
+    const label = row.querySelector('.bell-toggle-label');
+    if (label) label.textContent = cb.checked ? '알림 ON' : '알림';
+    const ariaBase = cb.dataset.shipName || cb.dataset.boatName || '';
+    row.setAttribute('aria-label', `${ariaBase} 빈자리 알림 ${cb.checked ? '해제' : '받기'}`);
   }
 
   // onlyBoats 를 주면 그 배들만 조회한다 (잘렸을 때 재조회용).
@@ -1752,34 +1799,90 @@ document.addEventListener('DOMContentLoaded', function(){
       statusRank(r.status_class) < statusRank(best.status_class) ? r : best, group[0]);
   }
 
-  // 알림(감시) 토글 한 줄. status.html 결과 카드와 fleet-ship-row 양쪽에서 쓴다.
-  // compact=true 면 라벨 텍스트를 숨기고 종 아이콘만 보이는 작은 버튼이 된다 -
-  // CSS만 다르고 Watch.toggle 로 가는 로직(dataset, change 리스너)은 완전히 같다.
+  // 알림(감시) 토글 한 줄 - "빈자리 알림 토글 스펙" 반영. status.html 결과
+  // 카드와 fleet-ship-row 양쪽에서 쓴다. compact=true 면 더 작은 아이콘+캡슐
+  // 버튼(선단 내 배별 행), false 면 카드 하단 전체너비 버튼(단일 배 카드).
+  //
+  // 예전엔 감시할 필요가 없는 배(이미 예약가능)는 버튼 자체를 안 그렸다 -
+  // 스펙의 지적대로 "왜 버튼이 없는지" 알 길이 없었다. 이제 disabled 상태로
+  // 항상 그리고, 이유를 title/aria-label 로 설명한다.
   function buildWatchToggle(r, compact) {
-    if (!Watch.canWatch(r)) return null;
+    const disabled = !Watch.canWatch(r);
+    const isOn = !disabled && Watch.isWatched(r.registered_name, r.ship_name);
     const row = document.createElement('label');
-    row.className = 'watch-row' + (compact ? ' watch-row-bell' : '');
+    row.className = 'bell-toggle' + (compact ? ' bell-toggle-compact' : '') +
+      (isOn ? ' bell-on' : '') + (disabled ? ' bell-disabled' : '');
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.className = 'watch-checkbox';
+    cb.disabled = disabled;
     cb.dataset.boatName = r.registered_name || '';
     cb.dataset.shipName = r.ship_name || '';
-    cb.checked = Watch.isWatched(r.registered_name, r.ship_name);
-    cb.title = '자리가 나면 알림 받기';
-    cb.addEventListener('change', () => { syncWatchRowVisual(cb); Watch.toggle(cb); });
+    cb.checked = isOn;
+    const shipLabel = r.ship_name || r.registered_name || '';
+    if (disabled) {
+      row.title = '이미 예약 가능 - 알림이 필요 없어요';
+      row.setAttribute('aria-label', `${shipLabel} 빈자리 알림 - 이미 예약 가능`);
+    } else {
+      cb.addEventListener('change', () => { syncWatchRowVisual(cb); Watch.toggle(cb); });
+      row.setAttribute('aria-label', `${shipLabel} 빈자리 알림 ${isOn ? '해제' : '받기'}`);
+    }
     const icon = document.createElement('span');
-    icon.className = 'watch-check-icon';
-    icon.textContent = compact ? '🔔' : '✓';
+    icon.className = 'bell-toggle-icon';
+    icon.textContent = isOn ? '🔔' : '🔕';
     row.appendChild(cb);
     row.appendChild(icon);
-    if (!compact) {
-      const label = document.createElement('span');
-      label.className = 'watch-label-text';
-      label.textContent = cb.checked ? '빈자리 알림 받는 중' : '빈자리 알림 받기';
-      row.appendChild(label);
-    }
-    row.classList.toggle('watch-row-on', cb.checked);
+    const label = document.createElement('span');
+    label.className = 'bell-toggle-label';
+    label.textContent = disabled ? '불가' : (isOn ? '알림 ON' : '알림');
+    row.appendChild(label);
     return row;
+  }
+
+  // 선단 카드 하단 "전체 알림" 마스터 토글. 감시 가능한(비활성 아닌) 배들의
+  // 체크박스를 모아 all/partial/none 3상태로 보여주고, 누르면 한 번에 켜거나
+  // (partial/none → all) 끈다(all → none). 각 배는 이미 있는 change 로직
+  // (syncWatchRowVisual + Watch.toggle)을 그대로 순차 호출한다 - 새 API를
+  // 만들지 않는다.
+  function buildFleetMasterToggle(shipCheckboxes) {
+    if (!shipCheckboxes.length) return null;
+    const onCount = shipCheckboxes.filter(cb => cb.checked).length;
+    const allOn = onCount === shipCheckboxes.length;
+    const partial = onCount > 0 && !allOn;
+
+    const master = document.createElement('button');
+    master.type = 'button';
+    master.className = 'fleet-master-toggle' + (allOn ? ' all-on' : partial ? ' partial' : '');
+
+    const mark = document.createElement('span');
+    mark.className = 'fleet-master-mark';
+    mark.textContent = allOn || partial ? (allOn ? '✓' : '–') : '';
+    master.appendChild(mark);
+
+    const label = document.createElement('span');
+    label.className = 'fleet-master-label';
+    label.textContent = allOn ? '포함 배 전체 알림 받는 중'
+      : partial ? '일부 배만 알림 중 · 전체 신청' : '포함 배 전체 빈자리 알림 받기';
+    master.appendChild(label);
+
+    const count = document.createElement('span');
+    count.className = 'fleet-master-count';
+    count.textContent = `${onCount}/${shipCheckboxes.length}`;
+    master.appendChild(count);
+
+    master.addEventListener('click', async () => {
+      master.disabled = true;
+      const targetOn = !allOn;
+      for (const cb of shipCheckboxes) {
+        if (cb.checked !== targetOn) {
+          cb.checked = targetOn;
+          syncWatchRowVisual(cb);
+          await Watch.toggle(cb);
+        }
+      }
+      renderRows(lastRenderedRows);   // 최종 상태로 다시 그린다(마스터 배지 갱신 포함)
+    });
+    return master;
   }
 
   function renderRows(rows) {
@@ -1861,6 +1964,7 @@ document.addEventListener('DOMContentLoaded', function(){
       if (isFleet) {
         const list = document.createElement('div');
         list.className = 'fleet-ship-list';
+        const shipCheckboxes = [];
         for (const ship of group) {
           const shipRow = document.createElement('div');
           shipRow.className = 'fleet-ship-row';
@@ -1873,10 +1977,14 @@ document.addEventListener('DOMContentLoaded', function(){
           shipSeat.textContent = seatText(ship);
           shipRow.appendChild(shipSeat);
           const bell = buildWatchToggle(ship, true);
-          if (bell) shipRow.appendChild(bell);
+          shipRow.appendChild(bell);
+          const cb = bell.querySelector('.watch-checkbox');
+          if (cb && !cb.disabled) shipCheckboxes.push(cb);
           list.appendChild(shipRow);
         }
         card.appendChild(list);
+        const master = buildFleetMasterToggle(shipCheckboxes);
+        if (master) card.appendChild(master);
       }
 
       // 어종 + 예약 링크 (대표 행 기준)
@@ -1917,8 +2025,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
       // 단일 선박 배(선단 아님)는 기존 그대로 카드 하단에 전체 너비 알림 행 하나.
       if (!isFleet) {
-        const row = buildWatchToggle(rep, false);
-        if (row) card.appendChild(row);
+        card.appendChild(buildWatchToggle(rep, false));
       }
 
       frag.appendChild(card);
