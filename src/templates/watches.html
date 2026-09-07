@@ -431,23 +431,42 @@ document.addEventListener('DOMContentLoaded', function () {
     // 체크된 항목들을 기존 DELETE /api/watches 를 반복 호출해 지운다.
     // 새 일괄삭제 엔드포인트는 만들지 않는다 - 사람당 최대 MAX_WATCHES_PER_SUBSCRIBER
     // (현재 20)개뿐이라 병렬 호출로도 성능 문제가 없다.
+    //
+    // endpoint 가 비어있거나 네트워크가 잠깐 끊기면 예전엔 아무 말 없이
+    // 조용히 아무 일도 안 했다 - 눌러도 카드가 그대로 남아있는데 이유를 알
+    // 방법이 없었다. sendTest() 처럼 실패를 눈에 보이게 알린다.
     async function removeMany(items) {
-      if (!endpoint || !items.length) return;
-      await Promise.all(items.map(w => fetch('/api/watches', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          endpoint, boat_id: w.boat_id,
-          ship_name: w.ship_name, target_date: w.target_date
-        })
-      })));
-      // 서버 상태를 다시 조회해서 반영한다(부분 실패가 있어도 실제 상태를 신뢰)
-      const body = await (await fetch('/api/watches?endpoint=' +
-                                      encodeURIComponent(endpoint))).json();
-      limit = body.limit || limit;
-      watches = body.watches || [];
-      checked.clear();
-      renderAll();
+      if (!items.length) return;
+      if (!endpoint) {
+        alert('알림 구독 정보를 찾지 못했습니다. "알림 켜기"를 다시 눌러주세요.');
+        return;
+      }
+      try {
+        const results = await Promise.all(items.map(w => fetch('/api/watches', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            endpoint, boat_id: w.boat_id,
+            ship_name: w.ship_name, target_date: w.target_date
+          })
+        }).then(r => r.json()).catch(() => ({ removed: false }))));
+
+        // 서버 상태를 다시 조회해서 반영한다(부분 실패가 있어도 실제 상태를 신뢰)
+        const body = await (await fetch('/api/watches?endpoint=' +
+                                        encodeURIComponent(endpoint))).json();
+        limit = body.limit || limit;
+        watches = body.watches || [];
+        checked.clear();
+        renderAll();
+
+        const failedCount = results.filter(r => !r.removed).length;
+        if (failedCount > 0) {
+          alert(`${failedCount}건은 해제하지 못했습니다. 잠시 후 다시 시도해주세요.`);
+        }
+      } catch (e) {
+        console.warn('알림 해제 실패', e);
+        alert('알림 해제 중 오류가 발생했습니다. 네트워크 상태를 확인하고 다시 시도해주세요.');
+      }
     }
 
     async function remove(w) {
