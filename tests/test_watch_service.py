@@ -13,6 +13,7 @@ from services.watch_service import (
     active_watch_targets,
     add_watch,
     count_watches,
+    deactivate_all_watches,
     list_watches,
     remove_watch,
     upsert_subscriber,
@@ -198,3 +199,52 @@ def test_list_watches_is_ordered(app, ctx):
         add_watch(sub, boat_ids[1], '가호', '2026-09-05')
 
         assert [w.ship_name for w in list_watches(sub)] == ['가호', '나호']
+
+
+# --- 알림 끄기(전체 해제) ----------------------------------------------------
+
+def test_deactivate_all_watches_turns_off_every_active_watch(app, ctx):
+    """알림을 끄면 감시도 모두 해제한다(사용자 결정)."""
+    sub, boat_ids = ctx
+    with app.app_context():
+        add_watch(sub, boat_ids[0], '1호', DATE)
+        add_watch(sub, boat_ids[1], '2호', DATE)
+
+        deactivated = deactivate_all_watches(sub)
+
+        assert deactivated == 2
+        assert count_watches(sub) == 0
+        assert list_watches(sub) == []
+
+
+def test_deactivate_all_watches_does_not_touch_other_subscribers(app, ctx):
+    sub, boat_ids = ctx
+    with app.app_context():
+        other = upsert_subscriber('https://push.example/bbb', 'k', 'a', '친구')
+        add_watch(sub, boat_ids[0], '1호', DATE)
+        add_watch(other, boat_ids[0], '1호', DATE)
+
+        deactivate_all_watches(sub)
+
+        assert count_watches(sub) == 0
+        assert count_watches(other) == 1
+
+
+def test_deactivate_all_watches_is_soft_delete_not_hard_delete(app, ctx):
+    """remove_watch 와 같은 이유 - 발송 이력이 Watch 를 참조하므로 하드
+    삭제하면 껐다 켜는 것만으로 같은 알림을 다시 받게 된다."""
+    sub, boat_ids = ctx
+    with app.app_context():
+        add_watch(sub, boat_ids[0], '1호', DATE)
+
+        deactivate_all_watches(sub)
+
+        row = Watch.query.filter_by(subscriber_id=sub.id, boat_id=boat_ids[0],
+                                    ship_name='1호', target_date=DATE).one()
+        assert row.active is False
+
+
+def test_deactivate_all_watches_on_subscriber_with_no_watches_is_a_noop(app):
+    with app.app_context():
+        sub = upsert_subscriber('https://push.example/ccc', 'k', 'a', '나')
+        assert deactivate_all_watches(sub) == 0

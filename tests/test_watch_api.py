@@ -76,6 +76,47 @@ def test_subscribe_rejects_incomplete_body(client):
     assert rv.status_code == 400
 
 
+# --- 알림 끄기(전체 해제) ----------------------------------------------------
+
+def test_unsubscribe_deactivates_all_watches(client, boats):
+    subscribe(client)
+    client.post('/api/watches', json={
+        'endpoint': EP, 'boat_id': boats[0], 'ship_name': '1호', 'target_date': DATE})
+    client.post('/api/watches', json={
+        'endpoint': EP, 'boat_id': boats[1], 'ship_name': '2호', 'target_date': DATE})
+
+    rv = client.post('/api/push/unsubscribe', json={'endpoint': EP})
+
+    assert rv.status_code == 200
+    body = rv.get_json()
+    assert body['deactivated'] == 2
+    assert body['watches'] == []
+
+    remaining = client.get('/api/watches', query_string={'endpoint': EP}).get_json()
+    assert remaining['watches'] == []
+
+
+def test_unsubscribe_for_unknown_endpoint_is_a_noop_not_error(client):
+    rv = client.post('/api/push/unsubscribe', json={'endpoint': 'https://nope/x'})
+    assert rv.status_code == 200
+    assert rv.get_json() == {'deactivated': 0, 'watches': []}
+
+
+def test_unsubscribe_does_not_affect_other_subscribers(client, boats):
+    other_ep = 'https://push.example/bbb'
+    subscribe(client)
+    subscribe(client, endpoint=other_ep, label='친구')
+    client.post('/api/watches', json={
+        'endpoint': EP, 'boat_id': boats[0], 'ship_name': '내배', 'target_date': DATE})
+    client.post('/api/watches', json={
+        'endpoint': other_ep, 'boat_id': boats[1], 'ship_name': '친구배', 'target_date': DATE})
+
+    client.post('/api/push/unsubscribe', json={'endpoint': EP})
+
+    theirs = client.get('/api/watches', query_string={'endpoint': other_ep}).get_json()
+    assert [w['ship_name'] for w in theirs['watches']] == ['친구배']
+
+
 # --- 감시 등록 -------------------------------------------------------------
 
 def test_create_watch(client, boats):

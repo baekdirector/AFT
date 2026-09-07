@@ -170,6 +170,21 @@ def remove_watch(subscriber: Subscriber, boat_id: int, ship_name: str,
     return True
 
 
+def deactivate_all_watches(subscriber: Subscriber) -> int:
+    """이 구독자의 활성 감시를 전부 끈다. 끈 개수를 돌려준다.
+
+    '알림 끄기'를 누르면 감시도 모두 해제하기로 했다(사용자 결정) - 다시
+    켜면 처음부터 다시 등록해야 한다. remove_watch 와 같은 이유로 하드
+    삭제는 안 한다: 발송 이력(Notification)이 Watch 를 참조하므로 지우면
+    중복 방지 근거가 사라져 껐다 켜는 것만으로 같은 알림을 다시 받는다.
+    """
+    watches = Watch.query.filter_by(subscriber_id=subscriber.id, active=True).all()
+    for watch in watches:
+        watch.active = False
+    db.session.commit()
+    return len(watches)
+
+
 def deactivate_past_watches(today: str) -> int:
     """지난 날짜의 감시를 끈다. 끈 개수를 돌려준다.
 

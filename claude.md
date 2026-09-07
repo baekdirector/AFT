@@ -69,6 +69,10 @@ UI는 Claude Design 기반으로 3화면(배 목록/예약현황/빈자리 알�
   막으려던 콜드스타트보다 더 나쁘다). 이 시간대 게이팅은 라우트 자체
   (`src/routes/views.py`)가 하므로, 외부 핑 서비스는 그냥 자주 찌르기만
   하면 된다.
+- **알림 켜기/끄기 토글**: `/status`, `/watches` 둘 다 같은 버튼으로 켜고 끈다.
+  끄면 `PushSubscription.unsubscribe()`(브라우저) + `POST
+  /api/push/unsubscribe`(`deactivate_all_watches`)로 활성 감시를 전부
+  끈다(사용자 결정 - 하드 삭제 아님, remove_watch와 같은 이유).
 - **체크 기록 로그**(`/watches`)는 `WatchCheckLog`(`src/models.py`) 이력
   테이블로 동작한다 - Snapshot 은 최신 1건만 들고 있어 과거 확인을 복원 못 해서
   따로 뒀다. `run_scrape.collect_one()`이 감시 중인 ship만 골라 기록하고(같은

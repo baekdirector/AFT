@@ -20,6 +20,7 @@ from services.watch_service import (
     WatchLimitExceeded,
     add_watch,
     check_log_history,
+    deactivate_all_watches,
     list_watches,
     remove_watch,
     serialize_watches,
@@ -109,6 +110,24 @@ def push_subscribe():
         'limit': MAX_WATCHES_PER_SUBSCRIBER,
         'watches': serialize_watches(list_watches(subscriber)),
     })
+
+
+@watch_views.route('/api/push/unsubscribe', methods=['POST'])
+def push_unsubscribe():
+    """알림을 끈다 - 이 구독자의 감시를 전부 해제한다(사용자 결정: 끄면
+    감시도 모두 해제). 브라우저 쪽 푸시 구독 취소(PushSubscription.unsubscribe())
+    는 클라이언트가 따로 처리한다 - 서버는 우리 쪽 데이터(Watch)만 정리한다.
+
+    구독 정보를 못 찾아도 에러가 아니다 - 이미 꺼진 상태에서 또 눌러도
+    조용히 넘어가야 한다(멱등).
+    """
+    data = request.get_json(silent=True) or {}
+    subscriber = _find_subscriber(data.get('endpoint'))
+    if subscriber is None:
+        return jsonify({'deactivated': 0, 'watches': []})
+
+    deactivated = deactivate_all_watches(subscriber)
+    return jsonify({'deactivated': deactivated, 'watches': []})
 
 
 @watch_views.route('/api/push/test', methods=['POST'])

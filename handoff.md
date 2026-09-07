@@ -29,7 +29,7 @@ Web Push 발송. 웹 UI는 3화면(배 목록/예약현황/빈자리 알림)이 
 | 나머지 화면 | 옛 디자인 그대로 | `weather.html`/`map.html`/`register.html`/`edit_boat.html` |
 | Render keep-alive | 완료. UptimeRobot(외부) 5분 핑, `/healthz`가 06:00~24:00 KST만 200 | `/healthz`(`src/routes/views.py`) |
 
-`pytest` 256 passed, 1 xfailed(badatime 아이콘 파싱 — fixture 확보 전까지 의도적 보류).
+`pytest` 263 passed, 1 xfailed(badatime 아이콘 파싱 — fixture 확보 전까지 의도적 보류).
 
 ## 계획과 실제가 갈린 지점 (다음 세션이 헷갈리지 않도록)
 

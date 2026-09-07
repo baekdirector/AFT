@@ -947,7 +947,7 @@ document.addEventListener('DOMContentLoaded', function(){
     let endpoint = null;          // 이 브라우저의 푸시 구독 주소
     let watched = new Set();      // 현재 조회 날짜의 감시 키('boatName||shipName')
     let allWatches = [];          // 날짜 무관 전체 감시. 상한은 이것으로 센다.
-    let limit = 5;
+    let limit = 20;
 
     function key(boatName, shipName) { return `${boatName || ''}||${shipName || ''}`; }
     function currentDate() {
@@ -1168,6 +1168,40 @@ document.addEventListener('DOMContentLoaded', function(){
       }
     }
 
+    // 알림을 끈다. 사용자 결정: 끄면 걸어둔 감시도 전부 해제한다 - 다시
+    // 켜면 처음부터 다시 등록해야 한다. 브라우저 쪽 푸시 구독도 실제로
+    // 취소한다(PushSubscription.unsubscribe).
+    async function disable() {
+      const btn = document.getElementById('enable-push-btn');
+      if (btn) { btn.disabled = true; btn.textContent = '끄는 중…'; }
+      try {
+        if ('serviceWorker' in navigator) {
+          const reg = await navigator.serviceWorker.ready;
+          const sub = await reg.pushManager.getSubscription();
+          if (sub) await sub.unsubscribe();
+        }
+        if (endpoint) {
+          await fetch('/api/push/unsubscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint })
+          });
+        }
+        applyServerState({ watches: [] });
+        setButtonOn(false);
+      } catch (e) {
+        console.warn('알림 끄기 실패', e);
+        alert('알림을 끄는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          // 성공 시 setButtonOn 이 이미 "알림 켜기"로 바꿔놨다 - 실패/중단이면
+          // "끄는 중…" 에 멈춰있을 테니 켜져있던 문구로 되돌린다.
+          if (btn.textContent === '끄는 중…') btn.textContent = '알림 켜짐';
+        }
+      }
+    }
+
     // 서버 응답 전에 로컬 상태를 먼저 움직인다(그리고 실패 시 되돌린다).
     // 카운트는 날짜 무관 전체(allWatches)로 세므로 둘 다 손봐야 한다.
     function applyLocal(on, k, stub) {
@@ -1255,7 +1289,7 @@ document.addEventListener('DOMContentLoaded', function(){
       }
     }
 
-    return { isWatched, canWatch, toggle, enable, restore, refreshCheckboxes, sendTest };
+    return { isWatched, canWatch, toggle, enable, disable, restore, refreshCheckboxes, sendTest };
   })();
 
   // watch-checkbox 의 checked/disabled 상태를 감싸는 .watch-row 의 시각(라벨 텍스트,
@@ -1514,10 +1548,17 @@ document.addEventListener('DOMContentLoaded', function(){
     btn.addEventListener('click', () => { el.style.display = 'none'; });
   })();
 
-  // 알림 켜기 버튼 + 테스트 발송 + 이미 구독한 브라우저의 상태 복원
+  // 알림 켜기/끄기 버튼 + 테스트 발송 + 이미 구독한 브라우저의 상태 복원
   (function bindPush() {
     const btn = document.getElementById('enable-push-btn');
-    if (btn) btn.addEventListener('click', () => Watch.enable());
+    if (btn) btn.addEventListener('click', function () {
+      // 켜져 있으면(class="on", 라벨이 "알림 켜짐") 누르는 것은 끄는 동작이다.
+      if (this.classList.contains('on')) {
+        Watch.disable();
+        return;
+      }
+      Watch.enable();
+    });
     const test = document.getElementById('test-push-btn');
     if (test) test.addEventListener('click', () => Watch.sendTest());
     Watch.restore();

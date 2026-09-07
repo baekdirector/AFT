@@ -400,6 +400,43 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     }
 
+    // 알림을 끈다. 사용자 결정: 끄면 걸어둔 감시도 전부 해제한다 - 다시
+    // 켜면 처음부터 다시 등록해야 한다(반쯤 걸린 상태로 헷갈리지 않게).
+    // 브라우저 쪽 푸시 구독도 실제로 취소한다(PushSubscription.unsubscribe) -
+    // 예전엔 이 버튼이 안내 문구만 띄우고 아무 것도 안 했다.
+    async function disable() {
+      const btn = document.getElementById('enable-push-btn');
+      if (btn) { btn.disabled = true; btn.textContent = '끄는 중…'; }
+      try {
+        if ('serviceWorker' in navigator) {
+          const reg = await navigator.serviceWorker.ready;
+          const sub = await reg.pushManager.getSubscription();
+          if (sub) await sub.unsubscribe();
+        }
+        if (endpoint) {
+          await fetch('/api/push/unsubscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint })
+          });
+        }
+        watches = [];
+        checked.clear();
+        setButtonOn(false);
+        renderAll();
+      } catch (e) {
+        console.warn('알림 끄기 실패', e);
+        alert('알림을 끄는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          // 성공 시 setButtonOn 이 이미 "알림 켜기"로 바꿔놨다 - 실패/중단이면
+          // "끄는 중…" 에 멈춰있을 테니 켜져있던 문구로 되돌린다.
+          if (btn.textContent === '끄는 중…') btn.textContent = '끄기';
+        }
+      }
+    }
+
     async function sendTest() {
       if (!endpoint) { alert('먼저 "알림 켜기"를 눌러주세요.'); return; }
       const btn = document.getElementById('test-push-btn');
@@ -681,16 +718,13 @@ document.addEventListener('DOMContentLoaded', function () {
       renderLog();
     }
 
-    return { enable, sendTest, restore, remove, removeMany, toggleSelectAll, checked, watches: () => watches };
+    return { enable, disable, sendTest, restore, remove, removeMany, toggleSelectAll, checked, watches: () => watches };
   })();
 
   document.getElementById('enable-push-btn')?.addEventListener('click', function () {
-    // 이미 켜진 상태에서 다시 누르면 끄기 동작은 지원하지 않는다(브라우저 구독
-    // 자체를 취소하는 것은 이 화면의 책임이 아니다 - status.html 과 동일하게
-    // "알림 켜기"만 다룬다. 이미 켜져 있으면 버튼 라벨이 "끄기"로 바뀌지만
-    // 실제로는 안내만 한다).
+    // 켜져 있으면(라벨이 "끄기") 누르는 것은 끄는 동작이다.
     if (this.textContent === '끄기') {
-      alert('브라우저 알림 자체를 끄려면 브라우저/OS 설정에서 이 사이트의 알림 권한을 해제해주세요.');
+      Watch.disable();
       return;
     }
     Watch.enable();
