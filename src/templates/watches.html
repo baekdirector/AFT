@@ -177,6 +177,7 @@
   background: #fff; color: oklch(0.3 0.02 255);
 }
 .push-card.push-card-on .push-card-btn { background: oklch(1 0 0 / 0.18); color: #fff; }
+.push-card-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .push-card-test-btn {
   margin-top: 12px; height: 36px; padding: 0 14px; border-radius: 11px; border: 1px solid oklch(1 0 0 / 0.3);
   background: oklch(1 0 0 / 0.1); color: #fff; font-size: 12.5px; font-weight: 650; cursor: pointer;
@@ -344,41 +345,59 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     async function enable() {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        alert('이 브라우저는 웹 푸시를 지원하지 않습니다.');
-        return;
-      }
-      const info = await (await fetch('/api/push/public-key')).json();
-      if (!info.configured) {
-        alert('서버에 알림 키(VAPID)가 아직 설정되지 않았습니다.');
-        return;
-      }
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        alert('알림 권한이 거부되어 있습니다. 브라우저 설정에서 허용해주세요.');
-        return;
-      }
+      // 권한 요청·서비스워커 대기·서버 왕복까지 몇 단계가 이어져서 눈에 띄게
+      // 걸릴 수 있는데, 이전엔 그동안 버튼이 아무 반응 없이 가만히 있다가
+      // 갑자기 색이 바뀌어서 "눌렀는데 안 되나?" 하고 오해하기 쉬웠다.
+      // sendTest() 처럼 누르는 즉시 로딩 상태를 보여준다.
+      const btn = document.getElementById('enable-push-btn');
+      if (btn) { btn.disabled = true; btn.textContent = '켜는 중…'; }
+      try {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+          alert('이 브라우저는 웹 푸시를 지원하지 않습니다.');
+          return;
+        }
+        const info = await (await fetch('/api/push/public-key')).json();
+        if (!info.configured) {
+          alert('서버에 알림 키(VAPID)가 아직 설정되지 않았습니다.');
+          return;
+        }
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          alert('알림 권한이 거부되어 있습니다. 브라우저 설정에서 허용해주세요.');
+          return;
+        }
 
-      const reg = await navigator.serviceWorker.ready;
-      let sub = await reg.pushManager.getSubscription();
-      if (!sub) {
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(info.public_key)
-        });
+        const reg = await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(info.public_key)
+          });
+        }
+        endpoint = sub.endpoint;
+
+        const body = await (await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sub.toJSON())
+        })).json();
+
+        limit = body.limit || limit;
+        watches = body.watches || [];
+        setButtonOn(true);   // 성공 - 버튼 텍스트를 "끄기"로 바꾼다
+        renderAll();
+      } catch (e) {
+        console.warn('알림 켜기 실패', e);
+        alert('알림을 켜는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          // 성공 시 setButtonOn 이 이미 텍스트를 바꿔놨다 - 실패/중단이면
+          // "켜는 중…" 에 멈춰있을 테니 원래 문구로 되돌린다.
+          if (btn.textContent === '켜는 중…') btn.textContent = '알림 켜기';
+        }
       }
-      endpoint = sub.endpoint;
-
-      const body = await (await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sub.toJSON())
-      })).json();
-
-      limit = body.limit || limit;
-      watches = body.watches || [];
-      setButtonOn(true);
-      renderAll();
     }
 
     async function sendTest() {
