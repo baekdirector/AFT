@@ -510,6 +510,10 @@
   font-size: 10.5px; font-weight: 750; color: oklch(0.5 0.1 195); background: oklch(0.94 0.035 195);
   padding: 3px 8px; border-radius: 7px;
 }
+.fleet-badge {
+  font-size: 10.5px; font-weight: 780; color: oklch(0.4 0.09 285); background: oklch(0.95 0.03 285);
+  padding: 3px 8px; border-radius: 7px; white-space: nowrap;
+}
 .status-badge {
   margin-left: auto; display: inline-block; max-width: 100%; padding: 3px 10px; border-radius: 99px;
   font-size: 11px; font-weight: 750; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff;
@@ -557,6 +561,23 @@
 .watch-row.watch-row-on .watch-check-icon { border-color: oklch(0.55 0.11 205); background: oklch(0.55 0.11 205); color: #fff; }
 .watch-row.watch-row-disabled { opacity: 0.55; cursor: not-allowed; }
 .watch-label-text { font-size: 12.5px; font-weight: 700; }
+
+/* 선단(한 배 URL이 여러 척을 내놓는 경우) - 카드 하나에 배별 행을 나열하고
+   각자 따로 알림을 걸 수 있게 종 모양 압축 토글을 붙인다. */
+.fleet-ship-list {
+  display: flex; flex-direction: column; gap: 6px; margin: 10px 0;
+  padding: 10px; border-radius: 13px; background: oklch(0.975 0.005 250); border: 1px solid var(--line-soft);
+}
+.fleet-ship-row { display: flex; align-items: center; gap: 9px; }
+.fleet-ship-name { font-size: 13px; font-weight: 730; color: var(--ink); flex: 1; min-width: 0; }
+.fleet-ship-seat { font-size: 11.5px; font-weight: 650; color: var(--ink-soft); white-space: nowrap; }
+.watch-row.watch-row-bell {
+  margin-top: 0; padding: 0; border: none; background: transparent; flex: none;
+}
+.watch-row.watch-row-bell .watch-check-icon {
+  width: 28px; height: 28px; border-radius: 99px; font-size: 14px;
+}
+.watch-row.watch-row-bell.watch-row-on { background: transparent; }
 
 .empty-results {
   grid-column: 1 / -1; text-align: center; padding: 56px 20px; background: #fff;
@@ -1710,6 +1731,57 @@ document.addEventListener('DOMContentLoaded', function(){
     setStatText('stat-closed', closedCount);
   }
 
+  // 정렬된 평면 배열(배 1척 = 행 1개)을 등록된 배(선사) 단위로 묶는다. 선상24
+  // "레드헌터"처럼 한 URL이 여러 척(1호/2호/3호)을 같이 내놓는 배("선단")를
+  // 화면에서 카드 하나로 보여주기 위해서다 - sortRows() 는 그대로 두고, 정렬
+  // 결과에서 각 선사가 처음 등장하는 순서를 그대로 카드 순서로 쓴다(안정 그룹핑).
+  function groupByCompany(rows) {
+    const order = [];
+    const groups = new Map();
+    for (const r of rows) {
+      const k = r.registered_name || r.ship_name || '-';
+      if (!groups.has(k)) { groups.set(k, []); order.push(k); }
+      groups.get(k).push(r);
+    }
+    return order.map(k => groups.get(k));
+  }
+
+  // 그룹 안에서 대표로 보여줄 1행 - 상태가 가장 좋은(예약가능에 가까운) 배.
+  function bestOf(group) {
+    return group.reduce((best, r) =>
+      statusRank(r.status_class) < statusRank(best.status_class) ? r : best, group[0]);
+  }
+
+  // 알림(감시) 토글 한 줄. status.html 결과 카드와 fleet-ship-row 양쪽에서 쓴다.
+  // compact=true 면 라벨 텍스트를 숨기고 종 아이콘만 보이는 작은 버튼이 된다 -
+  // CSS만 다르고 Watch.toggle 로 가는 로직(dataset, change 리스너)은 완전히 같다.
+  function buildWatchToggle(r, compact) {
+    if (!Watch.canWatch(r)) return null;
+    const row = document.createElement('label');
+    row.className = 'watch-row' + (compact ? ' watch-row-bell' : '');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'watch-checkbox';
+    cb.dataset.boatName = r.registered_name || '';
+    cb.dataset.shipName = r.ship_name || '';
+    cb.checked = Watch.isWatched(r.registered_name, r.ship_name);
+    cb.title = '자리가 나면 알림 받기';
+    cb.addEventListener('change', () => { syncWatchRowVisual(cb); Watch.toggle(cb); });
+    const icon = document.createElement('span');
+    icon.className = 'watch-check-icon';
+    icon.textContent = compact ? '🔔' : '✓';
+    row.appendChild(cb);
+    row.appendChild(icon);
+    if (!compact) {
+      const label = document.createElement('span');
+      label.className = 'watch-label-text';
+      label.textContent = cb.checked ? '빈자리 알림 받는 중' : '빈자리 알림 받기';
+      row.appendChild(label);
+    }
+    row.classList.toggle('watch-row-on', cb.checked);
+    return row;
+  }
+
   function renderRows(rows) {
     lastRenderedRows = rows;
     updateStatsCards(rows);
@@ -1719,69 +1791,104 @@ document.addEventListener('DOMContentLoaded', function(){
       return;
     }
 
+    const di2 = document.getElementById('date');
+    const formattedDate = (di2 && di2.value) ? di2.value : getCurrentDate();
+
     const frag = document.createDocumentFragment();
-    for (const r of rows) {
+    for (const group of groupByCompany(rows)) {
+      const isFleet = group.length > 1;
+      const rep = bestOf(group);   // 대표 행 - 카드 상단 배지/진행바/링크에 쓴다
+
       const card = document.createElement('article');
       card.className = 'result-card';
 
-      // 상단: 지역/항구/상태 배지
+      // 상단: 지역/항구/물때/(선단이면 척수)/상태 배지
       const meta = document.createElement('div');
       meta.className = 'result-card-meta';
       const region = document.createElement('span');
       region.className = 'region-badge';
-      region.textContent = r.city || '-';
+      region.textContent = rep.city || '-';
       meta.appendChild(region);
       const port = document.createElement('span');
       port.className = 'port-text';
-      port.textContent = r.port || '-';
+      port.textContent = rep.port || '-';
       meta.appendChild(port);
       // 음력 계산 물때(N물). KHOA API와 달리 날짜 제약 없이 항상 계산되지만,
       // 등록 안 된 지역이면 서버가 null을 주므로 그럴 땐 조용히 생략한다.
-      if (r.mulddae) {
+      if (rep.mulddae) {
         const mulddae = document.createElement('span');
         mulddae.className = 'mulddae-badge';
-        mulddae.textContent = r.mulddae;
+        mulddae.textContent = rep.mulddae;
         meta.appendChild(mulddae);
       }
-      const badgeInfo = statusBadge(r);
+      if (isFleet) {
+        const fleetBadge = document.createElement('span');
+        fleetBadge.className = 'fleet-badge';
+        fleetBadge.textContent = `선단 ${group.length}척`;
+        meta.appendChild(fleetBadge);
+      }
+      const badgeInfo = statusBadge(rep);
       const badge = document.createElement('span');
       badge.className = 'status-badge' + (badgeInfo.cls ? ' ' + badgeInfo.cls : '');
       badge.textContent = badgeInfo.text;
       meta.appendChild(badge);
       card.appendChild(meta);
 
-      // 배 이름 + 남은자리 텍스트
+      // 배(선사) 이름 + 대표 남은자리 텍스트
       const head = document.createElement('div');
       head.className = 'result-card-head';
       const name = document.createElement('h3');
       name.className = 'result-ship-name';
-      name.textContent = r.ship_name || r.registered_name || '-';
+      name.textContent = isFleet ? (rep.registered_name || '-') : (rep.ship_name || rep.registered_name || '-');
       head.appendChild(name);
       const seat = document.createElement('div');
       seat.className = 'result-seat-text';
-      seat.textContent = seatText(r);
+      seat.textContent = seatText(rep);
       head.appendChild(seat);
       card.appendChild(head);
 
-      // 진행바 (자리 비율 근사치)
+      // 진행바 (자리 비율 근사치, 대표 행 기준)
       const barTrack = document.createElement('div');
       barTrack.className = 'result-bar-track';
       const barFill = document.createElement('div');
-      barFill.className = 'result-bar-fill ' + seatBarClass(r);
-      barFill.style.width = seatBarWidth(r) + '%';
+      barFill.className = 'result-bar-fill ' + seatBarClass(rep);
+      barFill.style.width = seatBarWidth(rep) + '%';
       barTrack.appendChild(barFill);
       card.appendChild(barTrack);
 
-      // 어종 + 예약 링크
+      // 선단이면 선박별 행을 나열한다 - 배 이름 하나에 묶여도 각자 따로 확인하고
+      // 각자 따로 알림을 걸 수 있어야 한다(사용자 요청: "세부 배별 알림 체크").
+      if (isFleet) {
+        const list = document.createElement('div');
+        list.className = 'fleet-ship-list';
+        for (const ship of group) {
+          const shipRow = document.createElement('div');
+          shipRow.className = 'fleet-ship-row';
+          const shipName = document.createElement('span');
+          shipName.className = 'fleet-ship-name';
+          shipName.textContent = ship.ship_name || '-';
+          shipRow.appendChild(shipName);
+          const shipSeat = document.createElement('span');
+          shipSeat.className = 'fleet-ship-seat';
+          shipSeat.textContent = seatText(ship);
+          shipRow.appendChild(shipSeat);
+          const bell = buildWatchToggle(ship, true);
+          if (bell) shipRow.appendChild(bell);
+          list.appendChild(shipRow);
+        }
+        card.appendChild(list);
+      }
+
+      // 어종 + 예약 링크 (대표 행 기준)
       const foot = document.createElement('div');
       foot.className = 'result-card-foot';
       const fish = document.createElement('div');
       fish.className = 'fish-tag';
-      fish.textContent = r.fish || '-';
+      fish.textContent = rep.fish || '-';
       foot.appendChild(fish);
-      if (r.url) {
+      if (rep.url) {
         const link = document.createElement('a');
-        link.href = r.url;
+        link.href = rep.url;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
         link.className = 'result-link';
@@ -1795,44 +1902,23 @@ document.addEventListener('DOMContentLoaded', function(){
       }
       card.appendChild(foot);
 
-      // 날씨/물때 팝업 버튼
+      // 날씨/물때 팝업 버튼 (항구 단위라 대표 행 기준으로 하나만)
       const popupRow = document.createElement('div');
       popupRow.className = 'result-popup-row';
       const popupBtn = document.createElement('button');
       popupBtn.type = 'button';
       popupBtn.className = 'btn-popup';
       popupBtn.textContent = '🌊 날씨/물때';
-      popupBtn.setAttribute('data-city', r.city || '');
-      popupBtn.setAttribute('data-port', r.port || '');
-      const di2 = document.getElementById('date');
-      const formattedDate = (di2 && di2.value) ? di2.value : getCurrentDate();
+      popupBtn.setAttribute('data-city', rep.city || '');
+      popupBtn.setAttribute('data-port', rep.port || '');
       popupBtn.setAttribute('data-date', formattedDate);
       popupRow.appendChild(popupBtn);
       card.appendChild(popupRow);
 
-      // 알림(감시) 토글. 이미 자리가 있는 배는 감시할 이유가 없으므로 표시하지 않는다.
-      if (Watch.canWatch(r)) {
-        const row = document.createElement('label');
-        row.className = 'watch-row';
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.className = 'watch-checkbox';
-        cb.dataset.boatName = r.registered_name || '';
-        cb.dataset.shipName = r.ship_name || '';
-        cb.checked = Watch.isWatched(r.registered_name, r.ship_name);
-        cb.title = '자리가 나면 알림 받기';
-        cb.addEventListener('change', () => { syncWatchRowVisual(cb); Watch.toggle(cb); });
-        const icon = document.createElement('span');
-        icon.className = 'watch-check-icon';
-        icon.textContent = '✓';
-        const label = document.createElement('span');
-        label.className = 'watch-label-text';
-        label.textContent = cb.checked ? '빈자리 알림 받는 중' : '빈자리 알림 받기';
-        row.appendChild(cb);
-        row.appendChild(icon);
-        row.appendChild(label);
-        row.classList.toggle('watch-row-on', cb.checked);
-        card.appendChild(row);
+      // 단일 선박 배(선단 아님)는 기존 그대로 카드 하단에 전체 너비 알림 행 하나.
+      if (!isFleet) {
+        const row = buildWatchToggle(rep, false);
+        if (row) card.appendChild(row);
       }
 
       frag.appendChild(card);

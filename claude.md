@@ -73,6 +73,12 @@ UI는 Claude Design 기반으로 3화면(배 목록/예약현황/빈자리 알�
   끄면 `PushSubscription.unsubscribe()`(브라우저) + `POST
   /api/push/unsubscribe`(`deactivate_all_watches`)로 활성 감시를 전부
   끈다(사용자 결정 - 하드 삭제 아님, remove_watch와 같은 이유).
+- **예약현황(`/status`) 결과 카드는 선사(등록된 배) 단위로 묶여 있다** -
+  `renderRows()`의 `groupByCompany()`가 정렬된 평면 배열(배 1척=행 1개)을
+  `registered_name`으로 묶는다. 선단(한 URL이 여러 척을 내놓음)이면 카드 안에
+  `fleet-ship-row`가 척마다 있고 각자 종 아이콘 알림 토글(`buildWatchToggle(r, true)`)
+  이 붙는다. `updateStatsCards`/`sortRows`는 여전히 배(ship) 단위 평면 배열을
+  본다 - 그룹핑은 순수 렌더링 단계에서만 일어난다. 백엔드는 안 바뀌었다.
 - **체크 기록 로그**(`/watches`)는 `WatchCheckLog`(`src/models.py`) 이력
   테이블로 동작한다 - Snapshot 은 최신 1건만 들고 있어 과거 확인을 복원 못 해서
   따로 뒀다. `run_scrape.collect_one()`이 감시 중인 ship만 골라 기록하고(같은

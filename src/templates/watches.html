@@ -226,6 +226,7 @@
   padding: 3px 10px; border-radius: 99px; white-space: nowrap;
 }
 .watch-card-name { margin: 0 0 4px; font-size: 17px; font-weight: 760; letter-spacing: -0.5px; color: var(--ink); }
+.watch-card-company { font-size: 11.5px; font-weight: 650; color: var(--ink-soft); margin: -2px 0 6px; }
 .watch-card-date { font-size: 12.5px; font-weight: 650; color: oklch(0.5 0.02 255); }
 .watch-card-actions { display: flex; gap: 7px; margin-top: 10px; }
 .watch-remove-btn {
@@ -598,6 +599,16 @@ document.addEventListener('DOMContentLoaded', function () {
         name.className = 'watch-card-name';
         name.textContent = w.ship_name || w.boat_name || '-';
         body.appendChild(name);
+
+        // 선단(한 배 URL이 여러 척을 내놓는 경우) 소속 배는 회사명도 같이
+        // 보여준다 - 아니면 "1호"만 보고 어느 선사인지 알 수 없다. 선단이
+        // 아니면(회사명=선박명) 중복 표시를 피해 생략한다.
+        if (w.boat_name && w.boat_name !== w.ship_name) {
+          const company = document.createElement('div');
+          company.className = 'watch-card-company';
+          company.textContent = w.boat_name;
+          body.appendChild(company);
+        }
 
         const date = document.createElement('div');
         date.className = 'watch-card-date';
