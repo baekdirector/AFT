@@ -19,7 +19,8 @@ import json
 #
 # 환경에 따라 다르게 줄 수 있게 환경변수로 뺀다. 웹 요청 경로는 사용자를
 # 기다리게 하므로 짧게, 스케줄러는 시간 여유가 있으므로 길게 준다
-# (.github/workflows/scrape.yml 에서 올려 준다).
+# (Render 환경변수로 올려 준다 - 스크래핑은 처음부터 Render 프로세스 안에서
+# 돈다, PLAN.md D9/D21).
 REQUEST_CONNECT_TIMEOUT = float(os.environ.get('SCRAPE_CONNECT_TIMEOUT', 5))
 REQUEST_READ_TIMEOUT = float(os.environ.get('SCRAPE_READ_TIMEOUT', 10))
 REQUEST_TIMEOUT_SECONDS = (REQUEST_CONNECT_TIMEOUT, REQUEST_READ_TIMEOUT)

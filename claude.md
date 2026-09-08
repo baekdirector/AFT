@@ -4,9 +4,10 @@
 > 세부 설계·결정 로그는 `PLAN.md`, 실행 이력·다음 후보 작업은 `HANDOFF_PROMPT.md` 참조.
 
 ## 현재 상태 (요약)
-"당김→밀기" 전환이 **완료돼 운영 중**이다. 감시 등록 → GitHub Actions(매시 정각)가
-Render 앱의 `/api/scrape/run`을 트리거 → Render가 실제로 스크래핑(수집은 Actions가
-아니라 Render가 한다 — 아래 "핵심 좌표" 참고) → 스냅샷 비교 → 변화 시 Web Push 발송.
+"당김→밀기" 전환이 **완료돼 운영 중**이다. 감시 등록 → 외부 cron 서비스
+(cron-job.org, 30분 간격)가 Render 앱의 `/api/scrape/run`을 직접 트리거 → Render가
+실제로 스크래핑 → 스냅샷 비교 → 변화 시 Web Push 발송. GitHub Actions는 더 이상
+이 트리거에 관여하지 않는다(`scrape.yml` 삭제됨 — 아래 "핵심 좌표" 참고).
 텔레그램은 **채택하지 않았다**(계획엔 있었으나 Web Push만으로 충분해 보류).
 UI는 Claude Design 기반으로 3화면(배 목록/예약현황/빈자리 알림)을 새로 이식했다
 (`/`, `/status`, `/watches`). `weather.html`/`map.html`/`register.html`/`edit_boat.html`은
@@ -36,10 +37,16 @@ UI는 Claude Design 기반으로 3화면(배 목록/예약현황/빈자리 알�
   "~호"로 안 끝나거나(예: 팀에프원) 마감 시 잔여석에 정원이 남는 버그를 고쳤다
   (`_is_valid_ship_name`, `avail=0` 강제). 여전히 sunsang24/thefishing 두 플랫폼
   패턴만 정식 지원 — 독립 도메인 배(약 28척) 상당수는 fixture 미확보 상태.
-- **수집은 Actions가 아니라 Render가 한다.** GitHub Actions 러너(해외 IP)는 한국
-  중소 호스팅 다수에 연결 자체가 막힌다(실측). 그래서 워크플로는 `POST
-  /api/scrape/run`(Render, `SCRAPE_TOKEN` 인증)을 호출만 하고, 실제 스크래핑·비교·
-  발송은 Render 프로세스 안에서 `scheduler/run_scrape.py`가 수행한다.
+- **수집 트리거는 GitHub Actions가 아니라 외부 cron 서비스(cron-job.org)가 한다**
+  (PLAN.md D21). 원래는 GitHub Actions가 `POST /api/scrape/run`을 호출하는
+  구조였으나(Actions 러너가 한국 중소 호스팅 다수에 연결이 막히는 문제 때문에
+  긁기 자체는 처음부터 Render가 담당 — 이건 안 바뀜), Actions의 `schedule`
+  트리거가 실측상 신뢰할 수 없어서(D20) cron-job.org가 30분 간격으로
+  `X-Scrape-Token` 헤더를 붙여 이 엔드포인트를 직접 호출하는 방식으로
+  바꿨다. `.github/workflows/scrape.yml`은 완전히 삭제됐다 — 수동 실행도
+  cron-job.org 대시보드의 실행 버튼을 쓴다. 실제 스크래핑·비교·발송은 여전히
+  Render 프로세스 안에서 `scheduler/run_scrape.py`가 수행한다(호출 경로만
+  바뀌었을 뿐 실행 위치는 그대로).
 - `/status` 라이브 조회(`STATUS_MAX_WORKERS`)는 **4가 최적값**(실측: 24로 올리면
   오히려 느려짐 — 0.1 CPU 인스턴스에서 스레드 경합). 71척 라이브 조회 ≈100초.
   `/api/status/cached`는 저장된 스냅샷을 즉시(≈1초) 돌려준다 — 화면은 캐시 우선
@@ -68,16 +75,16 @@ UI는 Claude Design 기반으로 3화면(배 목록/예약현황/빈자리 알�
   막으려던 콜드스타트보다 더 나쁘다). 이 시간대 게이팅은 라우트 자체
   (`src/routes/views.py`)가 하므로, 외부 핑 서비스는 그냥 자주 찌르기만
   하면 된다.
-- **`scrape.yml`의 `schedule` cron도 "매시간 1회는 안정적"이라던 예전 결론이
-  실측으로 뒤집혔다(PLAN.md D20).** 실제 실행 간격이 2시간50분~8시간33분으로
-  들쭉날쭉했고, cron을 5분 간격으로 바꿔도 19분 동안 새 스케줄 실행이 한 번도
-  안 돌 만큼 GitHub Actions가 워크플로 파일의 cron 변경 자체를 반영하는 데도
-  크게 지연됨을 확인했다. **즉시 결과가 필요한 진단(배포 확인, 버그 재현)은
-  cron을 만지지 말고 이미 있는 `workflow_dispatch`(Actions 탭의 수동 실행
-  버튼, 저장소 소유자만 가능)를 쓸 것** — 실제로 수동 실행 1회로 몇 분 안에
-  결과를 확인할 수 있었다. 다만 파이프라인/체크 기록 로그 자체의 정확성은
-  이 실측으로 검증됐다 - 문제는 "기록이 안 된다"가 아니라 "생각보다 뜸하게
-  기록된다"였다.
+- **GitHub Actions `schedule` cron은 "매시간 1회는 안정적"이라던 예전 결론이
+  실측으로 뒤집혀서 폐기됐다(PLAN.md D20→D21).** `scrape.yml`을 매시 정각으로
+  걸어놨을 때 실제 실행 간격이 2시간50분~8시간33분으로 들쭉날쭉했고, cron을
+  5분 간격으로 바꿔도 19분 동안 새 스케줄 실행이 한 번도 안 돌 만큼 GitHub
+  Actions가 워크플로 파일의 cron 변경 자체를 반영하는 데도 크게 지연됨을
+  확인했다. 이 실측 진단 과정에서 파이프라인/체크 기록 로그 자체의 정확성은
+  검증됐다 - 문제는 "기록이 안 된다"가 아니라 "생각보다 뜸하게 기록된다"였다.
+  결국 트리거를 cron-job.org로 완전히 옮기고 `scrape.yml` 자체를 삭제했다
+  (D21, 위 "수집 트리거" 항목 참고). 배포 확인·버그 재현처럼 즉시 결과가
+  필요한 수동 실행은 이제 cron-job.org 대시보드의 실행 버튼을 쓴다.
 - **알림 켜기/끄기 토글**: `/status`, `/watches` 둘 다 같은 버튼으로 켜고 끈다.
   끄면 `PushSubscription.unsubscribe()`(브라우저) + `POST
   /api/push/unsubscribe`(`deactivate_all_watches`)로 활성 감시를 전부
@@ -126,6 +133,8 @@ UI는 Claude Design 기반으로 3화면(배 목록/예약현황/빈자리 알�
    쓰고, 반복적인 이식 작업을 하는 것)는 Sonnet 5을 최대한 활용한다. 서브에이전트에게
    위임했다면 결과를 상위 모델이 직접 diff·테스트로 재검증한 뒤 커밋한다.
 
-## 사람이 제공 (환경변수 — Render + GitHub Secrets 양쪽에 동일 값)
+## 사람이 제공 (환경변수 — Render)
 `DATABASE_URL`(Neon Postgres) · `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` ·
-`KHOA_FISHING_API_KEY` · `SCRAPE_TOKEN`(Render만, Actions가 호출 시 인증).
+`KHOA_FISHING_API_KEY` · `SCRAPE_TOKEN`(Render 환경변수. cron-job.org 쪽 cronjob의
+`X-Scrape-Token` 헤더에도 같은 값을 사용자가 직접 입력해뒀다 — GitHub Secrets엔
+더 이상 필요 없다, D21).

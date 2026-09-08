@@ -9,9 +9,11 @@
 
 ## 지금 뭐가 되어 있나 (실측 기준, 2026-09)
 
-**서비스는 실제로 돌아간다.** 매시 정각 GitHub Actions → Render `/api/scrape/run`
+**서비스는 실제로 돌아간다.** cron-job.org(외부, 30분 간격) → Render `/api/scrape/run`
 트리거 → Render가 감시 등록된 (배,날짜)만 스크래핑 → 스냅샷 비교 → 변화 시
-Web Push 발송. 웹 UI는 3화면(배 목록/예약현황/빈자리 알림)이 Claude Design 기반
+Web Push 발송. GitHub Actions는 이 트리거에 더 이상 관여하지 않는다(D20/D21 -
+`schedule` cron이 실측상 신뢰할 수 없어 외부 cron으로 이전, `scrape.yml` 삭제).
+웹 UI는 3화면(배 목록/예약현황/빈자리 알림)이 Claude Design 기반
 새 디자인으로 배포돼 있다.
 
 | 영역 | 상태 | 위치 |
@@ -22,7 +24,7 @@ Web Push 발송. 웹 UI는 3화면(배 목록/예약현황/빈자리 알림)이 
 | 체크 기록 로그 | 완료. 확인 이력 전체(2일 보관) | `WatchCheckLog`, `/api/watches/history` |
 | Web Push | 완료(테스트발송 기능 포함) | `src/services/notify/webpush.py`, `/api/push/*` |
 | 텔레그램 | **미구현**(의도적 보류) | — |
-| 스케줄러 | 완료, Actions는 트리거만 | `src/scheduler/run_scrape.py`, `.github/workflows/scrape.yml` |
+| 스케줄러 | 완료, 트리거는 cron-job.org(외부, 30분) | `src/scheduler/run_scrape.py`, `/api/scrape/run` |
 | `/status` 성능 | 캐시우선표시로 해결 | `/api/status/cached`, ≈1초 |
 | 조석/물때 | KHOA 낚시지수(소조기/대조기, +5일 한정)는 `/weather`. 실제 N물은 별도 음력 계산(날짜 제약 없음) | `src/services/tide/khoa_fishing.py`, `src/services/tide/mulddae.py`, `/api/status` |
 | UI 재디자인 | 3화면 완료(배 목록/예약현황/알림) | `index.html`/`status.html`/`watches.html` + `base_design.html` |
@@ -75,13 +77,17 @@ Web Push 발송. 웹 UI는 3화면(배 목록/예약현황/빈자리 알림)이 
   정지된다(막으려던 콜드스타트보다 더 나쁜 상황). 그래서 keep-alive는
   06:00~24:00 KST(하루 18시간, 월 최대 558시간)로만 범위를 좁혔다(D15). 이
   시간대를 넓히자는 얘기가 나오면 이 한도부터 다시 계산할 것.
-- **GitHub Actions `schedule`을 고빈도(10분 등) 폴링에 쓰지 말 것.** 원래
-  keep-alive를 GitHub Actions 10분 cron으로 만들었는데(D14), 실제 실행
-  이력을 API로 추적해보니 자동 실행이 1.75~5.5시간 간격에 그쳤다(기대치
-  10분, 60회 이상 vs 실제 4회/11시간). `scrape.yml`처럼 매시간 1회는
-  안정적으로 도는 것과 대비된다 — GitHub Actions cron은 저빈도(시간 단위)
-  작업엔 쓰고, 분 단위 고빈도 폴링은 UptimeRobot 같은 전용 외부 서비스로
-  보낼 것(D15, `/healthz`).
+- **GitHub Actions `schedule`을 이 프로젝트의 정기 트리거로 쓰지 말 것 —
+  고빈도든 저빈도든 신뢰할 수 없다고 실측으로 결론났다.** keep-alive를
+  GitHub Actions 10분 cron으로 만들었다가(D14), 실제 실행 이력을 API로
+  추적해보니 자동 실행이 1.75~5.5시간 간격에 그쳤다(기대치 10분, 60회 이상
+  vs 실제 4회/11시간) — UptimeRobot으로 옮겨 해결(D15). 한동안 "`scrape.yml`
+  처럼 매시간 1회는 안정적"이라고 여겼지만, 이것도 나중에 실측으로
+  뒤집혔다(D20) — 실제 간격이 38분~6시간으로 들쭉날쭉했고 cron을 5분으로
+  바꿔도 19분간 반영조차 안 됐다. 결국 스크래핑 트리거도 cron-job.org(외부)로
+  옮기고 `scrape.yml` 자체를 삭제했다(D21). **결론: GitHub Actions `schedule`은
+  주기와 무관하게 이 리포에서 신뢰할 수 없다 — 정기 트리거가 필요하면 처음부터
+  외부 cron 서비스를 쓸 것.**
 
 ## 다음 후보 작업 (우선순위는 사용자와 상의)
 
