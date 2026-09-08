@@ -262,9 +262,12 @@
 .watch-log-toggle-icon { margin-left: auto; font-size: 12px; color: var(--ink-soft); transition: transform 0.18s; }
 .watch-log[open] .watch-log-toggle-icon { transform: rotate(180deg); }
 .watch-log-body { padding: 0 16px 14px; max-height: 320px; overflow-y: auto; }
+/* 배 이름(what)이 예전엔 1fr(남는 공간 전부)이라 카드가 넓은 화면에서 이름
+   칸만 수백px로 늘어나고, 나머지 칸(특히 날짜 64px)은 오히려 좁아서 값이
+   줄바꿈됐다 - 모든 칸을 고정/상한 폭으로 두고 이름만 말줄임표로 자른다. */
 .watch-log-header, .watch-log-row {
-  display: grid; grid-template-columns: 84px 1fr 64px 60px 68px;
-  align-items: baseline; gap: 8px;
+  display: grid; grid-template-columns: 80px minmax(90px, 200px) 52px 64px 76px;
+  align-items: center; gap: 8px; max-width: 620px;
 }
 .watch-log-header {
   padding: 0 16px 8px; font-size: 11px; font-weight: 700; color: var(--ink-softer);
@@ -274,11 +277,11 @@
   padding: 8px 0; border-top: 1px solid oklch(0.95 0.006 250); font-size: 12.5px;
 }
 .watch-log-row:first-child { border-top: none; }
-.watch-log-time { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.watch-log-time { color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .watch-log-what { color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.watch-log-date { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-.watch-log-available { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
-.watch-log-changed { text-align: right; color: var(--ink-softer); }
+.watch-log-date { color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.watch-log-available { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.watch-log-changed { text-align: right; color: var(--ink-softer); font-size: 11.5px; white-space: nowrap; }
 .watch-log-changed.is-changed { color: oklch(0.55 0.15 155); font-weight: 700; }
 .watch-log-empty { padding: 4px 0 8px; font-size: 12.5px; color: var(--ink-soft); }
 
@@ -705,7 +708,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const date = document.createElement('span');
         date.className = 'watch-log-date';
-        date.textContent = h.target_date || '-';
+        // 'YYYY-MM-DD' 그대로 넣으면 52px 칸에서 줄바꿈된다 - 연도는 대부분
+        // 올해라 의미가 적으니 체크 시간과 같은 M/D 형식으로 줄인다.
+        date.textContent = h.target_date ? h.target_date.slice(5).replace('-', '/') : '-';
+        date.title = h.target_date || '';
         row.appendChild(date);
 
         const available = document.createElement('span');
