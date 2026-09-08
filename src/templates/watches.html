@@ -289,12 +289,15 @@
 .watch-log-toggle-icon { margin-left: auto; font-size: 12px; color: var(--ink-soft); transition: transform 0.18s; }
 .watch-log[open] .watch-log-toggle-icon { transform: rotate(180deg); }
 .watch-log-body { padding: 0 16px 14px; max-height: 320px; overflow-y: auto; }
-/* 배 이름(what)이 예전엔 1fr(남는 공간 전부)이라 카드가 넓은 화면에서 이름
-   칸만 수백px로 늘어나고, 나머지 칸(특히 날짜 64px)은 오히려 좁아서 값이
-   줄바꿈됐다 - 모든 칸을 고정/상한 폭으로 두고 이름만 말줄임표로 자른다. */
+/* 배 이름(what) 칸은 남는 공간을 자연스럽게 채우는 1fr - 예전엔 날짜 칸이
+   64px로 너무 좁아서 'YYYY-MM-DD'가 줄바꿈됐던 게 진짜 문제였고(지금은 M/D로
+   줄여서 해결), 그 뒤 이름 칸에 상한(200px)을 줬더니 이번엔 카드 오른쪽에
+   빈 공간이 크게 남는 부작용이 생겼다 - 상한을 없애 다시 1fr로 채운다.
+   '변경' 칸은 텍스트("✅ 변경됨") 대신 아이콘 하나로 줄여서(title 로 설명)
+   좁은 화면에서도 칸 폭을 넉넉히 안 잡아도 되게 했다. */
 .watch-log-header, .watch-log-row {
-  display: grid; grid-template-columns: 80px minmax(90px, 200px) 52px 64px 76px;
-  align-items: center; gap: 8px; max-width: 620px;
+  display: grid; grid-template-columns: 80px minmax(90px, 1fr) 52px 64px 40px;
+  align-items: center; gap: 8px;
 }
 .watch-log-header {
   padding: 0 16px 8px; font-size: 11px; font-weight: 700; color: var(--ink-softer);
@@ -308,9 +311,20 @@
 .watch-log-what { color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .watch-log-date { color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .watch-log-available { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
-.watch-log-changed { text-align: right; color: var(--ink-softer); font-size: 11.5px; white-space: nowrap; }
-.watch-log-changed.is-changed { color: oklch(0.55 0.15 155); font-weight: 700; }
+.watch-log-changed { text-align: right; color: var(--ink-softer); font-size: 12.5px; white-space: nowrap; cursor: default; }
+.watch-log-changed.is-changed { color: oklch(0.55 0.15 155); }
 .watch-log-empty { padding: 4px 0 8px; font-size: 12.5px; color: var(--ink-soft); }
+
+/* 모바일: 칸을 더 좁혀서 가로 스크롤 없이 한 화면에 들어오게 한다. */
+@media (max-width: 480px) {
+  .watch-log-header, .watch-log-row {
+    grid-template-columns: 62px minmax(56px, 1fr) 40px 48px 34px;
+    gap: 5px;
+  }
+  .watch-log-header { font-size: 9.5px; padding: 0 12px 8px; }
+  .watch-log-row { font-size: 11.5px; }
+  .watch-log-body { padding: 0 12px 12px; }
+}
 
 /* 하단 탭바 */
 .bottom-tabbar {
@@ -760,7 +774,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const changed = document.createElement('span');
         changed.className = 'watch-log-changed' + (h.changed ? ' is-changed' : '');
-        changed.textContent = h.changed ? '✅ 변경됨' : '–';
+        // 아이콘 하나로 줄여서(전엔 "✅ 변경됨" 텍스트) 좁은 화면에서도 칸이
+        // 넓게 필요하지 않게 한다 - 뜻은 title 로 설명한다.
+        changed.textContent = h.changed ? '✅' : '–';
+        changed.title = h.changed ? '이 확인에서 변화 감지(알림 발송됨)' : '변화 없음';
         row.appendChild(changed);
 
         body.appendChild(row);
