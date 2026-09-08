@@ -29,15 +29,20 @@
       <h1 class="page-title">빈자리 알림</h1>
       <p class="page-subtitle">신청한 배에 자리가 나면 웹 푸시로 바로 알려드립니다</p>
 
-      <!-- 웹푸시 온/오프 카드. 상태는 클라이언트 JS(Watch.restore)가 로드 시 채운다 -->
-      <div id="push-card" class="push-card push-card-off">
+      <!-- 웹푸시 온/오프 카드. 상태는 클라이언트 JS(Watch.restore)가 로드 시 채운다.
+           navigator.serviceWorker.ready -> getSubscription() -> /api/watches 왕복이
+           끝나기 전까지는 "꺼짐"도 "켜짐"도 아직 모르는 상태다 - 예전엔 그동안
+           기본값인 "꺼짐"이 잠깐 보였다가 실제 상태로 바뀌어서, 이미 켜둔
+           사람에게도 "꺼짐"이 깜빡 스쳐 보이는 문제가 있었다. 그래서 정답을
+          모르는 동안은 확인 중이라고 명확히 보여준다. -->
+      <div id="push-card" class="push-card push-card-loading">
         <div class="push-card-row">
-          <div class="push-card-icon">🔔</div>
+          <div id="push-card-icon" class="push-card-icon"><span class="mini-spinner"></span></div>
           <div class="push-card-text">
-            <div id="push-card-title" class="push-card-title">웹 푸시 알림 꺼짐</div>
-            <div id="push-card-desc" class="push-card-desc">알림을 켜야 빈자리 발생 시 푸시를 받을 수 있어요</div>
+            <div id="push-card-title" class="push-card-title">확인 중…</div>
+            <div id="push-card-desc" class="push-card-desc">구독 상태를 확인하고 있어요</div>
           </div>
-          <button type="button" id="enable-push-btn" class="push-card-btn">알림 켜기</button>
+          <button type="button" id="enable-push-btn" class="push-card-btn" disabled>확인 중…</button>
         </div>
         <button type="button" id="test-push-btn" class="push-card-test-btn" style="display:none;">테스트 알림 받기</button>
       </div>
@@ -50,8 +55,17 @@
         <button type="button" id="delete-selected-btn" class="watch-delete-btn" disabled>선택 삭제</button>
       </div>
 
+      <!-- 로딩 상태. 페이지가 열리자마자 보이고, restore() 가 끝나 renderGrid() 가
+           한 번이라도 돌면(목록이 있든 없든) JS가 감춘다 - "신청한 알림이
+           없습니다"가 실제로는 있는데 아직 안 불러온 것뿐인 걸 잠깐 보여주는
+           일이 없게 한다. -->
+      <div id="watch-loading" class="watch-loading">
+        <span class="mini-spinner"></span>
+        <div class="watch-loading-text">불러오는 중…</div>
+      </div>
+
       <!-- 감시 카드 그리드. 서버는 껍데기만 렌더하고 실제 목록은 GET /api/watches 로 채운다 -->
-      <div id="watch-grid" class="watch-grid"></div>
+      <div id="watch-grid" class="watch-grid" style="display:none;"></div>
 
       <!-- 빈 상태. 목록이 없거나(구독 없음 포함) API 응답이 비어 있을 때 보여준다 -->
       <div id="watch-empty" class="watch-empty">
@@ -182,6 +196,19 @@
   margin-top: 12px; height: 36px; padding: 0 14px; border-radius: 11px; border: 1px solid oklch(1 0 0 / 0.3);
   background: oklch(1 0 0 / 0.1); color: #fff; font-size: 12.5px; font-weight: 650; cursor: pointer;
 }
+
+/* 구독 상태/감시 목록을 아직 못 불러왔을 때 - 기본값을 잘못 보여주는 대신
+   "확인 중"임을 스피너로 명시한다. */
+@keyframes spin { to { transform: rotate(360deg); } }
+.mini-spinner {
+  display: inline-block; width: 20px; height: 20px; border: 3px solid oklch(1 0 0 / 0.3);
+  border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+.watch-loading {
+  display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 44px 20px;
+  color: var(--ink-soft); font-size: 13px;
+}
+.watch-loading .mini-spinner { border-color: oklch(0.85 0.01 250); border-top-color: var(--accent); }
 
 /* 액션바 */
 .watch-actionbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; }
@@ -328,9 +355,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function setButtonOn(on) {
       const btn = document.getElementById('enable-push-btn');
-      if (btn) btn.textContent = on ? '끄기' : '알림 켜기';
+      if (btn) { btn.textContent = on ? '끄기' : '알림 켜기'; btn.disabled = false; }
       const card = document.getElementById('push-card');
-      if (card) card.classList.toggle('push-card-on', on);
+      if (card) { card.classList.toggle('push-card-on', on); card.classList.remove('push-card-loading'); }
+      const icon = document.getElementById('push-card-icon');
+      if (icon) icon.textContent = '🔔';   // restore() 가 확인을 끝냈다는 뜻 - 로딩 스피너를 진짜 아이콘으로 되돌린다
       const title = document.getElementById('push-card-title');
       if (title) title.textContent = on ? '웹 푸시 알림 켜짐' : '웹 푸시 알림 꺼짐';
       const desc = document.getElementById('push-card-desc');
@@ -467,13 +496,16 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     }
 
-    // 이미 구독한 브라우저면 화면을 열 때 조용히 상태를 복원하고 목록을 채운다
+    // 이미 구독한 브라우저면 화면을 열 때 조용히 상태를 복원하고 목록을 채운다.
+    // 카드는 처음엔 "확인 중"(push-card-loading) 상태로 떠 있다가, 아래 모든
+    // 경로(구독 있음/없음/서비스워커 미지원/오류)에서 반드시 setButtonOn 을
+    // 호출해 확정 상태로 바꾼다 - 그래야 "꺼짐"이 잠깐 스쳐 보이는 일이 없다.
     async function restore() {
-      if (!('serviceWorker' in navigator)) { renderAll(); return; }
+      if (!('serviceWorker' in navigator)) { setButtonOn(false); renderAll(); return; }
       try {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
-        if (!sub) { renderAll(); return; }
+        if (!sub) { setButtonOn(false); renderAll(); return; }
         endpoint = sub.endpoint;
         const body = await (await fetch('/api/watches?endpoint=' +
                                         encodeURIComponent(endpoint))).json();
@@ -484,6 +516,7 @@ document.addEventListener('DOMContentLoaded', function () {
         await refreshHistory();
       } catch (e) {
         console.warn('감시 상태 복원 실패', e);
+        setButtonOn(false);
         renderAll();
       }
     }
@@ -556,6 +589,11 @@ document.addEventListener('DOMContentLoaded', function () {
       const grid = document.getElementById('watch-grid');
       const empty = document.getElementById('watch-empty');
       if (!grid || !empty) return;
+      // renderGrid 가 한 번이라도 도는 시점(성공/실패 가리지 않고 restore 의
+      // 모든 경로가 결국 renderAll -> renderGrid 를 호출한다)이 곧 "확인 끝남"
+      // 이다 - 로딩 표시를 여기서 한 번만 감추면 모든 경로가 커버된다.
+      const loading = document.getElementById('watch-loading');
+      if (loading) loading.style.display = 'none';
       grid.innerHTML = '';
 
       if (!watches.length) {
