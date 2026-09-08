@@ -8,25 +8,25 @@ name: 낚시배 자리 감시
 # 한국 중소 호스팅이 해외 IP 를 방화벽에서 드롭하는 것이다. 같은 배들이
 # Render 에서는 6/6 이 8.9초에 붙는다. 그래서 긁는 일은 Render 가 한다.
 #
-# 덤으로 실행이 짧아져 Actions 무료 분을 아끼고, 매시간 Render 를 깨워
-# 콜드스타트도 줄인다.
+# [2026-09-08, PLAN.md D21] 이 워크플로엔 더 이상 schedule 트리거가 없다.
+# GitHub Actions 의 schedule 은 실측상 신뢰할 수 없었다 - 매시 정각으로
+# 걸어놨는데 실제 간격이 38분~6시간으로 들쭉날쭉했고(체크 기록 로그로 확인),
+# cron 을 5분 간격으로 바꿔도 19분 동안 새 스케줄이 한 번도 안 돌 만큼
+# 변경 반영 자체도 늦었다(/healthz keep-alive 에서 이미 겪은 것과 같은 부류의
+# 문제, PLAN.md D14→D15). 그래서 실제 트리거는 외부 cron 서비스
+# (cron-job.org 등, 30분 간격)가 이 엔드포인트를 직접 호출하도록 옮겼다.
+# 이 워크플로는 workflow_dispatch(수동 실행)만 남아 있다 - 배포 확인이나
+# 버그 재현처럼 즉시 결과가 필요할 때 쓴다. schedule 을 다시 추가하지 말 것 -
+# 외부 cron 과 겹쳐 돌면 같은 배를 동시에 두 번 긁게 된다(앱에 동시실행 방지
+# 잠금이 없다 - 트리거를 하나로 유지하는 것으로 막는다).
 #
 # 필요한 Secrets (Settings -> Secrets and variables -> Actions -> Repository secrets):
 #   SCRAPE_TOKEN   Render 의 SCRAPE_TOKEN 환경변수와 같은 값
 #   APP_URL        (선택) 앱 주소. 없으면 아래 기본값을 쓴다.
 
 on:
-  schedule:
-    # 매시 정각. cron 은 UTC 기준이고, GitHub 사정으로 10~30분 늦게 도는 일이 흔하다.
-    # 알림이 정시에 온다고 기대하면 안 된다.
-    #
-    # [진단 메모 2026-09-08] 체크 기록 로그가 안 쌓인다는 신고로 5분 간격으로
-    # 잠깐 바꿔봤는데, 19분이 지나도 새 스케줄 실행이 단 한 번도 안 돌았다
-    # (schedule 트리거가 cron 파일 변경을 반영하는 데 스케줄 주기와 무관하게
-    # 상당히 지연되는 것으로 보임). 그래서 되돌리고 수동 실행(workflow_dispatch)
-    # 으로 대신 확인하기로 했다.
-    - cron: '0 * * * *'
-  # 수동 실행 버튼. cron 을 기다리지 않고 바로 돌려볼 때 쓴다.
+  # 수동 실행 버튼. 실제 주기적 트리거는 외부 cron(cron-job.org 등)이
+  # POST /api/scrape/run 을 30분 간격으로 직접 호출한다 - 위 설명 참고.
   workflow_dispatch:
     inputs:
       dry_run:
