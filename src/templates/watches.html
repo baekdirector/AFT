@@ -19,7 +19,7 @@
       <nav class="header-nav">
         <a href="{{ url_for('views.index') }}" class="header-nav-btn">배 목록</a>
         <a href="{{ url_for('views.status') }}" class="header-nav-btn">예약현황</a>
-        <a href="{{ url_for('views.watches') }}" class="header-nav-btn active">알림</a>
+        <a href="{{ url_for('views.watches') }}" class="header-nav-btn active">알림<span id="nav-watch-count" class="nav-watch-badge" hidden></span></a>
       </nav>
     </div>
   </header>
@@ -162,6 +162,8 @@
 }
 .header-nav-btn.active { background: #fff; color: oklch(0.3 0.02 255); box-shadow: 0 1px 4px oklch(0.4 0.02 250 / 0.14); }
 .header-nav-btn:hover { color: var(--accent); }
+/* 등록된 알림(감시) 개수 배지 - 나머지 글자보다 눈에 띄게 색을 다르게 준다 */
+.nav-watch-badge { margin-left: 3px; font-weight: 800; color: oklch(0.62 0.19 25); }
 
 /* 메인 */
 .app-main { max-width: 1180px; margin: 0 auto; padding: clamp(16px, 3vw, 30px) clamp(14px, 3vw, 28px) 110px; }
@@ -788,6 +790,16 @@ document.addEventListener('DOMContentLoaded', function () {
       renderGrid();
       renderActionbar();
       renderLog();
+      updateNavWatchBadge(watches.length);
+    }
+
+    // GNB "알림" 옆 개수 배지. renderAll이 감시 목록이 바뀌는 모든 경로
+    // (복원/등록해제/알림끄기)에서 이미 호출되므로 여기 한 곳만 갱신하면 된다.
+    function updateNavWatchBadge(n) {
+      const badge = document.getElementById('nav-watch-count');
+      if (!badge) return;
+      if (n > 0) { badge.textContent = `(${n})`; badge.hidden = false; }
+      else { badge.hidden = true; badge.textContent = ''; }
     }
 
     return { enable, disable, sendTest, restore, remove, removeMany, toggleSelectAll, checked, watches: () => watches };

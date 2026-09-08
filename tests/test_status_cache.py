@@ -116,7 +116,7 @@ def test_live_query_notifies_watchers_of_a_change(app, client, boats, monkeypatc
     fake_check(monkeypatch, {'https://b0.example/x': {'entries': [entry('1호', 'open', 3)]}})
     post(client)
 
-    assert len(sent) == 1 and '자리 났습니다' in sent[0]['title']
+    assert len(sent) == 1 and '자리 3석 열림' in sent[0]['title']
     with app.app_context():
         assert Notification.query.filter_by(result=webpush.SENT).count() == 1
 

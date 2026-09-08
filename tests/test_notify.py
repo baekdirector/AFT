@@ -59,8 +59,8 @@ def test_transition_reaches_the_watcher(app, target, sent_ok):
         assert len(records) == 1 and records[0].result == webpush.SENT
         assert len(sent_ok) == 1
         _, payload = sent_ok[0]
-        assert '자리 났습니다' in payload['title']
-        assert '남은자리 3명' in payload['body']
+        assert '자리 3석 열림' in payload['title']
+        assert '남은자리 3석' in payload['body']
         assert payload['url'] == 'https://redhunter.example/x', '원본 링크를 담아야 한다'
 
 

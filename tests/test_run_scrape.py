@@ -105,7 +105,7 @@ def test_second_run_detects_change_and_notifies(scene, monkeypatch, sent):
 
     assert summary['transitions'] == 1 and summary['sent'] == 1
     assert len(sent) == 1
-    assert '자리 났습니다' in sent[0]['title']
+    assert '자리 3석 열림' in sent[0]['title']
     with app.app_context():
         assert Notification.query.filter_by(result=webpush.SENT).count() == 1
 

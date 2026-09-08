@@ -89,20 +89,40 @@ self.addEventListener('push', event => {
   const title = data.title || '낚시배 알림';
   const options = {
     body: data.body || '',
-    icon: '/img/icons/icon-192.png',
-    badge: '/img/icons/icon-192.png',
+    // 예전엔 icon 과 badge 둘 다 앱 아이덴티티용 큰 "AFT" 정사각 로고를
+    // 그대로 썼다 - Windows/Chrome 토스트에서 88px로 커져 본문 폭을 절반
+    // 잡아먹었다("푸시 알림 디자인" 스펙 D절). 알림 전용 아이콘(초록 종)과
+    // 안드로이드 상태바용 단색 실루엣 배지를 따로 둔다.
+    icon: '/img/icons/notify-bell-192.png',
+    badge: '/img/icons/badge-anchor-96.png',
     // 같은 배·날짜의 알림이 여러 개 쌓이지 않고 갱신되도록 tag 를 준다
     tag: data.tag || 'aft-notify',
     renotify: true,
-    data: { url: data.url || '/status' }
+    requireInteraction: false,
+    data: {
+      url: data.url || '/status',
+      boatId: data.boatId ?? null,
+      shipName: data.shipName || null,
+      targetDate: data.targetDate || null,
+    },
   };
+  // 실제 감시 전환 알림만 액션 버튼을 준다(테스트 알림은 실제 배/URL이 없어 생략).
+  if (Array.isArray(data.actions) && data.actions.length) options.actions = data.actions;
 
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener('notificationclick', event => {
+  const info = event.notification.data || {};
+  const action = event.action;   // '' = 본문 클릭, 그 외 = 액션 버튼
   event.notification.close();
-  const target = (event.notification.data && event.notification.data.url) || '/status';
+
+  if (action === 'mute') {
+    event.waitUntil(muteFromNotification(info));
+    return;
+  }
+
+  const target = info.url || '/status';
 
   // 이미 열려 있는 탭이 있으면 그 탭을 쓴다. 누를 때마다 새 창이 뜨면 성가시다.
   event.waitUntil(
@@ -114,3 +134,27 @@ self.addEventListener('notificationclick', event => {
     })
   );
 });
+
+// 알림의 "알림 끄기" 버튼 - 이 배 하나(그 알림이 가리키는 boat/ship/date)의
+// 감시만 해제한다. 이 서비스워커가 곧 그 구독자이므로 자기 구독 endpoint 를
+// 다시 물어봐서(이미 로그인/토큰 없이 endpoint 자체가 신원이다) DELETE
+// /api/watches 를 그대로 호출한다 - 새 API를 만들지 않는다.
+async function muteFromNotification(info) {
+  if (!info.boatId || !info.shipName || !info.targetDate) return;
+  try {
+    const sub = await self.registration.pushManager.getSubscription();
+    if (!sub) return;
+    await fetch('/api/watches', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        endpoint: sub.endpoint,
+        boat_id: info.boatId,
+        ship_name: info.shipName,
+        target_date: info.targetDate,
+      }),
+    });
+  } catch (e) {
+    // 조용히 실패 - 이 배는 /watches 화면에서 직접 끌 수 있다.
+  }
+}

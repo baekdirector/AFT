@@ -36,29 +36,71 @@ def is_configured() -> bool:
                 and os.environ.get('VAPID_PRIVATE_KEY'))
 
 
+_WEEKDAY_KOR = '월화수목금토일'
+
+
+def _format_date_kor(date_str: str) -> str:
+    """'YYYY-MM-DD' -> '9월 12일(토)'. 파싱 실패하면 원본을 그대로 돌려준다."""
+    try:
+        import datetime
+        year, month, day = (int(part) for part in date_str.split('-'))
+        weekday = _WEEKDAY_KOR[datetime.date(year, month, day).weekday()]
+        return f'{month}월 {day}일({weekday})'
+    except Exception:
+        return date_str
+
+
+_MUTE_ACTION = {'action': 'mute', 'title': '알림 끄기'}
+
+
 def build_payload(transition, boat_name: str) -> dict:
     """전환 하나를 사람이 읽을 알림으로 바꾼다.
 
-    실제 예약은 원본 사이트에서 하도록 링크를 함께 담는다(PLAN.md 6).
+    "푸시 알림 디자인" 스펙(Claude Design) 반영. 예전엔 제목이 앱 이름
+    ("AFT 배 자리 확인")이라 알림만 봐서는 어느 배에 무슨 일이 생겼는지 알
+    수 없었다 - 이제 제목 한 줄에 배 이름 + 무슨 일이 생겼는지를 담는다
+    (iOS 는 액션 버튼이 안 뜨므로 특히 중요하다). 실제 예약은 원본 사이트
+    에서 하도록 링크와 "예약 페이지 열기"/"알림 끄기" 액션 버튼을 함께
+    담는다(PLAN.md 6). 잔여석 표기는 화면(status.html seatText)과 통일해
+    "명"이 아니라 "석"을 쓴다.
+
+    actions 는 showNotification 이 실제 버튼으로 그려준다(new Notification()
+    으로는 안 뜬다) - 서비스워커가 이 배열을 그대로 넘겨받는다.
     """
+    ship = transition.ship_name
+    date_label = _format_date_kor(transition.target_date)
     seats = transition.current_available
-    if seats:
-        body = f'{transition.target_date} · 남은자리 {seats}명'
-    else:
-        body = f'{transition.target_date} · {transition.display_status or transition.current_status}'
+    fleet = boat_name if boat_name and boat_name != ship else None
 
     if transition.kind == 'SEAT_OPEN':
-        title = f'🎣 자리 났습니다 — {transition.ship_name}'
+        if seats and seats <= 2:
+            title = f'{ship} · 마지막 {seats}석'
+        elif seats:
+            title = f'{ship} · 자리 {seats}석 열림'
+        else:
+            title = f'{ship} · 자리 열림'
+        body = ' · '.join(filter(None, [date_label, fleet]))
+        if seats:
+            body += f'\n예약완료 → 남은자리 {seats}석'
+        actions = [{'action': 'open', 'title': '예약 페이지 열기'}, _MUTE_ACTION]
     elif transition.kind == 'SEAT_GONE':
-        title = f'마감됐습니다 — {transition.ship_name}'
+        title = f'{ship} · 마감됐습니다'
+        body = ' · '.join(filter(None, [date_label, fleet]))
+        actions = [_MUTE_ACTION]
     else:
-        title = f'상태 변경 — {transition.ship_name}'
+        title = f'{ship} · 상태 변경'
+        body = f'{date_label} · {transition.display_status or transition.current_status}'
+        actions = [_MUTE_ACTION]
 
     return {
         'title': title,
-        'body': f'{boat_name} · {body}',
+        'body': body,
         'url': transition.source_url or '/status',
         'tag': f'{transition.boat_id}-{transition.target_date}-{transition.ship_name}',
+        'boatId': transition.boat_id,
+        'shipName': transition.ship_name,
+        'targetDate': transition.target_date,
+        'actions': actions,
     }
 
 
