@@ -583,6 +583,7 @@
 }
 .fleet-ship-row { display: flex; align-items: center; gap: 9px; }
 .fleet-ship-name { font-size: 13px; font-weight: 730; color: var(--ink); flex: 1; min-width: 0; }
+.fleet-ship-fish { font-size: 11px; font-weight: 650; color: oklch(0.55 0.18 25); white-space: nowrap; }
 .fleet-ship-seat { font-size: 11.5px; font-weight: 650; color: var(--ink-soft); white-space: nowrap; }
 .bell-toggle.bell-toggle-compact {
   margin-top: 0; padding: 5px 9px; border-radius: 99px; flex: none; gap: 5px;
@@ -1972,6 +1973,15 @@ document.addEventListener('DOMContentLoaded', function(){
           shipName.className = 'fleet-ship-name';
           shipName.textContent = ship.ship_name || '-';
           shipRow.appendChild(shipName);
+          // 선단 안 배들은 배마다 잡는 어종이 다르다(예: 레드헌터 선단 - 배별로
+          // 주꾸미/문어/갈치 등 제각각) - 대표 행 하나의 어종만 카드에 보이면
+          // 나머지 배들의 어종을 알 수 없다. 배 행마다 자기 어종을 따로 보여준다.
+          if (ship.fish) {
+            const shipFish = document.createElement('span');
+            shipFish.className = 'fleet-ship-fish';
+            shipFish.textContent = ship.fish;
+            shipRow.appendChild(shipFish);
+          }
           const shipSeat = document.createElement('span');
           shipSeat.className = 'fleet-ship-seat';
           shipSeat.textContent = seatText(ship);
@@ -1987,13 +1997,20 @@ document.addEventListener('DOMContentLoaded', function(){
         if (master) card.appendChild(master);
       }
 
-      // 어종 + 예약 링크 (대표 행 기준)
+      // 어종 + 예약 링크. 선단은 배마다 어종이 달라 대표 행 하나로 카드에
+      // 뭉뚱그려 보여주면 틀린 정보가 되므로 위 배별 목록에서 각자 보여주고,
+      // 여기서는 생략한다. 단일 배 카드는 그대로 대표(=유일한) 어종을 보여준다.
       const foot = document.createElement('div');
       foot.className = 'result-card-foot';
-      const fish = document.createElement('div');
-      fish.className = 'fish-tag';
-      fish.textContent = rep.fish || '-';
-      foot.appendChild(fish);
+      if (!isFleet) {
+        const fish = document.createElement('div');
+        fish.className = 'fish-tag';
+        fish.textContent = rep.fish || '-';
+        foot.appendChild(fish);
+      } else {
+        // 어종 태그가 없어 space-between이 링크를 왼쪽으로 붙인다 - 오른쪽 정렬로 보정.
+        foot.style.justifyContent = 'flex-end';
+      }
       if (rep.url) {
         const link = document.createElement('a');
         link.href = rep.url;
