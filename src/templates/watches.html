@@ -19,7 +19,7 @@
       <nav class="header-nav">
         <a href="{{ url_for('views.index') }}" class="header-nav-btn">배 목록</a>
         <a href="{{ url_for('views.status') }}" class="header-nav-btn">예약현황</a>
-        <a href="{{ url_for('views.watches') }}" class="header-nav-btn active">알림<span id="nav-watch-count" class="nav-watch-badge" hidden></span></a>
+        <a href="{{ url_for('views.watches') }}" class="header-nav-btn active">알림<span class="nav-watch-badge nav-watch-count" hidden></span></a>
       </nav>
     </div>
   </header>
@@ -105,7 +105,7 @@
     </a>
     <a href="{{ url_for('views.watches') }}" class="bottom-tab active">
       <span class="bottom-tab-icon">🔔</span>
-      <span class="bottom-tab-label">알림</span>
+      <span class="bottom-tab-label">알림<span class="nav-watch-badge nav-watch-count" hidden></span></span>
     </a>
   </nav>
 </div>
@@ -793,13 +793,15 @@ document.addEventListener('DOMContentLoaded', function () {
       updateNavWatchBadge(watches.length);
     }
 
-    // GNB "알림" 옆 개수 배지. renderAll이 감시 목록이 바뀌는 모든 경로
-    // (복원/등록해제/알림끄기)에서 이미 호출되므로 여기 한 곳만 갱신하면 된다.
+    // GNB "알림" 옆 개수 배지(상단 헤더 + 모바일 하단 탭바 둘 다 - 좁은 화면은
+    // 상단 header-nav 자체가 숨고 하단 탭바만 보이므로 둘 다 갱신해야 한다).
+    // renderAll이 감시 목록이 바뀌는 모든 경로(복원/등록해제/알림끄기)에서
+    // 이미 호출되므로 여기 한 곳만 갱신하면 된다.
     function updateNavWatchBadge(n) {
-      const badge = document.getElementById('nav-watch-count');
-      if (!badge) return;
-      if (n > 0) { badge.textContent = `(${n})`; badge.hidden = false; }
-      else { badge.hidden = true; badge.textContent = ''; }
+      document.querySelectorAll('.nav-watch-count').forEach(badge => {
+        if (n > 0) { badge.textContent = `(${n})`; badge.hidden = false; }
+        else { badge.hidden = true; badge.textContent = ''; }
+      });
     }
 
     return { enable, disable, sendTest, restore, remove, removeMany, toggleSelectAll, checked, watches: () => watches };

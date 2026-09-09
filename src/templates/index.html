@@ -19,7 +19,7 @@
       <nav class="header-nav">
         <a href="{{ url_for('views.index') }}" class="header-nav-btn active">배 목록</a>
         <a href="{{ url_for('views.status') }}" class="header-nav-btn">예약현황</a>
-        <a href="{{ url_for('views.watches') }}" class="header-nav-btn">알림<span id="nav-watch-count" class="nav-watch-badge" hidden></span></a>
+        <a href="{{ url_for('views.watches') }}" class="header-nav-btn">알림<span class="nav-watch-badge nav-watch-count" hidden></span></a>
       </nav>
     </div>
   </header>
@@ -178,7 +178,7 @@
     </a>
     <a href="{{ url_for('views.watches') }}" class="bottom-tab">
       <span class="bottom-tab-icon">🔔</span>
-      <span class="bottom-tab-label">알림</span>
+      <span class="bottom-tab-label">알림<span class="nav-watch-badge nav-watch-count" hidden></span></span>
     </a>
   </nav>
 
@@ -1291,19 +1291,22 @@ spinStyle.textContent = `
 `;
 document.head.appendChild(spinStyle);
 
-// GNB "알림" 옆 등록된 감시 개수 배지. 이 화면은 감시를 직접 다루지 않아
-// status.html/watches.html처럼 이미 도는 fetch가 없다 - 여기서만 쓰는
-// 가벼운 조회 하나를 따로 둔다(구독 없으면 조용히 아무것도 안 보여준다).
+// GNB "알림" 옆(상단 헤더 + 모바일 하단 탭바 둘 다) 등록된 감시 개수 배지.
+// 좁은 화면에서는 상단 header-nav 자체가 숨고 하단 탭바만 보이므로
+// (@media max-width:768px) 배지 요소도 둘 다 있어야 모바일에서도 보인다 -
+// class="nav-watch-count"로 둘 다 표시해 한 번에 갱신한다. 이 화면은 감시를
+// 직접 다루지 않아 status.html/watches.html처럼 이미 도는 fetch가 없다 -
+// 여기서만 쓰는 가벼운 조회 하나를 따로 둔다(구독 없으면 조용히 안 보여준다).
 (function () {
-  const badge = document.getElementById('nav-watch-count');
-  if (!badge || !('serviceWorker' in navigator)) return;
+  const badges = document.querySelectorAll('.nav-watch-count');
+  if (!badges.length || !('serviceWorker' in navigator)) return;
   navigator.serviceWorker.ready
     .then(reg => reg.pushManager.getSubscription())
     .then(sub => sub ? fetch('/api/watches?endpoint=' + encodeURIComponent(sub.endpoint)) : null)
     .then(resp => resp ? resp.json() : null)
     .then(body => {
       const n = body ? (body.watches || []).length : 0;
-      if (n > 0) { badge.textContent = `(${n})`; badge.hidden = false; }
+      if (n > 0) badges.forEach(b => { b.textContent = `(${n})`; b.hidden = false; });
     })
     .catch(() => {});
 })();

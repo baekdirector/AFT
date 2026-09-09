@@ -19,7 +19,7 @@
       <nav class="header-nav">
         <a href="{{ url_for('views.index') }}" class="header-nav-btn">배 목록</a>
         <a href="{{ url_for('views.status') }}" class="header-nav-btn active">예약현황</a>
-        <a href="{{ url_for('views.watches') }}" class="header-nav-btn">알림<span id="nav-watch-count" class="nav-watch-badge" hidden></span></a>
+        <a href="{{ url_for('views.watches') }}" class="header-nav-btn">알림<span class="nav-watch-badge nav-watch-count" hidden></span></a>
       </nav>
     </div>
   </header>
@@ -111,24 +111,25 @@
         <input type="hidden" id="day" name="day" value="{{ day or '' }}">
       </form>
 
-      <!-- 통계 카드 4개 -->
-      <div class="stats-grid">
-        <div class="stat-card">
+      <!-- 통계 카드 4개 - 누르면 그 상태만 조회 결과에 필터링해서 보여준다
+           (data-filter="" = 조회 대상 = 전체 보기/필터 해제). -->
+      <div class="stats-grid" id="stats-filter-grid">
+        <button type="button" class="stat-card stat-card-clickable" data-filter="">
           <div class="stat-label">조회 대상</div>
           <div class="stat-value"><span id="stat-total">0</span><span class="stat-unit">척</span></div>
-        </div>
-        <div class="stat-card">
+        </button>
+        <button type="button" class="stat-card stat-card-clickable" data-filter="open">
           <div class="stat-label">여유</div>
           <div class="stat-value stat-value-open"><span id="stat-open">0</span></div>
-        </div>
-        <div class="stat-card">
+        </button>
+        <button type="button" class="stat-card stat-card-clickable" data-filter="soon">
           <div class="stat-label">마감임박</div>
           <div class="stat-value stat-value-soon"><span id="stat-soon">0</span></div>
-        </div>
-        <div class="stat-card">
+        </button>
+        <button type="button" class="stat-card stat-card-clickable" data-filter="closed">
           <div class="stat-label">마감/미운항</div>
           <div class="stat-value stat-value-closed"><span id="stat-closed">0</span></div>
-        </div>
+        </button>
       </div>
 
       <!-- 알림(감시) 제어. 체크박스를 쓰려면 먼저 여기서 알림을 켜야 한다. -->
@@ -234,7 +235,7 @@
     </a>
     <a href="{{ url_for('views.watches') }}" class="bottom-tab">
       <span class="bottom-tab-icon">🔔</span>
-      <span class="bottom-tab-label">알림</span>
+      <span class="bottom-tab-label">알림<span class="nav-watch-badge nav-watch-count" hidden></span></span>
     </a>
   </nav>
 
@@ -444,6 +445,19 @@
 .stat-value-closed { color: oklch(0.6 0.02 255); }
 .stat-unit { font-size: 13px; font-weight: 600; color: var(--ink-softer); margin-left: 2px; }
 
+/* 통계 카드를 눌러서 그 상태만 결과에 필터링한다 - <button>이라 기본
+   스타일부터 리셋. 같은 카드를 다시 누르면 필터가 풀린다("조회 대상"은
+   filter=""로 언제나 전체 보기). */
+.stat-card-clickable {
+  cursor: pointer; text-align: left; font: inherit; width: 100%; display: block;
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+.stat-card-clickable:hover { border-color: oklch(0.75 0.02 250); }
+.stat-card-clickable.is-active {
+  border-color: var(--accent); background: oklch(0.97 0.02 245);
+  box-shadow: 0 0 0 1.5px var(--accent) inset;
+}
+
 /* 알림(Watch) 제어 */
 .push-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
 .push-btn {
@@ -583,10 +597,23 @@
   display: flex; flex-direction: column; gap: 6px; margin: 10px 0;
   padding: 10px; border-radius: 13px; background: oklch(0.975 0.005 250); border: 1px solid var(--line-soft);
 }
-.fleet-ship-row { display: flex; align-items: center; gap: 9px; }
-.fleet-ship-name { font-size: 13px; font-weight: 730; color: var(--ink); flex: 1; min-width: 0; }
-.fleet-ship-fish { font-size: 11px; font-weight: 650; color: oklch(0.55 0.18 25); white-space: nowrap; }
-.fleet-ship-seat { font-size: 11.5px; font-weight: 650; color: var(--ink-soft); white-space: nowrap; }
+/* 어종(fish) 텍스트가 짧은 단어일 거라 가정하고 white-space:nowrap만 줬는데,
+   실제로는 원본 사이트가 "주꾸미낚시 출조합니다. - 신중히 예약..." 같은
+   공지 문장을 어종 칸에 넣어 보내는 경우가 있다(예: 변산레저낚시/카이저호).
+   nowrap만 있고 잘라내는 처리가 없으면 그 긴 텍스트가 카드 밖으로 넘치고,
+   같은 줄의 배 이름(min-width:0)이 극단적으로 눌려 글자 단위로
+   세로 줄바꿈되는 2차 문제까지 생겼다. 어종에 상한 폭 + 말줄임표를 주고,
+   배 이름도 명시적으로 한 줄 말줄임 처리해 둘 다 카드 폭을 넘지 않게 한다. */
+.fleet-ship-row { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.fleet-ship-name {
+  font-size: 13px; font-weight: 730; color: var(--ink); flex: 1 1 auto; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fleet-ship-fish {
+  font-size: 11px; font-weight: 650; color: oklch(0.55 0.18 25); flex: 0 1 auto;
+  max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fleet-ship-seat { font-size: 11.5px; font-weight: 650; color: var(--ink-soft); white-space: nowrap; flex: none; }
 .bell-toggle.bell-toggle-compact {
   margin-top: 0; padding: 5px 9px; border-radius: 99px; flex: none; gap: 5px;
 }
@@ -1083,13 +1110,15 @@ document.addEventListener('DOMContentLoaded', function(){
       updateNavWatchBadge(allWatches.length);
     }
 
-    // GNB "알림" 옆 개수 배지. 토글할 때마다(applyServerState가 불릴 때마다)
-    // 같이 갱신되므로 이 화면 안에서 감시를 켜고 꺼도 즉시 반영된다.
+    // GNB "알림" 옆 개수 배지(상단 헤더 + 모바일 하단 탭바 둘 다 - 좁은 화면은
+    // 상단 header-nav 자체가 숨고 하단 탭바만 보이므로 둘 다 갱신해야 한다).
+    // 토글할 때마다(applyServerState가 불릴 때마다) 같이 갱신되므로 이 화면
+    // 안에서 감시를 켜고 꺼도 즉시 반영된다.
     function updateNavWatchBadge(n) {
-      const badge = document.getElementById('nav-watch-count');
-      if (!badge) return;
-      if (n > 0) { badge.textContent = `(${n})`; badge.hidden = false; }
-      else { badge.hidden = true; badge.textContent = ''; }
+      document.querySelectorAll('.nav-watch-count').forEach(badge => {
+        if (n > 0) { badge.textContent = `(${n})`; badge.hidden = false; }
+        else { badge.hidden = true; badge.textContent = ''; }
+      });
     }
 
     function atLimit() { return allWatches.length >= limit; }
@@ -1728,13 +1757,26 @@ document.addEventListener('DOMContentLoaded', function(){
     return 3;
   }
 
+  // '2 · 지역 선택' 칩과 같은 업무 순서(status_service.py get_region_names의
+  // preferred_order와 동일 - 서버 쪽과 이중 관리지만, 이 목록은 실제로 거의
+  // 안 바뀐다). '지역별' 정렬이 예전엔 가나다순이라 칩 순서와 달라 보였다.
+  const REGION_ORDER = ['인천', '안산', '화성', '평택', '당진', '서산', '태안', '보령', '군산', '격포', '여수', '고흥'];
+  function regionRank(city) {
+    const i = REGION_ORDER.indexOf(city);
+    return i === -1 ? REGION_ORDER.length : i;
+  }
+
   function sortRows(rows, key, dir) {
     const asc = dir === 'asc' ? 1 : -1;
     return rows.sort((r1, r2) => {
       if (key === 'status') {
         return (statusRank(r1.status_class) - statusRank(r2.status_class)) * asc;
       }
-      if (['city','port','registered_name','fish','ship_name'].includes(key)) {
+      if (key === 'city') {
+        const byRegion = (regionRank(r1.city) - regionRank(r2.city)) * asc;
+        return byRegion !== 0 ? byRegion : compareStr(r1.port, r2.port) * asc;
+      }
+      if (['port','registered_name','fish','ship_name'].includes(key)) {
         return compareStr(r1[key], r2[key]) * asc;
       }
       return 0;
@@ -1775,21 +1817,49 @@ document.addEventListener('DOMContentLoaded', function(){
     if (el) el.textContent = val;
   }
 
+  // 통계 카드가 세는 3버킷과 정확히 같은 분류 기준(updateStatsCards와 한
+  // 곳에서만 정의 - 필터링도 이 함수로 판정해야 카드에 적힌 숫자와 실제
+  // 필터링된 개수가 어긋나지 않는다).
+  function statusBucket(r) {
+    if (r.status_class !== 'open') return 'closed';
+    if (r.available != null && r.available <= SOON_THRESHOLD) return 'soon';
+    return 'open';
+  }
+
   function updateStatsCards(rows) {
     let openCount = 0, soonCount = 0, closedCount = 0;
     for (const r of rows) {
-      if (r.status_class === 'open') {
-        if (r.available != null && r.available <= SOON_THRESHOLD) soonCount++;
-        else openCount++;
-      } else {
-        closedCount++;
-      }
+      const bucket = statusBucket(r);
+      if (bucket === 'open') openCount++;
+      else if (bucket === 'soon') soonCount++;
+      else closedCount++;
     }
     setStatText('stat-total', rows.length);
     setStatText('stat-open', openCount);
     setStatText('stat-soon', soonCount);
     setStatText('stat-closed', closedCount);
   }
+
+  // 통계 카드 클릭 필터. null이면 전체 보기. renderRows()가 이 값에 따라
+  // 카드 그리기 직전에 flat rows를 걸러낸다(그룹핑 전 단계라, 선단 카드도
+  // 조건에 맞는 배만 남는다) - updateStatsCards는 항상 필터 전 전체 rows로
+  // 불러 숫자 자체는 필터 상태와 무관하게 "몇 척인지"를 계속 보여준다.
+  let statusFilter = null;
+
+  function applyStatusFilterUI() {
+    document.querySelectorAll('.stat-card-clickable').forEach(card => {
+      const f = card.dataset.filter || null;
+      card.classList.toggle('is-active', f === statusFilter);
+    });
+  }
+
+  document.getElementById('stats-filter-grid')?.addEventListener('click', (e) => {
+    const card = e.target.closest('.stat-card-clickable');
+    if (!card) return;
+    const f = card.dataset.filter || null;
+    statusFilter = (statusFilter === f) ? null : f;   // 같은 걸 다시 누르면 해제
+    renderRows(lastRenderedRows);
+  });
 
   // 정렬된 평면 배열(배 1척 = 행 1개)을 등록된 배(선사) 단위로 묶는다. 선상24
   // "레드헌터"처럼 한 URL이 여러 척(1호/2호/3호)을 같이 내놓는 배("선단")를
@@ -1900,10 +1970,15 @@ document.addEventListener('DOMContentLoaded', function(){
 
   function renderRows(rows) {
     lastRenderedRows = rows;
-    updateStatsCards(rows);
+    updateStatsCards(rows);        // 항상 전체 rows 기준 - 필터와 무관하게 "몇 척인지"를 보여준다
+    applyStatusFilterUI();
 
-    if (!rows.length) {
-      tbody.innerHTML = '<div class="empty-results">조회 결과가 없습니다.<br>상단에서 지역과 날짜를 선택 후 조회하세요.</div>';
+    const visible = statusFilter ? rows.filter(r => statusBucket(r) === statusFilter) : rows;
+
+    if (!visible.length) {
+      tbody.innerHTML = statusFilter
+        ? '<div class="empty-results">이 상태에 해당하는 배가 없습니다.<br>위 통계 카드를 다시 눌러 필터를 해제할 수 있어요.</div>'
+        : '<div class="empty-results">조회 결과가 없습니다.<br>상단에서 지역과 날짜를 선택 후 조회하세요.</div>';
       return;
     }
 
@@ -1911,7 +1986,7 @@ document.addEventListener('DOMContentLoaded', function(){
     const formattedDate = (di2 && di2.value) ? di2.value : getCurrentDate();
 
     const frag = document.createDocumentFragment();
-    for (const group of groupByCompany(rows)) {
+    for (const group of groupByCompany(visible)) {
       const isFleet = group.length > 1;
       const rep = bestOf(group);   // 대표 행 - 카드 상단 배지/진행바/링크에 쓴다
 
@@ -1984,6 +2059,7 @@ document.addEventListener('DOMContentLoaded', function(){
           const shipName = document.createElement('span');
           shipName.className = 'fleet-ship-name';
           shipName.textContent = ship.ship_name || '-';
+          shipName.title = ship.ship_name || '';
           shipRow.appendChild(shipName);
           // 선단 안 배들은 배마다 잡는 어종이 다르다(예: 레드헌터 선단 - 배별로
           // 주꾸미/문어/갈치 등 제각각) - 대표 행 하나의 어종만 카드에 보이면
@@ -1992,6 +2068,7 @@ document.addEventListener('DOMContentLoaded', function(){
             const shipFish = document.createElement('span');
             shipFish.className = 'fleet-ship-fish';
             shipFish.textContent = ship.fish;
+            shipFish.title = ship.fish;   // 말줄임표로 잘려도 길게 눌러/가리키면 전체 문구가 보이게
             shipRow.appendChild(shipFish);
           }
           const shipSeat = document.createElement('span');
