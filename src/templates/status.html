@@ -1034,9 +1034,19 @@ document.addEventListener('DOMContentLoaded', function(){
 
   const Watch = (function () {
     let endpoint = null;          // 이 브라우저의 푸시 구독 주소
-    let watched = new Set();      // 현재 조회 날짜의 감시 키('boatName||shipName')
     let allWatches = [];          // 날짜 무관 전체 감시. 상한은 이것으로 센다.
     let limit = 20;
+    // 예전엔 "현재 조회 날짜의 감시 키" Set을 applyServerState 가 호출될
+    // 때만 currentDate() 기준으로 미리 계산해 캐시해뒀다(watched 변수) -
+    // 그런데 restore()는 페이지가 처음 열릴 때 한 번만 도는데, 그 시점의
+    // 날짜(보통 오늘)로 그 Set이 굳어버리고, 이후 사용자가 날짜를 바꿔
+    // 다시 조회해도 재계산되지 않았다. 그래서 실제로는 감시 중인 배(예:
+    // 10/3에 걸어둔 금강7호)를 그 날짜로 조회해도 꺼진 것처럼 보이다가,
+    // 다른 배를 토글해서 applyServerState 가 다시 불려야만(그 시점
+    // 날짜로 재계산되어) 바로잡히는 문제가 있었다(실측 - 사용자 리포트).
+    // 캐시를 없애고 매번 allWatches 에서 그 자리에서 걸러 쓰면 날짜가
+    // 바뀌어도 항상 맞는 값을 본다 - 감시가 최대 20건이라 비용도 무시할
+    // 만하다.
 
     function key(boatName, shipName) { return `${boatName || ''}||${shipName || ''}`; }
     function currentDate() {
@@ -1047,7 +1057,11 @@ document.addEventListener('DOMContentLoaded', function(){
       return `${y}-${m}-${d}`;
     }
 
-    function isWatched(boatName, shipName) { return watched.has(key(boatName, shipName)); }
+    function isWatched(boatName, shipName) {
+      const today = currentDate();
+      const k = key(boatName, shipName);
+      return allWatches.some(w => w.target_date === today && key(w.boat_name, w.ship_name) === k);
+    }
 
     // 자리가 이미 있는 배는 감시할 이유가 없다. 바로 예약하면 된다.
     // 감시는 '자리가 없는 배에 자리가 나는 순간'을 잡는 것이 목적이므로
@@ -1101,9 +1115,6 @@ document.addEventListener('DOMContentLoaded', function(){
       // 날짜만 세어 화면에 '3/5' 로 보이는데 서버는 이미 5건이라 등록을
       // 거절하는 일이 있었다. 세는 기준을 서버와 똑같이 맞춘다.
       allWatches = (body.watches || []).slice();
-      watched = new Set(allWatches
-        .filter(w => w.target_date === currentDate())
-        .map(w => key(w.boat_name, w.ship_name)));
       refreshCheckboxes();
       updateBanner();
       renderWatchList();
@@ -1199,7 +1210,9 @@ document.addEventListener('DOMContentLoaded', function(){
         return;
       }
       // 서버 상한과 같은 기준(날짜 무관 전체)으로 센다
-      const otherDates = allWatches.length - watched.size;
+      const today = currentDate();
+      const currentDateCount = allWatches.filter(w => w.target_date === today).length;
+      const otherDates = allWatches.length - currentDateCount;
       let text = `알림 감시 ${allWatches.length}/${limit}척`;
       if (otherDates > 0) text += ` (다른 날짜 ${otherDates}척 포함)`;
       if (atLimit()) text += ' — 더 추가하려면 아래에서 하나를 해제하세요';
@@ -1304,16 +1317,15 @@ document.addEventListener('DOMContentLoaded', function(){
     }
 
     // 서버 응답 전에 로컬 상태를 먼저 움직인다(그리고 실패 시 되돌린다).
-    // 카운트는 날짜 무관 전체(allWatches)로 세므로 둘 다 손봐야 한다.
+    // isWatched()가 이제 allWatches에서 그때그때 걸러 쓰므로(위 설명 참고)
+    // 여기서 allWatches만 바꾸면 충분하다 - 별도 캐시를 안 건드려도 된다.
     function applyLocal(on, k, stub) {
       if (on) {
-        watched.add(k);
         if (!allWatches.some(w => w.target_date === stub.target_date
                                && w.ship_name === stub.ship_name)) {
           allWatches.push(stub);
         }
       } else {
-        watched.delete(k);
         allWatches = allWatches.filter(w => !(w.target_date === stub.target_date
                                            && w.ship_name === stub.ship_name));
       }
