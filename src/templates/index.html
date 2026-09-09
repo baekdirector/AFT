@@ -129,6 +129,7 @@
                     <span class="region-badge">{{ b.city }}</span>
                     <span class="port-text">{{ b.port }}</span>
                     <span class="ship-no">#{{ loop.index }}</span>
+                    <span class="ship-registered-date">{{ b.registered_date }} 등록</span>
                   </div>
                   <h3 class="ship-name">{{ b.name }}</h3>
                   <p class="ship-note">{{ b.note if b.note else '등록된 비고 없음' }}</p>
@@ -430,6 +431,7 @@
 }
 .port-text { font-size: 11.5px; font-weight: 620; color: var(--ink-soft); }
 .ship-no { margin-left: auto; font-size: 10.5px; font-weight: 650; color: var(--ink-softer); }
+.ship-registered-date { font-size: 10.5px; font-weight: 600; color: var(--ink-softer); white-space: nowrap; }
 .ship-name { margin: 0 0 6px; font-size: 17px; font-weight: 760; letter-spacing: -0.5px; line-height: 1.25; color: var(--ink); }
 .ship-note {
   margin: 0 0 10px; font-size: 12.5px; line-height: 1.5; color: var(--ink-soft);
@@ -615,6 +617,7 @@ function initializeData() {
         name: boat.name,
         url: boat.url,
         note: boat.note,
+        registered_date: boat.registered_date,
         registration_number: boat.name // 임시로 이름을 등록번호로 사용
     }));
 
@@ -726,6 +729,7 @@ function renderShips(ships) {
                             <span class="region-badge">${ship.region}</span>
                             <span class="port-text">${ship.port}</span>
                             <span class="ship-no">#${index + 1}</span>
+                            <span class="ship-registered-date">${ship.registered_date || '-'} 등록</span>
                         </div>
                         <h3 class="ship-name">${ship.name}</h3>
                         <p class="ship-note">${ship.note || '등록된 비고 없음'}</p>

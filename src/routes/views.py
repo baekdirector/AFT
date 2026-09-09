@@ -99,9 +99,22 @@ def _city_port_map_with_registered_ports(boats):
 
 @views.route('/')
 def index():
-    boats = get_all_boats()
+    # get_all_boats() 는 id(=등록 순서) 오름차순을 그대로 돌려준다 - 다른
+    # 화면(엑셀 다운로드, 지도 등)은 그 기본 순서를 그대로 쓰고 있어 공용
+    # 함수 자체를 바꾸지 않고, 홈 화면 카드 목록만 최신 등록순으로 다시
+    # 정렬한다(사용자 요청). created_at 이 없는(과거 데이터) 배는 맨 뒤로.
+    boats = sorted(get_all_boats(), key=lambda b: b.created_at or datetime.min, reverse=True)
+    for b in boats:
+        # 카드에 보여줄 등록일(KST). created_at 은 UTC로 저장되므로 그대로
+        # 날짜만 잘라내면 밤 9시(KST) 이후 등록 건이 하루 전으로 보일 수 있다.
+        b.registered_date = (
+            (b.created_at + timedelta(hours=9)).strftime('%Y-%m-%d')
+            if b.created_at else '-'
+        )
     # Boat 객체들을 딕셔너리로 변환하여 JSON 직렬화 가능하게 만듭니다
     boats_dict = [boat.to_dict() for boat in boats]
+    for d, b in zip(boats_dict, boats):
+        d['registered_date'] = b.registered_date
 
     # 홈 모달 등록 폼에서 CSRF 를 사용하기 위해 폼 인스턴스를 전달
     form = BoatRegistrationForm()
