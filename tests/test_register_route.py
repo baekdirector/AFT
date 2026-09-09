@@ -27,6 +27,7 @@ def test_register_accepts_port_not_in_city_port_mapping(client, app):
         'city': '인천',
         'port': '새로생긴항구',
         'note': '',
+        'admin_key': 'aft-kbss',
     }, follow_redirects=True)
 
     assert rv.status_code == 200
@@ -49,6 +50,7 @@ def test_newly_registered_port_appears_on_home_page_for_future_registrations(cli
         'city': '인천',
         'port': '새로생긴항구',
         'note': '',
+        'admin_key': 'aft-kbss',
     })
 
     rv = client.get('/')

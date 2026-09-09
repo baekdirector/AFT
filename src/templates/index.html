@@ -872,6 +872,32 @@ function initializeShipEditButtons() {
     });
 }
 
+// 배 등록/삭제 확인 문자(admin_key) 게이트. URL만 알면 누구나 목록을 지우거나
+// 등록할 수 있는 구조라(로그인 없음), 실수/장난을 막을 최소한의 마찰을 둔다 -
+// 서버(routes/views.py BOAT_ADMIN_KEY)가 최종 검증하므로 여기서 미리 값을
+// 맞혀보지 않는다. 빈 값/취소는 그냥 중단(false)한다.
+function promptAdminKeyOrNull() {
+    const key = window.prompt('배 등록/삭제 확인 문자를 입력하세요.');
+    if (key === null) return null;      // 취소
+    return key;
+}
+
+// <form> 기반 제출(=native submit)용: 폼 안에 admin_key 히든 필드를 만들어
+// 넣어준다. 취소하면 false를 돌려줘 호출부가 제출을 멈추게 한다.
+function promptAndAttachAdminKey(form) {
+    const key = promptAdminKeyOrNull();
+    if (key === null) return false;
+    let input = form.querySelector('input[name="admin_key"]');
+    if (!input) {
+        input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'admin_key';
+        form.appendChild(input);
+    }
+    input.value = key;
+    return true;
+}
+
 // 이벤트 리스너 초기화
 function initializeEventListeners() {
     // 검색 입력
@@ -953,9 +979,11 @@ function initializeEventListeners() {
                 return;
             }
 
-            if (confirm(`선택한 ${checked.length}개의 배를 삭제하시겠습니까? 삭제하면 복구할 수 없습니다.`)) {
-                deleteForm.submit();
+            if (!confirm(`선택한 ${checked.length}개의 배를 삭제하시겠습니까? 삭제하면 복구할 수 없습니다.`)) {
+                return;
             }
+            if (!promptAndAttachAdminKey(deleteForm)) return;
+            deleteForm.submit();
         });
     }
 
@@ -1108,6 +1136,22 @@ function initializeRegisterModal() {
     // 폼 제출 인터셉트 (AJAX + Toast)
     registerForm?.addEventListener('submit', function(e){
         e.preventDefault();
+
+        // 수정은 게이트 대상이 아니다(사용자 요청 범위: 등록/삭제만) - 새로
+        // 배를 등록할 때만 확인 문자를 받는다.
+        if (!isEditMode) {
+            const key = promptAdminKeyOrNull();
+            if (key === null) return;   // 취소 - 제출하지 않는다
+            let keyInput = this.querySelector('input[name="admin_key"]');
+            if (!keyInput) {
+                keyInput = document.createElement('input');
+                keyInput.type = 'hidden';
+                keyInput.name = 'admin_key';
+                this.appendChild(keyInput);
+            }
+            keyInput.value = key;
+        }
+
         const formData = new FormData(this);
         if (portSelect?.value === CUSTOM_PORT_VALUE) {
             formData.set('port', (portCustomInput?.value || '').trim());
@@ -1182,8 +1226,14 @@ function handleFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
 
+    // 엑셀 업로드는 여러 배를 한 번에 등록/수정할 수 있어 등록/삭제와 같은
+    // 위험도로 보고 확인 문자를 받는다.
+    const key = promptAdminKeyOrNull();
+    if (key === null) { event.target.value = ''; return; }
+
     const formData = new FormData();
     formData.append('excel_file', file);
+    formData.append('admin_key', key);
 
     const uploadBtn = document.getElementById('upload-btn');
 

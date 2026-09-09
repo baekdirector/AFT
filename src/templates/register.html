@@ -26,6 +26,12 @@
     {{ form.url(class_="form-control", id="url", placeholder="https://...") }}
   </div>
 
+  <div class="form-row">
+    <label class="form-label" for="admin_key">확인 문자</label>
+    <input class="form-control" type="password" id="admin_key" name="admin_key"
+           placeholder="등록/삭제 확인 문자">
+  </div>
+
   <div style="display:flex; gap:12px; margin-top:8px; align-items:center;">
     <button type="submit" class="btn btn-primary">
       등록하기

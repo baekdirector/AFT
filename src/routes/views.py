@@ -1,3 +1,4 @@
+import hmac
 import io
 import os
 import openpyxl
@@ -18,6 +19,16 @@ import json
 import requests
 
 views = Blueprint('views', __name__, template_folder='templates')
+
+# 배 등록/삭제 보호용 확인 문자열. URL만 알면 누구나 목록을 지우거나 등록할
+# 수 있는 구조라(로그인 없음) 실수/장난으로 인한 사고를 막을 최소한의
+# 마찰만 둔다 - 강한 보안이 목적이 아니라 "같은 사람인지" 확인하는
+# 확인 문구다(사용자 결정). 그래서 Render 환경변수가 아니라 코드에 그대로 둔다.
+BOAT_ADMIN_KEY = 'aft-kbss'
+
+
+def _admin_key_ok(value: str | None) -> bool:
+    return bool(value) and hmac.compare_digest(value, BOAT_ADMIN_KEY)
 
 #: 한국은 서머타임이 없어 고정 오프셋으로 충분하다. zoneinfo.ZoneInfo('Asia/Seoul')는
 #: 시스템에 tzdata 가 없으면(예: 이 프로젝트를 개발하는 일부 Windows 환경) 예외를
@@ -128,6 +139,9 @@ def download_excel():
 def register():
     form = BoatRegistrationForm()
     if form.validate_on_submit():
+        if not _admin_key_ok(request.form.get('admin_key')):
+            flash('확인 문자가 올바르지 않아 등록하지 못했습니다.', 'danger')
+            return render_template('register.html', form=form)
         try:
             add_boat_instance(form.name.data, form.url.data, form.city.data, form.port.data, form.note.data)
             flash('배가 등록되었습니다.', 'success')
@@ -993,6 +1007,9 @@ def map_page():
 # 추가: 배 삭제 라우트 (POST)
 @views.route('/delete/<int:boat_id>', methods=['POST'], endpoint='delete_boat')
 def delete_boat_route(boat_id):
+    if not _admin_key_ok(request.form.get('admin_key')):
+        flash('확인 문자가 올바르지 않아 삭제하지 못했습니다.', 'danger')
+        return redirect(url_for('views.index'))
     try:
         delete_boat(boat_id)
         flash('배가 삭제되었습니다.', 'success')
@@ -1003,6 +1020,9 @@ def delete_boat_route(boat_id):
 # New route: handle deletion of selected boats
 @views.route('/delete_boats', methods=['POST'])
 def delete_boats():
+    if not _admin_key_ok(request.form.get('admin_key')):
+        flash('확인 문자가 올바르지 않아 삭제하지 못했습니다.', 'danger')
+        return redirect(url_for('views.index'))
     ids = request.form.getlist('delete_ids')
     if not ids:
         flash('삭제할 배를 선택하세요.', 'warning')
@@ -1023,6 +1043,9 @@ def delete_boats():
 def upload_excel():
     from models import Boat
     from db import db
+
+    if not _admin_key_ok(request.form.get('admin_key')):
+        return jsonify({'success': False, 'message': '확인 문자가 올바르지 않습니다.'}), 403
 
     if 'excel_file' not in request.files:
         return jsonify({'success': False, 'message': '파일이 없습니다.'}), 400
@@ -1127,7 +1150,10 @@ def api_add_ship():
     """새 선박을 등록하는 API 엔드포인트"""
     try:
         data = request.get_json()
-        
+
+        if not _admin_key_ok((data or {}).get('admin_key')):
+            return jsonify({'error': '확인 문자가 올바르지 않습니다.'}), 403
+
         # 필수 필드 검증
         required_fields = ['region', 'port', 'registrationNumber', 'url']
         for field in required_fields:
