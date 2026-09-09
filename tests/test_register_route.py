@@ -73,6 +73,7 @@ def test_edit_also_accepts_port_not_in_city_port_mapping(client, app):
         'city': '인천',
         'port': '다른새항구',
         'note': '',
+        'admin_key': 'aft-kbss',
     }, follow_redirects=True)
 
     assert rv.status_code == 200

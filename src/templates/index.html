@@ -503,6 +503,7 @@
 }
 .selection-btn-danger { background: oklch(0.58 0.18 25); }
 .selection-btn-close { width: 38px; padding: 0; background: transparent; color: oklch(0.85 0.01 255); font-size: 17px; }
+.selection-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* FAB */
 .fab-register {
@@ -844,6 +845,11 @@ function updateSelectionUI() {
     if (selectedHint) selectedHint.textContent = checkedCount ? checkedCount + '척 선택됨' : '체크해서 수정 · 삭제할 수 있어요';
     if (bar) bar.hidden = checkedCount === 0;
 
+    // 수정은 한 번에 한 척만 가능하다 - 여러 척을 체크하면 눌러도 안내만
+    // 뜨던 것을, 아예 눌리지 않게(비활성) 바꿨다.
+    const editBtn = document.getElementById('edit-selected');
+    if (editBtn) editBtn.disabled = checkedCount !== 1;
+
     // 선택바와 '새 배 등록' 플로팅 버튼이 같은 하단 위치를 두고 겹친다
     // (좁은 화면에서 실제로 서로 밀고 들어가 '수정'/'삭제' 글자가 세로로
     // 밀리는 문제가 있었다). 위치를 계산으로 갈라놓는 대신, 배를 고르는
@@ -880,7 +886,7 @@ function initializeCheckboxEvents() {
 // 카드의 "수정" 버튼 -> 수정 모달 오픈 (row-check 기반 openEditModal 재사용)
 function initializeShipEditButtons() {
     document.querySelectorAll('.ship-edit-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', async function() {
             const row = this.closest('.ship-row');
             const checkbox = row.querySelector('.row-check');
             const boatId = checkbox.value;
@@ -889,7 +895,11 @@ function initializeShipEditButtons() {
             const name = row.getAttribute('data-name');
             const url = row.getAttribute('data-url') || '';
             const note = row.getAttribute('data-note') || '';
-            window.openEditModal(boatId, region, port, name, url, note);
+
+            const key = await verifyAdminKey('배 정보 수정을 위해 확인 문자를 입력하세요.');
+            if (!key) return;
+
+            window.openEditModal(boatId, region, port, name, url, note, key);
         });
     });
 }
@@ -1022,19 +1032,17 @@ function initializeEventListeners() {
     if (viewListBtn) viewListBtn.addEventListener('click', () => setView('list'));
     if (viewMapBtn) viewMapBtn.addEventListener('click', () => setView('map'));
 
-    // 편집 버튼 (플로팅 선택바)
+    // 편집 버튼 (플로팅 선택바) - 여러 척 선택 시엔 버튼 자체가 비활성(updateSelectionUI)
+    // 이라 여기 도달할 땐 이미 정확히 1척이다.
     const editButton = document.getElementById('edit-selected');
     if (editButton) {
-        editButton.addEventListener('click', function() {
+        editButton.addEventListener('click', async function() {
             const checked = Array.from(document.querySelectorAll('.row-check:checked'));
-            if (checked.length === 0) {
-                alert('수정할 배를 선택하세요.');
-                return;
-            }
-            if (checked.length > 1) {
-                alert('한 번에 하나의 배만 수정할 수 있습니다.');
-                return;
-            }
+            if (checked.length !== 1) return;
+
+            const key = await verifyAdminKey('배 정보 수정을 위해 확인 문자를 입력하세요.');
+            if (!key) return;
+
             const boatId = checked[0].value;
             const row = checked[0].closest('.ship-row');
 
@@ -1046,7 +1054,7 @@ function initializeEventListeners() {
             const note = row.getAttribute('data-note') || '';
 
             // 모달을 수정 모드로 열기
-            openEditModal(boatId, region, port, name, url, note);
+            openEditModal(boatId, region, port, name, url, note, key);
         });
     }
 
@@ -1244,13 +1252,12 @@ function initializeRegisterModal() {
         el?.addEventListener('change', validateForm);
     });
 
-    // 폼 제출 인터셉트 (AJAX + Toast). 등록은 모달을 열기 전에 이미 키를
-    // 확인해뒀으므로(pendingAdminKey) 여기서 다시 묻지 않는다 - 수정은
-    // 애초에 게이트 대상이 아니다(사용자 요청 범위: 등록/삭제만).
+    // 폼 제출 인터셉트 (AJAX + Toast). 등록/수정 둘 다 모달을 열기 전에 이미
+    // 키를 확인해뒀으므로(pendingAdminKey) 여기서 다시 묻지 않는다.
     registerForm?.addEventListener('submit', async function(e){
         e.preventDefault();
 
-        if (!isEditMode) {
+        {
             let keyInput = this.querySelector('input[name="admin_key"]');
             if (!keyInput) {
                 keyInput = document.createElement('input');
@@ -1289,9 +1296,12 @@ function initializeRegisterModal() {
         }
     });
 
-    // 수정 모달 열기 함수를 전역으로 노출
-    window.openEditModal = function(boatId, region, port, name, url, note) {
+    // 수정 모달 열기 함수를 전역으로 노출. key는 호출부(카드 "수정" 버튼,
+    // 하단 선택바 "수정" 버튼)가 모달을 열기 전에 이미 확인해온 admin_key다
+    // - 제출 시 다시 묻지 않고 그대로 쓴다.
+    window.openEditModal = function(boatId, region, port, name, url, note, key) {
         isEditMode = true;
+        pendingAdminKey = key || null;
         boatIdInput.value = boatId;
         setModalMode('edit');
 

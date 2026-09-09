@@ -31,6 +31,21 @@ def _admin_key_ok(value: str | None) -> bool:
     return bool(value) and hmac.compare_digest(value, BOAT_ADMIN_KEY)
 
 
+def _find_duplicate_url_boat(url: str, exclude_boat_id: int | None = None):
+    """이 예약 URL로 이미 등록된 배가 있으면 그 배를 돌려준다(없으면 None).
+
+    같은 URL을 실수로 두 번 등록하면 두 카드가 서로 다른 이름/지역으로
+    같은 사이트를 긁어서 알림이 중복으로 나가거나 혼란스러워진다. 수정
+    (edit_boat)에서는 자기 자신과 비교하면 안 되므로 exclude_boat_id로
+    자기 id는 뺀다.
+    """
+    from models import Boat
+    q = Boat.query.filter_by(url=(url or '').strip())
+    if exclude_boat_id is not None:
+        q = q.filter(Boat.id != exclude_boat_id)
+    return q.first()
+
+
 def _is_ajax() -> bool:
     """프론트가 fetch()로 보낸 요청인지. 이런 요청엔 flash+redirect 대신
     JSON으로 성공/실패를 명확히 돌려줘야 화면이 토스트로 결과를 보여줄 수
@@ -181,6 +196,13 @@ def register():
                 return jsonify({'success': False, 'message': msg}), 403
             flash(msg, 'danger')
             return render_template('register.html', form=form)
+        dup = _find_duplicate_url_boat(form.url.data)
+        if dup:
+            msg = f'이미 등록된 예약 URL입니다. (기존 배: {dup.name})'
+            if _is_ajax():
+                return jsonify({'success': False, 'message': msg}), 409
+            flash(msg, 'danger')
+            return render_template('register.html', form=form)
         try:
             add_boat_instance(form.name.data, form.url.data, form.city.data, form.port.data, form.note.data)
             if _is_ajax():
@@ -236,6 +258,19 @@ def edit_boat(boat_id):
     form = BoatEditForm(obj=boat)
     if request.method == 'POST':
         if form.validate_on_submit():
+            if not _admin_key_ok(request.form.get('admin_key')):
+                msg = '확인 문자가 올바르지 않아 수정하지 못했습니다.'
+                if _is_ajax():
+                    return jsonify({'success': False, 'message': msg}), 403
+                flash(msg, 'danger')
+                return render_template('edit_boat.html', form=form, boat_id=boat_id)
+            dup = _find_duplicate_url_boat(form.url.data, exclude_boat_id=boat_id)
+            if dup:
+                msg = f'이미 등록된 예약 URL입니다. (기존 배: {dup.name})'
+                if _is_ajax():
+                    return jsonify({'success': False, 'message': msg}), 409
+                flash(msg, 'danger')
+                return render_template('edit_boat.html', form=form, boat_id=boat_id)
             try:
                 update_boat(boat_id, form.name.data, form.url.data, form.city.data, form.port.data, form.note.data)
                 if _is_ajax():
@@ -1227,7 +1262,11 @@ def api_add_ship():
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'error': f'{field} 필드가 필요합니다.'}), 400
-        
+
+        dup = _find_duplicate_url_boat(data.get('url'))
+        if dup:
+            return jsonify({'error': f'이미 등록된 예약 URL입니다. (기존 배: {dup.name})'}), 409
+
         # 선박 등록
         add_boat_instance(
             name=data.get('registrationNumber'),  # 등록번호를 name으로 사용

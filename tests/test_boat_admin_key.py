@@ -239,3 +239,112 @@ def test_delete_boats_ajax_with_correct_admin_key_returns_json_success(client, a
     with app.app_context():
         from models import Boat
         assert Boat.query.get(boat_id) is None
+
+
+# --- 수정(edit_boat)도 등록/삭제와 같은 확인 문자 게이트를 쓴다 -------------
+
+def test_edit_ajax_without_admin_key_is_rejected(client, app):
+    from db import add_boat_instance
+    with app.app_context():
+        boat = add_boat_instance(name='수정게이트대상호', url='https://example.com/edit-gate',
+                                 city='인천', port='남항(인천항)', note='', is_shared=False)
+        boat_id = boat.id
+
+    rv = client.post(f'/edit/{boat_id}', data={
+        'csrf_token': _csrf_token(client, f'/edit/{boat_id}'),
+        'name': '수정게이트대상호', 'url': 'https://example.com/edit-gate',
+        'city': '인천', 'port': '연안부두', 'note': '',
+    }, headers=_AJAX_HEADERS)
+
+    assert rv.status_code == 403
+    assert rv.get_json()['success'] is False
+    with app.app_context():
+        from models import Boat
+        assert Boat.query.get(boat_id).port == '남항(인천항)'
+
+
+def test_edit_ajax_with_correct_admin_key_succeeds(client, app):
+    from db import add_boat_instance
+    with app.app_context():
+        boat = add_boat_instance(name='수정게이트성공호', url='https://example.com/edit-gate2',
+                                 city='인천', port='남항(인천항)', note='', is_shared=False)
+        boat_id = boat.id
+
+    rv = client.post(f'/edit/{boat_id}', data={
+        'csrf_token': _csrf_token(client, f'/edit/{boat_id}'),
+        'name': '수정게이트성공호', 'url': 'https://example.com/edit-gate2',
+        'city': '인천', 'port': '연안부두', 'note': '',
+        'admin_key': BOAT_ADMIN_KEY,
+    }, headers=_AJAX_HEADERS)
+
+    assert rv.status_code == 200
+    assert rv.get_json()['success'] is True
+    with app.app_context():
+        from models import Boat
+        assert Boat.query.get(boat_id).port == '연안부두'
+
+
+# --- 중복 예약 URL 등록/수정 방지 -------------------------------------------
+
+def test_register_rejects_duplicate_url(client, app):
+    from db import add_boat_instance
+    with app.app_context():
+        add_boat_instance(name='원조호', url='https://example.com/dup',
+                          city='인천', port='남항(인천항)', note='', is_shared=False)
+
+    rv = client.post('/register', data={
+        'csrf_token': _csrf_token(client, '/register'),
+        'name': '따라쓴호', 'url': 'https://example.com/dup',
+        'city': '인천', 'port': '남항(인천항)', 'note': '',
+        'admin_key': BOAT_ADMIN_KEY,
+    }, headers=_AJAX_HEADERS)
+
+    assert rv.status_code == 409
+    body = rv.get_json()
+    assert body['success'] is False
+    assert '원조호' in body['message']
+    with app.app_context():
+        from models import Boat
+        assert Boat.query.filter_by(name='따라쓴호').one_or_none() is None
+
+
+def test_edit_rejects_url_that_collides_with_another_boat(client, app):
+    from db import add_boat_instance
+    with app.app_context():
+        add_boat_instance(name='기존호', url='https://example.com/taken',
+                          city='인천', port='남항(인천항)', note='', is_shared=False)
+        boat_b = add_boat_instance(name='내배호', url='https://example.com/mine',
+                                   city='인천', port='남항(인천항)', note='', is_shared=False)
+        boat_b_id = boat_b.id
+
+    rv = client.post(f'/edit/{boat_b_id}', data={
+        'csrf_token': _csrf_token(client, f'/edit/{boat_b_id}'),
+        'name': '내배호', 'url': 'https://example.com/taken',
+        'city': '인천', 'port': '남항(인천항)', 'note': '',
+        'admin_key': BOAT_ADMIN_KEY,
+    }, headers=_AJAX_HEADERS)
+
+    assert rv.status_code == 409
+    with app.app_context():
+        from models import Boat
+        assert Boat.query.get(boat_b_id).url == 'https://example.com/mine'
+
+
+def test_edit_keeps_its_own_url_without_triggering_duplicate_check(client, app):
+    """자기 자신의 URL을 그대로 두고 다른 필드만 고치는 흔한 경우가 '중복'으로
+    막히면 안 된다."""
+    from db import add_boat_instance
+    with app.app_context():
+        boat = add_boat_instance(name='제자리호', url='https://example.com/same',
+                                 city='인천', port='남항(인천항)', note='', is_shared=False)
+        boat_id = boat.id
+
+    rv = client.post(f'/edit/{boat_id}', data={
+        'csrf_token': _csrf_token(client, f'/edit/{boat_id}'),
+        'name': '제자리호', 'url': 'https://example.com/same',
+        'city': '인천', 'port': '연안부두', 'note': '',
+        'admin_key': BOAT_ADMIN_KEY,
+    }, headers=_AJAX_HEADERS)
+
+    assert rv.status_code == 200
+    assert rv.get_json()['success'] is True
