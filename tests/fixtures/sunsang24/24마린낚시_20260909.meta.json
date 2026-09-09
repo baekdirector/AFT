@@ -1,0 +1,10 @@
+{
+  "source_url": "https://24marine.sunsang24.com/ship/schedule_fleet_simple",
+  "requested_url": "https://24marine.sunsang24.com/ship/schedule_fleet/20260909/0/simple_day",
+  "target_date": "2026-09-09",
+  "http_status": 200,
+  "captured_at": "2026-09-09T22:20:00",
+  "bytes": 200026,
+  "known_ship_name": "24마린낚시",
+  "note": "schedule_fleet_simple 패턴 - 이 조각은 이 배만이 아니라 그날 플랫폼 전체 배(16척)를 함께 돌려준다. known_ship_name으로 걸러내는지 검증하는 fixture다."
+}

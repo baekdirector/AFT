@@ -46,7 +46,9 @@ def parse(name: str) -> dict:
     reservation_checker.clear_cache()
     try:
         year, month, day = (int(p) for p in meta['target_date'].split('-'))
-        result = reservation_checker.check_single_boat(meta['source_url'], year, month, day)
+        result = reservation_checker.check_single_boat(
+            meta['source_url'], year, month, day,
+            known_ship_name=meta.get('known_ship_name'))
     finally:
         reservation_checker.requests.get = original_get
 

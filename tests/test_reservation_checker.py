@@ -123,6 +123,94 @@ def test_schedule_fleet_detects_bad_weather_status(monkeypatch):
     assert entries[0]["raw_status_text"] == "기상악화"
 
 
+def test_build_query_url_uses_month_pattern_for_normal_sunsang24():
+    url = reservation_checker.build_query_url(
+        "https://redhunter.sunsang24.com/ship/schedule_fleet", 2026, 9, 9)
+    assert url == "https://redhunter.sunsang24.com/ship/schedule_fleet/202609"
+
+
+def test_build_query_url_uses_day_ajax_pattern_for_schedule_fleet_simple():
+    """schedule_fleet_simple(실측: 24마린낚시)은 월 페이지가 달력 뷰일 뿐 배별
+    상태가 없다 - 날짜 클릭 시 JS가 부르는 일별 조각을 직접 요청해야 한다."""
+    url = reservation_checker.build_query_url(
+        "https://24marine.sunsang24.com/ship/schedule_fleet_simple", 2026, 9, 9)
+    assert url == "https://24marine.sunsang24.com/ship/schedule_fleet/20260909/0/simple_day"
+
+
+def _ship_unit_html(ship_name: str, status_text: str = "예약마감", status_code: str = "END") -> str:
+    return f"""
+    <table class="ship_unit">
+      <tr>
+        <td class="ship_info"><div class="title">{ship_name}</div></td>
+        <td class="ship_info2">
+          <span class="shipping_status" data-status_code="{status_code}">{status_text}</span>
+        </td>
+      </tr>
+    </table>
+    """
+
+
+def test_schedule_fleet_simple_day_fragment_only_keeps_the_registered_ship(monkeypatch):
+    """simple_day 조각은 이 배만이 아니라 그날 플랫폼 전체 배 목록을 돌려준다
+    (실측: 24마린낚시 요청인데 응답에 다른 배 15척이 같이 왔다). 등록된 이름과
+    정확히 일치하는 배만 남고, 남의 배는 구조 신호가 있어도 걸러져야 한다."""
+    html = f"""
+    <table id="d2026-09-09" class="shipsinfo_daywarp weekday">
+      {_ship_unit_html("24마린낚시", "출조공지", "NOTICE")}
+      {_ship_unit_html("전혀다른배호", "예약마감", "END")}
+      {_ship_unit_html("또다른낚시배호", "예약마감", "END")}
+    </table>
+    """
+    monkeypatch.setattr(reservation_checker.requests, "get",
+                        lambda *a, **kw: DummyResponse(html))
+    reservation_checker.clear_cache()
+
+    result = reservation_checker.check_single_boat(
+        "https://24marine.sunsang24.com/ship/schedule_fleet_simple", 2026, 9, 9,
+        known_ship_name="24마린낚시")
+
+    assert [e["ship_name"] for e in result["entries"]] == ["24마린낚시"]
+
+
+def test_schedule_fleet_simple_source_url_points_to_calendar_page_not_ajax_fragment(monkeypatch):
+    """simple_day 조각 URL은 스타일 없는 AJAX 응답이라 사용자에게 보여줄
+    "예약 페이지" 링크로는 부적절하다 - 원래 등록한 달력 페이지를 써야 한다."""
+    html = f"""
+    <table id="d2026-09-09" class="shipsinfo_daywarp weekday">
+      {_ship_unit_html("24마린낚시", "출조공지", "NOTICE")}
+    </table>
+    """
+    monkeypatch.setattr(reservation_checker.requests, "get",
+                        lambda *a, **kw: DummyResponse(html))
+    reservation_checker.clear_cache()
+
+    result = reservation_checker.check_single_boat(
+        "https://24marine.sunsang24.com/ship/schedule_fleet_simple", 2026, 9, 9,
+        known_ship_name="24마린낚시")
+
+    assert result["source_url"] == "https://24marine.sunsang24.com/ship/schedule_fleet_simple"
+
+
+def test_schedule_fleet_simple_without_known_ship_name_yields_no_entries(monkeypatch):
+    """known_ship_name이 없으면 어떤 행도 이 배 것이라고 확신할 수 없다(플랫폼
+    전체 목록이므로) - 아무것도 반환하지 않는 것이 남의 배 데이터를 잘못
+    저장하는 것보다 안전하다."""
+    html = f"""
+    <table id="d2026-09-09" class="shipsinfo_daywarp weekday">
+      {_ship_unit_html("24마린낚시", "출조공지", "NOTICE")}
+    </table>
+    """
+    monkeypatch.setattr(reservation_checker.requests, "get",
+                        lambda *a, **kw: DummyResponse(html))
+    reservation_checker.clear_cache()
+
+    result = reservation_checker.check_single_boat(
+        "https://24marine.sunsang24.com/ship/schedule_fleet_simple", 2026, 9, 9,
+        known_ship_name=None)
+
+    assert result["entries"] == []
+
+
 def test_check_single_boat_uses_cache_for_repeated_queries(monkeypatch):
     calls = []
     html = "<div></div>"

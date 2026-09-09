@@ -62,7 +62,8 @@ def parse_fixture(name, monkeypatch):
 
     year, month, day = (int(p) for p in meta['target_date'].split('-'))
     result = reservation_checker.check_single_boat(
-        meta['source_url'], year, month, day)
+        meta['source_url'], year, month, day,
+        known_ship_name=meta.get('known_ship_name'))
 
     # 골든에 담을 값만 추린다. used_url 처럼 실행마다 달라질 수 있는 것은 뺀다.
     return {

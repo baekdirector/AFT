@@ -225,6 +225,13 @@ def build_query_url(base_url: str, year: int, month: int, day: int) -> str:
     sunsang24.com 도메인(또는 기존에 schedule_fleet이 포함된 경우)은
     /ship/schedule_fleet/YYYYMM 형태로 처리합니다.
     그 외 도메인은 기존처럼 쿼리 파라미터를 추가합니다.
+
+    "schedule_fleet_simple" 경로(실측: 24마린낚시)는 다른 패턴이다 - 월 페이지
+    (/ship/schedule_fleet_simple)는 달력 화면일 뿐 배별 상태가 없고, 날짜를
+    클릭하면 JS가 /ship/schedule_fleet/YYYYMMDD/0/simple_day 를 따로 불러서
+    채운다. 그래서 이 경로는 월이 아니라 일 단위로 그 조각을 직접 요청한다.
+    (주의: 이 조각은 그 배만이 아니라 그날 플랫폼 전체 배 목록을 돌려준다 -
+    known_ship_name 으로 걸러내는 처리가 check_single_boat 쪽에 있다.)
     """
     parsed = urlparse(base_url)
     path = parsed.path or ""
@@ -234,7 +241,10 @@ def build_query_url(base_url: str, year: int, month: int, day: int) -> str:
     # sunsang24 도메인 또는 기존 schedule_fleet 경로는 schedule_fleet 처리
     if 'sunsang24.com' in netloc or 'schedule_fleet' in path:
         scheme = parsed.scheme or "https"
-        new_path = f"/ship/schedule_fleet/{year:04d}{month:02d}"
+        if 'schedule_fleet_simple' in path:
+            new_path = f"/ship/schedule_fleet/{year:04d}{month:02d}{day:02d}/0/simple_day"
+        else:
+            new_path = f"/ship/schedule_fleet/{year:04d}{month:02d}"
         return urlunparse((scheme, parsed.netloc, new_path, "", "", ""))
 
     # 일반 게시판 패턴 (예: index.php?mid=bk) — 기존 쿼리 유지 후 날짜 파라미터 추가
@@ -284,6 +294,11 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
 
     final_url = build_query_url(boat_url, year, month, day)
 
+    # "간편 일정"(schedule_fleet_simple) 패턴은 fetch 대상이
+    # /simple_day 조각(AJAX 응답, 스타일 없음)이라 사용자에게 보여줄 링크로는
+    # 부적절하다 - "예약 페이지" 링크는 원래 등록한 달력 페이지를 쓴다.
+    display_url = boat_url if '/simple_day' in final_url else final_url
+
     # 요일/표시 날짜(물때는 응답 후 보강)
     weekday = _weekday_kor(year, month, day)
     display_date = f"{year:04d}-{month:02d}-{day:02d}({weekday})"
@@ -292,7 +307,7 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
     try:
         resp = requests.get(final_url, headers=_headers_for(final_url), timeout=REQUEST_TIMEOUT_SECONDS)
     except requests.RequestException as e:
-        result = {"used_url": final_url, "display_date": display_date, "entries": [], "error": f"http_error:{e}"}
+        result = {"used_url": display_url, "display_date": display_date, "entries": [], "error": f"http_error:{e}"}
         return _store_cached_result(cache_key, result)
 
     # 403이면 UA/Referer 바꿔 재시도 + http 스킴 폴백
@@ -307,13 +322,14 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                 http_url = "http://" + final_url[len("https://"):]
                 resp = requests.get(http_url, headers=_headers_for(http_url, alt=True), timeout=REQUEST_TIMEOUT_SECONDS)
                 final_url = http_url  # 실제 사용 URL 갱신
+                display_url = boat_url if '/simple_day' in final_url else final_url
             except requests.RequestException:
                 pass
 
     # 여전히 200이 아니면 예외를 던지지 않고 빈 결과 반환 (500 방지)
     if resp is None or resp.status_code != 200:
         result = {
-            "used_url": final_url,
+            "used_url": display_url,
             "display_date": display_date,
             "entries": [],
             "error": f"http_status:{getattr(resp, 'status_code', 'unknown')}"
@@ -326,6 +342,13 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
     parsed_target = urlparse(final_url)
     target_netloc = (parsed_target.netloc or "").lower()
     use_schedule_pattern = ('sunsang24.com' in target_netloc) or ('schedule_fleet' in parsed_target.path)
+
+    # simple_day 조각은 이 배만이 아니라 그날 플랫폼 전체 배 목록을 돌려준다
+    # (실측: 24마린낚시=ship_no 1630 요청인데 응답에 다른 배 15척이 같이 왔다).
+    # 그대로 두면 남의 배 상태가 이 배 이름으로 저장되므로, 아래 배별 루프에서
+    # known_ship_name과 정확히 일치하는 행만 남긴다(구조 신호만으로 인정하는
+    # 기존 관대한 판정을 이 패턴에서는 쓰지 않는다).
+    is_platform_wide_listing = '/simple_day' in parsed_target.path
 
     if use_schedule_pattern:
         date_id = f"d{year:04d}-{month:02d}-{day:02d}"
@@ -347,7 +370,7 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                                 break
 
         if not day_block:
-            result = {"matched": False, "date_id": date_id, "source_url": final_url, "entries": [], "tide": None}
+            result = {"matched": False, "date_id": date_id, "source_url": display_url, "entries": [], "tide": None}
             return _store_cached_result(cache_key, result)
 
         # extract tide info from .date_info2
@@ -495,14 +518,20 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
             # 배 이름 정리 (예약하기 등 제거)
             ship_name = _clean_ship_name(ship_name)
 
-            # 이 행이 배인지 검증. 이름 모양보다 구조 신호(정원/예약상태)를 우선한다.
-            # 이름이 '호'로 끝나지 않는 선단(팀에프원/팀에프투 등)이 통째로
-            # 사라지던 문제를 막는다.
-            has_ship_signals = bool(num_el or status_text)
-            if not _is_valid_ship_name(ship_name,
-                                       {known_ship_name} if known_ship_name else None,
-                                       has_ship_signals=has_ship_signals):
-                continue
+            if is_platform_wide_listing:
+                # 이 페이지엔 남의 배도 같이 실려 있다 - 구조 신호로 관대하게
+                # 인정하면 안 되고 등록된 이름과 정확히 일치해야만 이 배로 본다.
+                if not known_ship_name or ship_name != known_ship_name:
+                    continue
+            else:
+                # 이 행이 배인지 검증. 이름 모양보다 구조 신호(정원/예약상태)를
+                # 우선한다. 이름이 '호'로 끝나지 않는 선단(팀에프원/팀에프투 등)
+                # 이 통째로 사라지던 문제를 막는다.
+                has_ship_signals = bool(num_el or status_text)
+                if not _is_valid_ship_name(ship_name,
+                                           {known_ship_name} if known_ship_name else None,
+                                           has_ship_signals=has_ship_signals):
+                    continue
 
             entries.append({
                 "ship_name": ship_name,
@@ -515,7 +544,7 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                 "fish": ship_fish  # 배별 어종
             })
 
-        result = {"matched": True, "entries": entries, "date_id": date_id, "source_url": final_url, "tide": tide}
+        result = {"matched": True, "entries": entries, "date_id": date_id, "source_url": display_url, "tide": tide}
         return _store_cached_result(cache_key, result)
 
         # 일반 게시판 패턴
@@ -957,7 +986,7 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
         result = {
             "matched": True,
             "entries": entries,
-            "source_url": final_url,
+            "source_url": display_url,
             "raw_html": resp.text[:1000],  # 디버깅용 요약
             "tide": tide
         }

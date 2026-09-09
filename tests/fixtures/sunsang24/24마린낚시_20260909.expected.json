@@ -1,0 +1,13 @@
+{
+  "entries": [
+    {
+      "ship_name": "24마린낚시",
+      "status": "unknown",
+      "available": null,
+      "display_status": "출조공지",
+      "fish": "주꾸미, 갑오징어"
+    }
+  ],
+  "tide": "4물",
+  "error": null
+}
