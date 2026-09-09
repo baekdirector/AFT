@@ -563,6 +563,12 @@
 }
 .modal-btn-submit:disabled { background: oklch(0.85 0.01 250); box-shadow: none; cursor: not-allowed; color: oklch(0.55 0.015 255); }
 
+/* 확인문자 입력/확인/알림 팝업 - 크롬 기본 prompt/confirm/alert 대신 같은
+   모달 디자인으로 통일한다. .modal-panel 재사용, 폭만 좁게. */
+.app-dialog-panel { width: min(420px, 92vw); padding: 26px 24px calc(env(safe-area-inset-bottom, 0px) + 26px); }
+.app-dialog-message { margin: 0 0 16px; font-size: 14px; line-height: 1.6; color: oklch(0.4 0.015 255); white-space: pre-line; }
+.app-dialog-panel .modal-field { margin-bottom: 4px; }
+
 /* Toast */
 .toast {
   position: fixed; bottom: 30px; right: 30px; background: oklch(0.58 0.13 155); color: #fff;
@@ -884,30 +890,91 @@ function initializeShipEditButtons() {
     });
 }
 
-// 배 등록/삭제 확인 문자(admin_key) 게이트. URL만 알면 누구나 목록을 지우거나
-// 등록할 수 있는 구조라(로그인 없음), 실수/장난을 막을 최소한의 마찰을 둔다 -
-// 서버(routes/views.py BOAT_ADMIN_KEY)가 최종 검증하므로 여기서 미리 값을
-// 맞혀보지 않는다. 빈 값/취소는 그냥 중단(false)한다.
-function promptAdminKeyOrNull() {
-    const key = window.prompt('배 등록/삭제 확인 문자를 입력하세요.');
-    if (key === null) return null;      // 취소
-    return key;
+// ------------------------------------------------------------------
+// 크롬 기본 alert/confirm/prompt 대신 쓰는 앱 디자인 팝업. register-modal과
+// 같은 .modal-overlay/.modal-panel 을 재사용해서 매번 새 <dialog> 마크업을
+// 만들지 않고 하나의 빌더로 alert/confirm/키입력 3가지를 다 만든다.
+// 반환값은 Promise: alert -> undefined, confirm -> boolean, 키입력 ->
+// 문자열|null(취소).
+// ------------------------------------------------------------------
+function appDialog({ title, message, withInput = false, confirmText = '확인', cancelText = '취소', showCancel = true }) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay active';
+        overlay.innerHTML = `
+            <div class="modal-panel app-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="app-dialog-title">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="app-dialog-title">${title}</h2>
+                    <button type="button" class="modal-close" aria-label="닫기">×</button>
+                </div>
+                ${message ? `<p class="app-dialog-message"></p>` : ''}
+                ${withInput ? `<label class="modal-field"><input type="password" class="app-dialog-input" placeholder="확인 문자" autocomplete="off"></label>` : ''}
+                <div class="modal-actions">
+                    ${showCancel ? `<button type="button" class="modal-btn modal-btn-cancel app-dialog-cancel">${cancelText}</button>` : ''}
+                    <button type="button" class="modal-btn modal-btn-submit app-dialog-confirm">${confirmText}</button>
+                </div>
+            </div>
+        `;
+        // 메시지는 사용자 입력을 반영할 일이 없는 문구들이지만, innerHTML 조립
+        // 습관이 다른 곳으로 옮겨붙지 않도록 textContent로 안전하게 넣는다.
+        const msgEl = overlay.querySelector('.app-dialog-message');
+        if (msgEl) msgEl.textContent = message;
+
+        document.body.appendChild(overlay);
+        const input = overlay.querySelector('.app-dialog-input');
+        const emptyResult = withInput ? null : false;
+
+        const cleanup = (result) => { overlay.remove(); resolve(result); };
+        overlay.querySelector('.modal-close')?.addEventListener('click', () => cleanup(emptyResult));
+        overlay.querySelector('.app-dialog-cancel')?.addEventListener('click', () => cleanup(emptyResult));
+        overlay.querySelector('.app-dialog-confirm').addEventListener('click', () => {
+            cleanup(withInput ? (input ? input.value : '') : true);
+        });
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(emptyResult); });
+
+        if (input) {
+            setTimeout(() => input.focus(), 50);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); overlay.querySelector('.app-dialog-confirm').click(); }
+            });
+        }
+    });
 }
 
-// <form> 기반 제출(=native submit)용: 폼 안에 admin_key 히든 필드를 만들어
-// 넣어준다. 취소하면 false를 돌려줘 호출부가 제출을 멈추게 한다.
-function promptAndAttachAdminKey(form) {
-    const key = promptAdminKeyOrNull();
-    if (key === null) return false;
-    let input = form.querySelector('input[name="admin_key"]');
-    if (!input) {
-        input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'admin_key';
-        form.appendChild(input);
+function appAlert(message, title = '알림') {
+    return appDialog({ title, message, showCancel: false, confirmText: '확인' });
+}
+function appConfirm(message, title = '확인') {
+    return appDialog({ title, message, confirmText: '확인', cancelText: '취소' });
+}
+function appPromptKey(message) {
+    return appDialog({ title: '확인 문자 입력', message, withInput: true, confirmText: '확인', cancelText: '취소' });
+}
+
+// 배 등록/삭제 확인 문자(admin_key) 게이트. URL만 알면 누구나 목록을 지우거나
+// 등록할 수 있는 구조라(로그인 없음), 실수/장난을 막을 최소한의 마찰을 둔다.
+// 서버(routes/views.py BOAT_ADMIN_KEY, /api/admin_key/verify)가 실제 검증
+// 주체다 - 여기서는 폼을 열기 전에 미리 물어봐서, 등록 화면은 "키가 맞았을
+// 때만" 뜨게 한다(사용자 요청). 등록/삭제 자체는 각 라우트가 어차피 다시
+// 검증하므로 이중 방어다.
+async function verifyAdminKey(promptMessage) {
+    const key = await appPromptKey(promptMessage);
+    if (key === null) return null;                 // 취소
+    if (!key.trim()) { await appAlert('확인 문자를 입력해주세요.'); return null; }
+    try {
+        const resp = await fetch('/api/admin_key/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ admin_key: key }),
+        });
+        const body = await resp.json();
+        if (body.ok) return key;
+        await appAlert('확인 문자가 올바르지 않습니다.');
+        return null;
+    } catch (e) {
+        await appAlert('확인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+        return null;
     }
-    input.value = key;
-    return true;
 }
 
 // 이벤트 리스너 초기화
@@ -984,18 +1051,38 @@ function initializeEventListeners() {
     const deleteForm = document.getElementById('delete-form');
 
     if (deleteButton && deleteForm) {
-        deleteButton.addEventListener('click', function() {
+        deleteButton.addEventListener('click', async function() {
             const checked = Array.from(document.querySelectorAll('.row-check:checked'));
             if (checked.length === 0) {
-                alert('삭제할 배를 선택하세요.');
+                await appAlert('삭제할 배를 선택하세요.');
                 return;
             }
 
-            if (!confirm(`선택한 ${checked.length}개의 배를 삭제하시겠습니까? 삭제하면 복구할 수 없습니다.`)) {
-                return;
+            const ok = await appConfirm(`선택한 ${checked.length}개의 배를 삭제하시겠습니까?\n삭제하면 복구할 수 없습니다.`, '배 삭제');
+            if (!ok) return;
+
+            const key = await verifyAdminKey('배 삭제를 위해 확인 문자를 입력하세요.');
+            if (!key) return;
+
+            deleteButton.disabled = true;
+            try {
+                const formData = new FormData(deleteForm);
+                formData.set('admin_key', key);
+                const resp = await fetch(deleteForm.action, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData,
+                });
+                const body = await resp.json();
+                if (!resp.ok || !body.success) {
+                    throw new Error(body.message || '삭제 중 오류가 발생했습니다.');
+                }
+                showToast(body.message || '선택한 배가 삭제되었습니다.');
+                setTimeout(() => { window.location.reload(); }, 1000);
+            } catch (err) {
+                await appAlert(err.message || '삭제 중 오류가 발생했습니다.');
+                deleteButton.disabled = false;
             }
-            if (!promptAndAttachAdminKey(deleteForm)) return;
-            deleteForm.submit();
         });
     }
 
@@ -1043,11 +1130,18 @@ function initializeRegisterModal() {
     const CUSTOM_PORT_VALUE = '__custom__';
 
     let isEditMode = false;
+    // 등록 모달을 열기 전에 확인한 키를 담아둔다 - 실제 등록 제출 때 다시
+    // 묻지 않고 이 값을 그대로 admin_key로 보낸다(사용자 요청: 키가 맞을
+    // 때만 등록 폼이 뜨는 순서).
+    let pendingAdminKey = null;
 
-    // 열기 트리거 (등록 모드)
+    // 열기 트리거 (등록 모드) - 키를 먼저 확인하고, 맞아야 폼을 연다.
     document.querySelectorAll('.open-register-modal').forEach(el => {
-        el.addEventListener('click', (e) => {
+        el.addEventListener('click', async (e) => {
             e.preventDefault();
+            const key = await verifyAdminKey('배 등록을 위해 확인 문자를 입력하세요.');
+            if (!key) return;
+            pendingAdminKey = key;
             isEditMode = false;
             setModalMode('register');
             overlay.classList.add('active');
@@ -1075,6 +1169,7 @@ function initializeRegisterModal() {
         overlay.classList.remove('active');
         resetForm();
         isEditMode = false;
+        pendingAdminKey = null;
         setModalMode('register');
     }
     function resetForm(){
@@ -1145,15 +1240,13 @@ function initializeRegisterModal() {
         el?.addEventListener('change', validateForm);
     });
 
-    // 폼 제출 인터셉트 (AJAX + Toast)
-    registerForm?.addEventListener('submit', function(e){
+    // 폼 제출 인터셉트 (AJAX + Toast). 등록은 모달을 열기 전에 이미 키를
+    // 확인해뒀으므로(pendingAdminKey) 여기서 다시 묻지 않는다 - 수정은
+    // 애초에 게이트 대상이 아니다(사용자 요청 범위: 등록/삭제만).
+    registerForm?.addEventListener('submit', async function(e){
         e.preventDefault();
 
-        // 수정은 게이트 대상이 아니다(사용자 요청 범위: 등록/삭제만) - 새로
-        // 배를 등록할 때만 확인 문자를 받는다.
         if (!isEditMode) {
-            const key = promptAdminKeyOrNull();
-            if (key === null) return;   // 취소 - 제출하지 않는다
             let keyInput = this.querySelector('input[name="admin_key"]');
             if (!keyInput) {
                 keyInput = document.createElement('input');
@@ -1161,7 +1254,7 @@ function initializeRegisterModal() {
                 keyInput.name = 'admin_key';
                 this.appendChild(keyInput);
             }
-            keyInput.value = key;
+            keyInput.value = pendingAdminKey || '';
         }
 
         const formData = new FormData(this);
@@ -1172,25 +1265,24 @@ function initializeRegisterModal() {
         // 제출 버튼 비활성화
         if (submitBtn) submitBtn.disabled = true;
 
-        const successMessage = isEditMode ? '선박 정보가 수정 되었습니다.' : '새로운 배가 등록 되었습니다.';
-
-        fetch(this.action, {
-            method: 'POST',
-            body: formData
-        })
-        .then(res => res.text())
-        .then(() => {
-            showToast(successMessage);
+        try {
+            const resp = await fetch(this.action, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData,
+            });
+            const body = await resp.json();
+            if (!resp.ok || !body.success) {
+                throw new Error(body.message || (isEditMode ? '수정 중 오류가 발생했습니다.' : '등록 중 오류가 발생했습니다.'));
+            }
+            showToast(body.message || (isEditMode ? '선박 정보가 수정되었습니다.' : '신규 배가 등록이 성공하였습니다.'));
             closeModal();
-            // 목록 새로고침
             setTimeout(()=>{ window.location.reload(); }, 1000);
-        })
-        .catch(err => {
+        } catch (err) {
             console.error('오류:', err);
-            const errorMessage = isEditMode ? '수정 중 오류가 발생했습니다.' : '등록 중 오류가 발생했습니다.';
-            alert(errorMessage);
+            await appAlert(err.message || (isEditMode ? '수정 중 오류가 발생했습니다.' : '등록 중 오류가 발생했습니다.'));
             if (submitBtn) submitBtn.disabled = false;
-        });
+        }
     });
 
     // 수정 모달 열기 함수를 전역으로 노출
@@ -1234,14 +1326,14 @@ function showToast(message){
 }
 
 // 파일 업로드 처리
-function handleFileUpload(event) {
+async function handleFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
 
     // 엑셀 업로드는 여러 배를 한 번에 등록/수정할 수 있어 등록/삭제와 같은
     // 위험도로 보고 확인 문자를 받는다.
-    const key = promptAdminKeyOrNull();
-    if (key === null) { event.target.value = ''; return; }
+    const key = await verifyAdminKey('엑셀 업로드를 위해 확인 문자를 입력하세요.');
+    if (!key) { event.target.value = ''; return; }
 
     const formData = new FormData();
     formData.append('excel_file', file);
@@ -1263,17 +1355,17 @@ function handleFileUpload(event) {
         body: formData
     })
     .then(response => response.json())
-    .then(data => {
+    .then(async (data) => {
         if (data.success) {
-            alert(data.message || '파일이 성공적으로 업로드되었습니다.');
-            window.location.reload();
+            showToast(data.message || '파일이 성공적으로 업로드되었습니다.');
+            setTimeout(() => { window.location.reload(); }, 1000);
         } else {
-            alert('업로드 실패: ' + (data.message || '알 수 없는 오류가 발생했습니다.'));
+            await appAlert('업로드 실패: ' + (data.message || '알 수 없는 오류가 발생했습니다.'));
         }
     })
-    .catch(error => {
+    .catch(async (error) => {
         console.error('오류:', error);
-        alert('업로드 중 오류가 발생했습니다.');
+        await appAlert('업로드 중 오류가 발생했습니다.');
     })
     .finally(() => {
         // 버튼 상태 복원

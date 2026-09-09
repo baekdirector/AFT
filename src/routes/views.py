@@ -30,6 +30,29 @@ BOAT_ADMIN_KEY = 'aft-kbss'
 def _admin_key_ok(value: str | None) -> bool:
     return bool(value) and hmac.compare_digest(value, BOAT_ADMIN_KEY)
 
+
+def _is_ajax() -> bool:
+    """프론트가 fetch()로 보낸 요청인지. 이런 요청엔 flash+redirect 대신
+    JSON으로 성공/실패를 명확히 돌려줘야 화면이 토스트로 결과를 보여줄 수
+    있다(fetch는 redirect를 그냥 따라가버려서 flash 배너만으로는 fetch 쪽이
+    성공/실패를 구분할 수 없다). 폼이 그대로 제출되는 예전 경로(JS 없는
+    환경, register.html 단독 접근)는 그대로 flash+redirect로 응답한다."""
+    return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+
+@views.route('/api/admin_key/verify', methods=['POST'])
+def verify_admin_key():
+    """확인 문자를 실제로 등록/삭제하기 전에 미리 검증한다.
+
+    프론트가 "키 입력 팝업 -> 맞으면 등록 폼 열기" 순서로 동작하려면 폼을
+    보여주기 전에 옳고 그름을 알아야 한다. 이 엔드포인트는 검증만 하고
+    아무것도 바꾸지 않는다 - 등록/삭제 자체는 각 라우트가 어차피 다시 검증한다
+    (여기 응답만 믿고 폼을 열게 해주는 것 자체가 편의고, 실제 방어는 각
+    라우트에 있다).
+    """
+    data = request.get_json(silent=True) or {}
+    return jsonify({'ok': _admin_key_ok(data.get('admin_key'))})
+
 #: 한국은 서머타임이 없어 고정 오프셋으로 충분하다. zoneinfo.ZoneInfo('Asia/Seoul')는
 #: 시스템에 tzdata 가 없으면(예: 이 프로젝트를 개발하는 일부 Windows 환경) 예외를
 #: 던지므로 의존성 없는 고정 오프셋을 쓴다.
@@ -140,14 +163,23 @@ def register():
     form = BoatRegistrationForm()
     if form.validate_on_submit():
         if not _admin_key_ok(request.form.get('admin_key')):
-            flash('확인 문자가 올바르지 않아 등록하지 못했습니다.', 'danger')
+            msg = '확인 문자가 올바르지 않아 등록하지 못했습니다.'
+            if _is_ajax():
+                return jsonify({'success': False, 'message': msg}), 403
+            flash(msg, 'danger')
             return render_template('register.html', form=form)
         try:
             add_boat_instance(form.name.data, form.url.data, form.city.data, form.port.data, form.note.data)
+            if _is_ajax():
+                return jsonify({'success': True, 'message': '신규 배가 등록이 성공하였습니다.'})
             flash('배가 등록되었습니다.', 'success')
             return redirect(url_for('views.index'))
         except Exception as e:
+            if _is_ajax():
+                return jsonify({'success': False, 'message': f'등록 중 오류: {e}'}), 500
             flash(f'등록 중 오류: {e}', 'danger')
+    elif _is_ajax() and request.method == 'POST':
+        return jsonify({'success': False, 'message': '입력값을 확인해주세요.'}), 400
     return render_template('register.html', form=form)
 
 
@@ -183,6 +215,8 @@ def _get_region_boats(boats):
 def edit_boat(boat_id):
     boat = get_boat_by_id(boat_id)
     if not boat:
+        if _is_ajax():
+            return jsonify({'success': False, 'message': '해당 배를 찾을 수 없습니다.'}), 404
         flash('해당 배를 찾을 수 없습니다.', 'danger')
         return redirect(url_for('views.index'))
 
@@ -191,10 +225,16 @@ def edit_boat(boat_id):
         if form.validate_on_submit():
             try:
                 update_boat(boat_id, form.name.data, form.url.data, form.city.data, form.port.data, form.note.data)
+                if _is_ajax():
+                    return jsonify({'success': True, 'message': '배 정보가 수정되었습니다.'})
                 flash('배 정보가 수정되었습니다.', 'success')
                 return redirect(url_for('views.index'))
             except Exception as e:
+                if _is_ajax():
+                    return jsonify({'success': False, 'message': f'수정 중 오류: {e}'}), 500
                 flash(f'수정 중 오류: {e}', 'danger')
+        elif _is_ajax():
+            return jsonify({'success': False, 'message': '입력값을 확인해주세요.'}), 400
 
     return render_template('edit_boat.html', form=form, boat_id=boat_id)
 
@@ -1008,12 +1048,19 @@ def map_page():
 @views.route('/delete/<int:boat_id>', methods=['POST'], endpoint='delete_boat')
 def delete_boat_route(boat_id):
     if not _admin_key_ok(request.form.get('admin_key')):
-        flash('확인 문자가 올바르지 않아 삭제하지 못했습니다.', 'danger')
+        msg = '확인 문자가 올바르지 않아 삭제하지 못했습니다.'
+        if _is_ajax():
+            return jsonify({'success': False, 'message': msg}), 403
+        flash(msg, 'danger')
         return redirect(url_for('views.index'))
     try:
         delete_boat(boat_id)
+        if _is_ajax():
+            return jsonify({'success': True, 'message': '선택한 배가 삭제되었습니다.'})
         flash('배가 삭제되었습니다.', 'success')
     except Exception as e:
+        if _is_ajax():
+            return jsonify({'success': False, 'message': f'삭제 중 오류: {e}'}), 500
         flash(f'삭제 중 오류: {e}', 'danger')
     return redirect(url_for('views.index'))
 
@@ -1021,11 +1068,17 @@ def delete_boat_route(boat_id):
 @views.route('/delete_boats', methods=['POST'])
 def delete_boats():
     if not _admin_key_ok(request.form.get('admin_key')):
-        flash('확인 문자가 올바르지 않아 삭제하지 못했습니다.', 'danger')
+        msg = '확인 문자가 올바르지 않아 삭제하지 못했습니다.'
+        if _is_ajax():
+            return jsonify({'success': False, 'message': msg}), 403
+        flash(msg, 'danger')
         return redirect(url_for('views.index'))
     ids = request.form.getlist('delete_ids')
     if not ids:
-        flash('삭제할 배를 선택하세요.', 'warning')
+        msg = '삭제할 배를 선택하세요.'
+        if _is_ajax():
+            return jsonify({'success': False, 'message': msg}), 400
+        flash(msg, 'warning')
         return redirect(url_for('views.index'))
     deleted = 0
     for bid in ids:
@@ -1036,6 +1089,8 @@ def delete_boats():
         except Exception as e:
             # continue on error, but notify
             print(f"delete_boat error for id={bid}: {e}")
+    if _is_ajax():
+        return jsonify({'success': True, 'deleted': deleted, 'message': '선택한 배가 삭제되었습니다.'})
     flash(f'{deleted}개의 배가 삭제되었습니다.', 'success')
     return redirect(url_for('views.index'))
 
