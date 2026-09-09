@@ -1,5 +1,5 @@
 // Versioned cache name for easy invalidation
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const PRECACHE = `aft-precache-${CACHE_VERSION}`;
 const RUNTIME = `aft-runtime-${CACHE_VERSION}`;
 
@@ -48,6 +48,14 @@ self.addEventListener('fetch', event => {
   }
 
   const url = new URL(request.url);
+
+  // API 응답은 매번 최신이어야 한다(감시 목록/체크 기록/예약현황 등) - 캐시하면
+  // "재등록해도 화면이 그대로"인 버그가 난다(폰은 서비스워커가 PC보다 오래
+  // 살아있어 캐시가 안 갱신된 채 굳어버린다). 네트워크로만 보낸다.
+  if (url.origin === self.location.origin && url.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(request));
+    return;
+  }
 
   // Same-origin static: Cache-first
   if (url.origin === self.location.origin) {
