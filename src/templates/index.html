@@ -52,23 +52,30 @@
         </div>
       </div>
 
-      <!-- 통계 카드 -->
-      <div class="stats-grid">
-        <div class="stat-card stat-card-primary">
-          <div class="stat-label">총 등록 선박</div>
-          <div class="stat-value">{{ boats|length }}<span class="stat-unit"> 척</span></div>
+      <!-- 대시보드 요약 - 클릭 동작이 없는 정보 표시용이라, 버튼처럼 오해되지
+           않게 아이콘 칩 + 값을 나란히 두는 카드형으로 정리했다. "조회 결과"는
+           검색/필터 결과 수와 중복되는 정보라 없앴다(사용자 결정). -->
+      <div class="stats-grid dashboard-grid">
+        <div class="stat-card stat-card-primary stat-card-dashboard">
+          <div class="stat-card-icon">🛥️</div>
+          <div>
+            <div class="stat-label">총 등록 선박</div>
+            <div class="stat-value">{{ boats|length }}<span class="stat-unit"> 척</span></div>
+          </div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">지역</div>
-          <div class="stat-value">{{ boats|map(attribute='city')|unique|list|length }}<span class="stat-unit"> 곳</span></div>
+        <div class="stat-card stat-card-dashboard">
+          <div class="stat-card-icon">📍</div>
+          <div>
+            <div class="stat-label">지역</div>
+            <div class="stat-value">{{ boats|map(attribute='city')|unique|list|length }}<span class="stat-unit"> 곳</span></div>
+          </div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">항구</div>
-          <div class="stat-value">{{ boats|map(attribute='port')|unique|list|length }}<span class="stat-unit"> 곳</span></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">조회 결과</div>
-          <div class="stat-value stat-value-accent"><span id="shipCount">{{ boats|length }}</span><span class="stat-unit"> 척</span></div>
+        <div class="stat-card stat-card-dashboard">
+          <div class="stat-card-icon">⚓</div>
+          <div>
+            <div class="stat-label">항구</div>
+            <div class="stat-value">{{ boats|map(attribute='port')|unique|list|length }}<span class="stat-unit"> 곳</span></div>
+          </div>
         </div>
       </div>
 
@@ -327,9 +334,17 @@
 .stat-card-primary .stat-label { color: #fff; opacity: 0.82; font-weight: 600; }
 .stat-value { font-size: 30px; font-weight: 820; letter-spacing: -1.4px; line-height: 1.15; color: var(--ink); }
 .stat-card-primary .stat-value { color: #fff; }
-.stat-value-accent { color: oklch(0.52 0.13 200); }
 .stat-unit { font-size: 15px; font-weight: 650; color: oklch(0.6 0.015 255); }
 .stat-card-primary .stat-unit { color: #fff; opacity: 0.85; }
+
+/* 대시보드 카드 - 클릭 대상이 아니라는 걸 분명히 하려고 아이콘 칩을 붙이고
+   호버/포인터 같은 버튼 신호를 전혀 안 준다(다른 버튼류와 시각적으로 구분). */
+.stat-card-dashboard { display: flex; align-items: center; gap: 13px; cursor: default; }
+.stat-card-icon {
+  width: 42px; height: 42px; border-radius: 13px; flex: none; display: grid; place-items: center;
+  font-size: 20px; background: oklch(0.94 0.02 245);
+}
+.stat-card-primary .stat-card-icon { background: oklch(1 0 0 / 0.18); }
 
 /* 검색/필터 카드 */
 .filter-card {
@@ -717,9 +732,6 @@ function renderShips(ships) {
             </article>
         `).join('');
     }
-
-    // 선박 수(조회 결과) 업데이트
-    document.getElementById('shipCount').textContent = ships.length;
 
     // 체크박스 / 카드별 수정버튼 이벤트 재설정
     initializeCheckboxEvents();
