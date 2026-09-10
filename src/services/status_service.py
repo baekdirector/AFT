@@ -5,6 +5,7 @@ status() 라우트에서 복잡한 로직을 분리하여 관심사를 명확히
 """
 from typing import Dict, List, Tuple, Optional
 from forms import REGION_CHOICES
+from services.holidays import kr_holidays_around
 
 
 class StatusPageService:
@@ -84,6 +85,10 @@ class StatusPageService:
             'region_counts': region_counts or {},
             'total_registered': total_registered,
             'region_boats': region_boats or {},
+            # 조회 날짜 달력에 공휴일을 빨간색으로 표시하기 위한 데이터 - 오늘 기준
+            # 앞뒤 몇 년치를 매 요청마다 새로 계산해 넘긴다(하드코딩 아님 -
+            # services/holidays.py 참고, 연도가 바뀌어도 손댈 필요 없다).
+            'kr_holidays': kr_holidays_around(),
         }
 
 
