@@ -1096,7 +1096,7 @@ document.addEventListener('DOMContentLoaded', function(){
     }
 
     async function sendTest() {
-      if (!endpoint) { alert('먼저 "알림 켜기"를 눌러주세요.'); return; }
+      if (!endpoint) { showToast('먼저 "알림 켜기"를 눌러주세요.', { type: 'info' }); return; }
       const btn = document.getElementById('test-push-btn');
       if (btn) { btn.disabled = true; btn.textContent = '보내는 중…'; }
       try {
@@ -1107,15 +1107,14 @@ document.addEventListener('DOMContentLoaded', function(){
         });
         const body = await resp.json();
         if (resp.ok) {
-          alert('보냈습니다. 잠시 후 알림이 도착합니다.\n\n'
-                + '이 화면을 보고 있으면 알림이 안 뜰 수 있습니다. '
-                + '홈으로 나가거나 화면을 끄고 기다려보세요.');
+          showToast('보냈습니다. 잠시 후 알림이 도착합니다.\n'
+                + '이 화면을 보고 있으면 알림이 안 뜰 수 있습니다.', { type: 'success' });
         } else {
-          alert(body.error || '발송에 실패했습니다.');
+          showToast(body.error || '발송에 실패했습니다.', { type: 'error' });
           if (resp.status === 410) { endpoint = null; setButtonOn(false); }
         }
       } catch (e) {
-        alert('통신에 실패했습니다.');
+        showToast('통신에 실패했습니다.', { type: 'error' });
       } finally {
         if (btn) { btn.disabled = false; btn.textContent = '테스트 알림 받기'; }
       }
@@ -1249,17 +1248,17 @@ document.addEventListener('DOMContentLoaded', function(){
       if (btn) { btn.disabled = true; btn.textContent = '켜는 중…'; }
       try {
         if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-          alert('이 브라우저는 웹 푸시를 지원하지 않습니다.');
+          showToast('이 브라우저는 웹 푸시를 지원하지 않습니다.', { type: 'error' });
           return;
         }
         const info = await (await fetch('/api/push/public-key')).json();
         if (!info.configured) {
-          alert('서버에 알림 키(VAPID)가 아직 설정되지 않았습니다.');
+          showToast('서버에 알림 키(VAPID)가 아직 설정되지 않았습니다.', { type: 'error' });
           return;
         }
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') {
-          alert('알림 권한이 거부되어 있습니다. 브라우저 설정에서 허용해주세요.');
+          showToast('알림 권한이 거부되어 있습니다. 브라우저 설정에서 허용해주세요.', { type: 'error' });
           return;
         }
 
@@ -1283,7 +1282,7 @@ document.addEventListener('DOMContentLoaded', function(){
         setButtonOn(true);   // 성공 - 버튼 텍스트를 "알림 켜짐"으로 바꾼다
       } catch (e) {
         console.warn('알림 켜기 실패', e);
-        alert('알림을 켜는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+        showToast('알림을 켜는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', { type: 'error' });
       } finally {
         if (btn) {
           btn.disabled = false;
@@ -1317,7 +1316,7 @@ document.addEventListener('DOMContentLoaded', function(){
         setButtonOn(false);
       } catch (e) {
         console.warn('알림 끄기 실패', e);
-        alert('알림을 끄는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+        showToast('알림을 끄는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', { type: 'error' });
       } finally {
         if (btn) {
           btn.disabled = false;
@@ -1348,7 +1347,7 @@ document.addEventListener('DOMContentLoaded', function(){
     async function toggle(cb) {
       if (!endpoint) {
         cb.checked = false;
-        alert('먼저 "알림 켜기"를 눌러 알림을 허용해주세요.');
+        showToast('먼저 "알림 켜기"를 눌러 알림을 허용해주세요.', { type: 'info' });
         return;
       }
 
@@ -1383,7 +1382,7 @@ document.addEventListener('DOMContentLoaded', function(){
         // 네트워크 실패도 되돌린다. 켜진 것처럼 보이는데 실제로는 아닌 상태가 최악이다.
         applyLocal(!turningOn, k, stub);
         cb.checked = !turningOn;
-        alert('통신에 실패했습니다. 다시 시도해주세요.');
+        showToast('통신에 실패했습니다. 다시 시도해주세요.', { type: 'error' });
         return;
       }
 
@@ -1391,7 +1390,7 @@ document.addEventListener('DOMContentLoaded', function(){
         // 상한 초과 등. 서버가 거절했으므로 낙관적 반영을 되돌린다.
         applyLocal(!turningOn, k, stub);
         cb.checked = !turningOn;
-        alert(body.error || '알림 등록에 실패했습니다.');
+        showToast(body.error || '알림 등록에 실패했습니다.', { type: 'error' });
         return;
       }
       applyServerState(body);

@@ -43,6 +43,59 @@
       font-weight: 600;
       color: oklch(0.35 0.02 255);
     }
+
+    /* 공용 토스트/확인 모달 - alert()/confirm() 대체용(showToast/showConfirm,
+       아래 스크립트 블록). 어느 페이지에서도 쓸 수 있게 base에 둔다 - 각 화면의
+       :root 팔레트(--accent 등)를 var(..., 대체값) 로 참조해 그 토큰이 없는
+       페이지에서도 안전하게 동작한다. */
+    #aft-toast-stack {
+      position: fixed; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+      z-index: 9999; display: flex; flex-direction: column-reverse; gap: 8px;
+      width: min(92vw, 380px); pointer-events: none;
+    }
+    .aft-toast {
+      pointer-events: auto; display: flex; align-items: flex-start; gap: 10px;
+      padding: 12px 14px; border-radius: 14px; background: oklch(0.22 0.02 255 / 0.95);
+      color: #fff; font-size: 13.5px; font-weight: 620; line-height: 1.45; cursor: pointer;
+      box-shadow: 0 10px 30px oklch(0.2 0.02 255 / 0.28);
+      animation: aft-toast-in 220ms cubic-bezier(.2,.8,.3,1);
+    }
+    .aft-toast.is-leaving { animation: aft-toast-out 180ms ease forwards; }
+    .aft-toast-icon { flex: none; font-size: 15px; line-height: 1.35; }
+    .aft-toast-msg { flex: 1; white-space: pre-line; }
+    .aft-toast.type-error { background: oklch(0.4 0.15 25 / 0.96); }
+    .aft-toast.type-success { background: oklch(0.32 0.1 155 / 0.96); }
+    @keyframes aft-toast-in { from { opacity: 0; transform: translateY(10px) scale(.96); } to { opacity: 1; transform: none; } }
+    @keyframes aft-toast-out { to { opacity: 0; transform: translateY(6px) scale(.97); } }
+
+    #aft-confirm-overlay {
+      position: fixed; inset: 0; background: oklch(0.15 0.02 255 / 0.45); backdrop-filter: blur(2px);
+      z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px;
+      animation: aft-overlay-in 140ms ease;
+    }
+    @keyframes aft-overlay-in { from { opacity: 0; } to { opacity: 1; } }
+    .aft-confirm-box {
+      width: min(92vw, 340px); background: #fff; border-radius: 18px; padding: 22px 20px 18px;
+      box-shadow: 0 20px 50px oklch(0.2 0.02 255 / 0.3);
+      animation: aft-confirm-in 180ms cubic-bezier(.2,.8,.3,1);
+    }
+    @keyframes aft-confirm-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+    .aft-confirm-msg {
+      font-size: 14.5px; font-weight: 660; color: var(--ink, oklch(0.24 0.02 255));
+      line-height: 1.55; white-space: pre-line; margin: 0 0 18px;
+    }
+    .aft-confirm-actions { display: flex; gap: 8px; }
+    .aft-confirm-btn {
+      flex: 1; height: 42px; border-radius: 12px; border: none; font-size: 13.5px; font-weight: 700; cursor: pointer;
+    }
+    .aft-confirm-btn.cancel { background: oklch(0.94 0.008 250); color: var(--ink-soft, oklch(0.55 0.015 255)); }
+    .aft-confirm-btn.cancel:hover { background: oklch(0.91 0.008 250); }
+    .aft-confirm-btn.ok {
+      background: linear-gradient(145deg, var(--accent, oklch(0.55 0.14 245)), var(--accent-2, oklch(0.46 0.13 225)));
+      color: #fff;
+    }
+    .aft-confirm-btn.ok.danger { background: linear-gradient(145deg, oklch(0.6 0.18 25), oklch(0.52 0.17 22)); }
+    .aft-confirm-btn.ok:hover { filter: brightness(1.06); }
   </style>
   {% block extra_head %}{% endblock %}
 </head>
@@ -59,6 +112,77 @@
   {% block content %}{% endblock %}
 </body>
 <script>
+// ====== 공용 토스트/확인 모달 - alert()/confirm() 대체 ======
+// 브라우저 기본 alert/confirm은 새 디자인과 이질적이고(주소창 아래 회색 박스,
+// "이 페이지의 내용:" 접두사 등) 포커스를 완전히 뺏어간다. 같은 자리(각 페이지의
+// showToast 호출부)에서 쓸 수 있도록 base에 한 번만 구현해 모든 화면이 공유한다.
+function showToast(message, opts) {
+  opts = opts || {};
+  const type = opts.type || 'info'; // info | error | success
+  const duration = opts.duration || 3600;
+  let stack = document.getElementById('aft-toast-stack');
+  if (!stack) {
+    stack = document.createElement('div');
+    stack.id = 'aft-toast-stack';
+    document.body.appendChild(stack);
+  }
+  const el = document.createElement('div');
+  el.className = 'aft-toast type-' + type;
+  const icon = type === 'error' ? '⚠️' : type === 'success' ? '✅' : '🔔';
+  const iconEl = document.createElement('span');
+  iconEl.className = 'aft-toast-icon';
+  iconEl.textContent = icon;
+  const msgEl = document.createElement('span');
+  msgEl.className = 'aft-toast-msg';
+  msgEl.textContent = message;
+  el.appendChild(iconEl);
+  el.appendChild(msgEl);
+  stack.appendChild(el);
+  function remove() {
+    el.classList.add('is-leaving');
+    setTimeout(() => el.remove(), 200);
+  }
+  const timer = setTimeout(remove, duration);
+  el.addEventListener('click', () => { clearTimeout(timer); remove(); });
+}
+
+function showConfirm(message, opts) {
+  opts = opts || {};
+  return new Promise(function (resolve) {
+    const overlay = document.createElement('div');
+    overlay.id = 'aft-confirm-overlay';
+    const box = document.createElement('div');
+    box.className = 'aft-confirm-box';
+    const msgEl = document.createElement('div');
+    msgEl.className = 'aft-confirm-msg';
+    msgEl.textContent = message;
+    const actions = document.createElement('div');
+    actions.className = 'aft-confirm-actions';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'aft-confirm-btn cancel';
+    cancelBtn.textContent = opts.cancelText || '취소';
+    const okBtn = document.createElement('button');
+    okBtn.type = 'button';
+    okBtn.className = 'aft-confirm-btn ok' + (opts.danger ? ' danger' : '');
+    okBtn.textContent = opts.confirmText || '확인';
+    actions.appendChild(cancelBtn);
+    actions.appendChild(okBtn);
+    box.appendChild(msgEl);
+    box.appendChild(actions);
+    overlay.appendChild(box);
+    function close(result) {
+      overlay.remove();
+      resolve(result);
+    }
+    cancelBtn.addEventListener('click', () => close(false));
+    okBtn.addEventListener('click', () => close(true));
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(false); });
+    document.body.appendChild(overlay);
+    okBtn.focus();
+  });
+}
+
 // Service Worker registration
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

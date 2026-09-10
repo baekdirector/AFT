@@ -316,6 +316,13 @@
 .watch-log-changed { text-align: right; color: var(--ink-softer); font-size: 12.5px; white-space: nowrap; cursor: default; }
 .watch-log-changed.is-changed { color: oklch(0.55 0.15 155); }
 .watch-log-empty { padding: 4px 0 8px; font-size: 12.5px; color: var(--ink-soft); }
+.watch-log-loading {
+  display: flex; align-items: center; gap: 8px; padding: 14px 0; font-size: 12.5px; color: var(--ink-soft);
+}
+.watch-log-loading .mini-spinner {
+  width: 15px; height: 15px; border-width: 2px;
+  border-color: oklch(0.85 0.01 250); border-top-color: var(--accent);
+}
 
 /* 모바일: 칸을 더 좁혀서 가로 스크롤 없이 한 화면에 들어오게 한다. */
 @media (max-width: 480px) {
@@ -367,6 +374,9 @@ document.addEventListener('DOMContentLoaded', function () {
     let endpoint = null;
     let watches = [];   // GET /api/watches 가 내려준 원본 목록 (boat_id, boat_name, ship_name, target_date, active)
     let history = [];   // GET /api/watches/history 가 내려준 확인 이력(최근 2일)
+    let historyLoaded = false;   // refreshHistory()가 한 번이라도 끝났는지 - 안 끝났으면
+                                  // "체크 기록이 없습니다"가 아니라 로딩 중임을 보여준다
+                                  // (펼치기 직후 빈 화면이었다가 갑자기 채워지는 문제 방지).
     let limit = 20;
 
     function setButtonOn(on) {
@@ -402,17 +412,17 @@ document.addEventListener('DOMContentLoaded', function () {
       if (btn) { btn.disabled = true; btn.textContent = '켜는 중…'; }
       try {
         if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-          alert('이 브라우저는 웹 푸시를 지원하지 않습니다.');
+          showToast('이 브라우저는 웹 푸시를 지원하지 않습니다.', { type: 'error' });
           return;
         }
         const info = await (await fetch('/api/push/public-key')).json();
         if (!info.configured) {
-          alert('서버에 알림 키(VAPID)가 아직 설정되지 않았습니다.');
+          showToast('서버에 알림 키(VAPID)가 아직 설정되지 않았습니다.', { type: 'error' });
           return;
         }
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') {
-          alert('알림 권한이 거부되어 있습니다. 브라우저 설정에서 허용해주세요.');
+          showToast('알림 권한이 거부되어 있습니다. 브라우저 설정에서 허용해주세요.', { type: 'error' });
           return;
         }
 
@@ -438,7 +448,7 @@ document.addEventListener('DOMContentLoaded', function () {
         renderAll();
       } catch (e) {
         console.warn('알림 켜기 실패', e);
-        alert('알림을 켜는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+        showToast('알림을 켜는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', { type: 'error' });
       } finally {
         if (btn) {
           btn.disabled = false;
@@ -475,7 +485,7 @@ document.addEventListener('DOMContentLoaded', function () {
         renderAll();
       } catch (e) {
         console.warn('알림 끄기 실패', e);
-        alert('알림을 끄는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+        showToast('알림을 끄는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', { type: 'error' });
       } finally {
         if (btn) {
           btn.disabled = false;
@@ -487,7 +497,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     async function sendTest() {
-      if (!endpoint) { alert('먼저 "알림 켜기"를 눌러주세요.'); return; }
+      if (!endpoint) { showToast('먼저 "알림 켜기"를 눌러주세요.', { type: 'info' }); return; }
       const btn = document.getElementById('test-push-btn');
       if (btn) { btn.disabled = true; btn.textContent = '보내는 중…'; }
       try {
@@ -498,15 +508,14 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         const body = await resp.json();
         if (resp.ok) {
-          alert('보냈습니다. 잠시 후 알림이 도착합니다.\n\n'
-                + '이 화면을 보고 있으면 알림이 안 뜰 수 있습니다. '
-                + '홈으로 나가거나 화면을 끄고 기다려보세요.');
+          showToast('보냈습니다. 잠시 후 알림이 도착합니다.\n'
+                + '이 화면을 보고 있으면 알림이 안 뜰 수 있습니다.', { type: 'success' });
         } else {
-          alert(body.error || '발송에 실패했습니다.');
+          showToast(body.error || '발송에 실패했습니다.', { type: 'error' });
           if (resp.status === 410) { endpoint = null; setButtonOn(false); }
         }
       } catch (e) {
-        alert('통신에 실패했습니다.');
+        showToast('통신에 실패했습니다.', { type: 'error' });
       } finally {
         if (btn) { btn.disabled = false; btn.textContent = '테스트 알림 받기'; }
       }
@@ -517,11 +526,14 @@ document.addEventListener('DOMContentLoaded', function () {
     // 경로(구독 있음/없음/서비스워커 미지원/오류)에서 반드시 setButtonOn 을
     // 호출해 확정 상태로 바꾼다 - 그래야 "꺼짐"이 잠깐 스쳐 보이는 일이 없다.
     async function restore() {
-      if (!('serviceWorker' in navigator)) { setButtonOn(false); renderAll(); return; }
+      // 구독이 아예 없는 경로들(서비스워커 미지원/구독 없음/복원 실패)은
+      // refreshHistory()가 끝내 호출되지 않는다 - historyLoaded를 여기서
+      // 직접 true로 세팅해두지 않으면 로그 칸이 "불러오는 중…"에 영영 멈춘다.
+      if (!('serviceWorker' in navigator)) { setButtonOn(false); historyLoaded = true; renderAll(); return; }
       try {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
-        if (!sub) { setButtonOn(false); renderAll(); return; }
+        if (!sub) { setButtonOn(false); historyLoaded = true; renderAll(); return; }
         endpoint = sub.endpoint;
         const body = await (await fetch('/api/watches?endpoint=' +
                                         encodeURIComponent(endpoint))).json();
@@ -533,6 +545,7 @@ document.addEventListener('DOMContentLoaded', function () {
       } catch (e) {
         console.warn('감시 상태 복원 실패', e);
         setButtonOn(false);
+        historyLoaded = true;
         renderAll();
       }
     }
@@ -547,7 +560,7 @@ document.addEventListener('DOMContentLoaded', function () {
     async function removeMany(items) {
       if (!items.length) return;
       if (!endpoint) {
-        alert('알림 구독 정보를 찾지 못했습니다. "알림 켜기"를 다시 눌러주세요.');
+        showToast('알림 구독 정보를 찾지 못했습니다. "알림 켜기"를 다시 눌러주세요.', { type: 'error' });
         return;
       }
       try {
@@ -570,11 +583,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const failedCount = results.filter(r => !r.removed).length;
         if (failedCount > 0) {
-          alert(`${failedCount}건은 해제하지 못했습니다. 잠시 후 다시 시도해주세요.`);
+          showToast(`${failedCount}건은 해제하지 못했습니다. 잠시 후 다시 시도해주세요.`, { type: 'error' });
         }
       } catch (e) {
         console.warn('알림 해제 실패', e);
-        alert('알림 해제 중 오류가 발생했습니다. 네트워크 상태를 확인하고 다시 시도해주세요.');
+        showToast('알림 해제 중 오류가 발생했습니다. 네트워크 상태를 확인하고 다시 시도해주세요.', { type: 'error' });
       }
     }
 
@@ -719,7 +732,13 @@ document.addEventListener('DOMContentLoaded', function () {
     // 받아온다. watches 목록과 별개 fetch다 - 이력은 "지금 감시 중인가"가
     // 아니라 "그 확인이 있었던 시점"을 보여주는 것이라 갱신 주기가 다르다.
     async function refreshHistory() {
-      if (!endpoint) return;
+      if (!endpoint) {
+        // 구독 자체가 없으면 영영 안 불러와질 데이터라 "불러오는 중"에 계속
+        // 머무르면 안 된다 - 로딩이 끝났다고 표시하고 빈 상태를 보여준다.
+        historyLoaded = true;
+        renderLog();
+        return;
+      }
       try {
         const body = await (await fetch('/api/watches/history?endpoint=' +
                                         encodeURIComponent(endpoint))).json();
@@ -727,6 +746,7 @@ document.addEventListener('DOMContentLoaded', function () {
       } catch (e) {
         console.warn('체크 기록 이력 조회 실패', e);
       }
+      historyLoaded = true;
       renderLog();
     }
 
@@ -734,6 +754,14 @@ document.addEventListener('DOMContentLoaded', function () {
       const body = document.getElementById('watch-log-body');
       if (!body) return;
       body.innerHTML = '';
+
+      if (!historyLoaded) {
+        const loading = document.createElement('div');
+        loading.className = 'watch-log-loading';
+        loading.innerHTML = '<span class="mini-spinner"></span><span>불러오는 중…</span>';
+        body.appendChild(loading);
+        return;
+      }
 
       if (!history.length) {
         const empty = document.createElement('div');
@@ -817,10 +845,11 @@ document.addEventListener('DOMContentLoaded', function () {
   });
   document.getElementById('test-push-btn')?.addEventListener('click', () => Watch.sendTest());
   document.getElementById('select-all-btn')?.addEventListener('click', () => Watch.toggleSelectAll());
-  document.getElementById('delete-selected-btn')?.addEventListener('click', function () {
+  document.getElementById('delete-selected-btn')?.addEventListener('click', async function () {
     const items = Watch.watches().filter(w => Watch.checked.has(`${w.boat_id}|${w.ship_name}|${w.target_date}`));
     if (!items.length) return;
-    if (!confirm(`선택한 ${items.length}건의 알림을 해제하시겠습니까?`)) return;
+    const ok = await showConfirm(`선택한 ${items.length}건의 알림을 해제하시겠습니까?`, { confirmText: '해제', danger: true });
+    if (!ok) return;
     Watch.removeMany(items);
   });
 
