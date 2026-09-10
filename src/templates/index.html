@@ -114,6 +114,15 @@
               <span>전체 선택</span>
             </label>
             <div id="selectedLabel" class="selected-hint">체크해서 수정 · 삭제할 수 있어요</div>
+            <div class="list-toolbar-spacer"></div>
+            <!-- 정렬 - 서버가 이미 최신등록순으로 내려주므로(views.index, "사용자
+                 요청") 그 순서를 기본값 그대로 쓰고, 이름순은 클라이언트에서만
+                 다시 정렬한다(재조회 없음) - 예약현황 화면의 정렬 토글과 같은
+                 방식(sort-toggle/sort-toggle-btn 클래스 재사용). -->
+            <div id="ship-sort-toggle" class="sort-toggle" role="group" aria-label="정렬 기준">
+              <button type="button" class="sort-toggle-btn is-active" data-sort-key="recent">최신등록순</button>
+              <button type="button" class="sort-toggle-btn" data-sort-key="name">이름순</button>
+            </div>
           </div>
 
           <div id="shipTableBody" class="ship-grid">
@@ -404,6 +413,16 @@
 }
 .select-all-pill input { width: 15px; height: 15px; cursor: pointer; }
 .selected-hint { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
+.list-toolbar-spacer { flex: 1; }
+
+/* 정렬 세그먼트 버튼 - 예약현황 화면과 같은 시각 언어 */
+.sort-toggle { display: flex; gap: 4px; padding: 4px; background: oklch(0.94 0.008 250); border-radius: 13px; flex: none; }
+.sort-toggle-btn {
+  height: 32px; padding: 0 14px; border-radius: 10px; border: none; font-size: 12.5px; font-weight: 700;
+  white-space: nowrap; color: var(--ink-soft); background: transparent; cursor: pointer;
+}
+.sort-toggle-btn.is-active { background: #fff; color: oklch(0.3 0.02 255); box-shadow: 0 1px 4px oklch(0.4 0.02 250 / 0.14); }
+.sort-toggle-btn:hover { color: var(--accent); }
 
 /* 카드 그리드 */
 .ship-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 11px; }
@@ -620,7 +639,7 @@ function initializeData() {
     // 서버에서 전달받은 데이터를 JavaScript 객체로 변환
     const serverData = {{ boats_json|tojson }};
 
-    allShips = serverData.map(boat => ({
+    allShips = serverData.map((boat, index) => ({
         id: boat.id,
         region: boat.city,
         port: boat.port,
@@ -628,12 +647,27 @@ function initializeData() {
         url: boat.url,
         note: boat.note,
         registered_date: boat.registered_date,
-        registration_number: boat.name // 임시로 이름을 등록번호로 사용
+        registration_number: boat.name, // 임시로 이름을 등록번호로 사용
+        _serverOrder: index // 서버가 이미 최신등록순으로 내려준 원래 순서 - "최신등록순" 정렬 복원용
     }));
 
     filteredShips = [...allShips];
     updateFilters();
+    sortFilteredShips();
     renderShips(filteredShips);
+}
+
+// 정렬 - "최신등록순"은 서버가 내려준 원래 순서(_serverOrder)를 그대로 복원,
+// "이름순"은 클라이언트에서 이름 가나다순으로 다시 정렬한다. 재조회 없이
+// filteredShips 배열 자체를 in-place 정렬해서 바로 renderShips 로 넘긴다.
+let currentShipSortKey = 'recent';
+
+function sortFilteredShips() {
+    if (currentShipSortKey === 'name') {
+        filteredShips.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    } else {
+        filteredShips.sort((a, b) => a._serverOrder - b._serverOrder);
+    }
 }
 
 // 지도 초기화. 항구 하나에 등록된 배가 여러 척이면 겹쳐 찍는 대신 그 항구
@@ -837,6 +871,7 @@ function filterShips() {
         return matchSearch && matchRegion && matchPort;
     });
 
+    sortFilteredShips();
     renderShips(filteredShips);
 }
 
@@ -1011,6 +1046,22 @@ function initializeEventListeners() {
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         searchInput.addEventListener('input', filterShips);
+    }
+
+    // 정렬 토글 (최신등록순/이름순) - 예약현황 화면의 정렬 버튼과 같은 방식
+    const sortToggle = document.getElementById('ship-sort-toggle');
+    if (sortToggle) {
+        const sortButtons = Array.from(sortToggle.querySelectorAll('.sort-toggle-btn'));
+        sortButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const sortKey = btn.dataset.sortKey;
+                if (!sortKey || sortKey === currentShipSortKey) return;
+                currentShipSortKey = sortKey;
+                sortButtons.forEach(b => b.classList.toggle('is-active', b === btn));
+                sortFilteredShips();
+                renderShips(filteredShips);
+            });
+        });
     }
 
     // 필터 선택
