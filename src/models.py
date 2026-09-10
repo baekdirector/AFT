@@ -3,8 +3,13 @@ from db import db
 
 class Boat(db.Model):
     __tablename__ = 'boats'
+    # name 단독 유니크였다가(실측: "빅보스호"가 여수/화성 두 군데 서로 다른
+    # 실제 배에 같은 이름으로 붙어있어 등록이 막힘) name+url 복합 유니크로
+    # 완화했다 - 같은 이름의 서로 다른 배는 허용하고, 완전히 같은 배(같은
+    # 이름 + 같은 예약 URL)를 실수로 두 번 등록하는 것만 막는다.
+    __table_args__ = (db.UniqueConstraint('name', 'url', name='uq_boats_name_url'),)
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False, unique=True)
+    name = db.Column(db.String(255), nullable=False)
     url = db.Column(db.String(2083), nullable=False)
     city = db.Column(db.String(100), nullable=False)
     port = db.Column(db.String(100), nullable=False)

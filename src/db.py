@@ -19,6 +19,62 @@ def ensure_boat_shared_column():
     db.session.commit()
 
 
+def ensure_boat_name_unique_constraint():
+    """boats.name 단독 유니크 제약을 name+url 복합 제약으로 옮긴다.
+
+    이 프로젝트엔 Alembic 같은 정식 마이그레이션 도구가 없어(create_all()이
+    새 테이블만 만들고 기존 테이블의 제약은 안 바꾼다) ensure_boat_shared_column()
+    과 같은 패턴으로 시작할 때마다 직접 점검한다. name 단독 유니크는 실제로
+    다른 두 배가 우연히 같은 이름("빅보스호")을 쓰는 경우를 막아버렸다 -
+    운영 DB(Postgres)에서만 의미가 있고, SQLite(로컬/테스트)는 매번 새로
+    create_all() 되므로 모델 정의(__table_args__)가 곧바로 적용돼 손댈 게 없다.
+    """
+    if not db.engine or db.engine.dialect.name != 'postgresql':
+        return
+
+    inspector = inspect(db.engine)
+    if 'boats' not in inspector.get_table_names():
+        return
+
+    constraints = inspector.get_unique_constraints('boats')
+    has_name_only = any(set(c['column_names']) == {'name'} for c in constraints)
+    has_name_url = any(set(c['column_names']) == {'name', 'url'} for c in constraints)
+
+    # gunicorn이 워커 2개를 fork해서 각자 앱 시작 시 이 함수를 독립적으로
+    # 부른다 - 거의 동시에 같은 ALTER를 두 번 시도할 수 있다. 목표 상태(복합
+    # 제약만 존재)에 도달하는 게 중요하지 "내가 직접 바꿨는지"가 아니므로,
+    # 다른 워커가 먼저 끝내서 대상이 이미 없어졌거나/이미 있어도 조용히
+    # 넘어간다 - 그 외의 진짜 오류만 다시 던진다.
+    if has_name_only:
+        name_only = next(c for c in constraints if set(c['column_names']) == {'name'})
+        try:
+            db.session.execute(text(f'ALTER TABLE boats DROP CONSTRAINT "{name_only["name"]}"'))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            still_there = any(
+                set(c['column_names']) == {'name'}
+                for c in inspect(db.engine).get_unique_constraints('boats')
+            )
+            if still_there:
+                raise  # 다른 워커의 경쟁이 아니라 진짜 실패
+
+    if not has_name_url:
+        try:
+            db.session.execute(text(
+                'ALTER TABLE boats ADD CONSTRAINT uq_boats_name_url UNIQUE (name, url)'
+            ))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            still_missing = not any(
+                set(c['column_names']) == {'name', 'url'}
+                for c in inspect(db.engine).get_unique_constraints('boats')
+            )
+            if still_missing:
+                raise  # 다른 워커의 경쟁이 아니라 진짜 실패
+
+
 def _load_shared_boats_from_excel():
     from openpyxl import load_workbook
 
@@ -89,6 +145,7 @@ def initialize_shared_boats():
     from models import Boat
 
     ensure_boat_shared_column()
+    ensure_boat_name_unique_constraint()
 
     if _get_app_setting('shared_boats_initialized') == 'true':
         return

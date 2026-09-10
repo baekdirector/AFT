@@ -58,6 +58,56 @@ def test_newly_registered_port_appears_on_home_page_for_future_registrations(cli
     assert '새로생긴항구' in rv.get_data(as_text=True)
 
 
+def test_register_same_name_different_url_succeeds(client, app):
+    """이름이 같아도 예약 URL이 다르면(실제로 다른 배) 등록이 성공해야 한다 -
+    실측: "빅보스호"가 여수/화성 두 곳에 서로 다른 배로 존재해 name 단독
+    유니크 제약(boats_name_key) 때문에 등록이 거절되던 버그. (register.html의
+    인라인 <script>엔 실행되지 않는 정적 JS 에러 문구가 그대로 섞여 있어
+    본문에서 '오류' 문자열을 찾는 건 못 믿는다 - 성공 시 /register 에 남지
+    않고 홈으로 리다이렉트되는지, 그리고 실제 DB 상태로 확인한다.)"""
+    client.post('/register', data={
+        'csrf_token': _csrf_token(client, '/register'),
+        'name': '동명이배호', 'url': 'https://example-a.sunsang24.com/ship/schedule_fleet',
+        'city': '화성', 'port': '전곡항', 'note': '', 'admin_key': 'aft-kbss',
+    })
+
+    rv = client.post('/register', data={
+        'csrf_token': _csrf_token(client, '/register'),
+        'name': '동명이배호', 'url': 'https://example-b.sunsang24.com/ship/schedule_fleet',
+        'city': '여수', 'port': '종포항', 'note': '', 'admin_key': 'aft-kbss',
+    }, follow_redirects=True)
+
+    assert rv.status_code == 200
+    assert rv.request.path == '/'
+    with app.app_context():
+        from models import Boat
+        matches = Boat.query.filter_by(name='동명이배호').all()
+        assert len(matches) == 2
+
+
+def test_register_same_url_twice_shows_friendly_message_not_raw_sql(client, app):
+    """완전히 같은 URL로 두 번 등록하면(이름이 같든 다르든) 기존
+    _find_duplicate_url_boat 사전 체크가 막는다 - 이 체크가 항상 DB INSERT보다
+    먼저 실행되므로 실제로 raw SQL 예외까지 내려가는 경로는 IntegrityError를
+    못 만나지만, 그래도 원본 SQL 문구가 새는 일이 없는지는 항상 보장돼야 한다
+    (실측: name 단독 유니크 시절엔 이 사전 체크를 통과한 뒤 psycopg2 예외
+    전문이 그대로 노출됐었다 - 지금은 애초에 여기서 막힌다)."""
+    payload = {
+        'name': '중복테스트호', 'url': 'https://example.com/dup',
+        'city': '인천', 'port': '남항(인천항)', 'note': '', 'admin_key': 'aft-kbss',
+    }
+    client.post('/register', data=dict(payload, csrf_token=_csrf_token(client, '/register')))
+
+    rv = client.post('/register', data=dict(payload, csrf_token=_csrf_token(client, '/register')),
+                      follow_redirects=True)
+
+    assert rv.status_code == 200
+    body = rv.get_data(as_text=True)
+    assert '이미 등록된 예약 URL입니다' in body
+    assert 'psycopg2' not in body
+    assert 'INSERT INTO' not in body
+
+
 def test_edit_also_accepts_port_not_in_city_port_mapping(client, app):
     from db import add_boat_instance
     with app.app_context():

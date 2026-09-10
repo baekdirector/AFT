@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 import json
 import requests
+from sqlalchemy.exc import IntegrityError
 
 views = Blueprint('views', __name__, template_folder='templates')
 
@@ -209,10 +210,20 @@ def register():
                 return jsonify({'success': True, 'message': '신규 배가 등록이 성공하였습니다.'})
             flash('배가 등록되었습니다.', 'success')
             return redirect(url_for('views.index'))
-        except Exception as e:
+        except IntegrityError:
+            # 같은 이름 + 같은 URL로 이미 등록된 배(uq_boats_name_url). 원인 불문
+            # SQL/파라미터가 그대로 노출되던 문제(실측: psycopg2 예외 전문이
+            # 알림창에 떴다)가 있어 사용자에게는 친절한 문구만 보여준다.
+            msg = '이미 같은 이름·URL로 등록된 배가 있습니다.'
             if _is_ajax():
-                return jsonify({'success': False, 'message': f'등록 중 오류: {e}'}), 500
-            flash(f'등록 중 오류: {e}', 'danger')
+                return jsonify({'success': False, 'message': msg}), 409
+            flash(msg, 'danger')
+        except Exception as e:
+            current_app.logger.error('배 등록 중 오류: %s', e, exc_info=e)
+            msg = '등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
+            if _is_ajax():
+                return jsonify({'success': False, 'message': msg}), 500
+            flash(msg, 'danger')
     elif _is_ajax() and request.method == 'POST':
         return jsonify({'success': False, 'message': '입력값을 확인해주세요.'}), 400
     return render_template('register.html', form=form)
@@ -277,10 +288,17 @@ def edit_boat(boat_id):
                     return jsonify({'success': True, 'message': '배 정보가 수정되었습니다.'})
                 flash('배 정보가 수정되었습니다.', 'success')
                 return redirect(url_for('views.index'))
-            except Exception as e:
+            except IntegrityError:
+                msg = '이미 같은 이름·URL로 등록된 배가 있습니다.'
                 if _is_ajax():
-                    return jsonify({'success': False, 'message': f'수정 중 오류: {e}'}), 500
-                flash(f'수정 중 오류: {e}', 'danger')
+                    return jsonify({'success': False, 'message': msg}), 409
+                flash(msg, 'danger')
+            except Exception as e:
+                current_app.logger.error('배 수정 중 오류: %s', e, exc_info=e)
+                msg = '수정 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
+                if _is_ajax():
+                    return jsonify({'success': False, 'message': msg}), 500
+                flash(msg, 'danger')
         elif _is_ajax():
             return jsonify({'success': False, 'message': '입력값을 확인해주세요.'}), 400
 

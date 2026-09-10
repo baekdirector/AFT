@@ -27,10 +27,10 @@ def test_add_boat_instance(app):
         assert len(all_boats) >= 1
 
 
-def test_add_boat_duplicate_name_fails(app):
-    """같은 이름의 배 중복 등록 시 실패 테스트"""
+def test_add_boat_same_name_and_url_fails(app):
+    """같은 이름 + 같은 URL로 중복 등록하면 실패한다(진짜 중복 등록)."""
     from db import add_boat_instance
-    
+
     with app.app_context():
         add_boat_instance(
             name='테스트선',
@@ -38,15 +38,40 @@ def test_add_boat_duplicate_name_fails(app):
             city='인천',
             port='남항(인천항)'
         )
-        
-        # 같은 이름으로 다시 등록하면 오류 발생
+
         with pytest.raises(Exception):
             add_boat_instance(
                 name='테스트선',
-                url='https://example2.com',
+                url='https://example.com',
                 city='안산',
                 port='오이도항'
             )
+
+
+def test_add_boat_same_name_different_url_succeeds(app):
+    """이름은 같지만 URL(예약 사이트)이 다르면 서로 다른 실제 배로 보고 둘 다
+    등록할 수 있어야 한다 - 실측: "빅보스호"가 여수/화성 두 곳에 서로 다른
+    배로 각각 존재해 등록이 막혔던 버그(name 단독 유니크 제약)를 고친 것.
+    (실제 배 이름 대신 합성 이름을 쓴다 - boat_list.xlsx 시드 데이터에 이미
+    "빅보스호"가 있어 그 이름을 쓰면 시드 항목까지 섞여 개수 비교가 깨진다.)"""
+    from db import add_boat_instance, get_all_boats
+
+    with app.app_context():
+        add_boat_instance(
+            name='동명이배호',
+            url='https://example-a.sunsang24.com/ship/schedule_fleet',
+            city='화성',
+            port='전곡항'
+        )
+        add_boat_instance(
+            name='동명이배호',
+            url='https://example-b.sunsang24.com/ship/schedule_fleet',
+            city='여수',
+            port='종포항'
+        )
+
+        names = [b.name for b in get_all_boats() if b.name == '동명이배호']
+        assert len(names) == 2
 
 
 def test_get_boat_by_id(app):
