@@ -144,6 +144,17 @@
         </button>
       </div>
 
+      <!-- 어종 필터 - 통계 카드(상태)와 별개 축이라 복수 선택 가능(지역 선택
+           칩과 같은 방식). 선택한 어종 중 하나라도 걸리는 배를 보여준다(OR) -
+           상태 필터(statusFilter)와는 AND로 같이 적용된다. 원문 어종 텍스트가
+           "주꾸미, 갑오징어"처럼 여러 종을 한 번에 적고, "쭈&갑"/"쭈갑 출조~"
+           같은 줄임말도 섞여 있어(실측) 단순 부분일치만으로는 못 잡는 경우가
+           있다 - matchesSpeciesFilter()/SPECIES_FILTERS 참고. -->
+      <div class="species-filter-row" id="species-filter-row">
+        <span class="species-filter-label">어종</span>
+        <div class="species-chip-list" id="species-chip-list"></div>
+      </div>
+
       <!-- 알림(감시) 제어. 체크박스를 쓰려면 먼저 여기서 알림을 켜야 한다.
            구독 상태 확인(Watch.restore - serviceWorker.ready -> getSubscription
            -> /api/watches 왕복)이 끝나기 전엔 켜짐도 꺼짐도 아직 모르는
@@ -541,6 +552,28 @@
   border-color: var(--accent); background: oklch(0.97 0.02 245);
   box-shadow: 0 0 0 1.5px var(--accent) inset;
 }
+
+/* 어종 필터 칩 - 지역 선택 칩과 같은 시각 언어, 다만 폼 체크박스가 아니라
+   버튼(서버 재조회 없이 이미 받은 결과를 클라이언트에서 다시 그린다). */
+.species-filter-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; }
+.species-filter-label { font-size: 12px; font-weight: 700; color: var(--ink-soft); flex: none; }
+.species-chip-list { display: flex; gap: 7px; flex-wrap: wrap; }
+.species-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: #fff; color: oklch(0.42 0.02 255); font-size: 12.5px; font-weight: 650;
+  cursor: pointer; transition: all 0.15s;
+}
+.species-chip:hover { border-color: oklch(0.78 0.02 250); }
+.species-chip .species-chip-count {
+  font-size: 10.5px; font-weight: 700; color: var(--ink-softer); background: oklch(0.95 0.008 250);
+  padding: 1px 6px; border-radius: 99px;
+}
+.species-chip.is-active {
+  border-color: transparent; color: #fff;
+  background: linear-gradient(145deg, var(--accent), var(--accent-2));
+}
+.species-chip.is-active .species-chip-count { background: oklch(1 0 0 / 0.22); color: #fff; }
+.species-chip.is-disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* 알림(Watch) 제어 */
 .push-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
@@ -2413,6 +2446,58 @@ document.addEventListener('DOMContentLoaded', function(){
     renderRows(lastRenderedRows);
   });
 
+  // 어종 필터 - 통계 카드(상태)와 별개 축. 복수 선택 가능하고(지역 선택 칩과
+  // 같은 방식) 선택한 어종 중 하나라도 걸리면 보여준다(OR). statusFilter와는
+  // AND로 같이 적용된다(renderRows 참고).
+  //
+  // 원문 어종 텍스트 실측(캐시 데이터 확인) 예: "주꾸미, 갑오징어",
+  // "쭈꾸미/갑오징어 출조", "쭈&갑", "쭈&;갑출조", "쭈갑 출조~" - "주꾸미"
+  // 표준 표기와 "쭈꾸미" 낚시업계 표기가 섞여 쓰이고, "쭈갑"은 주꾸미+갑오징어
+  // 줄임말인데 사이에 &, ; 같은 구분자가 끼기도 해서 단순 부분일치("쭈갑"이라는
+  // 문자열 그대로 포함)만으로는 "쭈&갑"류를 놓친다. 그래서 "쭈" 뒤 2글자
+  // 이내에 "갑"이 나오면 줄임말로 보고 주꾸미/갑오징어 둘 다에 매치시킨다.
+  function isJjugapAbbrev(text) { return /쭈.{0,2}갑/.test(text); }
+
+  const SPECIES_FILTERS = [
+    { key: 'cuttlefish', label: '갑오징어', test: t => t.includes('갑오징어') || isJjugapAbbrev(t) },
+    { key: 'octopus', label: '문어', test: t => t.includes('문어') },
+    { key: 'webfoot_octopus', label: '주꾸미', test: t => t.includes('주꾸미') || t.includes('쭈꾸미') || isJjugapAbbrev(t) },
+    { key: 'rockfish', label: '우럭', test: t => t.includes('우럭') },
+    { key: 'flounder', label: '광어', test: t => t.includes('광어') || t.includes('넙치') },
+    { key: 'seabass', label: '농어', test: t => t.includes('농어') },
+    { key: 'red_seabream', label: '참돔', test: t => t.includes('참돔') },
+  ];
+
+  let speciesFilter = new Set();   // 선택된 SPECIES_FILTERS.key들
+
+  function matchesSpeciesFilter(r) {
+    if (!speciesFilter.size) return true;
+    const text = r.fish || '';
+    return SPECIES_FILTERS.some(s => speciesFilter.has(s.key) && s.test(text));
+  }
+
+  // 통계 카드처럼 "지금 조회된 전체 배 기준" 개수를 칩에 보여준다(선택 여부와
+  // 무관 - 몇 척이나 걸리는지 미리 가늠할 수 있게). 0척인 어종은 눌러도 결과가
+  // 없을 게 뻔하니 옅게 비활성 표시만 하고 클릭은 막지 않는다(등록은 있는데
+  // 이번 조회 날짜엔 텍스트가 안 왔을 수도 있어 완전히 숨기지는 않는다).
+  function renderSpeciesChips(allRows) {
+    const box = document.getElementById('species-chip-list');
+    if (!box) return;
+    box.innerHTML = '';
+    SPECIES_FILTERS.forEach(s => {
+      const count = allRows.filter(r => s.test(r.fish || '')).length;
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'species-chip' + (speciesFilter.has(s.key) ? ' is-active' : '') + (count === 0 ? ' is-disabled' : '');
+      chip.innerHTML = `${s.label} <span class="species-chip-count">${count}</span>`;
+      chip.addEventListener('click', () => {
+        if (speciesFilter.has(s.key)) speciesFilter.delete(s.key); else speciesFilter.add(s.key);
+        renderRows(lastRenderedRows);
+      });
+      box.appendChild(chip);
+    });
+  }
+
   // 정렬된 평면 배열(배 1척 = 행 1개)을 등록된 배(선사) 단위로 묶는다. 선상24
   // "레드헌터"처럼 한 URL이 여러 척(1호/2호/3호)을 같이 내놓는 배("선단")를
   // 화면에서 카드 하나로 보여주기 위해서다 - sortRows() 는 그대로 두고, 정렬
@@ -2524,12 +2609,16 @@ document.addEventListener('DOMContentLoaded', function(){
     lastRenderedRows = rows;
     updateStatsCards(rows);        // 항상 전체 rows 기준 - 필터와 무관하게 "몇 척인지"를 보여준다
     applyStatusFilterUI();
+    renderSpeciesChips(rows);      // 마찬가지로 전체 rows 기준 개수 + 선택 상태 반영
 
-    const visible = statusFilter ? rows.filter(r => statusBucket(r) === statusFilter) : rows;
+    const visible = rows
+      .filter(r => !statusFilter || statusBucket(r) === statusFilter)
+      .filter(matchesSpeciesFilter);
 
     if (!visible.length) {
-      tbody.innerHTML = statusFilter
-        ? '<div class="empty-results">이 상태에 해당하는 배가 없습니다.<br>위 통계 카드를 다시 눌러 필터를 해제할 수 있어요.</div>'
+      const filtered = statusFilter || speciesFilter.size;
+      tbody.innerHTML = filtered
+        ? '<div class="empty-results">이 조건에 해당하는 배가 없습니다.<br>위 통계 카드나 어종 칩을 다시 눌러 필터를 해제할 수 있어요.</div>'
         : '<div class="empty-results">조회 결과가 없습니다.<br>상단에서 지역과 날짜를 선택 후 조회하세요.</div>';
       return;
     }
