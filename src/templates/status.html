@@ -26,8 +26,20 @@
 
   <main class="app-main">
     <section>
-      <h1 class="page-title">예약 현황 조회</h1>
-      <p class="page-subtitle">지역과 배를 고르고 날짜를 선택하면 자리 현황을 모아 보여줍니다</p>
+      <div class="page-title-row">
+        <div>
+          <h1 class="page-title">예약 현황 조회</h1>
+          <p class="page-subtitle">지역과 배를 고르고 날짜를 선택하면 자리 현황을 모아 보여줍니다</p>
+        </div>
+        <!-- 수산자원관리법 시행령 [별표 1] 기준 금어기 해제일 정보 팝업 - 순수
+             참고용 프런트엔드 기능(서버/API 무관, services/holidays.py 같은
+             패턴 필요 없음 - 금어기 날짜는 매년 안 바뀌는 고정 월/일이다). -->
+        <button type="button" id="ban-info-btn" class="ban-info-btn">
+          <span class="ban-info-btn-icon">🐙</span>
+          <span>금어기 해제일 정보</span>
+          <span id="ban-info-btn-badge" class="ban-info-btn-badge"></span>
+        </button>
+      </div>
 
       <form id="status-form" method="get" action="{{ url_for('views.status') }}">
         {{ form.csrf_token }}
@@ -261,6 +273,54 @@
       </div>
     </div>
   </div>
+
+  <!-- 금어기·해제일 정보 팝업. 수산자원관리법 시행령 [별표 1] 원문(사용자 제공
+       PDF 3종 대조) 기준 - 순수 참고용 정적 데이터, 서버 왕복 없이 클라이언트에서
+       바로 계산해 그린다(BAN_SPECIES/banStatus, 아래 스크립트). -->
+  <div id="ban-popup" class="ban-popup" hidden>
+    <div class="ban-popup-box">
+      <div class="ban-popup-head">
+        <div class="ban-popup-head-row">
+          <div class="ban-popup-head-icon">🐙</div>
+          <div class="ban-popup-head-text">
+            <h2>금어기 · 해제일 정보</h2>
+            <p>수산자원관리법 시행령 [별표 1] 기준 · 매년 고시로 바뀌는 꽃게·고등어는 2026년 고시값</p>
+          </div>
+          <button type="button" id="ban-popup-close" class="ban-popup-close">×</button>
+        </div>
+        <div id="ban-sea-tabs" class="ban-sea-tabs"></div>
+        <div id="ban-month-tabs" class="ban-month-tabs"></div>
+      </div>
+      <div class="ban-popup-body">
+        <div class="ban-headline-box">
+          <span class="ban-headline-icon">🎣</span>
+          <div>
+            <div id="ban-headline" class="ban-headline"></div>
+            <div id="ban-subline" class="ban-subline"></div>
+          </div>
+        </div>
+        <div id="ban-openings-block" class="ban-block">
+          <div class="ban-block-title"><span class="ban-dot ban-dot-open"></span>이번 달 금어기 해제 <span id="ban-openings-count" class="ban-block-count"></span></div>
+          <div id="ban-openings-grid" class="ban-card-grid"></div>
+        </div>
+        <div class="ban-block">
+          <div class="ban-block-title"><span class="ban-dot ban-dot-closed"></span>이번 달 금어기 중 · 시작 <span id="ban-closed-count" class="ban-block-count"></span></div>
+          <div id="ban-closed-grid" class="ban-card-grid"></div>
+        </div>
+        <div class="ban-block">
+          <div class="ban-block-title"><span class="ban-dot ban-dot-free"></span>이번 달 조업 가능 <span id="ban-free-count" class="ban-block-count"></span></div>
+          <div id="ban-free-list" class="ban-free-list"></div>
+        </div>
+      </div>
+      <div class="ban-popup-foot">
+        <span class="ban-legend"><span class="ban-legend-swatch ban-legend-closed"></span>금어기</span>
+        <span class="ban-legend"><span class="ban-legend-swatch ban-legend-free"></span>조업 가능</span>
+        <span class="ban-legend"><span class="ban-legend-swatch ban-legend-sel"></span>선택한 달</span>
+        <div class="ban-popup-foot-spacer"></div>
+        <button type="button" id="ban-popup-close-2" class="ban-popup-close-btn">닫기</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <style>
@@ -323,6 +383,21 @@
 .app-main { max-width: 1180px; margin: 0 auto; padding: clamp(16px, 3vw, 30px) clamp(14px, 3vw, 28px) 110px; }
 .page-title { margin: 0; font-size: clamp(22px, 4.4vw, 30px); font-weight: 800; letter-spacing: -1.1px; color: var(--ink); }
 .page-subtitle { margin: 6px 0 18px; font-size: 13.5px; color: var(--ink-soft); }
+
+.page-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.ban-info-btn {
+  display: inline-flex; align-items: center; gap: 9px; height: 46px; padding: 0 18px; margin-top: 2px;
+  border-radius: 15px; border: 1px solid oklch(0.88 0.05 175); cursor: pointer; flex: none; white-space: nowrap;
+  background: linear-gradient(150deg, oklch(0.97 0.03 175), oklch(0.95 0.04 195)); color: oklch(0.33 0.08 180);
+  font-size: 13.5px; font-weight: 750; letter-spacing: -0.3px; transition: all 0.16s;
+  box-shadow: 0 4px 14px oklch(0.6 0.08 180 / 0.16);
+}
+.ban-info-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px oklch(0.6 0.08 180 / 0.24); }
+.ban-info-btn-icon { font-size: 17px; line-height: 1; }
+.ban-info-btn-badge {
+  font-size: 10.5px; font-weight: 780; padding: 2px 7px; border-radius: 99px;
+  background: oklch(0.52 0.1 175); color: #fff;
+}
 
 /* 필터 카드 공통 */
 .filter-card {
@@ -747,6 +822,159 @@
   .popup-content { max-width: 98vw; margin: 16px auto; border-radius: 12px; }
   .popup-header { padding: 14px; border-radius: 12px 12px 0 0; }
   .popup-header h3 { font-size: 17px; }
+  .ban-info-btn span:not(.ban-info-btn-icon) { font-size: 12.5px; }
+}
+
+/* ====== 금어기 · 해제일 정보 팝업 ====== */
+.ban-popup {
+  position: fixed; inset: 0; z-index: 120; background: oklch(0.2 0.02 255 / 0.5); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center; padding: clamp(10px, 3vw, 34px);
+}
+.ban-popup[hidden] { display: none; }
+.ban-popup-box {
+  width: min(1100px, 100%); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden;
+  background: oklch(0.99 0.003 250); border-radius: 26px; box-shadow: 0 30px 80px oklch(0.2 0.04 255 / 0.4);
+}
+.ban-popup-head {
+  flex: none; padding: 20px clamp(16px, 2.5vw, 26px) 0;
+  background: linear-gradient(165deg, oklch(0.96 0.035 185), oklch(0.99 0.006 240) 78%);
+}
+.ban-popup-head-row { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.ban-popup-head-icon {
+  width: 50px; height: 50px; flex: none; border-radius: 17px; display: grid; place-items: center; font-size: 25px;
+  background: linear-gradient(145deg, oklch(0.62 0.12 180), oklch(0.52 0.11 205));
+  box-shadow: 0 8px 20px oklch(0.55 0.1 190 / 0.32);
+}
+.ban-popup-head-text { flex: 1; min-width: 180px; }
+.ban-popup-head-text h2 { margin: 0; font-size: clamp(19px, 3vw, 23px); font-weight: 820; letter-spacing: -0.9px; }
+.ban-popup-head-text p { margin: 5px 0 0; font-size: 12.5px; color: oklch(0.48 0.02 240); font-weight: 600; }
+.ban-popup-close {
+  flex: none; border: none; background: oklch(1 0 0 / 0.7); width: 36px; height: 36px; border-radius: 12px;
+  font-size: 17px; color: oklch(0.4 0.02 255); cursor: pointer;
+}
+.ban-popup-close:hover { background: #fff; }
+.ban-sea-tabs { display: flex; gap: 7px; margin: 16px 0 0; flex-wrap: wrap; }
+.ban-sea-tab {
+  display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 999px;
+  cursor: pointer; font-size: 13px; font-weight: 720; white-space: nowrap; flex: none; transition: all 0.16s;
+  border: 1px solid oklch(0.9 0.012 230); background: oklch(1 0 0 / 0.75); color: oklch(0.38 0.03 235);
+}
+.ban-sea-tab .ban-sea-tab-badge {
+  font-size: 10.5px; font-weight: 780; padding: 1px 7px; border-radius: 99px;
+  background: oklch(0.94 0.01 235); color: oklch(0.5 0.02 240);
+}
+.ban-sea-tab.is-active {
+  border-color: transparent; color: #fff; box-shadow: 0 6px 16px oklch(0.55 0.11 195 / 0.3);
+  background: linear-gradient(145deg, oklch(0.55 0.12 190), oklch(0.47 0.11 210));
+}
+.ban-sea-tab.is-active .ban-sea-tab-badge { background: oklch(1 0 0 / 0.24); color: #fff; }
+.ban-month-tabs { display: flex; gap: 5px; overflow-x: auto; padding: 14px 0 12px; scrollbar-width: none; }
+.ban-month-tab {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  min-width: 64px; height: 56px; border-radius: 15px; cursor: pointer; white-space: nowrap; flex: none;
+  transition: all 0.16s; border: 1px solid oklch(0.91 0.01 240); background: oklch(1 0 0 / 0.72); color: oklch(0.34 0.02 250);
+}
+.ban-month-tab-label { font-size: 13px; font-weight: 790; line-height: 1; }
+.ban-month-tab-dot {
+  font-size: 10px; font-weight: 740; padding: 1px 6px; border-radius: 99px;
+  background: oklch(0.95 0.006 250); color: oklch(0.66 0.012 255);
+}
+.ban-month-tab-dot.has-open { background: oklch(0.93 0.06 160); color: oklch(0.36 0.09 160); }
+.ban-month-tab.is-active {
+  border-color: transparent; color: #fff; box-shadow: 0 8px 20px oklch(0.55 0.14 245 / 0.28);
+  background: linear-gradient(150deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225));
+}
+.ban-month-tab.is-active .ban-month-tab-dot { background: oklch(1 0 0 / 0.22); color: #fff; }
+.ban-popup-body { flex: 1; overflow-y: auto; padding: 18px clamp(16px, 2.5vw, 26px) 24px; }
+.ban-headline-box {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; padding: 13px 15px;
+  border-radius: 16px; background: linear-gradient(150deg, oklch(0.95 0.05 160), oklch(0.97 0.02 190));
+  border: 1px solid oklch(0.88 0.06 165);
+}
+.ban-headline-icon { font-size: 20px; line-height: 1; }
+.ban-headline { font-size: 14px; font-weight: 780; letter-spacing: -0.4px; color: oklch(0.3 0.08 165); }
+.ban-subline { font-size: 12px; font-weight: 620; color: oklch(0.42 0.05 175); margin-top: 2px; }
+.ban-block { margin-bottom: 20px; }
+.ban-block:last-child { margin-bottom: 0; }
+.ban-block-title { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 13px; font-weight: 780; letter-spacing: -0.3px; }
+.ban-dot { width: 8px; height: 8px; border-radius: 99px; flex: none; }
+.ban-dot-open { background: oklch(0.6 0.14 155); }
+.ban-dot-closed { background: oklch(0.72 0.16 70); }
+.ban-dot-free { background: oklch(0.72 0.03 250); }
+.ban-block-count { font-size: 11px; font-weight: 700; color: oklch(0.56 0.015 255); }
+.ban-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 11px; }
+.ban-card {
+  background: #fff; border-radius: 18px; padding: 15px 16px; border: 1px solid oklch(0.92 0.008 250);
+  box-shadow: 0 2px 10px oklch(0.5 0.02 250 / 0.04);
+}
+.ban-card.is-open { border-color: oklch(0.84 0.08 158); box-shadow: 0 8px 22px oklch(0.6 0.12 158 / 0.14); }
+.ban-card-head { display: flex; align-items: center; gap: 11px; }
+.ban-card-avatar {
+  position: relative; width: 50px; height: 50px; flex: none; border-radius: 17px; display: grid; place-items: center;
+  font-size: 24px; background: oklch(0.94 0.05 var(--hue, 210)); border: 1px solid oklch(0.88 0.06 var(--hue, 210));
+}
+.ban-card-name { flex: 1; min-width: 0; font-size: 15.5px; font-weight: 780; letter-spacing: -0.4px; }
+.ban-card-sea { font-size: 11.5px; font-weight: 650; color: oklch(0.55 0.015 255); margin-top: 2px; }
+.ban-card-tag { flex: none; font-size: 10.5px; font-weight: 770; padding: 3px 9px; border-radius: 99px; white-space: nowrap; color: #fff; background: oklch(0.72 0.03 250); }
+.ban-card.is-open .ban-card-tag { background: oklch(0.6 0.14 155); }
+.ban-card.is-start .ban-card-tag { background: oklch(0.68 0.16 45); }
+.ban-card-period-row {
+  display: flex; align-items: center; gap: 7px; margin-top: 12px; padding: 8px 11px; border-radius: 11px;
+  background: oklch(0.972 0.005 250);
+}
+.ban-card-period-label { font-size: 11px; font-weight: 730; color: oklch(0.55 0.015 255); white-space: nowrap; }
+.ban-card-period-text { font-size: 12.5px; font-weight: 760; letter-spacing: -0.3px; color: oklch(0.32 0.02 255); }
+.ban-card-dday {
+  margin-left: auto; flex: none; font-size: 11px; font-weight: 740; padding: 4px 10px; border-radius: 99px;
+  white-space: nowrap; background: oklch(0.95 0.006 250); color: oklch(0.5 0.02 255);
+}
+.ban-card.is-open .ban-card-dday { background: oklch(0.9 0.09 158); color: oklch(0.32 0.1 160); }
+.ban-card-dates { display: flex; gap: 8px; margin-top: 8px; }
+.ban-card-date-box {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 13px;
+  background: oklch(0.968 0.005 250); border: 1px solid oklch(0.94 0.006 250);
+}
+.ban-card.is-start .ban-card-date-box.is-start-box { background: oklch(0.96 0.05 45); border-color: oklch(0.86 0.08 50); }
+.ban-card.is-open .ban-card-date-box.is-open-box {
+  background: linear-gradient(135deg, oklch(0.94 0.07 158), oklch(0.97 0.03 178)); border-color: oklch(0.82 0.1 158);
+}
+.ban-card-date-caption { font-size: 10.5px; font-weight: 730; color: oklch(0.56 0.015 255); white-space: nowrap; }
+.ban-card-date-value { font-size: 15px; font-weight: 820; letter-spacing: -0.5px; color: oklch(0.38 0.02 255); }
+.ban-card.is-start .ban-card-date-value.is-start-value { color: oklch(0.45 0.14 45); }
+.ban-card.is-open .ban-card-date-value.is-open-value { color: oklch(0.36 0.12 160); }
+.ban-card-months { display: flex; gap: 2px; margin-top: 11px; }
+.ban-card-month-bar { flex: 1; height: 7px; border-radius: 3px; background: oklch(0.72 0.13 155); }
+.ban-card-month-bar.is-closed { background: oklch(0.78 0.13 60); }
+.ban-card-month-bar.is-selected { background: oklch(0.5 0.14 245); }
+.ban-card-note { font-size: 11.5px; line-height: 1.5; font-weight: 600; color: oklch(0.53 0.015 255); margin-top: 9px; }
+.ban-free-list { display: flex; flex-wrap: wrap; gap: 7px; }
+.ban-free-pill {
+  display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px 7px 8px; border-radius: 999px;
+  background: #fff; border: 1px solid oklch(0.92 0.008 250); font-size: 12.5px; font-weight: 700; color: oklch(0.36 0.02 255);
+}
+.ban-free-pill-icon {
+  width: 24px; height: 24px; border-radius: 99px; display: grid; place-items: center; font-size: 14px;
+  background: oklch(0.94 0.05 var(--hue, 210));
+}
+.ban-free-pill-next { font-size: 10.5px; font-weight: 650; color: oklch(0.62 0.015 255); }
+.ban-empty-note { font-size: 12.5px; font-weight: 600; color: var(--ink-softer); padding: 6px 0; }
+.ban-popup-foot {
+  flex: none; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 13px clamp(16px, 2.5vw, 26px);
+  border-top: 1px solid oklch(0.94 0.006 250); background: oklch(0.978 0.004 250);
+}
+.ban-legend { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 650; color: oklch(0.52 0.015 255); }
+.ban-legend-swatch { width: 12px; height: 8px; border-radius: 3px; }
+.ban-legend-closed { background: oklch(0.78 0.13 60); }
+.ban-legend-free { background: oklch(0.72 0.13 155); }
+.ban-legend-sel { background: oklch(0.5 0.14 245); }
+.ban-popup-foot-spacer { flex: 1; }
+.ban-popup-close-btn {
+  height: 42px; padding: 0 22px; border-radius: 14px; border: none; color: #fff; font-size: 14px; font-weight: 750;
+  cursor: pointer; white-space: nowrap; background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225));
+}
+@media (max-width: 480px) {
+  .ban-card-grid { grid-template-columns: 1fr; }
+  .ban-popup-box { border-radius: 18px; }
 }
 </style>
 
@@ -1749,6 +1977,288 @@ document.addEventListener('DOMContentLoaded', function(){
         }
       });
     });
+  })();
+
+  // ====== 금어기 · 해제일 정보 팝업 ======
+  // 데이터 출처: 수산자원관리법 시행령 [별표 1](사용자가 국가법령정보센터
+  // 원문 PDF 3종을 직접 찾아 대조 검증) + 매년 달라지는 꽃게·고등어는
+  // 「수산자원의 포획금지기간에 관한 고시」(해양수산부고시 제2024-40호)의
+  // 2026년도 확정값. 법 원문은 대부분 종을 "서해/남해/동해" 구분 없이
+  // 전국 공통으로 규정한다 - 진짜 지역 제한이 있는 소수 종만 seas를 좁힌다
+  // (예: 대게류·붉은대게·코끼리조개·가리비는 동해[강원·경북]에서만, 오분자기·
+  // 넓미역은 남해[제주]에서만 적용). 금지체장(최소 크기)은 별표 2 영역이라
+  // 이번엔 다루지 않는다 - "금어기 해제일" 요청 범위에 집중.
+  (function bindBanPopup() {
+    const btn = document.getElementById('ban-info-btn');
+    const popup = document.getElementById('ban-popup');
+    if (!btn || !popup) return;
+
+    const ALL_SEAS = ['서해', '남해', '동해'];
+    const SPECIES = [
+      { name: '대구', emoji: '🐟', hue: 220, s: [1, 16], e: [2, 15], note: '전국 공통 · 주 산란장 진해만 등' },
+      { name: '문치가자미', emoji: '🐟', hue: 200, s: [12, 1], e: [1, 31], note: '전국 공통' },
+      { name: '연어', emoji: '🐟', hue: 235, s: [10, 1], e: [11, 30], note: '전국 공통 · 주로 동해 하천으로 회귀' },
+      { name: '전어', emoji: '🐟', hue: 195, seas: ['서해', '남해'], s: [5, 1], e: [7, 15], note: '강원특별자치도·경상북도는 적용 제외' },
+      { name: '쥐노래미', emoji: '🐠', hue: 145, s: [11, 1], e: [12, 31], note: '전국 공통 · 서해 백령도 인근 특정해역은 11.15~12.14' },
+      { name: '참홍어', emoji: '🐟', hue: 260, s: [6, 1], e: [7, 15], note: '전국 공통' },
+      { name: '참조기', emoji: '🐟', hue: 45, s: [7, 1], e: [7, 31], note: '유자망(유동성그물) 어업은 4.22~8.10 · 어획량 10% 미만 혼획 시 예외' },
+      { name: '갈치', emoji: '🐟', hue: 250, s: [7, 1], e: [7, 31], note: '북위 33도 이북 해역 한정 · 근해채낚기·연안복합어업 제외' },
+      { name: '고등어', emoji: '🐟', hue: 210, s: [5, 1], e: [5, 31], note: '2026년 고시 기준(매년 변경) · 소형선망·제주 정치망어업은 4.1~4.30' },
+      { name: '말쥐치', emoji: '🐡', hue: 120, s: [5, 1], e: [7, 31], note: '정치망·연안·구획어업은 6.1~7.31' },
+      { name: '옥돔', emoji: '🐠', hue: 25, s: [7, 21], e: [8, 20], note: '전국 공통 · 주산지 제주(남해)' },
+      { name: '삼치', emoji: '🐟', hue: 205, s: [5, 1], e: [5, 31], note: '전국 공통' },
+      { name: '감성돔', emoji: '🐟', hue: 230, s: [5, 1], e: [5, 31], note: '전국 공통' },
+      { name: '꽃게', emoji: '🦀', hue: 30, s: [6, 21], e: [8, 20], note: '2026년 고시 기준(매년 변경) · 연평도어장 7.1~8.31, 백령·대청·소청도 등 특정해역 7.16~9.15' },
+      { name: '대게류', emoji: '🦀', hue: 15, seas: ['동해'], s: [6, 1], e: [11, 30], note: '동경131도30분 이동수역 6.1~10.31 · 강원·경북 일부 특정좌표해역은 예외 기간 별도' },
+      { name: '붉은대게', emoji: '🦀', hue: 10, seas: ['동해'], s: [7, 10], e: [8, 25], note: '강원특별자치도 연안자망어업은 6.1~7.10' },
+      { name: '대하', emoji: '🦐', hue: 350, s: [5, 1], e: [6, 30], note: '전국 공통 · 주산지 서해' },
+      { name: '새조개', emoji: '🐚', hue: 340, s: [6, 16], e: [9, 30], note: '부산·울산·경남·전남(무안·영광 제외)·제주는 6.1~9.30' },
+      { name: '소라', emoji: '🐚', hue: 30, seas: ['남해', '동해'], s: [6, 1], e: [8, 31], note: '여수 삼산면 6.1~6.30, 제주 본섬 6.1~8.31, 제주 추자도 7.1~8.31, 울릉도·독도 6.1~7.31' },
+      { name: '전복류', emoji: '🐚', hue: 5, s: [9, 1], e: [10, 31], note: '전국 공통 · 제주특별자치도는 10.1~12.31' },
+      { name: '코끼리조개', emoji: '🐚', hue: 350, seas: ['동해'], s: [5, 1], e: [6, 30], note: '강원특별자치도·경상북도 한정' },
+      { name: '키조개', emoji: '🐚', hue: 20, s: [7, 1], e: [8, 31], note: '전국 공통 · 주산지 서해' },
+      { name: '가리비', emoji: '🐚', hue: 300, seas: ['동해'], s: [3, 1], e: [6, 30], note: '경상북도 특정좌표해역 한정' },
+      { name: '오분자기', emoji: '🐚', hue: 40, seas: ['남해'], s: [7, 1], e: [8, 31], note: '제주특별자치도 한정' },
+      { name: '넓미역', emoji: '🌿', hue: 150, seas: ['남해'], s: [9, 1], e: [11, 30], note: '제주특별자치도 한정 · 도지사 재량으로 5.1~11.30 중 3개월 이상 별도 지정 가능' },
+      { name: '우뭇가사리', emoji: '🌿', hue: 340, s: [11, 1], e: [3, 31], note: '전국 공통' },
+      { name: '톳', emoji: '🌿', hue: 100, s: [10, 1], e: [1, 31], note: '전국 공통' },
+      { name: '해삼', emoji: '🥒', hue: 60, s: [7, 1], e: [7, 31], note: '전국 공통' },
+      { name: '살오징어', emoji: '🦑', hue: 265, s: [4, 1], e: [5, 31], note: '근해채낚기·연안복합·정치망어업은 4.1~4.30' },
+      { name: '낙지', emoji: '🐙', hue: 55, seas: ['서해', '남해'], s: [6, 1], e: [6, 30], note: '시·도지사 재량 고시 - 인천·경기·전남 6.21~7.20, 경남 6.16~7.31, 충남 가로림만·근소만 4.1~5.31' },
+      { name: '주꾸미', emoji: '🐙', hue: 330, s: [5, 11], e: [8, 31], note: '전국 공통 · 지역별 예외 조항 없음' },
+      { name: '참문어', emoji: '🐙', hue: 20, s: [5, 16], e: [6, 30], note: '시·도지사 재량 고시 - 경남·전남 5.24~7.8, 제주 8.1~9.15' },
+      { name: '명태', emoji: '🐟', hue: 210, alwaysClosed: true, note: '자원회복을 위해 연중(1.1~12.31) 포획·채취 전면 금지' },
+    ];
+    // 이 법(별표 1)엔 아예 안 실려 있어 법정 금어기가 없는(포획금지기간 미지정)
+    // 종 - 앵글러가 자주 찾는 종만 추려 "항상 조업 가능" 안내에 고정으로 보여준다.
+    const NO_BAN_SPECIES = [
+      { name: '조피볼락(우럭)', emoji: '🐟', hue: 265 },
+      { name: '넙치(광어)', emoji: '🐠', hue: 170 },
+      { name: '참돔', emoji: '🐠', hue: 25 },
+      { name: '붕장어', emoji: '🐍', hue: 60 },
+      { name: '문어(참문어 외)', emoji: '🐙', hue: 15 },
+    ];
+
+    const MD = m => m + '월';
+    function fmtMD(m, d) { return m + '월 ' + d + '일'; }
+    function lastDay(m) { return [0, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m]; }
+
+    // 어종 하나의 (month) 시점 상태를 계산한다. kind: open(이번 달 해제) /
+    // start(이번 달 금어기 시작) / closed(금어기 진행 중) / free(조업 가능).
+    function banStatus(f, month) {
+      if (f.alwaysClosed) return { kind: 'closed', inBan: () => true };
+      const [sm, sd] = f.s, [em, ed] = f.e;
+      const wraps = sm > em || (sm === em && sd > ed);
+      const inBan = m => wraps ? (m >= sm || m <= em) : (m >= sm && m <= em);
+      const lastOfEnd = lastDay(em);
+      const openM = ed >= lastOfEnd ? (em === 12 ? 1 : em + 1) : em;
+      const openD = ed >= lastOfEnd ? 1 : ed + 1;
+      const kind = openM === month ? 'open' : sm === month ? 'start' : inBan(month) ? 'closed' : 'free';
+      return { kind, sm, sd, em, ed, openM, openD, inBan };
+    }
+
+    let banSea = '서해';
+    let banMonth = new Date().getMonth() + 1;
+
+    function speciesForSea(sea) { return SPECIES.filter(f => !f.seas || f.seas.includes(sea)); }
+
+    function renderSeaTabs() {
+      const box = document.getElementById('ban-sea-tabs');
+      box.innerHTML = '';
+      ALL_SEAS.forEach(function (sea) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'ban-sea-tab' + (sea === banSea ? ' is-active' : '');
+        const icon = sea === '서해' ? '🌅' : sea === '남해' ? '🏝' : '🗻';
+        b.innerHTML = icon + ' ' + sea + ' <span class="ban-sea-tab-badge">' + speciesForSea(sea).length + '종</span>';
+        b.addEventListener('click', function () { banSea = sea; renderAll(); });
+        box.appendChild(b);
+      });
+    }
+
+    function renderMonthTabs() {
+      const box = document.getElementById('ban-month-tabs');
+      box.innerHTML = '';
+      const pool = speciesForSea(banSea);
+      for (let m = 1; m <= 12; m++) {
+        const openN = pool.filter(f => !f.alwaysClosed && banStatus(f, m).kind === 'open').length;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'ban-month-tab' + (m === banMonth ? ' is-active' : '');
+        const dotCls = 'ban-month-tab-dot' + (openN ? ' has-open' : '');
+        b.innerHTML = '<span class="ban-month-tab-label">' + MD(m) + '</span>' +
+          '<span class="' + dotCls + '">' + (openN ? '해제 ' + openN : '—') + '</span>';
+        b.addEventListener('click', function () { banMonth = m; renderAll(); });
+        box.appendChild(b);
+      }
+    }
+
+    function buildCard(f, sea, month) {
+      const s = banStatus(f, month);
+      const isOpen = s.kind === 'open';
+      const isStart = s.kind === 'start';
+      const card = document.createElement('article');
+      card.className = 'ban-card' + (isOpen ? ' is-open' : isStart ? ' is-start' : '');
+
+      const head = document.createElement('div');
+      head.className = 'ban-card-head';
+      const avatar = document.createElement('div');
+      avatar.className = 'ban-card-avatar';
+      avatar.style.setProperty('--hue', f.hue);
+      avatar.textContent = f.emoji;
+      head.appendChild(avatar);
+      const textBox = document.createElement('div');
+      textBox.style.flex = '1'; textBox.style.minWidth = '0';
+      const nameEl = document.createElement('div');
+      nameEl.className = 'ban-card-name';
+      nameEl.textContent = f.name;
+      textBox.appendChild(nameEl);
+      const seaEl = document.createElement('div');
+      seaEl.className = 'ban-card-sea';
+      seaEl.textContent = sea;
+      textBox.appendChild(seaEl);
+      head.appendChild(textBox);
+      const tag = document.createElement('span');
+      tag.className = 'ban-card-tag';
+      tag.textContent = isOpen ? month + '월 해제' : isStart ? month + '월 시작' : '금어기 중';
+      head.appendChild(tag);
+      card.appendChild(head);
+
+      if (!f.alwaysClosed) {
+        const periodRow = document.createElement('div');
+        periodRow.className = 'ban-card-period-row';
+        const label = document.createElement('span');
+        label.className = 'ban-card-period-label';
+        label.textContent = '금어기';
+        periodRow.appendChild(label);
+        const text = document.createElement('span');
+        text.className = 'ban-card-period-text';
+        text.textContent = fmtMD(s.sm, s.sd) + ' ~ ' + fmtMD(s.em, s.ed);
+        periodRow.appendChild(text);
+        const dday = document.createElement('span');
+        dday.className = 'ban-card-dday';
+        const monthsLeft = (s.openM - month + 12) % 12;
+        dday.textContent = isOpen ? '이번 달 조업 재개' : monthsLeft === 0 ? '이번 달 해제' : monthsLeft + '개월 뒤 해제';
+        periodRow.appendChild(dday);
+        card.appendChild(periodRow);
+
+        const dates = document.createElement('div');
+        dates.className = 'ban-card-dates';
+        const startBox = document.createElement('div');
+        startBox.className = 'ban-card-date-box is-start-box';
+        startBox.innerHTML = '<span class="ban-card-date-caption">금어기 시작</span>' +
+          '<span class="ban-card-date-value is-start-value">' + fmtMD(s.sm, s.sd) + '</span>';
+        dates.appendChild(startBox);
+        const openBox = document.createElement('div');
+        openBox.className = 'ban-card-date-box is-open-box';
+        openBox.innerHTML = '<span class="ban-card-date-caption">해제일 (조업 재개)</span>' +
+          '<span class="ban-card-date-value is-open-value">' + fmtMD(s.openM, s.openD) + '</span>';
+        dates.appendChild(openBox);
+        card.appendChild(dates);
+
+        const months = document.createElement('div');
+        months.className = 'ban-card-months';
+        for (let m = 1; m <= 12; m++) {
+          const bar = document.createElement('div');
+          const closed = s.inBan(m);
+          bar.className = 'ban-card-month-bar' + (closed ? ' is-closed' : '') + (m === month ? ' is-selected' : '');
+          bar.title = m + '월 ' + (closed ? '금어기' : '조업 가능');
+          months.appendChild(bar);
+        }
+        card.appendChild(months);
+      }
+
+      const note = document.createElement('div');
+      note.className = 'ban-card-note';
+      note.textContent = f.note;
+      card.appendChild(note);
+      return card;
+    }
+
+    function renderBody() {
+      const pool = speciesForSea(banSea);
+      const openings = [], closedFish = [], free = [];
+      pool.forEach(function (f) {
+        const s = banStatus(f, banMonth);
+        if (s.kind === 'free') { free.push(f); return; }
+        (s.kind === 'open' ? openings : closedFish).push(f);
+      });
+      NO_BAN_SPECIES.forEach(function (f) { free.push(f); });
+
+      document.getElementById('ban-headline').textContent = openings.length
+        ? banSea + ' · ' + banMonth + '월에 ' + openings.length + '종의 금어기가 풀립니다'
+        : banSea + ' · ' + banMonth + '월에 새로 해제되는 어종은 없어요';
+      document.getElementById('ban-subline').textContent =
+        '금어기 진행 ' + closedFish.length + '종 · 조업 가능 ' + free.length + '종 · 대부분 전국 공통, 일부만 해역 제한';
+
+      const openingsBlock = document.getElementById('ban-openings-block');
+      openingsBlock.style.display = openings.length ? '' : 'none';
+      document.getElementById('ban-openings-count').textContent = openings.length + '종';
+      const openingsGrid = document.getElementById('ban-openings-grid');
+      openingsGrid.innerHTML = '';
+      openings.forEach(function (f) { openingsGrid.appendChild(buildCard(f, banSea, banMonth)); });
+
+      document.getElementById('ban-closed-count').textContent = closedFish.length + '종';
+      const closedGrid = document.getElementById('ban-closed-grid');
+      closedGrid.innerHTML = '';
+      if (!closedFish.length) {
+        const empty = document.createElement('div');
+        empty.className = 'ban-empty-note';
+        empty.textContent = '이번 달 금어기 중인 어종이 없어요';
+        closedGrid.appendChild(empty);
+      }
+      closedFish.forEach(function (f) { closedGrid.appendChild(buildCard(f, banSea, banMonth)); });
+
+      document.getElementById('ban-free-count').textContent = free.length + '종';
+      const freeList = document.getElementById('ban-free-list');
+      freeList.innerHTML = '';
+      free.forEach(function (f) {
+        const pill = document.createElement('span');
+        pill.className = 'ban-free-pill';
+        const icon = document.createElement('span');
+        icon.className = 'ban-free-pill-icon';
+        icon.style.setProperty('--hue', f.hue);
+        icon.textContent = f.emoji;
+        pill.appendChild(icon);
+        pill.appendChild(document.createTextNode(f.name));
+        const next = document.createElement('span');
+        next.className = 'ban-free-pill-next';
+        if (f.s) { const s = banStatus(f, banMonth); next.textContent = fmtMD(s.sm, s.sd) + ' 금어기'; }
+        else { next.textContent = '금어기 없음'; }
+        pill.appendChild(next);
+        freeList.appendChild(pill);
+      });
+    }
+
+    function renderAll() {
+      renderSeaTabs();
+      renderMonthTabs();
+      renderBody();
+    }
+
+    function updateBadge() {
+      const now = new Date();
+      const nowMonth = now.getMonth() + 1;
+      const openN = speciesForSea('서해').filter(f => !f.alwaysClosed && banStatus(f, nowMonth).kind === 'open').length;
+      const badge = document.getElementById('ban-info-btn-badge');
+      if (badge) badge.textContent = openN + '종 해제';
+    }
+    updateBadge();
+
+    function openPopup() {
+      const dateInput = document.getElementById('date');
+      const iso = dateInput && dateInput.value;
+      banMonth = iso ? Number(iso.slice(5, 7)) : new Date().getMonth() + 1;
+      renderAll();
+      popup.hidden = false;
+    }
+    function closePopup() { popup.hidden = true; }
+
+    btn.addEventListener('click', openPopup);
+    document.getElementById('ban-popup-close').addEventListener('click', closePopup);
+    document.getElementById('ban-popup-close-2').addEventListener('click', closePopup);
+    popup.addEventListener('click', function (e) { if (e.target === popup) closePopup(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !popup.hidden) closePopup(); });
   })();
 
   // 폼 제출 시 페이지 이동 없이 선박별 결과를 순차적으로 표시
