@@ -132,13 +132,21 @@
         </button>
       </div>
 
-      <!-- 알림(감시) 제어. 체크박스를 쓰려면 먼저 여기서 알림을 켜야 한다. -->
+      <!-- 알림(감시) 제어. 체크박스를 쓰려면 먼저 여기서 알림을 켜야 한다.
+           구독 상태 확인(Watch.restore - serviceWorker.ready -> getSubscription
+           -> /api/watches 왕복)이 끝나기 전엔 켜짐도 꺼짐도 아직 모르는
+           상태다 - 예전엔 그 동안 기본값인 "알림 켜기"(꺼짐)가 그대로 보여서,
+           이미 켜둔 사람에게도 꺼진 것처럼, 걸어둔 감시도 없는 것처럼 잠깐
+           보였다가 로딩이 끝나야 제 모습으로 바뀌었다(watches.html 의
+           push-card-loading 과 같은 문제). 확인 중임을 스피너로 명시한다. -->
       <div class="push-row">
-        <button type="button" id="enable-push-btn" class="push-btn">알림 켜기</button>
+        <button type="button" id="enable-push-btn" class="push-btn is-loading" disabled>
+          <span class="mini-spinner"></span>확인 중…
+        </button>
         <!-- 알림이 실제로 도착하는지 자리가 날 때까지 기다려서 확인할 수는 없다.
              켠 직후 한 통 보내보고 확인할 수 있어야 한다. -->
         <button type="button" id="test-push-btn" class="push-test-btn" style="display:none;">테스트 알림 받기</button>
-        <span id="watch-status" class="watch-status-text"></span>
+        <span id="watch-status" class="watch-status-text">구독 상태를 확인하고 있어요</span>
       </div>
 
       <!-- 감시 목록. 다른 날짜에 걸어둔 것도 여기서 해제할 수 있어야 갇히지 않는다. -->
@@ -469,6 +477,11 @@
 .push-btn.on { border-color: oklch(0.5 0.12 155); background: var(--green); }
 .push-btn.on:before { content: '✓ '; }
 .push-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.push-btn.is-loading { display: inline-flex; align-items: center; gap: 7px; }
+.mini-spinner {
+  display: inline-block; width: 14px; height: 14px; border: 2px solid oklch(1 0 0 / 0.35);
+  border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite;
+}
 .push-test-btn {
   height: 34px; padding: 0 12px; border: 1px solid var(--line); background: #fff; color: oklch(0.42 0.02 255);
   border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 650;
@@ -1088,6 +1101,8 @@ document.addEventListener('DOMContentLoaded', function(){
       const btn = document.getElementById('enable-push-btn');
       if (btn) {
         btn.classList.toggle('on', on);
+        btn.classList.remove('is-loading');
+        btn.disabled = false;
         btn.textContent = on ? '알림 켜짐' : '알림 켜기';
       }
       // 테스트 버튼은 구독한 뒤에만 의미가 있다
@@ -1396,13 +1411,16 @@ document.addEventListener('DOMContentLoaded', function(){
       applyServerState(body);
     }
 
-    // 이미 구독한 브라우저면 화면을 열 때 조용히 상태를 복원한다
+    // 이미 구독한 브라우저면 화면을 열 때 조용히 상태를 복원한다.
+    // 버튼이 처음부터 "확인 중…"(disabled)으로 떠 있으므로, 구독이 없거나
+    // 서비스워커를 못 쓰거나 복원이 실패한 경로까지 전부 반드시 setButtonOn을
+    // 호출해 확정 상태로 바꿔야 한다 - 안 그러면 "확인 중…"에 영영 멈춘다.
     async function restore() {
-      if (!('serviceWorker' in navigator)) return;
+      if (!('serviceWorker' in navigator)) { setButtonOn(false); return; }
       try {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
-        if (!sub) { updateBanner(); return; }
+        if (!sub) { setButtonOn(false); updateBanner(); return; }
         endpoint = sub.endpoint;
         const body = await (await fetch('/api/watches?endpoint=' +
                                         encodeURIComponent(endpoint))).json();
@@ -1410,6 +1428,7 @@ document.addEventListener('DOMContentLoaded', function(){
         setButtonOn(true);
       } catch (e) {
         console.warn('감시 상태 복원 실패', e);
+        setButtonOn(false);
       }
     }
 
