@@ -190,6 +190,7 @@
         <div id="sort-toggle" class="sort-toggle" role="group" aria-label="정렬 기준">
           <button type="button" class="sort-toggle-btn is-active" data-sort-key="status">예약가능순</button>
           <button type="button" class="sort-toggle-btn" data-sort-key="city">지역별</button>
+          <button type="button" class="sort-toggle-btn" data-sort-key="registered_name">이름순</button>
         </div>
       </div>
 
@@ -556,7 +557,13 @@
 /* 어종 필터 칩 - 지역 선택 칩과 같은 시각 언어, 다만 폼 체크박스가 아니라
    버튼(서버 재조회 없이 이미 받은 결과를 클라이언트에서 다시 그린다). */
 .species-filter-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; }
-.species-filter-label { font-size: 12px; font-weight: 700; color: var(--ink-soft); flex: none; }
+/* 처음엔 옅은 회색 12px라 옆의 진한 색 칩들 사이에서 거의 안 보였다
+   ("어종" 글자가 잘 안 보인다는 실제 피드백) - 다른 섹션 제목(font-weight
+   800)만큼 진하게, 배경 알약까지 둘러서 칩과 분리돼 보이게 한다. */
+.species-filter-label {
+  font-size: 12.5px; font-weight: 800; color: var(--ink); flex: none;
+  padding: 5px 10px; border-radius: 8px; background: oklch(0.93 0.01 250);
+}
 .species-chip-list { display: flex; gap: 7px; flex-wrap: wrap; }
 .species-chip {
   display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px;
@@ -2466,6 +2473,8 @@ document.addEventListener('DOMContentLoaded', function(){
     { key: 'flounder', label: '광어', test: t => t.includes('광어') || t.includes('넙치') },
     { key: 'seabass', label: '농어', test: t => t.includes('농어') },
     { key: 'red_seabream', label: '참돔', test: t => t.includes('참돔') },
+    { key: 'white_croaker', label: '백조기', test: t => t.includes('백조기') || t.includes('보구치') },
+    { key: 'croaker', label: '민어', test: t => t.includes('민어') },
   ];
 
   let speciesFilter = new Set();   // 선택된 SPECIES_FILTERS.key들
@@ -2486,9 +2495,15 @@ document.addEventListener('DOMContentLoaded', function(){
     box.innerHTML = '';
     SPECIES_FILTERS.forEach(s => {
       const count = allRows.filter(r => s.test(r.fish || '')).length;
+      const isActive = speciesFilter.has(s.key);
+      // 0척인 어종은 새로 선택할 수 없게 막는다(사용자 요청) - 다만 이미
+      // 선택돼 있던 게 날짜/조회 변경으로 0척이 된 경우엔 계속 눌러서 해제할
+      // 수 있어야 하므로 그 경우는 막지 않는다(안 그러면 끌 방법이 없어진다).
+      const isDisabled = count === 0 && !isActive;
       const chip = document.createElement('button');
       chip.type = 'button';
-      chip.className = 'species-chip' + (speciesFilter.has(s.key) ? ' is-active' : '') + (count === 0 ? ' is-disabled' : '');
+      chip.disabled = isDisabled;
+      chip.className = 'species-chip' + (isActive ? ' is-active' : '') + (isDisabled ? ' is-disabled' : '');
       chip.innerHTML = `${s.label} <span class="species-chip-count">${count}</span>`;
       chip.addEventListener('click', () => {
         if (speciesFilter.has(s.key)) speciesFilter.delete(s.key); else speciesFilter.add(s.key);
