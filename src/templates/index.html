@@ -118,7 +118,9 @@
             <!-- 정렬 - 서버가 이미 최신등록순으로 내려주므로(views.index, "사용자
                  요청") 그 순서를 기본값 그대로 쓰고, 이름순은 클라이언트에서만
                  다시 정렬한다(재조회 없음) - 예약현황 화면의 정렬 토글과 같은
-                 방식(sort-toggle/sort-toggle-btn 클래스 재사용). -->
+                 방식(sort-toggle/sort-toggle-btn 클래스 재사용). 이미 활성인
+                 버튼을 다시 누르면 방향이 뒤집힌다(최신↔오래된, 가나다↔하파타) -
+                 텍스트/화살표는 renderSortToggleUI()가 매번 다시 그린다. -->
             <div id="ship-sort-toggle" class="sort-toggle" role="group" aria-label="정렬 기준">
               <button type="button" class="sort-toggle-btn is-active" data-sort-key="recent">최신등록순</button>
               <button type="button" class="sort-toggle-btn" data-sort-key="name">이름순</button>
@@ -242,6 +244,17 @@
           <button type="submit" id="register-submit" class="modal-btn modal-btn-submit" disabled>등록하기</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- 등록/수정/삭제/엑셀 업로드 공통 로딩 오버레이. 저장 성공 후 showToast+
+       location.reload() 로 새로고침하기까지 약 1초 + 실제 리로드 시간 동안
+       화면이 아무 반응 없어 보인다는 피드백이 있었다(사용자 실측) - 제출
+       시작부터 리로드 직전까지 계속 띄워서 그 공백을 없앤다. -->
+  <div id="page-loading-overlay" class="page-loading-overlay" hidden>
+    <div class="page-loading-inner">
+      <div class="spinner"></div>
+      <div id="page-loading-msg" class="page-loading-msg">처리하는 중…</div>
     </div>
   </div>
 </div>
@@ -563,6 +576,22 @@
   display: none; align-items: center; justify-content: center; padding: 20px;
 }
 .modal-overlay.active { display: flex; }
+
+/* 등록/수정/삭제/업로드 공통 로딩 오버레이 - 예약현황 화면의 loading-overlay와
+   같은 시각 언어(같은 spinner 회전 애니메이션은 위에서 이미 정의된 @keyframes
+   spin을 그대로 쓴다). 모달보다 위(z-index)에 떠서 모달을 닫은 뒤에도 계속
+   보인다. */
+.page-loading-overlay {
+  position: fixed; inset: 0; z-index: 200; background: oklch(1 0 0 / 0.85);
+  display: flex; align-items: center; justify-content: center;
+}
+.page-loading-overlay[hidden] { display: none; }
+.page-loading-inner { text-align: center; }
+.page-loading-inner .spinner {
+  width: 52px; height: 52px; border: 6px solid var(--line); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 14px;
+}
+.page-loading-msg { font-size: 15px; color: var(--accent); font-weight: 750; }
 .modal-panel {
   width: min(720px, 96vw); max-height: 88vh; overflow-y: auto; background: oklch(0.99 0.003 250);
   border-radius: 24px; padding: 30px clamp(20px, 5vw, 40px) calc(env(safe-area-inset-bottom, 0px) + 30px);
@@ -653,6 +682,7 @@ function initializeData() {
 
     filteredShips = [...allShips];
     updateFilters();
+    renderSortToggleUI();
     sortFilteredShips();
     renderShips(filteredShips);
 }
@@ -660,13 +690,38 @@ function initializeData() {
 // 정렬 - "최신등록순"은 서버가 내려준 원래 순서(_serverOrder)를 그대로 복원,
 // "이름순"은 클라이언트에서 이름 가나다순으로 다시 정렬한다. 재조회 없이
 // filteredShips 배열 자체를 in-place 정렬해서 바로 renderShips 로 넘긴다.
-let currentShipSortKey = 'recent';
+//
+// 방향(최신↔오래된, 가나다↔하파타)까지 표현해달라는 요청(정렬 버튼에 위아래
+// 구분이 없었다) - 이미 활성인 버튼을 다시 누르면 방향이 뒤집힌다. 비활성
+// 버튼은 중립 라벨만 보여주고, 활성 버튼만 현재 방향에 맞는 라벨+화살표를
+// 보여준다(엑셀/노션류 정렬 가능한 열 헤더와 같은 관용구 - 안 누른 열까지
+// 화살표를 달면 오히려 지금 뭐가 기준인지 헷갈린다).
+const SORT_LABELS = {
+    recent: { newest: '최신등록순 ▾', oldest: '오래된순 ▴' },
+    name: { asc: '가나다순 ▾', desc: '하파타순 ▴' },
+};
+const SORT_NEUTRAL_LABEL = { recent: '최신등록순', name: '이름순' };
+const SORT_DEFAULT_DIR = { recent: 'newest', name: 'asc' };
+
+let currentShipSort = { key: 'recent', dir: 'newest' };
+
+function renderSortToggleUI() {
+    document.querySelectorAll('#ship-sort-toggle .sort-toggle-btn').forEach(btn => {
+        const key = btn.dataset.sortKey;
+        const isActive = key === currentShipSort.key;
+        btn.classList.toggle('is-active', isActive);
+        btn.textContent = isActive ? SORT_LABELS[key][currentShipSort.dir] : SORT_NEUTRAL_LABEL[key];
+    });
+}
 
 function sortFilteredShips() {
-    if (currentShipSortKey === 'name') {
-        filteredShips.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    const { key, dir } = currentShipSort;
+    if (key === 'name') {
+        const mul = dir === 'asc' ? 1 : -1;
+        filteredShips.sort((a, b) => a.name.localeCompare(b.name, 'ko') * mul);
     } else {
-        filteredShips.sort((a, b) => a._serverOrder - b._serverOrder);
+        const mul = dir === 'newest' ? 1 : -1;
+        filteredShips.sort((a, b) => (a._serverOrder - b._serverOrder) * mul);
     }
 }
 
@@ -1004,6 +1059,20 @@ function appDialog({ title, message, withInput = false, confirmText = '확인', 
     });
 }
 
+// 등록/수정/삭제/업로드 저장 성공 -> location.reload() 사이의 공백을 메운다
+// (제출 시작부터 리로드 직전까지 계속 띄운 채로 둔다 - 리로드가 실제로
+// 일어나면 페이지 자체가 새로 그려지므로 따로 안 지워도 된다).
+function showPageLoading(message) {
+    const overlay = document.getElementById('page-loading-overlay');
+    const msgEl = document.getElementById('page-loading-msg');
+    if (msgEl) msgEl.textContent = message || '처리하는 중…';
+    if (overlay) overlay.hidden = false;
+}
+function hidePageLoading() {
+    const overlay = document.getElementById('page-loading-overlay');
+    if (overlay) overlay.hidden = true;
+}
+
 function appAlert(message, title = '알림') {
     return appDialog({ title, message, showCancel: false, confirmText: '확인' });
 }
@@ -1048,16 +1117,22 @@ function initializeEventListeners() {
         searchInput.addEventListener('input', filterShips);
     }
 
-    // 정렬 토글 (최신등록순/이름순) - 예약현황 화면의 정렬 버튼과 같은 방식
+    // 정렬 토글 (최신등록순/이름순, 방향 포함) - 예약현황 화면의 정렬 버튼과
+    // 같은 pill 방식이되, 이미 활성인 버튼을 다시 누르면 방향을 뒤집는다.
     const sortToggle = document.getElementById('ship-sort-toggle');
     if (sortToggle) {
         const sortButtons = Array.from(sortToggle.querySelectorAll('.sort-toggle-btn'));
         sortButtons.forEach(btn => {
             btn.addEventListener('click', () => {
-                const sortKey = btn.dataset.sortKey;
-                if (!sortKey || sortKey === currentShipSortKey) return;
-                currentShipSortKey = sortKey;
-                sortButtons.forEach(b => b.classList.toggle('is-active', b === btn));
+                const key = btn.dataset.sortKey;
+                if (!key) return;
+                if (key === currentShipSort.key) {
+                    const dirs = key === 'name' ? ['asc', 'desc'] : ['newest', 'oldest'];
+                    currentShipSort.dir = currentShipSort.dir === dirs[0] ? dirs[1] : dirs[0];
+                } else {
+                    currentShipSort = { key, dir: SORT_DEFAULT_DIR[key] };
+                }
+                renderSortToggleUI();
                 sortFilteredShips();
                 renderShips(filteredShips);
             });
@@ -1142,6 +1217,7 @@ function initializeEventListeners() {
             if (!key) return;
 
             deleteButton.disabled = true;
+            showPageLoading('삭제하는 중…');
             try {
                 const formData = new FormData(deleteForm);
                 formData.set('admin_key', key);
@@ -1157,6 +1233,7 @@ function initializeEventListeners() {
                 showToast(body.message || '선택한 배가 삭제되었습니다.');
                 setTimeout(() => { window.location.reload(); }, 1000);
             } catch (err) {
+                hidePageLoading();
                 await appAlert(err.message || '삭제 중 오류가 발생했습니다.');
                 deleteButton.disabled = false;
             }
@@ -1340,6 +1417,7 @@ function initializeRegisterModal() {
 
         // 제출 버튼 비활성화
         if (submitBtn) submitBtn.disabled = true;
+        showPageLoading(isEditMode ? '수정하는 중…' : '등록하는 중…');
 
         try {
             const resp = await fetch(this.action, {
@@ -1353,9 +1431,12 @@ function initializeRegisterModal() {
             }
             showToast(body.message || (isEditMode ? '선박 정보가 수정되었습니다.' : '신규 배가 등록이 성공하였습니다.'));
             closeModal();
+            // 오버레이는 그대로 유지한 채 새로고침한다 - 여기서 끄면 reload() 가
+            // 실제로 일어나기 전 잠깐 다시 "아무 반응 없는" 화면으로 보인다.
             setTimeout(()=>{ window.location.reload(); }, 1000);
         } catch (err) {
             console.error('오류:', err);
+            hidePageLoading();
             await appAlert(err.message || (isEditMode ? '수정 중 오류가 발생했습니다.' : '등록 중 오류가 발생했습니다.'));
             if (submitBtn) submitBtn.disabled = false;
         }
@@ -1428,6 +1509,7 @@ async function handleFileUpload(event) {
         </svg>
         업로드 중...
     `;
+    showPageLoading('업로드하는 중…');
 
     fetch("{{ url_for('views.upload_excel') }}", {
         method: 'POST',
@@ -1439,10 +1521,12 @@ async function handleFileUpload(event) {
             showToast(data.message || '파일이 성공적으로 업로드되었습니다.');
             setTimeout(() => { window.location.reload(); }, 1000);
         } else {
+            hidePageLoading();
             await appAlert('업로드 실패: ' + (data.message || '알 수 없는 오류가 발생했습니다.'));
         }
     })
     .catch(async (error) => {
+        hidePageLoading();
         console.error('오류:', error);
         await appAlert('업로드 중 오류가 발생했습니다.');
     })
