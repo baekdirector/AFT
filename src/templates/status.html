@@ -1778,6 +1778,12 @@ document.addEventListener('DOMContentLoaded', function(){
       params.delete('boats');
       for (const name of onlyBoats) params.append('boats', name);
     }
+    // 이번에 실제로 조회할 배 이름 집합 - 아래 캐시 시드를 이 범위로 좁히는 데 쓴다
+    // (버그 실측: "전체" 조회 후 지역을 좁혀 다시 조회하면 이전 "전체" 결과가
+    // 안 지워지고 그대로 남아 있었다 - 새로 도착하는 라이브 결과는 "이번에
+    // 조회한 배"뿐인데, 캐시 시드는 지난번 조회 범위 전체를 그대로 가져와서
+    // 새 범위 밖의 배는 그걸 걷어낼 라이브 응답이 영영 안 와 남아 있었다).
+    const targetBoatNames = new Set(params.getAll('boats'));
     const streamedRows = [];
     const replacedBoats = new Set();   // 라이브 결과로 이미 갈아끼운 배
     let sawEnd = false;
@@ -1838,9 +1844,14 @@ document.addEventListener('DOMContentLoaded', function(){
             setCacheNotice('실시간 조회 중… 도착하는 대로 갱신됩니다.');
             // 캐시로 깔린 행을 출발점으로 삼는다. 배별 결과가 도착할 때마다
             // 그 배의 캐시 행만 걷어내고 갈아끼운다. 그래야 카드가 71장에서
-            // 1장으로 줄었다가 다시 차오르는 꼴이 안 난다.
+            // 1장으로 줄었다가 다시 차오르는 꼴이 안 난다. 단, 이번 조회
+            // 범위 밖의 배까지 그대로 들고 오면 안 된다(그 배는 새 라이브
+            // 응답이 영영 안 와서 걷어낼 기회가 없다 - 위 targetBoatNames로
+            // 미리 좁힌다).
             streamedRows.length = 0;
-            streamedRows.push(...lastRenderedRows);
+            streamedRows.push(...(targetBoatNames.size
+              ? lastRenderedRows.filter(r => targetBoatNames.has(r.registered_name))
+              : lastRenderedRows));
             continue;
           }
 
