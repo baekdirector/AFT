@@ -166,10 +166,12 @@
         <button type="button" id="enable-push-btn" class="push-btn is-loading" disabled>
           <span class="mini-spinner"></span>확인 중…
         </button>
+        <span id="watch-status" class="watch-status-text">구독 상태를 확인하고 있어요</span>
+        <div class="push-row-spacer"></div>
         <!-- 알림이 실제로 도착하는지 자리가 날 때까지 기다려서 확인할 수는 없다.
              켠 직후 한 통 보내보고 확인할 수 있어야 한다. -->
         <button type="button" id="test-push-btn" class="push-test-btn" style="display:none;">테스트 알림 받기</button>
-        <span id="watch-status" class="watch-status-text">구독 상태를 확인하고 있어요</span>
+        <a href="{{ url_for('views.watches') }}" class="push-row-alerts-link">알림 목록 →</a>
       </div>
 
       <!-- 감시 목록. 다른 날짜에 걸어둔 것도 여기서 해제할 수 있어야 갇히지 않는다. -->
@@ -186,7 +188,8 @@
       <div id="cache-notice" class="cache-notice" style="display:none;"></div>
 
       <div class="results-header-row">
-        <h2 id="results-title" class="results-title">조회 결과 (실시간)</h2>
+        <h2 id="results-title" class="results-title">조회 결과</h2>
+        <span id="results-meta" class="results-meta"></span>
         <div id="sort-toggle" class="sort-toggle" role="group" aria-label="정렬 기준">
           <button type="button" class="sort-toggle-btn is-active" data-sort-key="status">예약가능순</button>
           <button type="button" class="sort-toggle-btn" data-sort-key="city">지역별</button>
@@ -564,32 +567,41 @@
   font-size: 12.5px; font-weight: 800; color: var(--ink); flex: none;
   padding: 5px 10px; border-radius: 8px; background: oklch(0.93 0.01 250);
 }
-.species-chip-list { display: flex; gap: 7px; flex-wrap: wrap; }
+.species-chip-list { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Claude Design v2 chip(on,200)/chipCount(on) 공식 그대로 - 꺼짐은 흰 배경+
+   테두리, 켜짐은 단색 채움(hue 200)+그림자. 기존엔 --accent 그라데이션을
+   썼는데, 목업은 칩마다 고유 hue의 solid fill이라 그쪽으로 맞춘다. */
 .species-chip {
-  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px;
-  border: 1px solid var(--line); background: #fff; color: oklch(0.42 0.02 255); font-size: 12.5px; font-weight: 650;
-  cursor: pointer; transition: all 0.15s;
+  display: inline-flex; align-items: center; gap: 6px; height: 33px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid oklch(0.92 0.008 240); background: #fff; color: oklch(0.4 0.02 250);
+  font-size: 12.5px; font-weight: 680; letter-spacing: -0.2px; cursor: pointer; transition: all 0.15s;
 }
 .species-chip:hover { border-color: oklch(0.78 0.02 250); }
 .species-chip .species-chip-count {
-  font-size: 10.5px; font-weight: 700; color: var(--ink-softer); background: oklch(0.95 0.008 250);
+  font-size: 10.5px; font-weight: 740; color: oklch(0.55 0.015 250); background: oklch(0.955 0.006 250);
   padding: 1px 6px; border-radius: 99px;
 }
 .species-chip.is-active {
   border-color: transparent; color: #fff;
-  background: linear-gradient(145deg, var(--accent), var(--accent-2));
+  background: oklch(0.46 0.12 200); box-shadow: 0 3px 10px oklch(0.46 0.12 200 / 0.28);
 }
 .species-chip.is-active .species-chip-count { background: oklch(1 0 0 / 0.22); color: #fff; }
 .species-chip.is-disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* 알림(Watch) 제어 */
-.push-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
-.push-btn {
-  height: 38px; padding: 0 16px; border-radius: 12px; border: 1px solid oklch(0.5 0.14 245);
-  background: oklch(0.5 0.14 245); color: #fff; font-size: 13px; font-weight: 730; cursor: pointer;
-  transition: background-color .15s, border-color .15s; white-space: nowrap;
+/* 알림(Watch) 제어 - Claude Design v2("선박 관리 v2.dc.html") 303~311줄
+   공식: 얇은 teal 그라데이션 카드 + 상태별 알약 버튼 + 오른쪽 "알림 목록" 링크. */
+.push-row {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap; padding: 11px 14px; margin: 4px 0 14px;
+  border-radius: 14px; border: 1px solid oklch(0.9 0.04 172);
+  background: linear-gradient(150deg, oklch(0.975 0.022 170), oklch(0.985 0.01 195));
 }
-.push-btn.on { border-color: oklch(0.5 0.12 155); background: var(--green); }
+.push-row-spacer { flex: 1 1 0; min-width: 0; }
+.push-btn {
+  display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border-radius: 11px;
+  border: none; background: oklch(0.24 0.02 250); color: #fff; font-size: 12.5px; font-weight: 720; cursor: pointer;
+  transition: background-color .15s, box-shadow .15s; white-space: nowrap; flex: none;
+}
+.push-btn.on { background: var(--green); box-shadow: 0 3px 10px oklch(0.5 0.1 168 / 0.28); }
 .push-btn.on:before { content: '✓ '; }
 .push-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .push-btn.is-loading { display: inline-flex; align-items: center; gap: 7px; }
@@ -598,10 +610,16 @@
   border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite;
 }
 .push-test-btn {
-  height: 34px; padding: 0 12px; border: 1px solid var(--line); background: #fff; color: oklch(0.42 0.02 255);
-  border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 650;
+  height: 34px; padding: 0 12px; border: 1px solid oklch(1 0 0 / 0.6); background: oklch(1 0 0 / 0.55);
+  color: oklch(0.35 0.07 175); border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 650; flex: none;
 }
-.watch-status-text { font-size: 12.5px; font-weight: 620; color: var(--ink-soft); }
+.watch-status-text { font-size: 12.5px; font-weight: 620; color: oklch(0.42 0.045 180); min-width: 0; }
+.push-row-alerts-link {
+  display: inline-flex; align-items: center; height: 34px; padding: 0 13px; border-radius: 10px;
+  border: 1px solid oklch(0.86 0.05 172); background: oklch(1 0 0 / 0.7); font-size: 12px; font-weight: 700;
+  color: oklch(0.35 0.07 175); white-space: nowrap; flex: none;
+}
+.push-row-alerts-link:hover { background: #fff; color: oklch(0.3 0.08 175); }
 
 /* 감시 목록 칩 */
 .watch-list { margin: 0 0 10px; }
@@ -629,6 +647,7 @@
 
 .results-header-row { display: flex; align-items: center; justify-content: space-between; gap: 10px 14px; flex-wrap: wrap; margin: 4px 0 12px; }
 .results-title { margin: 0; font-size: 17px; font-weight: 780; letter-spacing: -0.4px; color: var(--ink); }
+.results-meta { font-size: 12.5px; font-weight: 660; color: oklch(0.56 0.015 250); }
 
 /* 결과 정렬 세그먼트 버튼 (헤더 탭과 같은 시각 언어: pill 컨테이너 + 활성 흰 배경) */
 .sort-toggle { display: flex; gap: 4px; padding: 4px; background: oklch(0.94 0.008 250); border-radius: 13px; flex: none; }
@@ -733,7 +752,14 @@
    같은 줄의 배 이름(min-width:0)이 극단적으로 눌려 글자 단위로
    세로 줄바꿈되는 2차 문제까지 생겼다. 어종에 상한 폭 + 말줄임표를 주고,
    배 이름도 명시적으로 한 줄 말줄임 처리해 둘 다 카드 폭을 넘지 않게 한다. */
-.fleet-ship-row { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.fleet-ship-row {
+  display: flex; align-items: center; gap: 9px; min-width: 0; padding: 6px 8px; border-radius: 10px;
+}
+/* Claude Design v2 1010~1011줄 톤 배경 그대로 - 여유/마감임박/그 외를 배별로
+   한눈에 구분한다. */
+.fleet-ship-row-open { background: oklch(0.975 0.02 158); }
+.fleet-ship-row-soon { background: oklch(0.978 0.025 78); }
+.fleet-ship-row-closed { background: oklch(0.972 0.004 240); }
 .fleet-ship-name {
   font-size: 13px; font-weight: 730; color: var(--ink); flex: 1 1 auto; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -750,25 +776,38 @@
 .bell-toggle.bell-toggle-compact .bell-toggle-label { font-size: 11px; }
 
 /* 선단 카드 전체를 한 번에 켜고 끄는 마스터 토글. all-on(✓)/partial(–)/none(빈칸)
-   3상태를 색과 기호로 함께 보여준다. */
+   3상태를 색과 기호로 함께 보여준다 - Claude Design v2 1031~1040줄 공식. */
 .fleet-master-toggle {
   display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 8px; padding: 9px 12px;
-  border-radius: 12px; border: 1px dashed var(--line-soft); background: transparent; color: var(--ink-soft);
-  font-size: 12.5px; font-weight: 700; cursor: pointer; transition: background 160ms ease, border-color 160ms ease;
+  border-radius: 11px; border: 1px solid oklch(0.92 0.008 240); background: oklch(0.978 0.004 240);
+  color: oklch(0.46 0.02 250); font-size: 12.5px; font-weight: 700; cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
 }
-.fleet-master-toggle:hover { border-color: oklch(0.52 0.1 168); }
+.fleet-master-toggle:hover { border-color: oklch(0.6 0.08 170); }
 .fleet-master-mark {
-  width: 18px; height: 18px; flex: none; border-radius: 6px; display: grid; place-items: center; font-size: 11px;
-  border: 1.5px solid oklch(0.85 0.01 250); background: #fff; color: #fff;
+  width: 19px; height: 19px; flex: none; border-radius: 6px; display: grid; place-items: center;
+  font-size: 10.5px; font-weight: 800; line-height: 1;
+  border: 1.5px solid oklch(0.85 0.01 240); background: #fff; color: transparent;
 }
 .fleet-master-label { flex: 1; text-align: left; }
-.fleet-master-count { font-size: 11px; font-weight: 650; color: var(--ink-softer); }
-.fleet-master-toggle.all-on {
-  border-style: solid; border-color: oklch(0.52 0.1 168); background: oklch(0.95 0.035 168); color: oklch(0.3 0.08 168);
+.fleet-master-count {
+  flex: none; font-size: 11px; font-weight: 760; padding: 2px 8px; border-radius: 99px;
+  background: oklch(0.945 0.006 240); color: oklch(0.54 0.015 250);
 }
-.fleet-master-toggle.all-on .fleet-master-mark { border-color: oklch(0.52 0.1 168); background: oklch(0.52 0.1 168); }
-.fleet-master-toggle.partial { border-style: solid; }
-.fleet-master-toggle.partial .fleet-master-mark { border-color: oklch(0.6 0.08 168); color: oklch(0.4 0.08 168); background: #fff; }
+.fleet-master-toggle.all-on {
+  border-color: oklch(0.78 0.07 170); background: oklch(0.96 0.03 168); color: oklch(0.32 0.08 172);
+}
+.fleet-master-toggle.partial {
+  border-color: oklch(0.88 0.035 170); background: oklch(0.982 0.012 170); color: oklch(0.38 0.05 178);
+}
+.fleet-master-toggle.all-on .fleet-master-mark,
+.fleet-master-toggle.partial .fleet-master-mark {
+  border-color: oklch(0.52 0.1 168); background: oklch(0.52 0.1 168); color: #fff;
+}
+.fleet-master-toggle.all-on .fleet-master-count,
+.fleet-master-toggle.partial .fleet-master-count {
+  background: oklch(1 0 0 / 0.72); color: oklch(0.32 0.08 172);
+}
 
 @media (max-width: 420px) {
   .bell-toggle-label { display: none; }
@@ -1737,18 +1776,24 @@ document.addEventListener('DOMContentLoaded', function(){
     const missingNotice = document.getElementById('missing-notice');
     const missingText = document.getElementById('missing-text');
     if (missingNotice) missingNotice.style.display = 'none';
-    const resultsTitle = document.getElementById('results-title');
+    const resultsMeta = document.getElementById('results-meta');
     let totalBoats = 0;
     let completedBoats = 0;
 
     function updateResultsTitle(isComplete = false) {
-      if (!resultsTitle) return;
+      if (!resultsMeta) return;
+      const dateLabel = fmtShortDateLabel(currentQueryDate());
       if (totalBoats === 0) {
-        resultsTitle.textContent = '조회 결과 0척 (실시간)';
+        resultsFinalLabel = '(실시간)';
+        resultsFinalDate = dateLabel;
+        resultsMeta.textContent = `0척 · ${dateLabel} 기준 (실시간)`;
       } else if (isComplete) {
-        resultsTitle.textContent = `조회 결과 ${completedBoats}척 (실시간)`;
+        resultsFinalLabel = '(실시간)';
+        resultsFinalDate = dateLabel;
+        resultsMeta.textContent = `${completedBoats}척 · ${dateLabel} 기준 (실시간)${speciesFilterSuffix()}`;
       } else {
-        resultsTitle.textContent = `조회 결과 ${completedBoats}/${totalBoats}척 (실시간)`;
+        resultsFinalLabel = '';   // 스트리밍 진행 중엔 renderRows가 척수를 덮어쓰지 않게 비워둔다
+        resultsMeta.textContent = `${completedBoats}/${totalBoats}척 조회 중 · ${dateLabel} 기준`;
       }
     }
 
@@ -1951,8 +1996,12 @@ document.addEventListener('DOMContentLoaded', function(){
         `최신 상태는 "실시간 조회"를 눌러주세요.`,
         minutes > 180 ? 'stale' : 'fresh');
 
-      const resultsTitle = document.getElementById('results-title');
-      if (resultsTitle) resultsTitle.textContent = `조회 결과 ${body.boat_count}척 (저장된 값)`;
+      const resultsMeta = document.getElementById('results-meta');
+      if (resultsMeta) {
+        resultsFinalLabel = '(저장된 값)';
+        resultsFinalDate = fmtShortDateLabel(currentQueryDate());
+        resultsMeta.textContent = `${body.boat_count}척 · ${resultsFinalDate} 기준 (저장된 값)${speciesFilterSuffix()}`;
+      }
       return true;
     } catch (e) {
       console.warn('캐시 조회 실패', e);
@@ -2479,10 +2528,34 @@ document.addEventListener('DOMContentLoaded', function(){
 
   let speciesFilter = new Set();   // 선택된 SPECIES_FILTERS.key들
 
+  // 조회가 끝난 뒤(실시간 완료 또는 저장된 값 로드)에는 결과 헤더의 척수가
+  // "전체 조회 대상"이 아니라 "지금 필터를 통과해 보이는 척수"를 보여줘야
+  // 한다(Claude Design v2의 resultMeta와 동일한 뜻) - 어종/상태 칩을 누를
+  // 때마다 renderRows()가 다시 그리므로, 그때마다 이 라벨을 이용해 척수만
+  // 다시 계산해 넣는다. 스트리밍 진행 중(resultsFinalLabel이 아직 빈 문자열)
+  // 에는 손대지 않는다 - "N/M척 조회 중" 진행 표시를 필터 때문에 지우면 안 된다.
+  let resultsFinalLabel = '';
+  let resultsFinalDate = '';
+
   function matchesSpeciesFilter(r) {
     if (!speciesFilter.size) return true;
     const text = r.fish || '';
     return SPECIES_FILTERS.some(s => speciesFilter.has(s.key) && s.test(text));
+  }
+
+  // 조회 결과 헤더(#results-meta)에 붙일 "· 주꾸미, 갑오징어 필터" 꼬리표.
+  function speciesFilterSuffix() {
+    if (!speciesFilter.size) return '';
+    const labels = SPECIES_FILTERS.filter(s => speciesFilter.has(s.key)).map(s => s.label);
+    return ' · ' + labels.join(', ') + ' 필터';
+  }
+
+  // "9월 11일" 형식 - 달력 팝오버의 fmtDateLabel(요일 포함)과 달리 결과
+  // 헤더에는 짧은 버전만 필요하다.
+  function fmtShortDateLabel(iso) {
+    if (!iso) return '';
+    const p = iso.split('-');
+    return Number(p[1]) + '월 ' + Number(p[2]) + '일';
   }
 
   // 통계 카드처럼 "지금 조회된 전체 배 기준" 개수를 칩에 보여준다(선택 여부와
@@ -2493,6 +2566,16 @@ document.addEventListener('DOMContentLoaded', function(){
     const box = document.getElementById('species-chip-list');
     if (!box) return;
     box.innerHTML = '';
+
+    // "전체" 칩 - 목업(v2)에 있는 명시적 해제 버튼. 지금까지는 아무 칩도
+    // 안 고르면 곧 전체였지만, 그 상태로 되돌리는 버튼이 화면에 없었다.
+    const allChip = document.createElement('button');
+    allChip.type = 'button';
+    allChip.className = 'species-chip' + (speciesFilter.size === 0 ? ' is-active' : '');
+    allChip.innerHTML = `전체 <span class="species-chip-count">${allRows.length}</span>`;
+    allChip.addEventListener('click', () => { speciesFilter.clear(); renderRows(lastRenderedRows); });
+    box.appendChild(allChip);
+
     SPECIES_FILTERS.forEach(s => {
       const count = allRows.filter(r => s.test(r.fish || '')).length;
       const isActive = speciesFilter.has(s.key);
@@ -2630,6 +2713,17 @@ document.addEventListener('DOMContentLoaded', function(){
       .filter(r => !statusFilter || statusBucket(r) === statusFilter)
       .filter(matchesSpeciesFilter);
 
+    // 조회가 이미 끝난 뒤라면(resultsFinalLabel 참고) 필터를 누를 때마다
+    // 척수를 "지금 보이는 척수" 기준으로 다시 써준다 - 스트리밍 진행 중엔
+    // updateResultsTitle()이 이미 진행 상황("N/M척 조회 중")을 보여주고 있어
+    // 여기서 덮어쓰지 않는다.
+    if (resultsFinalLabel) {
+      const metaEl = document.getElementById('results-meta');
+      if (metaEl) {
+        metaEl.textContent = `${visible.length}척 · ${resultsFinalDate} 기준 ${resultsFinalLabel}${speciesFilterSuffix()}`;
+      }
+    }
+
     if (!visible.length) {
       const filtered = statusFilter || speciesFilter.size;
       tbody.innerHTML = filtered
@@ -2711,7 +2805,9 @@ document.addEventListener('DOMContentLoaded', function(){
         const shipCheckboxes = [];
         for (const ship of group) {
           const shipRow = document.createElement('div');
-          shipRow.className = 'fleet-ship-row';
+          // 배별로 상태 톤 배경을 깔아 한눈에 구분되게 한다(Claude Design v2
+          // - 여유(초록)/마감임박(주황)/그 외(중립) 연한 배경).
+          shipRow.className = 'fleet-ship-row fleet-ship-row-' + statusBucket(ship);
           const shipName = document.createElement('span');
           shipName.className = 'fleet-ship-name';
           shipName.textContent = ship.ship_name || '-';
