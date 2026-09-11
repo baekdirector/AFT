@@ -6,13 +6,14 @@ from datetime import date, datetime, timedelta, timezone
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, Response, stream_with_context, session
 from flask import send_from_directory
 from forms import BoatRegistrationForm, StatusCheckForm, BoatEditForm, AdminLoginForm
-from db import add_boat_instance, get_all_boats, delete_boat, get_boat_by_id, update_boat
+from db import add_boat_instance, get_all_boats, delete_boat, get_boat_by_id, update_boat, upsert_port_coordinate
 from services.reservation_checker import check_single_boat
 from services.tide.mulddae import get_mulddae
 from forms import REGION_CHOICES
-from config import CITY_PORT_MAPPING, PORT_COORDINATES, BADA_PORT_IDS
+from config import CITY_PORT_MAPPING, BADA_PORT_IDS
 from services.api_response import success_response, error_response, validation_error_response
 from services.status_service import StatusPageService
+from services.weather_tide_service import PortDataService
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 import json
@@ -157,7 +158,7 @@ def index():
         boats_json=boats_dict,
         form=form,
         city_port_map=_city_port_map_with_registered_ports(boats),
-        port_coordinates=PORT_COORDINATES
+        port_coordinates=PortDataService.get_port_coordinates()
     )
 
 @views.route('/watches')
@@ -222,6 +223,7 @@ def register():
             return render_template('register.html', form=form)
         try:
             add_boat_instance(form.name.data, form.url.data, form.city.data, form.port.data, form.note.data)
+            upsert_port_coordinate(form.port.data, form.lat.data, form.lon.data)
             if _is_ajax():
                 return jsonify({'success': True, 'message': '신규 배가 등록이 성공하였습니다.'})
             flash('배가 등록되었습니다.', 'success')
@@ -300,6 +302,7 @@ def edit_boat(boat_id):
                 return render_template('edit_boat.html', form=form, boat_id=boat_id)
             try:
                 update_boat(boat_id, form.name.data, form.url.data, form.city.data, form.port.data, form.note.data)
+                upsert_port_coordinate(form.port.data, form.lat.data, form.lon.data)
                 if _is_ajax():
                     return jsonify({'success': True, 'message': '배 정보가 수정되었습니다.'})
                 flash('배 정보가 수정되었습니다.', 'success')
@@ -625,9 +628,9 @@ def api_status_cached():
 @views.route('/weather')
 def weather():
     """날씨 정보 조회 페이지"""
-    return render_template('weather.html', 
+    return render_template('weather.html',
                          city_port_mapping=CITY_PORT_MAPPING,
-                         port_coordinates=PORT_COORDINATES,
+                         port_coordinates=PortDataService.get_port_coordinates(),
                          bada_port_ids=BADA_PORT_IDS)
 
 
@@ -648,14 +651,15 @@ def api_weather():
             message='항구와 날짜를 입력해주세요.'
         )), 400
     
-    if port not in PORT_COORDINATES:
+    port_coordinates = PortDataService.get_port_coordinates()
+    if port not in port_coordinates:
         return jsonify(error_response(
             error=f'PORT_NOT_FOUND',
             message=f'{port}의 좌표 정보를 찾을 수 없습니다.'
         )), 404
-    
-    lat = PORT_COORDINATES[port]['lat']
-    lon = PORT_COORDINATES[port]['lon']
+
+    lat = port_coordinates[port]['lat']
+    lon = port_coordinates[port]['lon']
     
     try:
         grid = convert_to_grid(lat, lon)
@@ -938,7 +942,8 @@ def api_fishing_index():
             error='port와 date 파라미터는 필수입니다.',
             message='항구와 날짜를 입력해주세요.')), 400
 
-    if port not in PORT_COORDINATES:
+    port_coordinates = PortDataService.get_port_coordinates()
+    if port not in port_coordinates:
         return jsonify(error_response(
             error='PORT_NOT_FOUND',
             message=f'{port}의 좌표 정보를 찾을 수 없습니다.')), 404
@@ -948,7 +953,7 @@ def api_fishing_index():
             error='NOT_CONFIGURED',
             message='낚시지수 API 키가 설정되지 않았습니다.')), 503
 
-    coords = PORT_COORDINATES[port]
+    coords = port_coordinates[port]
     try:
         result = khoa_fishing.for_port(coords['lat'], coords['lon'], date_str)
     except Exception as exc:
@@ -1102,7 +1107,7 @@ def api_tide_graph():
 @views.route('/map')
 def map_page():
     """지도 페이지 - 항구별 등록된 배 표시"""
-    port_coordinates = PORT_COORDINATES
+    port_coordinates = PortDataService.get_port_coordinates()
     city_port_mapping = CITY_PORT_MAPPING
 
     boats = get_all_boats()

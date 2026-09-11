@@ -144,9 +144,16 @@ class PortDataService:
     
     @staticmethod
     def get_port_coordinates() -> Dict[str, Dict[str, float]]:
-        """항구별 좌표 정보"""
+        """항구별 좌표 정보. 정적 PORT_COORDINATES(config/constants.py) +
+        사용자가 등록/수정 화면에서 직접 입력해 PortCoordinate 테이블에 저장한
+        새 항구 좌표를 합쳐서 돌려준다. 정적 dict 값이 우선한다(큐레이션된
+        값을 사용자 입력이 덮어쓰지 않게)."""
         from config import PORT_COORDINATES
-        return PORT_COORDINATES
+        from models import PortCoordinate
+        merged = dict(PORT_COORDINATES)
+        for row in PortCoordinate.query.all():
+            merged.setdefault(row.port, {'lat': row.lat, 'lon': row.lon})
+        return merged
     
     @staticmethod
     def get_city_port_mapping() -> Dict[str, list]:

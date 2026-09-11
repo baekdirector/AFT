@@ -17,6 +17,16 @@
   </div>
 
   <div class="form-row">
+    <label class="form-label" for="lat">위도(선택 - 목록에 없는 새 항구일 때만)</label>
+    {{ form.lat(class_="form-control", id="lat", placeholder="예: 34.7305") }}
+  </div>
+
+  <div class="form-row">
+    <label class="form-label" for="lon">경도(선택 - 목록에 없는 새 항구일 때만)</label>
+    {{ form.lon(class_="form-control", id="lon", placeholder="예: 127.7388") }}
+  </div>
+
+  <div class="form-row">
     <label class="form-label" for="name">배 이름</label>
     {{ form.name(class_="form-control", id="name", placeholder="예: 어비스호") }}
   </div>

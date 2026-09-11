@@ -123,6 +123,21 @@ UI는 Claude Design 기반으로 3화면(배 목록/예약현황/빈자리 알�
   다시 확인할 때는 매번 서버를 재시작**할 것 — `curl`로 응답 본문에 방금 넣은 새
   클래스명/변수명이 실제로 포함되는지 먼저 확인하고 나서 Playwright 등으로 검증하면
   안전하다.
+- **SQLite 로컬 DB 경로가 앱을 어떻게 import 했는지에 따라 갈린다** - `wsgi.py`는
+  `from src.app import create_app`로 앱을 패키지 하위 모듈(`src.app`)로 불러오는데,
+  Flask의 `auto_find_instance_path()`가 이걸 패키지로 인식해서 `instance_path`를
+  `<repo root>/instance`(리포 루트)로 잡는다. 반면 디버그용으로 흔히 쓰는
+  `sys.path.insert(0,'src'); import app; create_app()` 방식은 `app.py`를 최상위
+  단일 모듈로 불러오는 것이라 `instance_path`가 `src/instance`(한 단계 더 안쪽)로
+  달라진다 - **실제 운영/로컬 서버(`flask run`, wsgi.py)는 항상 `<repo
+  root>/instance/boats.db`를 쓰지만, 즉석 디버그 스크립트를 `import app`처럼
+  짜면 완전히 다른 `src/instance/boats.db`(존재한다면 과거 세션이 남긴 것)를
+  보게 된다.** 실제로 겪음: 등록이 성공했는데 방금 만든 행이 DB에 없어보여서
+  한참 헤맸다 - 원인은 회귀가 아니라 디버그 스크립트가 엉뚱한 sqlite 파일을 읽고
+  있었던 것. **DB를 직접 열어 확인하는 즉석 스크립트를 짤 때는 반드시
+  `from src.app import create_app`로 앱을 불러와서(= wsgi.py와 동일한 import
+  경로) `app.config['SQLALCHEMY_DATABASE_URI']`가 실제 서버와 같은 경로를
+  가리키는지 먼저 확인할 것.**
 
 ## 명령어
 - 테스트: `pytest`

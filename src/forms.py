@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, IntegerField, SubmitField, SelectField, HiddenField, TextAreaField, PasswordField
+from wtforms import StringField, IntegerField, SubmitField, SelectField, HiddenField, TextAreaField, PasswordField, FloatField
 from wtforms.validators import DataRequired, URL, NumberRange, Optional, Length
 from config import CITY_PORT_MAPPING
 
@@ -9,11 +9,16 @@ REGION_CHOICES = [('', '지역을 선택하세요')] + [(city, city) for city in
 # 항구는 city 처럼 고정 목록이 아니다 - 미리 등록되지 않은 항구도 직접 입력해서
 # 등록할 수 있어야 한다(Boat.port 는 원래 자유 텍스트 컬럼). 화면에서는 select +
 # "직접 입력"으로 안내하지만, 서버는 목록에 없는 값도 그대로 받는다.
+# lat/lon 은 그중에서도 정말 새 항구(정적 PORT_COORDINATES 에 없는 곳)일 때만
+# 의미가 있는 선택 입력이다 - 비워도 등록/수정이 그대로 된다(db.
+# upsert_port_coordinate 가 값이 있을 때만 저장한다).
 class BoatRegistrationForm(FlaskForm):
     name = StringField('배 이름', validators=[DataRequired()])
     url = StringField('예약 페이지 URL', validators=[DataRequired(), URL()])
     city = SelectField('지역', validators=[DataRequired()], choices=REGION_CHOICES, coerce=str)
     port = StringField('항구', validators=[DataRequired(), Length(max=100)])
+    lat = FloatField('위도(선택)', validators=[Optional()])
+    lon = FloatField('경도(선택)', validators=[Optional()])
     note = TextAreaField('비고', validators=[Optional()])
     submit = SubmitField('등록하기')
 
@@ -23,6 +28,8 @@ class BoatEditForm(FlaskForm):
     url = StringField('예약 페이지 URL', validators=[DataRequired(), URL()])
     city = SelectField('지역', validators=[DataRequired()], choices=REGION_CHOICES, coerce=str)
     port = StringField('항구', validators=[DataRequired(), Length(max=100)])
+    lat = FloatField('위도(선택)', validators=[Optional()])
+    lon = FloatField('경도(선택)', validators=[Optional()])
     note = TextAreaField('비고', validators=[Optional()])
     submit = SubmitField('수정하기')
 

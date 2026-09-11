@@ -235,6 +235,18 @@
           <span class="modal-field-label">새 항구 이름 <span class="required">*</span></span>
           <input id="register-port-custom" type="text" placeholder="예: OO항" maxlength="100">
         </label>
+        <!-- 새 항구일 때만 의미가 있는 선택 입력 - 넣어두면 날씨/지도 기능이
+             코드 배포 없이 바로 이 항구에서 동작한다(비워도 등록은 그대로 된다) -->
+        <div class="modal-form-grid" id="register-port-coords-wrap" style="display:none;">
+          <label class="modal-field modal-field-note">
+            <span class="modal-field-label">위도(선택)</span>
+            <input id="register-lat" name="lat" type="number" step="any" placeholder="예: 34.7305">
+          </label>
+          <label class="modal-field modal-field-note">
+            <span class="modal-field-label">경도(선택)</span>
+            <input id="register-lon" name="lon" type="number" step="any" placeholder="예: 127.7388">
+          </label>
+        </div>
         <label class="modal-field modal-field-note">
           <span class="modal-field-label">비고</span>
           <textarea id="register-note" name="note" placeholder="선장 스타일, 추천 어종 등"></textarea>
@@ -1281,6 +1293,9 @@ function initializeRegisterModal() {
     const boatIdInput = document.getElementById('boat-id');
     const portCustomWrap = document.getElementById('register-port-custom-wrap');
     const portCustomInput = document.getElementById('register-port-custom');
+    const portCoordsWrap = document.getElementById('register-port-coords-wrap');
+    const latInput = document.getElementById('register-lat');
+    const lonInput = document.getElementById('register-lon');
     const CUSTOM_PORT_VALUE = '__custom__';
 
     let isEditMode = false;
@@ -1332,6 +1347,9 @@ function initializeRegisterModal() {
         portSelect.innerHTML = '<option value="">항구를 선택하세요</option>';
         if (portCustomWrap) portCustomWrap.style.display = 'none';
         if (portCustomInput) portCustomInput.value = '';
+        if (portCoordsWrap) portCoordsWrap.style.display = 'none';
+        if (latInput) latInput.value = '';
+        if (lonInput) lonInput.value = '';
         boatIdInput.value = '';
         validateForm();
     }
@@ -1364,13 +1382,22 @@ function initializeRegisterModal() {
         portSelect.innerHTML = portOptionsHtml(ports);
         if (portCustomWrap) portCustomWrap.style.display = 'none';
         if (portCustomInput) portCustomInput.value = '';
+        if (portCoordsWrap) portCoordsWrap.style.display = 'none';
+        if (latInput) latInput.value = '';
+        if (lonInput) lonInput.value = '';
         validateForm();
     });
 
-    // 항구 select 에서 "직접 입력"을 고르면 텍스트 입력칸을 보여준다
+    // 항구 select 에서 "직접 입력"을 고르면 텍스트 입력칸(+선택 위경도 입력칸)을
+    // 보여준다 - 이미 알려진 항구를 고르면 좌표를 이미 알고 있으므로 안 보여준다.
     portSelect?.addEventListener('change', function(){
         const isCustom = this.value === CUSTOM_PORT_VALUE;
         if (portCustomWrap) portCustomWrap.style.display = isCustom ? '' : 'none';
+        if (portCoordsWrap) portCoordsWrap.style.display = isCustom ? '' : 'none';
+        if (!isCustom) {
+            if (latInput) latInput.value = '';
+            if (lonInput) lonInput.value = '';
+        }
         if (isCustom && portCustomInput) portCustomInput.focus();
     });
 

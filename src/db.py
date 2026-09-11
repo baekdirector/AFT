@@ -248,3 +248,23 @@ def update_boat(boat_id: int, name: str, url: str, city: str, port: str, note: s
     except Exception:
         db.session.rollback()
         raise
+
+def upsert_port_coordinate(port: str, lat, lon):
+    """새 항구의 위경도를 등록/수정 화면에서 선택 입력했을 때만 호출된다.
+    config.PORT_COORDINATES(정적 dict)에 이미 있는 항구는 조용히 무시한다 -
+    사용자 오타가 큐레이션된 좌표를 덮어쓰지 않게 하기 위함."""
+    from config import PORT_COORDINATES
+    from models import PortCoordinate
+    if lat is None or lon is None or port in PORT_COORDINATES:
+        return
+    row = PortCoordinate.query.filter_by(port=port).first()
+    if row:
+        row.lat = lat
+        row.lon = lon
+    else:
+        db.session.add(PortCoordinate(port=port, lat=lat, lon=lon))
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise

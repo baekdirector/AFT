@@ -34,6 +34,25 @@ class Boat(db.Model):
         }
 
 
+class PortCoordinate(db.Model):
+    """config.PORT_COORDINATES(정적 dict)에 없는 새 항구의 위경도를 사용자가
+    배 등록/수정 화면에서 직접 입력하면 여기 저장된다. 조회 시 정적 dict와
+    합쳐서 쓰인다(services.weather_tide_service.PortDataService.
+    get_port_coordinates 참고) - 코드 배포 없이도 새 항구의 날씨/지도 기능을
+    바로 쓸 수 있게 하기 위한 표다. 정적 dict에 이미 있는 항구는 여기 안
+    들어간다(db.upsert_port_coordinate 가 막는다)."""
+    __tablename__ = 'port_coordinates'
+
+    id = db.Column(db.Integer, primary_key=True)
+    port = db.Column(db.String(100), nullable=False, unique=True)
+    lat = db.Column(db.Float, nullable=False)
+    lon = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<PortCoordinate {self.port} ({self.lat}, {self.lon})>'
+
+
 class Snapshot(db.Model):
     """(배, 날짜, 선박) 하나의 '가장 최근에 확인된 상태' 1행.
 
