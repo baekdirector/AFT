@@ -47,6 +47,17 @@
   .visit-table td { padding: 7px 10px; border-bottom: 1px solid oklch(0.95 0.004 250); color: var(--ink); }
   .visit-device { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 620; }
   .visit-empty { text-align: center; padding: 60px 0; color: oklch(0.6 0.015 250); font-size: 13.5px; }
+
+  .bot-filter-note {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 16px; padding: 8px 12px;
+    background: oklch(0.97 0.01 85); border: 1px solid oklch(0.88 0.02 85); border-radius: 10px;
+    font-size: 12.5px; color: oklch(0.45 0.03 80);
+  }
+  .bot-filter-note a { font-weight: 650; }
+  .bot-badge {
+    display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+    background: oklch(0.94 0.015 85); color: oklch(0.5 0.04 80); font-size: 11px; font-weight: 650;
+  }
 </style>
 
 <div class="admin-wrap">
@@ -77,6 +88,18 @@
       </form>
     </div>
 
+    {% if hidden_bot_count %}
+      <div class="bot-filter-note">
+        ☁️ 클라우드/봇으로 추정되는 접속 {{ hidden_bot_count }}건을 숨겼습니다
+        · <a href="{{ url_for('views.admin_page', bots='show') }}">모두 보기</a>
+      </div>
+    {% elif show_bots %}
+      <div class="bot-filter-note">
+        클라우드/봇 추정 접속도 함께 표시 중입니다(☁️ 표시)
+        · <a href="{{ url_for('views.admin_page') }}">다시 숨기기</a>
+      </div>
+    {% endif %}
+
     {% if not groups %}
       <div class="visit-empty">아직 기록된 접속이 없습니다.</div>
     {% endif %}
@@ -93,7 +116,7 @@
               <tr>
                 <td>{{ r.time }}</td>
                 <td><span class="visit-device">{{ '📱' if r.device == '모바일' else ('💻' if r.device == 'PC' else '❓') }} {{ r.device }}</span></td>
-                <td>{{ r.location }}</td>
+                <td>{{ r.location }}{% if r.is_hosting %}<span class="bot-badge">☁️ 클라우드/봇</span>{% endif %}</td>
                 <td>{{ r.path }}</td>
                 <td>{{ r.ip }}</td>
               </tr>

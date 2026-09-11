@@ -117,7 +117,7 @@ def resolve_missing(ips: list[str]) -> None:
         try:
             resp = requests.post(
                 BATCH_URL,
-                json=[{'query': ip, 'fields': 'status,city,regionName,country,query'} for ip in chunk],
+                json=[{'query': ip, 'fields': 'status,city,regionName,country,hosting,query'} for ip in chunk],
                 timeout=8,
             )
             resp.raise_for_status()
@@ -134,6 +134,7 @@ def resolve_missing(ips: list[str]) -> None:
                 db.session.add(IpLocation(
                     ip=ip, city=item.get('city'), region=item.get('regionName'),
                     country=item.get('country'), is_private=False,
+                    is_hosting=bool(item.get('hosting')),
                 ))
             else:
                 db.session.add(IpLocation(ip=ip, is_private=False))

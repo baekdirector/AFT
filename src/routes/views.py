@@ -1499,11 +1499,25 @@ def admin_page():
     ips = {row.ip for row in logs if row.ip}
     locations = {row.ip: row for row in IpLocation.query.filter(IpLocation.ip.in_(ips)).all()} if ips else {}
 
+    # ip-api 의 hosting 필드(AWS/GCP/Azure 등 클라우드·호스팅 대역 여부) 기준으로
+    # 봇/모니터링으로 추정되는 접속을 기본으로 숨긴다(사용자 요구 - "The Dalles
+    # (Oregon)" 처럼 구글 클라우드 IP가 실제 방문자와 섞여 보이던 문제).
+    # ?bots=show 를 붙이면 숨긴 것까지 전부 보여준다(완전히 지우진 않는다 -
+    # 오탐 가능성이 있어 필요하면 확인할 수 있어야 한다).
+    show_bots = request.args.get('bots') == 'show'
+
     DEVICE_LABELS = {'pc': 'PC', 'mobile': '모바일', 'tablet': '태블릿', 'unknown': '알 수 없음'}
     groups = []
     current_day = None
     current_rows = None
+    hidden_bot_count = 0
     for row in logs:
+        loc = locations.get(row.ip)
+        is_hosting = bool(loc and loc.is_hosting)
+        if is_hosting and not show_bots:
+            hidden_bot_count += 1
+            continue
+
         # visited_at 은 UTC로 저장돼 있다 - 관리자가 보는 화면이니 KST로
         # 바꿔서 보여준다(날짜별 묶음 기준도 KST 자정 기준이어야 자연스럽다).
         visited_kst = row.visited_at.replace(tzinfo=timezone.utc).astimezone(KST)
@@ -1515,13 +1529,15 @@ def admin_page():
         current_rows.append({
             'time': visited_kst.strftime('%Y-%m-%d %H:%M:%S'),
             'device': DEVICE_LABELS.get(row.device_type, row.device_type),
-            'location': format_location(locations.get(row.ip)),
+            'location': format_location(loc),
             'path': row.path,
             'ip': row.ip or '-',
+            'is_hosting': is_hosting,
         })
 
     return render_template('admin.html', authed=True, groups=groups,
-                           retention_days=VISIT_LOG_RETENTION_DAYS)
+                           retention_days=VISIT_LOG_RETENTION_DAYS,
+                           show_bots=show_bots, hidden_bot_count=hidden_bot_count)
 
 
 @views.route('/admin/logout', methods=['POST'])

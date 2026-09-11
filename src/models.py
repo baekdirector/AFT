@@ -294,6 +294,10 @@ class IpLocation(db.Model):
     region = db.Column(db.String(100), nullable=True)
     country = db.Column(db.String(100), nullable=True)
     is_private = db.Column(db.Boolean, nullable=False, default=False)
+    #: ip-api.com의 hosting 필드 - AWS/GCP/Azure 등 클라우드·호스팅
+    #: 사업자 대역이면 True. /admin 표에서 클라우드/봇성 접속을 걸러내는 데
+    #: 쓴다(실제 가정집 회선이 아니라 서버/크롤러/모니터링일 가능성이 큼).
+    is_hosting = db.Column(db.Boolean, nullable=False, default=False)
     resolved_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     def __repr__(self):

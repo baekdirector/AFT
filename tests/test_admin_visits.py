@@ -237,6 +237,101 @@ def test_visit_log_retention_is_seven_days():
     assert VISIT_LOG_RETENTION_DAYS == 7
 
 
+def test_ensure_ip_location_hosting_column_backfills_missing_column(app):
+    """db.create_all()은 이미 배포된 테이블에 새 컬럼(is_hosting)을 추가해
+    주지 않는다 - 그래서 앱 시작 시 idempotent ALTER TABLE로 직접 보정한다.
+    컬럼이 없던 낡은 배포 상태를 흉내내고, 보정 후 정상적으로 insert가
+    되는지 + 기존 캐시가 비워지는지(재조회를 유도) 확인한다."""
+    from sqlalchemy import text
+
+    from models import IpLocation
+    from src.app import _ensure_ip_location_hosting_column
+
+    with app.app_context():
+        db.session.add(IpLocation(ip='1.2.3.4', city='Seoul', is_private=False))
+        db.session.commit()
+
+        db.session.execute(text('ALTER TABLE ip_locations DROP COLUMN is_hosting'))
+        db.session.commit()
+
+        _ensure_ip_location_hosting_column(app)
+
+        assert IpLocation.query.count() == 0, '컬럼 보정 시 낡은 캐시는 비워져야 한다'
+        db.session.add(IpLocation(ip='5.6.7.8', city='Busan', is_private=False, is_hosting=True))
+        db.session.commit()
+        assert IpLocation.query.get('5.6.7.8').is_hosting is True
+
+
+def test_ensure_ip_location_hosting_column_is_noop_when_already_present(app):
+    """이미 컬럼이 있으면(정상 배포 상태) 아무 것도 건드리지 않는다 -
+    캐시를 매번 지우면 곤란하다."""
+    from models import IpLocation
+    from src.app import _ensure_ip_location_hosting_column
+
+    with app.app_context():
+        db.session.add(IpLocation(ip='1.2.3.4', city='Seoul', is_private=False))
+        db.session.commit()
+
+        _ensure_ip_location_hosting_column(app)
+
+        assert IpLocation.query.count() == 1
+
+
+def test_resolve_missing_captures_hosting_flag(app, monkeypatch):
+    from models import IpLocation
+    from services import ip_location
+
+    class _FakeResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return [{'status': 'success', 'query': '34.83.150.217', 'city': 'The Dalles',
+                      'regionName': 'Oregon', 'country': 'United States', 'hosting': True}]
+
+    monkeypatch.setattr(ip_location.requests, 'post', lambda *a, **kw: _FakeResp())
+
+    with app.app_context():
+        ip_location.resolve_missing(['34.83.150.217'])
+        row = IpLocation.query.get('34.83.150.217')
+        assert row.is_hosting is True
+
+
+# ---- 클라우드/봇 IP 필터 ----
+
+def test_admin_hides_hosting_ips_by_default_and_shows_count(client, app, monkeypatch):
+    from models import IpLocation, VisitLog
+
+    with app.app_context():
+        db.session.add(IpLocation(ip='34.83.150.217', city='The Dalles', region='Oregon',
+                                  country='United States', is_private=False, is_hosting=True))
+        db.session.add(IpLocation(ip='183.99.218.103', city='Suwon', region='Gyeonggi-do',
+                                  country='South Korea', is_private=False, is_hosting=False))
+        db.session.add_all([
+            VisitLog(path='/', method='GET', ip='34.83.150.217', device_type='pc',
+                     visited_at=datetime.utcnow()),
+            VisitLog(path='/status', method='GET', ip='183.99.218.103', device_type='mobile',
+                     visited_at=datetime.utcnow()),
+        ])
+        db.session.commit()
+
+    monkeypatch.setenv('ADMIN_USERNAME', 'admin')
+    monkeypatch.setenv('ADMIN_PASSWORD', 'correct-horse')
+    client.post('/admin', data={
+        'csrf_token': _csrf_token(client, '/admin'),
+        'username': 'admin', 'password': 'correct-horse',
+    })
+
+    html = client.get('/admin').get_data(as_text=True)
+    assert '183.99.218.103' in html
+    assert '34.83.150.217' not in html, '클라우드/봇 IP는 기본적으로 숨겨져야 한다'
+    assert '클라우드/봇으로 추정되는 접속 1건을 숨겼습니다' in html
+
+    shown = client.get('/admin?bots=show').get_data(as_text=True)
+    assert '34.83.150.217' in shown, '?bots=show 를 주면 다시 보여야 한다'
+    assert '☁️ 클라우드/봇' in shown
+
+
 def test_purge_old_visit_logs_boundary_at_seven_days(app):
     from models import VisitLog
     from services.snapshot_repository import purge_old_visit_logs

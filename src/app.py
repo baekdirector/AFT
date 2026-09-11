@@ -9,6 +9,32 @@ if CURRENT_DIR not in sys.path:
 
 from db import db
 
+
+def _ensure_ip_location_hosting_column(app):
+    """db.create_all() 은 없는 테이블만 만들 뿐, 이미 배포된 테이블에 새로
+    추가된 컬럼(IpLocation.is_hosting)은 반영하지 않는다. 이 프로젝트는
+    Alembic 같은 마이그레이션 도구 없이 가볍게 유지하기로 했으므로(스트랭글러
+    원칙 - 리포 재구성 금지), ip_locations 테이블이 이미 있는데 컬럼이
+    없을 때만 idempotent 하게 ALTER TABLE 로 보정한다. 새로 컬럼이 생기는
+    순간이라 기존 캐시 행은 hosting 여부를 모른 채로 남는데, 그 캐시를
+    지워서 다음 /admin 조회 때 자동으로 다시 채워지게 한다(캐시일 뿐이라
+    지워도 안전 - 원본 방문 기록인 VisitLog 는 건드리지 않는다)."""
+    from sqlalchemy import inspect, text
+    try:
+        inspector = inspect(db.engine)
+        if 'ip_locations' not in inspector.get_table_names():
+            return
+        existing_columns = {col['name'] for col in inspector.get_columns('ip_locations')}
+        if 'is_hosting' in existing_columns:
+            return
+        with db.engine.begin() as conn:
+            conn.execute(text('ALTER TABLE ip_locations ADD COLUMN is_hosting BOOLEAN DEFAULT FALSE'))
+            conn.execute(text('DELETE FROM ip_locations'))
+        app.logger.info('ip_locations.is_hosting 컬럼을 추가하고 캐시를 비웠다(재조회 예정)')
+    except Exception:
+        app.logger.exception('ip_locations 스키마 보정 실패')
+
+
 def create_app(test_config=None):
     app = Flask(__name__, static_folder='../img', static_url_path='/img')
     os.makedirs(app.instance_path, exist_ok=True)
@@ -94,6 +120,7 @@ def create_app(test_config=None):
 
     with app.app_context():
         db.create_all()
+        _ensure_ip_location_hosting_column(app)
         from db import initialize_shared_boats
         initialize_shared_boats()
 
