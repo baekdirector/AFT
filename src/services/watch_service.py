@@ -200,22 +200,30 @@ def deactivate_all_watches(subscriber: Subscriber) -> int:
     return len(watches)
 
 
-def deactivate_past_watches(today: str) -> int:
-    """지난 날짜의 감시를 끈다. 끈 개수를 돌려준다.
+def purge_past_watches(today: str) -> int:
+    """지난 날짜의 감시를 완전히 지운다. 지운 개수를 돌려준다.
 
-    슬롯이 5개뿐이라 지나간 날짜의 감시가 남아 있으면 새 감시를 걸 수 없다.
-    지난 날짜는 알림이 나갈 일도 없으므로 수집 대상에서 빼는 것이 맞다.
+    지난 날짜는 알림이 나갈 일도 없으므로 수집 대상에서 빼야 하고(상한이
+    20개뿐이라 지나간 감시가 슬롯을 계속 먹으면 새 감시를 걸 수 없다),
+    화면(/watches)에도 더 이상 보일 이유가 없다(사용자 결정 - "날짜 지나면
+    화면에서도 자동 해제되고, 불필요한 감시는 아예 없어지는 게 맞다").
     스케줄러가 매 실행 앞에서 호출한다.
 
-    행은 지우지 않고 비활성으로 둔다. 발송 이력이 이 행을 참조하기 때문이다.
+    remove_watch/deactivate_all_watches 는 하드 삭제를 피한다 - 사용자가
+    현재/미래 감시를 껐다 켰다 할 수 있어서, 지우면 Notification dedup
+    근거가 사라져 같은 알림이 중복 발송될 수 있기 때문이다. 하지만 지난
+    날짜는 다시 감시할 수 없는 날짜라 그 dedup 근거가 다시 쓰일 일이 없다 -
+    그래서 이 경우만 안전하게 완전히 지운다(Notification 은 Watch에
+    ondelete=CASCADE 라 같이 지워진다. WatchCheckLog 는 Watch 가 아니라
+    Boat 를 참조하므로 영향 없음 - 기존 2일 보관 정리가 따로 처리한다).
     """
-    stale = Watch.query.filter(Watch.active.is_(True),
-                               Watch.target_date < today).all()
+    stale = Watch.query.filter(Watch.target_date < today).all()
+    count = len(stale)
     for watch in stale:
-        watch.active = False
+        db.session.delete(watch)
     if stale:
         db.session.commit()
-    return len(stale)
+    return count
 
 
 def active_watch_targets() -> list[tuple[int, str]]:

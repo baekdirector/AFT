@@ -243,8 +243,9 @@ def test_only_watched_targets_are_collected(app, monkeypatch, sent):
     assert fetched == ['https://watched.example/x']
 
 
-def test_past_date_watches_are_deactivated(app, monkeypatch, sent):
-    """지난 날짜 감시가 슬롯을 계속 먹으면 새 감시를 걸 수 없다."""
+def test_past_date_watches_are_purged(app, monkeypatch, sent):
+    """지난 날짜 감시는 화면에서 자동 해제될 뿐 아니라 아예 지워진다 -
+    슬롯을 계속 먹거나 표에 남아있으면 안 된다(사용자 결정)."""
     monkeypatch.setattr(run_scrape, 'create_app', lambda: app)
     with app.app_context():
         boat = add_boat_instance(name='배', url='https://b.example/x',
@@ -261,7 +262,9 @@ def test_past_date_watches_are_deactivated(app, monkeypatch, sent):
     assert summary['expired_watches'] == 1
     assert summary['targets'] == 1, '지난 날짜는 수집 대상에서 빠진다'
     with app.app_context():
-        assert Watch.query.filter_by(active=True).count() == 1
+        remaining = Watch.query.all()
+        assert len(remaining) == 1 and remaining[0].ship_name == '2호', \
+            '지난 날짜 감시 행은 비활성이 아니라 완전히 삭제돼야 한다'
 
 
 def test_main_refuses_to_run_without_database_url(monkeypatch, capsys):

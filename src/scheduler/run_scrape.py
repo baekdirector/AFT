@@ -125,16 +125,16 @@ def run_pipeline(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
     from services.notify import webpush
     from services.notify.dispatcher import dispatch_all
     from services.snapshot_repository import purge_old_check_logs, purge_old_visit_logs
-    from services.watch_service import active_watch_targets, deactivate_past_watches
+    from services.watch_service import active_watch_targets, purge_past_watches
 
     summary = {'targets': 0, 'collected': 0, 'failed': 0,
                'transitions': 0, 'sent': 0, 'expired_watches': 0, 'purged_check_logs': 0,
                'purged_visit_logs': 0}
 
     today = datetime.date.today().isoformat()
-    summary['expired_watches'] = deactivate_past_watches(today)
+    summary['expired_watches'] = purge_past_watches(today)
     if summary['expired_watches']:
-        logger.info('지난 날짜 감시 %d건을 껐다', summary['expired_watches'])
+        logger.info('지난 날짜 감시 %d건을 지웠다', summary['expired_watches'])
 
     try:
         summary['purged_check_logs'] = purge_old_check_logs()

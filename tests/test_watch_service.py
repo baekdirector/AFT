@@ -15,6 +15,7 @@ from services.watch_service import (
     count_watches,
     deactivate_all_watches,
     list_watches,
+    purge_past_watches,
     remove_watch,
     upsert_subscriber,
     watches_for,
@@ -248,3 +249,61 @@ def test_deactivate_all_watches_on_subscriber_with_no_watches_is_a_noop(app):
     with app.app_context():
         sub = upsert_subscriber('https://push.example/ccc', 'k', 'a', '나')
         assert deactivate_all_watches(sub) == 0
+
+
+def test_purge_past_watches_hard_deletes_expired_rows(app, ctx):
+    """지난 날짜 감시는 비활성 처리가 아니라 완전히 지워야 한다(사용자 결정:
+    "화면에서도 자동으로 알림해제 되면, 불필요한 알림은 없어지는게 맞다").
+    remove_watch/deactivate_all_watches 와 달리 하드 삭제가 안전한 이유는
+    지난 날짜라 다시 감시할 일이 없어 Notification dedup 근거가 필요 없기
+    때문이다."""
+    sub, boat_ids = ctx
+    with app.app_context():
+        add_watch(sub, boat_ids[0], '1호', '2020-01-01')  # 지난 날짜
+        add_watch(sub, boat_ids[1], '2호', DATE)           # 미래
+
+        purged = purge_past_watches(today='2026-01-01')
+
+        assert purged == 1
+        remaining = Watch.query.all()
+        assert len(remaining) == 1 and remaining[0].ship_name == '2호'
+
+
+def test_purge_past_watches_also_removes_already_deactivated_rows(app, ctx):
+    """수동으로 껐지만(active=False) 행이 남아있던 지난 날짜 감시도
+    같이 정리된다 - 예전엔 이런 행이 영원히 비활성 상태로 쌓였다."""
+    sub, boat_ids = ctx
+    with app.app_context():
+        add_watch(sub, boat_ids[0], '1호', '2020-01-01')
+        remove_watch(sub, boat_ids[0], '1호', '2020-01-01')
+
+        purged = purge_past_watches(today='2026-01-01')
+
+        assert purged == 1
+        assert Watch.query.count() == 0
+
+
+def test_purge_past_watches_cascades_notification_history(app, ctx):
+    """지운 감시를 참조하던 발송 이력(Notification)도 같이 사라져야
+    한다(ondelete=CASCADE) - 다시 쓰일 일 없는 dedup 근거를 영원히 남겨둘
+    이유가 없다."""
+    from db import db
+    from models import Notification
+
+    sub, boat_ids = ctx
+    with app.app_context():
+        watch = add_watch(sub, boat_ids[0], '1호', '2020-01-01')
+        db.session.add(Notification(watch_id=watch.id, dedup_key='k1', result='sent'))
+        db.session.commit()
+
+        purge_past_watches(today='2026-01-01')
+
+        assert Notification.query.count() == 0
+
+
+def test_purge_past_watches_leaves_future_watches_untouched(app, ctx):
+    sub, boat_ids = ctx
+    with app.app_context():
+        add_watch(sub, boat_ids[0], '1호', DATE)
+        assert purge_past_watches(today='2020-01-01') == 0
+        assert Watch.query.count() == 1
