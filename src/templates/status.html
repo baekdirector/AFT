@@ -664,8 +664,9 @@
 .sort-toggle-btn.is-active { background: #fff; color: oklch(0.3 0.02 255); box-shadow: 0 1px 4px oklch(0.4 0.02 250 / 0.14); }
 .sort-toggle-btn:hover { color: var(--accent); }
 
-/* 결과 카드 그리드 */
-.results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 11px; }
+/* 결과 카드 그리드 - Claude Design 목업은 330px 기준(운항시간 칩까지 얹혀도
+   여유가 있다). 여기도 맞춰 넓혔다(280px는 시간 칩 나오기 전 값). */
+.results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 11px; }
 .result-card {
   background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 15px 16px;
   box-shadow: 0 2px 10px oklch(0.5 0.02 250 / 0.04);
@@ -758,9 +759,20 @@
    같은 줄의 배 이름(min-width:0)이 극단적으로 눌려 글자 단위로
    세로 줄바꿈되는 2차 문제까지 생겼다. 어종에 상한 폭 + 말줄임표를 주고,
    배 이름도 명시적으로 한 줄 말줄임 처리해 둘 다 카드 폭을 넘지 않게 한다. */
+/* 운항시간 칩을 붙이면서 배 이름 한 줄에 이름+시간+어종+자리+알림 5개가
+   전부 끼어 이름이 "힐...", "레드..." 처럼 잘리는 문제가 생겼다(실측
+   피드백, Claude Design 목업과 비교 스크린샷). 목업처럼 grid로 바꿔
+   1열(이름+시간, 그 아래 어종)은 남는 폭을 전부 갖고, 자리 pill/알림
+   버튼만 별도 열로 뺐다 - 한 줄에 부대끼는 요소 수를 줄이는 게 폭을
+   늘리는 것보다 근본적인 해결이다(카드 자체도 조금 더 넓혔다,
+   .results-grid 참고). */
 .fleet-ship-row {
-  display: flex; align-items: center; gap: 9px; min-width: 0; padding: 6px 8px; border-radius: 10px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center; gap: 9px; min-width: 0; padding: 6px 8px; border-radius: 10px;
 }
+.fleet-ship-main { min-width: 0; }
+.fleet-ship-name-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.fleet-ship-meta-line { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 2px; }
 /* 상태 톤(여유/마감임박/그 외) 배경을 처음엔 썼는데, 같은 선사 안에서 배
    여럿이 같은 상태(특히 "그 외" 쪽은 거의 흰색에 가까워)면 전부 똑같아
    보여서 "색으로 구분된다"는 느낌이 안 났다(실측 피드백: "은아호는 일부만
@@ -769,13 +781,14 @@
    바꿨다 - 실제 색상 값은 buildFleetShipColor()가 인라인 style로 직접
    넣는다(배마다 hue가 달라 고정 클래스로는 표현이 안 된다). */
 .fleet-ship-name {
-  font-size: 13px; font-weight: 730; color: var(--ink); flex: 1 1 auto; min-width: 0;
+  font-size: 13px; font-weight: 730; color: var(--ink); min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .fleet-ship-fish {
-  font-size: 11px; font-weight: 650; color: oklch(0.55 0.18 25); flex: 0 1 auto;
-  max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 11px; font-weight: 650; color: oklch(0.55 0.18 25); min-width: 0; flex: 0 1 auto;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.fleet-ship-duration { font-size: 10.5px; font-weight: 620; color: var(--ink-softer); white-space: nowrap; flex: none; }
 .fleet-ship-seat { font-size: 11.5px; font-weight: 650; color: var(--ink-soft); white-space: nowrap; flex: none; }
 
 /* 운항시간 칩 - sunsang24(*.sunsang24.com/ship/schedule_fleet) 계열 선사가
@@ -2465,17 +2478,23 @@ document.addEventListener('DOMContentLoaded', function(){
     return 'open';
   }
 
-  // 운항시간 칩 - shiptime_from/to가 둘 다 있을 때만(선사가 등록한 경우,
-  // 약 70%) 만들어 돌려준다. 없으면 null - 호출부가 그냥 안 붙이면 된다.
-  // 시간 차는 자정을 넘기는 야간 운항을 방어하려고 음수면 +24시간 한다.
-  function buildShiptimeChip(row) {
+  // "05:30"/"17:00" -> "11.5시간". 자정을 넘기는 야간 운항 방어로 음수면
+  // +24시간. 시간이 없으면 null.
+  function shiptimeDurationText(row) {
     if (!row.shiptime_from || !row.shiptime_to) return null;
     const [fh, fm] = row.shiptime_from.split(':').map(Number);
     const [th, tm] = row.shiptime_to.split(':').map(Number);
     let mins = (th * 60 + tm) - (fh * 60 + fm);
     if (mins <= 0) mins += 24 * 60;
     const hours = mins / 60;
-    const durText = Number.isInteger(hours) ? `${hours}시간` : `${hours.toFixed(1)}시간`;
+    return Number.isInteger(hours) ? `${hours}시간` : `${hours.toFixed(1)}시간`;
+  }
+
+  // 운항시간 칩 - shiptime_from/to가 둘 다 있을 때만(선사가 등록한 경우,
+  // 약 70%) 만들어 돌려준다. 없으면 null - 호출부가 그냥 안 붙이면 된다.
+  function buildShiptimeChip(row) {
+    if (!row.shiptime_from || !row.shiptime_to) return null;
+    const durText = shiptimeDurationText(row);
 
     const chip = document.createElement('span');
     chip.className = 'shiptime-chip shiptime-chip-' + statusBucket(row);
@@ -2806,23 +2825,50 @@ document.addEventListener('DOMContentLoaded', function(){
           // 배 이름 해시로 고유한 파스텔 배경을 매긴다 - 상태 톤이었을 땐
           // 같은 상태인 배끼리 색이 겹쳐 "구분이 안 된다"는 피드백이 있었다.
           shipRow.style.background = buildFleetShipColor(ship.ship_name || ship.boat_name || '');
+
+          // 1열(grid의 minmax(0,1fr)) - 이름+시간 줄, 어종+운항시간길이 줄.
+          // 운항시간 칩이 추가되면서 한 줄에 이름·시간·어종·자리·알림이 전부
+          // 끼어 이름이 "힐...", "레드..."처럼 잘리는 문제가 있었다(실측
+          // 스크린샷 비교, Claude Design 목업 대조). 목업처럼 이름/어종을
+          // 두 줄로 나눠 자리 pill·알림 버튼과 경쟁하지 않게 한다.
+          const main = document.createElement('div');
+          main.className = 'fleet-ship-main';
+
+          const nameLine = document.createElement('div');
+          nameLine.className = 'fleet-ship-name-line';
           const shipName = document.createElement('span');
           shipName.className = 'fleet-ship-name';
           shipName.textContent = ship.ship_name || '-';
           shipName.title = ship.ship_name || '';
-          shipRow.appendChild(shipName);
+          nameLine.appendChild(shipName);
           const shipHours = buildShiptimeChip(ship);
-          if (shipHours) shipRow.appendChild(shipHours);
+          if (shipHours) nameLine.appendChild(shipHours);
+          main.appendChild(nameLine);
+
           // 선단 안 배들은 배마다 잡는 어종이 다르다(예: 레드헌터 선단 - 배별로
           // 주꾸미/문어/갈치 등 제각각) - 대표 행 하나의 어종만 카드에 보이면
           // 나머지 배들의 어종을 알 수 없다. 배 행마다 자기 어종을 따로 보여준다.
-          if (ship.fish) {
-            const shipFish = document.createElement('span');
-            shipFish.className = 'fleet-ship-fish';
-            shipFish.textContent = ship.fish;
-            shipFish.title = ship.fish;   // 말줄임표로 잘려도 길게 눌러/가리키면 전체 문구가 보이게
-            shipRow.appendChild(shipFish);
+          const durText = shiptimeDurationText(ship);
+          if (ship.fish || durText) {
+            const metaLine = document.createElement('div');
+            metaLine.className = 'fleet-ship-meta-line';
+            if (ship.fish) {
+              const shipFish = document.createElement('span');
+              shipFish.className = 'fleet-ship-fish';
+              shipFish.textContent = ship.fish;
+              shipFish.title = ship.fish;   // 말줄임표로 잘려도 길게 눌러/가리키면 전체 문구가 보이게
+              metaLine.appendChild(shipFish);
+            }
+            if (durText) {
+              const durSpan = document.createElement('span');
+              durSpan.className = 'fleet-ship-duration';
+              durSpan.textContent = (ship.fish ? '· ' : '') + durText;
+              metaLine.appendChild(durSpan);
+            }
+            main.appendChild(metaLine);
           }
+          shipRow.appendChild(main);
+
           const shipSeat = document.createElement('span');
           shipSeat.className = 'fleet-ship-seat';
           shipSeat.textContent = seatText(ship);
