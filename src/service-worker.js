@@ -1,7 +1,9 @@
 // Versioned cache name for easy invalidation
 // v3: 파비콘/앱 아이콘 교체(밤바다 배 모티프) - manifest.json 이 precache 대상이라
 // 버전을 올려야 설치된 PWA 가 새 아이콘/매니페스트를 받는다.
-const CACHE_VERSION = 'v3';
+// v4: 홈 화면 앱 아이콘 배지(숫자) 지원 추가 - 새 로직이 실제로 쓰이려면
+// 설치된 기기의 서비스워커가 이 파일로 교체돼야 한다.
+const CACHE_VERSION = 'v4';
 const PRECACHE = `aft-precache-${CACHE_VERSION}`;
 const RUNTIME = `aft-runtime-${CACHE_VERSION}`;
 
@@ -119,13 +121,38 @@ self.addEventListener('push', event => {
   // 실제 감시 전환 알림만 액션 버튼을 준다(테스트 알림은 실제 배/URL이 없어 생략).
   if (Array.isArray(data.actions) && data.actions.length) options.actions = data.actions;
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    self.registration.showNotification(title, options).then(updateAppBadge)
+  );
 });
+
+// 홈 화면 아이콘 배지 - 설치된 PWA 아이콘 우상단에 숫자로 "쌓인 알림 수"를
+// 보여준다(사용자 요구). 별도 카운터를 직접 관리하지 않고 지금 화면에
+// 떠 있는(아직 클릭/스와이프로 안 지워진) 알림 개수를 그대로 쓴다 -
+// getNotifications()가 실제 트레이 상태를 물어보는 것이라 카운터가 따로
+// 어긋날 일이 없다. Badging API(setAppBadge/clearAppBadge)는 모든
+// 브라우저가 지원하지 않으므로(iOS는 16.4+ 홈 화면 설치 앱만, 데스크톱
+// Safari는 아직 없음) 기능 감지 후 실패해도 조용히 넘어간다 - 알림 표시
+// 자체는 배지 지원 여부와 무관하게 항상 동작해야 한다.
+async function updateAppBadge() {
+  if (!('setAppBadge' in navigator)) return;
+  try {
+    const notifications = await self.registration.getNotifications();
+    if (notifications.length > 0) {
+      await navigator.setAppBadge(notifications.length);
+    } else {
+      await navigator.clearAppBadge();
+    }
+  } catch (e) {
+    // 배지 갱신 실패는 무시한다 - 알림 자체엔 영향 없다.
+  }
+}
 
 self.addEventListener('notificationclick', event => {
   const info = event.notification.data || {};
   const action = event.action;   // '' = 본문 클릭, 그 외 = 액션 버튼
   event.notification.close();
+  event.waitUntil(updateAppBadge());
 
   if (action === 'mute') {
     event.waitUntil(muteFromNotification(info));
@@ -143,6 +170,13 @@ self.addEventListener('notificationclick', event => {
       if (clients.openWindow) return clients.openWindow(target);
     })
   );
+});
+
+// 알림을 클릭하지 않고 스와이프 등으로 그냥 지운 경우 - 지원하는 브라우저
+// (주로 데스크톱 Chrome)에서만 온다. 지원 안 하는 곳은 notificationclick이나
+// 다음 push 때 어차피 다시 맞춰진다.
+self.addEventListener('notificationclose', event => {
+  event.waitUntil(updateAppBadge());
 });
 
 // 알림의 "알림 끄기" 버튼 - 이 배 하나(그 알림이 가리키는 boat/ship/date)의
