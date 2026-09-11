@@ -73,6 +73,12 @@ def create_app(test_config=None):
 
     import models
 
+    from services.visit_logger import log_visit
+
+    @app.before_request
+    def _track_visit():
+        log_visit()
+
     @app.errorhandler(500)
     def _friendly_500(exc):
         # 원인 불문 전부 여기로 온다. 알림 링크를 눌렀을 때 Render 의 기본

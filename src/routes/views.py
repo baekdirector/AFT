@@ -3,9 +3,9 @@ import io
 import os
 import openpyxl
 from datetime import date, datetime, timedelta, timezone
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, Response, stream_with_context
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, Response, stream_with_context, session
 from flask import send_from_directory
-from forms import BoatRegistrationForm, StatusCheckForm, BoatEditForm
+from forms import BoatRegistrationForm, StatusCheckForm, BoatEditForm, AdminLoginForm
 from db import add_boat_instance, get_all_boats, delete_boat, get_boat_by_id, update_boat
 from services.reservation_checker import check_single_boat
 from services.tide.mulddae import get_mulddae
@@ -30,6 +30,22 @@ BOAT_ADMIN_KEY = 'aft-kbss'
 
 def _admin_key_ok(value: str | None) -> bool:
     return bool(value) and hmac.compare_digest(value, BOAT_ADMIN_KEY)
+
+
+def _admin_login_ok(username: str | None, password: str | None) -> bool:
+    """/admin 접속 이력 페이지 로그인 검증. BOAT_ADMIN_KEY(배 등록/삭제 확인
+    문구)와 달리 이건 개인 방문 이력이라는 민감한 정보를 보호하는 실제
+    로그인이라, 코드에 값을 두지 않고 Render 환경변수로만 관리한다
+    (ADMIN_PASSWORD 가 없으면 로그인 자체를 막는다)."""
+    expected_password = os.environ.get('ADMIN_PASSWORD')
+    if not expected_password:
+        return False
+    expected_username = os.environ.get('ADMIN_USERNAME', 'admin')
+    return (
+        bool(username) and bool(password)
+        and hmac.compare_digest(username, expected_username)
+        and hmac.compare_digest(password, expected_password)
+    )
 
 
 def _find_duplicate_url_boat(url: str, exclude_boat_id: int | None = None):
@@ -1450,4 +1466,72 @@ def pwa_service_worker():
 def offline_page():
     """Offline fallback page served when navigation fails in PWA."""
     return render_template('offline.html')
+
+
+@views.route('/admin', methods=['GET', 'POST'])
+def admin_page():
+    """URL을 아는 사람만(로그인 후) 볼 수 있는 접속 이력 표. GNB 어디에도
+    링크를 두지 않는다(사용자 요구: "URL 입력을 통해서만 접근 가능")."""
+    form = AdminLoginForm()
+    if form.validate_on_submit():
+        if _admin_login_ok(form.username.data, form.password.data):
+            session['admin_authed'] = True
+            return redirect(url_for('views.admin_page'))
+        flash('아이디 또는 비밀번호가 올바르지 않습니다.', 'danger')
+        return render_template('admin.html', authed=False, form=form)
+
+    if not session.get('admin_authed'):
+        return render_template('admin.html', authed=False, form=form)
+
+    from datetime import timedelta
+    from models import VisitLog
+    from services.ip_location import resolve_missing
+
+    cutoff = datetime.utcnow() - timedelta(days=30)
+    logs = (VisitLog.query.filter(VisitLog.visited_at >= cutoff)
+            .order_by(VisitLog.visited_at.desc()).limit(1000).all())
+
+    try:
+        resolve_missing([row.ip for row in logs])
+    except Exception as e:
+        current_app.logger.error('IP 위치 조회 중 오류: %s', e, exc_info=e)
+
+    from models import IpLocation
+    ips = {row.ip for row in logs if row.ip}
+    locations = {row.ip: row for row in IpLocation.query.filter(IpLocation.ip.in_(ips)).all()} if ips else {}
+
+    DEVICE_LABELS = {'pc': 'PC', 'mobile': '모바일', 'tablet': '태블릿', 'unknown': '알 수 없음'}
+    groups = []
+    current_day = None
+    current_rows = None
+    for row in logs:
+        day = row.visited_at.strftime('%Y-%m-%d')
+        if day != current_day:
+            current_day = day
+            current_rows = []
+            groups.append({'day': day, 'rows': current_rows})
+        loc = locations.get(row.ip)
+        if loc is None:
+            location_label = '-'
+        elif loc.is_private:
+            location_label = '로컬'
+        elif loc.city:
+            location_label = f'{loc.city} ({loc.region})' if loc.region and loc.region != loc.city else loc.city
+        else:
+            location_label = '확인 실패'
+        current_rows.append({
+            'time': row.visited_at.strftime('%H:%M'),
+            'device': DEVICE_LABELS.get(row.device_type, row.device_type),
+            'location': location_label,
+            'path': row.path,
+            'ip': row.ip or '-',
+        })
+
+    return render_template('admin.html', authed=True, groups=groups)
+
+
+@views.route('/admin/logout', methods=['POST'])
+def admin_logout():
+    session.pop('admin_authed', None)
+    return redirect(url_for('views.admin_page'))
 

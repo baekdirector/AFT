@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, IntegerField, SubmitField, SelectField, HiddenField, TextAreaField
+from wtforms import StringField, IntegerField, SubmitField, SelectField, HiddenField, TextAreaField, PasswordField
 from wtforms.validators import DataRequired, URL, NumberRange, Optional, Length
 from config import CITY_PORT_MAPPING
 
@@ -31,3 +31,8 @@ class StatusCheckForm(FlaskForm):
     month = IntegerField('월', validators=[DataRequired(), NumberRange(min=1, max=12)])
     day = IntegerField('일', validators=[DataRequired(), NumberRange(min=1, max=31)])
     submit = SubmitField('조회하기')
+
+class AdminLoginForm(FlaskForm):
+    username = StringField('아이디', validators=[DataRequired()])
+    password = PasswordField('비밀번호', validators=[DataRequired()])
+    submit = SubmitField('로그인')

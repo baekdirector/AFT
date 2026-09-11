@@ -210,3 +210,22 @@ def purge_old_check_logs(now: datetime | None = None) -> int:
     deleted = WatchCheckLog.query.filter(WatchCheckLog.checked_at < cutoff).delete()
     db.session.commit()
     return deleted
+
+
+#: /admin 접속 이력 보관 기간. 체크 기록(2일)과 달리 방문 추세를 보려는
+#: 목적이라 훨씬 길게 잡는다.
+VISIT_LOG_RETENTION_DAYS = 90
+
+
+def purge_old_visit_logs(now: datetime | None = None) -> int:
+    """보관 기간(VISIT_LOG_RETENTION_DAYS)이 지난 방문 기록을 지운다.
+    지운 행 수를 돌려준다. run_pipeline 이 매 스크래핑 실행마다 불러서
+    별도 정리 작업 없이 표가 무한정 커지지 않게 한다."""
+    from datetime import timedelta
+
+    from models import VisitLog
+
+    cutoff = (now or datetime.utcnow()) - timedelta(days=VISIT_LOG_RETENTION_DAYS)
+    deleted = VisitLog.query.filter(VisitLog.visited_at < cutoff).delete()
+    db.session.commit()
+    return deleted

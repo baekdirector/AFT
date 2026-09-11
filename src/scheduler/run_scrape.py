@@ -124,11 +124,12 @@ def run_pipeline(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
     from models import Boat
     from services.notify import webpush
     from services.notify.dispatcher import dispatch_all
-    from services.snapshot_repository import purge_old_check_logs
+    from services.snapshot_repository import purge_old_check_logs, purge_old_visit_logs
     from services.watch_service import active_watch_targets, deactivate_past_watches
 
     summary = {'targets': 0, 'collected': 0, 'failed': 0,
-               'transitions': 0, 'sent': 0, 'expired_watches': 0, 'purged_check_logs': 0}
+               'transitions': 0, 'sent': 0, 'expired_watches': 0, 'purged_check_logs': 0,
+               'purged_visit_logs': 0}
 
     today = datetime.date.today().isoformat()
     summary['expired_watches'] = deactivate_past_watches(today)
@@ -142,6 +143,13 @@ def run_pipeline(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
     except Exception:
         # 정리 실패가 수집·알림을 막으면 안 된다. 다음 실행에서 다시 시도된다.
         logger.exception('체크 기록 로그 정리 실패')
+
+    try:
+        summary['purged_visit_logs'] = purge_old_visit_logs()
+        if summary['purged_visit_logs']:
+            logger.info('접속 이력 %d건 정리(90일 초과)', summary['purged_visit_logs'])
+    except Exception:
+        logger.exception('접속 이력 정리 실패')
 
     targets = active_watch_targets()
     summary['targets'] = len(targets)

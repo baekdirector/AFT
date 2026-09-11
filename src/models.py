@@ -260,3 +260,41 @@ class AppSetting(db.Model):
 
     def __repr__(self):
         return f'<AppSetting {self.key}={self.value}>'
+
+
+class VisitLog(db.Model):
+    """/admin 이력 표용 페이지 접속 1건. services.visit_logger.log_visit()이
+    before_request 훅에서 허용목록에 든 화면 라우트만 골라 기록한다(API
+    폴링까지 잡으면 표가 노이즈로 가득 찬다). 90일 지난 행은
+    snapshot_repository.purge_old_visit_logs()가 정리한다."""
+    __tablename__ = 'visit_logs'
+    __table_args__ = (
+        db.Index('ix_visitlog_visited_at', 'visited_at'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    path = db.Column(db.String(255), nullable=False)
+    method = db.Column(db.String(8), nullable=False)
+    ip = db.Column(db.String(64), nullable=True)
+    device_type = db.Column(db.String(16), nullable=False, default='unknown')
+    user_agent = db.Column(db.String(500), nullable=True)
+    visited_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<VisitLog {self.path} {self.ip} {self.visited_at}>'
+
+
+class IpLocation(db.Model):
+    """IP -> 도시/지역 조회 결과 캐시. /admin 렌더 시점에 지연 조회해서 채운다
+    (방문 시점에 외부 API를 부르면 실제 방문자 로딩이 느려진다)."""
+    __tablename__ = 'ip_locations'
+
+    ip = db.Column(db.String(64), primary_key=True)
+    city = db.Column(db.String(100), nullable=True)
+    region = db.Column(db.String(100), nullable=True)
+    country = db.Column(db.String(100), nullable=True)
+    is_private = db.Column(db.Boolean, nullable=False, default=False)
+    resolved_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<IpLocation {self.ip} {self.city}>'
