@@ -11,6 +11,25 @@ def test_2026_chuseok_and_substitute_matches_known_dates():
     assert holidays['2026-10-05'] == '대체공휴일(개천절)'
 
 
+def test_2026_chuseok_has_no_substitute_because_only_saturday_overlaps():
+    # 2026년 추석 연휴(9/24 목 ~ 9/26 토)는 토요일만 걸치고 일요일이 없다.
+    # 설날/추석은 "일요일" 겹침만 대체공휴일 대상이라(토요일은 제외 -
+    # holidays.py 모듈 docstring 참고), 9/28에 대체공휴일이 없어야 한다
+    # (실측: 여러 언론 보도로 확인된 실사용자 리포트 버그 - 예전엔 요일
+    # 겹침을 "주말"로 뭉뚱그려서 9/28을 잘못 대체공휴일로 만들었다).
+    holidays = kr_holidays_for_year(2026)
+    assert '2026-09-28' not in holidays
+    assert '대체공휴일(추석)' not in holidays.values()
+
+
+def test_2025_chuseok_gets_substitute_because_sunday_overlaps():
+    # 2025년 추석 연휴(10/5 일 ~ 10/7 화)는 첫날이 일요일이라 대체공휴일
+    # 대상이다 - 대체일은 10/8(수), 실제로 부여됐던 날짜.
+    holidays = kr_holidays_for_year(2025)
+    assert holidays['2025-10-05'] == '추석 연휴'
+    assert holidays['2025-10-08'] == '대체공휴일(추석)'
+
+
 def test_fixed_date_holidays_present_every_year():
     for year in (2025, 2027, 2030):
         holidays = kr_holidays_for_year(year)
