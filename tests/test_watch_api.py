@@ -264,6 +264,43 @@ def test_watch_last_checked_is_null_before_first_scrape(client, boats):
     assert w['last_checked_at'] is None
 
 
+def test_watch_carries_snapshot_status_and_url_for_table_view(client, boats, app):
+    """/watches를 카드에서 목록형 테이블로 바꾸면서 상태 배지·남은자리·예약
+    링크가 필요해졌다 - 새 라이브 스크래핑 없이 이미 읽던 Snapshot에서 같이
+    내려준다(serialize_watches 확장)."""
+    subscribe(client)
+    client.post('/api/watches', json={
+        'endpoint': EP, 'boat_id': boats[0], 'ship_name': '1호', 'target_date': DATE})
+
+    with app.app_context():
+        snap = Snapshot(boat_id=boats[0], target_date=DATE, ship_name='1호',
+                         status='open', available=7, display_status='남은자리 7석',
+                         source_url='https://example.com/live-snapshot-url')
+        db.session.add(snap)
+        db.session.commit()
+
+    w = client.get('/api/watches', query_string={'endpoint': EP}).get_json()['watches'][0]
+    assert w['status'] == 'open'
+    assert w['available'] == 7
+    assert w['display_status'] == '남은자리 7석'
+    assert w['url'] == 'https://example.com/live-snapshot-url'
+
+
+def test_watch_falls_back_to_boat_url_before_first_scrape(client, boats):
+    """스냅샷이 아직 없으면 상태/남은자리는 정직하게 null이어야 하지만, 예약
+    링크만큼은 배 등록 정보(Boat.url)로라도 채워서 "예약 →" 버튼이 죽지
+    않게 한다."""
+    subscribe(client)
+    client.post('/api/watches', json={
+        'endpoint': EP, 'boat_id': boats[0], 'ship_name': '1호', 'target_date': DATE})
+
+    w = client.get('/api/watches', query_string={'endpoint': EP}).get_json()['watches'][0]
+    assert w['status'] is None
+    assert w['available'] is None
+    assert w['display_status'] is None
+    assert w['url']  # Boat.url로라도 채워져 있어야 함(빈 문자열/None 금지)
+
+
 def test_unknown_boat_returns_400(client, boats):
     subscribe(client)
     rv = client.post('/api/watches', json={

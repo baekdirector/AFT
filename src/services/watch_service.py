@@ -57,7 +57,8 @@ def count_watches(subscriber: Subscriber) -> int:
 
 
 def serialize_watches(watches: list[Watch]) -> list[dict]:
-    """Watch 목록을 API 응답 모양으로 바꾸면서 마지막 실제 확인 시각을 붙인다.
+    """Watch 목록을 API 응답 모양으로 바꾸면서 마지막 실제 확인 시각과
+    최근 스냅샷 상태(상태/남은자리/예약 URL)를 같이 붙인다.
 
     Watch.created_at 은 "언제 체크박스를 켰는지"일 뿐이다. /watches 화면의
     체크 기록 로그는 "시스템이 실제로 이 배의 자리를 언제 확인했는지"를
@@ -66,6 +67,16 @@ def serialize_watches(watches: list[Watch]) -> list[dict]:
     로그엔 등록한 날짜가 제각각으로 보였다. Snapshot 이 (boat_id,
     target_date, ship_name) 키를 Watch 와 공유하므로(모델 주석 참고) 그걸로
     조인해 마지막 확인 시각(checked_at)을 구한다.
+
+    상태/남은자리/예약 URL도 같은 조인에서 같이 뽑아 내려준다(/watches
+    카드를 목록형으로 바꾸며 상태 배지·남은자리·예약 링크가 필요해짐 -
+    새 쿼리나 라이브 스크래핑을 추가하지 않고 이미 읽은 Snapshot 행을
+    재사용한다). status/available/display_status 는 status.html의
+    cachedRowToDisplayRow() 가 쓰는 것과 같은 원시 값 그대로다 - status_class
+    로의 변환(open/closed/maintenance/danger)은 그쪽과 똑같이 프런트에서
+    한다(같은 화면끼리 매핑 로직이 갈리지 않게). 아직 한 번도 체크되지 않은
+    감시는 스냅샷이 없어 이 필드들이 전부 null이고, 예약 URL만 배 등록 정보
+    (Boat.url)로 대체한다.
     """
     if not watches:
         return []
@@ -76,15 +87,19 @@ def serialize_watches(watches: list[Watch]) -> list[dict]:
         Snapshot.boat_id.in_(boat_ids),
         Snapshot.target_date.in_(dates),
     ).all()
-    checked_at_by_key = {
-        (s.boat_id, s.target_date, s.ship_name): s.checked_at for s in snapshots
+    snapshot_by_key = {
+        (s.boat_id, s.target_date, s.ship_name): s for s in snapshots
     }
 
     result = []
     for w in watches:
         d = w.to_dict()
-        checked_at = checked_at_by_key.get((w.boat_id, w.target_date, w.ship_name))
-        d['last_checked_at'] = checked_at.isoformat() if checked_at else None
+        snap = snapshot_by_key.get((w.boat_id, w.target_date, w.ship_name))
+        d['last_checked_at'] = snap.checked_at.isoformat() if snap else None
+        d['status'] = snap.status if snap else None
+        d['available'] = snap.available if snap else None
+        d['display_status'] = snap.display_status if snap else None
+        d['url'] = (snap.source_url if snap and snap.source_url else None) or (w.boat.url if w.boat else None)
         result.append(d)
     return result
 

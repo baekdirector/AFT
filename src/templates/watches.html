@@ -42,14 +42,19 @@
             <div id="push-card-title" class="push-card-title">확인 중…</div>
             <div id="push-card-desc" class="push-card-desc">구독 상태를 확인하고 있어요</div>
           </div>
-          <button type="button" id="enable-push-btn" class="push-card-btn" disabled>확인 중…</button>
+          <div class="push-card-actions">
+            <button type="button" id="test-push-btn" class="push-card-test-btn" style="display:none;">테스트 알림</button>
+            <button type="button" id="enable-push-btn" class="push-card-btn" disabled>확인 중…</button>
+          </div>
         </div>
-        <button type="button" id="test-push-btn" class="push-card-test-btn" style="display:none;">테스트 알림 받기</button>
       </div>
 
-      <!-- 액션바: 전체선택 + 선택 개수 + 선택 삭제 -->
+      <!-- 액션바: 전체선택(3상태) + 선택 개수 + 선택 삭제 -->
       <div class="watch-actionbar">
-        <button type="button" id="select-all-btn" class="watch-select-all-btn">전체 선택</button>
+        <button type="button" id="select-all-btn" class="watch-select-all-btn">
+          <span id="select-all-mark" class="watch-select-all-mark"></span>
+          <span>전체 선택</span>
+        </button>
         <div id="watch-selected-label" class="watch-selected-label">체크해서 한 번에 해제할 수 있어요</div>
         <div class="watch-actionbar-spacer"></div>
         <button type="button" id="delete-selected-btn" class="watch-delete-btn" disabled>선택 삭제</button>
@@ -170,33 +175,36 @@
 .page-title { margin: 0; font-size: clamp(22px, 4.4vw, 30px); font-weight: 800; letter-spacing: -1.1px; color: var(--ink); }
 .page-subtitle { margin: 6px 0 18px; font-size: 13.5px; color: var(--ink-soft); }
 
-/* 웹푸시 온/오프 카드 */
+/* 웹푸시 온/오프 카드 - Claude Design v2 394~406줄 pushCardStyle 공식
+   (꺼짐=짙은 남색, 켜짐=teal→cyan 그라데이션). 테스트 알림/켜기·끄기 두
+   버튼을 오른쪽에 나란히 둔다(예전엔 테스트 버튼이 아래 별도 줄이었다). */
 .push-card {
-  border-radius: 20px; padding: 18px; color: #fff; margin-bottom: 16px;
-  background: linear-gradient(150deg, oklch(0.42 0.03 255), oklch(0.33 0.03 255));
+  border-radius: 18px; padding: 17px; color: #fff; margin-bottom: 16px;
+  background: linear-gradient(150deg, oklch(0.38 0.025 250), oklch(0.3 0.02 248));
   transition: background 0.2s ease;
 }
 .push-card.push-card-on {
-  background: linear-gradient(150deg, oklch(0.58 0.13 160), oklch(0.5 0.12 190));
+  background: linear-gradient(150deg, oklch(0.52 0.11 168), oklch(0.44 0.1 192));
 }
 .push-card-row { display: flex; align-items: center; gap: 13px; flex-wrap: wrap; }
 .push-card-icon {
-  width: 44px; height: 44px; border-radius: 15px; display: grid; place-items: center;
-  font-size: 20px; background: oklch(1 0 0 / 0.16); flex: none;
+  width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center;
+  font-size: 19px; background: oklch(1 0 0 / 0.16); flex: none;
 }
 .push-card-text { flex: 1; min-width: 160px; }
 .push-card-title { font-size: 15px; font-weight: 780; letter-spacing: -0.4px; }
-.push-card-desc { font-size: 12.5px; opacity: 0.82; margin-top: 3px; }
+.push-card-desc { font-size: 12.5px; opacity: 0.84; margin-top: 2px; }
+.push-card-actions { display: flex; gap: 7px; flex: none; }
 .push-card-btn {
-  height: 42px; padding: 0 18px; border-radius: 13px; border: none; cursor: pointer;
-  font-size: 13.5px; font-weight: 750; white-space: nowrap; flex: none;
+  height: 38px; padding: 0 16px; border-radius: 11px; border: none; cursor: pointer;
+  font-size: 12.5px; font-weight: 740; white-space: nowrap; flex: none;
   background: #fff; color: oklch(0.3 0.02 255);
 }
 .push-card.push-card-on .push-card-btn { background: oklch(1 0 0 / 0.18); color: #fff; }
 .push-card-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .push-card-test-btn {
-  margin-top: 12px; height: 36px; padding: 0 14px; border-radius: 11px; border: 1px solid oklch(1 0 0 / 0.3);
-  background: oklch(1 0 0 / 0.1); color: #fff; font-size: 12.5px; font-weight: 650; cursor: pointer;
+  height: 38px; padding: 0 14px; border-radius: 11px; border: 1px solid oklch(1 0 0 / 0.3);
+  background: oklch(1 0 0 / 0.12); color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer; flex: none;
 }
 
 /* 구독 상태/감시 목록을 아직 못 불러왔을 때 - 기본값을 잘못 보여주는 대신
@@ -214,12 +222,27 @@
 
 /* 액션바 */
 .watch-actionbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; }
+/* 전체 선택 3상태(전체/일부/없음) - 예약현황 화면의 선단 마스터 토글과
+   같은 공식을 재사용한다(Claude Design v2 masterStyle/masterBoxStyle). */
 .watch-select-all-btn {
   display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-radius: 10px;
-  border: 1px solid var(--line); background: #fff; font-size: 12.5px; font-weight: 650; color: oklch(0.45 0.02 255);
-  cursor: pointer;
+  border: 1px solid oklch(0.92 0.008 240); background: #fff; font-size: 12.5px; font-weight: 700;
+  color: oklch(0.46 0.02 250); cursor: pointer; transition: all 0.15s;
 }
-.watch-select-all-btn:hover { border-color: oklch(0.78 0.02 250); }
+.watch-select-all-btn:hover { border-color: oklch(0.6 0.08 170); }
+.watch-select-all-mark {
+  width: 17px; height: 17px; flex: none; border-radius: 5px; display: grid; place-items: center;
+  font-size: 10px; font-weight: 800; line-height: 1;
+  border: 1.5px solid oklch(0.85 0.01 240); background: #fff; color: transparent;
+}
+.watch-select-all-btn.all-on,
+.watch-select-all-btn.partial {
+  border-color: oklch(0.78 0.07 170); background: oklch(0.96 0.03 168); color: oklch(0.32 0.08 172);
+}
+.watch-select-all-btn.all-on .watch-select-all-mark,
+.watch-select-all-btn.partial .watch-select-all-mark {
+  border-color: oklch(0.52 0.1 168); background: oklch(0.52 0.1 168); color: #fff;
+}
 .watch-selected-label { font-size: 12.5px; color: var(--ink-soft); font-weight: 620; }
 .watch-actionbar-spacer { flex: 1; }
 .watch-delete-btn {
@@ -229,40 +252,76 @@
 }
 .watch-delete-btn:disabled { background: oklch(0.94 0.008 250); color: oklch(0.7 0.012 255); cursor: not-allowed; }
 
-/* 감시 카드 그리드 */
-.watch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 11px; }
-.watch-card {
-  background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 15px 16px;
-  box-shadow: 0 2px 10px oklch(0.5 0.02 250 / 0.04); display: flex; align-items: flex-start; gap: 11px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+/* 감시 목록 - 카드 그리드에서 날짜별 목록형 테이블로 변경(Claude Design v2
+   418~445줄). 날짜별로 묶어서 구분선+척수를 보여주고, 그 아래 흰 테이블에
+   행(체크박스/이름+상태+메타/남은자리/예약 링크/해제)을 그린다. */
+.watch-date-group { margin-bottom: 16px; }
+.watch-date-group:last-child { margin-bottom: 0; }
+.watch-date-group-header { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+.watch-date-group-label { font-size: 13px; font-weight: 780; letter-spacing: -0.4px; color: var(--ink); }
+.watch-date-group-count { font-size: 11.5px; font-weight: 680; color: oklch(0.56 0.015 250); }
+.watch-date-group-rule { flex: 1; height: 1px; background: oklch(0.94 0.006 240); }
+.watch-table {
+  background: #fff; border: 1px solid var(--line); border-radius: 16px; overflow: hidden;
+  box-shadow: 0 1px 2px oklch(0.4 0.02 240 / 0.04);
 }
-.watch-card.is-checked { border-color: oklch(0.62 0.13 245); box-shadow: 0 6px 18px oklch(0.55 0.14 245 / 0.16); }
-.watch-check-btn {
-  width: 22px; height: 22px; flex: none; margin-top: 2px; border-radius: 7px;
-  border: 1.5px solid oklch(0.86 0.01 250); background: #fff; color: transparent; font-size: 12px;
+.watch-row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center; gap: 10px;
+  padding: 11px 14px; border-top: 1px solid oklch(0.955 0.006 240);
+}
+.watch-row:first-child { border-top: none; }
+.watch-row-check {
+  width: 20px; height: 20px; flex: none; border-radius: 6px;
+  border: 1.5px solid oklch(0.86 0.01 250); background: #fff; color: transparent; font-size: 11px;
   line-height: 1; display: grid; place-items: center; cursor: pointer; padding: 0;
 }
-.watch-card.is-checked .watch-check-btn { border-color: var(--accent); background: var(--accent); color: #fff; }
-.watch-card-body { flex: 1; min-width: 0; }
-.watch-card-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 5px; }
-.region-badge {
-  font-size: 10.5px; font-weight: 750; color: oklch(0.48 0.12 245); background: oklch(0.94 0.03 245);
-  padding: 3px 8px; border-radius: 7px;
+.watch-row-check.is-checked { border-color: var(--accent); background: var(--accent); color: #fff; }
+.watch-row-namebox { min-width: 0; }
+.watch-row-nameline { display: flex; align-items: center; gap: 7px; }
+.watch-row-name {
+  font-size: 14px; font-weight: 740; letter-spacing: -0.4px; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.port-text { font-size: 11.5px; font-weight: 620; color: var(--ink-soft); }
-.status-badge {
-  font-size: 11px; font-weight: 750; color: #fff; background: oklch(0.55 0.11 205);
-  padding: 3px 10px; border-radius: 99px; white-space: nowrap;
+.watch-row-meta {
+  font-size: 11.5px; font-weight: 600; color: var(--ink-soft); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.watch-card-name { margin: 0 0 4px; font-size: 17px; font-weight: 760; letter-spacing: -0.5px; color: var(--ink); }
-.watch-card-company { font-size: 11.5px; font-weight: 650; color: var(--ink-soft); margin: -2px 0 6px; }
-.watch-card-date { font-size: 12.5px; font-weight: 650; color: oklch(0.5 0.02 255); }
-.watch-card-actions { display: flex; gap: 7px; margin-top: 10px; }
-.watch-remove-btn {
-  height: 32px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--line); background: #fff;
-  font-size: 12px; font-weight: 650; color: oklch(0.5 0.02 255); cursor: pointer; white-space: nowrap;
+/* 상태 배지 - 예약현황 화면의 statusBadge 색과 동일한 뜻(open/soon/closed/
+   maintenance/danger). 아직 한 번도 확인 안 됐으면(none) 중립 회색. */
+.watch-row-status {
+  flex: none; font-size: 10.5px; font-weight: 740; padding: 2px 8px; border-radius: 99px; color: #fff;
+  white-space: nowrap;
 }
-.watch-remove-btn:hover { border-color: oklch(0.78 0.02 250); }
+.watch-row-status-open { background: oklch(0.58 0.13 158); }
+.watch-row-status-soon { background: oklch(0.7 0.15 68); }
+.watch-row-status-closed { background: oklch(0.55 0.015 250); }
+.watch-row-status-maintenance { background: oklch(0.6 0.02 255); }
+.watch-row-status-danger { background: var(--red); }
+.watch-row-status-none, .watch-row-status-unknown { background: oklch(0.78 0.008 250); }
+.watch-row-seat {
+  flex: none; font-size: 11px; font-weight: 740; padding: 4px 9px; border-radius: 99px; white-space: nowrap;
+  background: oklch(0.945 0.006 240); color: oklch(0.52 0.015 250);
+}
+.watch-row-seat-open, .watch-row-seat-soon { background: oklch(0.58 0.13 158); color: #fff; }
+.watch-row-link {
+  display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 11px;
+  border-radius: 9px; background: oklch(0.955 0.02 248); font-size: 11.5px; font-weight: 700;
+  color: oklch(0.42 0.12 248); white-space: nowrap; flex: none;
+}
+.watch-row-link:hover { background: oklch(0.92 0.04 248); }
+.watch-row-link.is-disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+.watch-row-remove {
+  flex: none; height: 32px; padding: 0 11px; border-radius: 9px; border: 1px solid var(--line); background: #fff;
+  font-size: 11.5px; font-weight: 660; color: oklch(0.5 0.02 250); cursor: pointer; white-space: nowrap;
+}
+.watch-row-remove:hover { border-color: oklch(0.8 0.02 240); }
+/* 모바일: 5칸 그리드 구조는 그대로 두고(체크 기록 로그 테이블과 같은
+   방식) 폭/여백만 줄여서 가로 스크롤 없이 들어오게 한다. */
+@media (max-width: 480px) {
+  .watch-row { grid-template-columns: auto minmax(0, 1fr) auto auto auto; gap: 6px; padding: 9px 12px; }
+  .watch-row-seat { padding: 3px 7px; font-size: 10px; }
+  .watch-row-link, .watch-row-remove { height: 29px; padding: 0 8px; font-size: 10.5px; }
+}
 
 /* 빈 상태 */
 .watch-empty {
@@ -614,100 +673,181 @@ document.addEventListener('DOMContentLoaded', function () {
       renderAll();
     }
 
+    // status.html의 cachedRowToDisplayRow()와 같은 뜻의 매핑이다 - 두
+    // 화면이 같은 원시 값(open/reserved/full/maintenance/cancelled/
+    // unknown)을 다른 뜻으로 보여주면 안 되므로 그대로 맞춘다. 아직 한
+    // 번도 스크래핑 확인이 안 된 감시(status가 null)는 "확인 전"으로
+    // 정직하게 표시한다(꾸며내지 않는다).
+    function watchStatusInfo(w) {
+      if (!w.status) return { cls: 'none', text: '확인 전' };
+      let cls = (w.status === 'full' || w.status === 'reserved') ? 'closed'
+              : w.status === 'maintenance' ? 'maintenance'
+              : w.status === 'cancelled' ? 'danger'
+              : (w.status || 'unknown');
+      if (cls === 'open' && w.available != null && w.available <= 3) cls = 'soon';
+      const text = cls === 'open' ? '예약가능'
+                 : cls === 'soon' ? '마감임박'
+                 : cls === 'closed' ? '예약마감'
+                 : cls === 'maintenance' ? '점검일'
+                 : cls === 'danger' ? '운항불가'
+                 : (w.display_status || '확인 전');
+      return { cls, text };
+    }
+
+    // "9월 11일 (금)" 형식 - 날짜별 그룹 헤더에 쓴다.
+    function fmtDateGroupLabel(iso) {
+      const p = (iso || '').split('-');
+      if (p.length !== 3) return iso || '-';
+      const d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+      return Number(p[1]) + '월 ' + Number(p[2]) + '일 (' +
+        ['일', '월', '화', '수', '목', '금', '토'][d.getDay()] + ')';
+    }
+
+    // 카드 그리드 -> 날짜별 목록형 테이블(Claude Design v2). 신청한 알림이
+    // API 응답에 있는 필드(boat_id, boat_name, ship_name, target_date,
+    // active, status/available/display_status/url)만으로 그린다.
     function renderGrid() {
-      const grid = document.getElementById('watch-grid');
+      const container = document.getElementById('watch-grid');
       const empty = document.getElementById('watch-empty');
-      if (!grid || !empty) return;
+      if (!container || !empty) return;
       // renderGrid 가 한 번이라도 도는 시점(성공/실패 가리지 않고 restore 의
       // 모든 경로가 결국 renderAll -> renderGrid 를 호출한다)이 곧 "확인 끝남"
       // 이다 - 로딩 표시를 여기서 한 번만 감추면 모든 경로가 커버된다.
       const loading = document.getElementById('watch-loading');
       if (loading) loading.style.display = 'none';
-      grid.innerHTML = '';
+      container.innerHTML = '';
 
       if (!watches.length) {
-        grid.style.display = 'none';
+        container.style.display = 'none';
         empty.style.display = '';
         return;
       }
-      grid.style.display = '';
+      container.style.display = '';
       empty.style.display = 'none';
 
-      // 신청한 알림이 API 응답에 있는 필드(boat_id, boat_name, ship_name,
-      // target_date, active)만으로 카드를 만든다. 스키마를 늘리지 않는다.
       const sorted = watches.slice().sort(
         (a, b) => (a.target_date + a.ship_name).localeCompare(b.target_date + b.ship_name));
 
-      sorted.forEach(function (w) {
-        const k = watchKey(w);
-        const isChecked = checked.has(k);
-
-        const card = document.createElement('article');
-        card.className = 'watch-card' + (isChecked ? ' is-checked' : '');
-
-        const checkBtn = document.createElement('button');
-        checkBtn.type = 'button';
-        checkBtn.className = 'watch-check-btn';
-        checkBtn.textContent = '✓';
-        checkBtn.setAttribute('aria-label', '선택');
-        checkBtn.addEventListener('click', () => toggleChecked(w));
-        card.appendChild(checkBtn);
-
-        const body = document.createElement('div');
-        body.className = 'watch-card-body';
-
-        const meta = document.createElement('div');
-        meta.className = 'watch-card-meta';
-        // API 응답에 지역/항구가 없으므로 배 이름만으로 상태 배지를 보여준다.
-        const statusBadge = document.createElement('span');
-        statusBadge.className = 'status-badge';
-        statusBadge.textContent = w.active === false ? '해제됨' : '감시 중';
-        meta.appendChild(statusBadge);
-        body.appendChild(meta);
-
-        const name = document.createElement('h3');
-        name.className = 'watch-card-name';
-        name.textContent = w.ship_name || w.boat_name || '-';
-        body.appendChild(name);
-
-        // 선단(한 배 URL이 여러 척을 내놓는 경우) 소속 배는 회사명도 같이
-        // 보여준다 - 아니면 "1호"만 보고 어느 선사인지 알 수 없다. 선단이
-        // 아니면(회사명=선박명) 중복 표시를 피해 생략한다.
-        if (w.boat_name && w.boat_name !== w.ship_name) {
-          const company = document.createElement('div');
-          company.className = 'watch-card-company';
-          company.textContent = w.boat_name;
-          body.appendChild(company);
+      // 날짜별로 묶는다 - 정렬이 이미 target_date 기준 오름차순이라 그룹이
+      // 등장하는 순서 자체가 날짜 순서와 맞는다(안정 그룹핑, 별도 정렬 불필요).
+      const groups = [];
+      const groupByDate = new Map();
+      sorted.forEach(w => {
+        const key = w.target_date || '-';
+        if (!groupByDate.has(key)) {
+          const g = { date: key, items: [] };
+          groupByDate.set(key, g);
+          groups.push(g);
         }
+        groupByDate.get(key).items.push(w);
+      });
 
-        const date = document.createElement('div');
-        date.className = 'watch-card-date';
-        date.textContent = w.target_date || '-';
-        body.appendChild(date);
+      groups.forEach(function (g) {
+        const groupEl = document.createElement('div');
+        groupEl.className = 'watch-date-group';
 
-        const actions = document.createElement('div');
-        actions.className = 'watch-card-actions';
-        const removeBtn = document.createElement('button');
-        removeBtn.type = 'button';
-        removeBtn.className = 'watch-remove-btn';
-        removeBtn.textContent = '알림 해제';
-        removeBtn.addEventListener('click', () => remove(w));
-        actions.appendChild(removeBtn);
-        body.appendChild(actions);
+        const header = document.createElement('div');
+        header.className = 'watch-date-group-header';
+        const dateLabel = document.createElement('span');
+        dateLabel.className = 'watch-date-group-label';
+        dateLabel.textContent = fmtDateGroupLabel(g.date);
+        header.appendChild(dateLabel);
+        const count = document.createElement('span');
+        count.className = 'watch-date-group-count';
+        count.textContent = g.items.length + '척';
+        header.appendChild(count);
+        header.appendChild(document.createElement('div')).className = 'watch-date-group-rule';
+        groupEl.appendChild(header);
 
-        card.appendChild(body);
-        grid.appendChild(card);
+        const table = document.createElement('div');
+        table.className = 'watch-table';
+
+        g.items.forEach(function (w) {
+          const k = watchKey(w);
+          const isChecked = checked.has(k);
+          const info = watchStatusInfo(w);
+
+          const row = document.createElement('div');
+          row.className = 'watch-row';
+
+          const checkBtn = document.createElement('button');
+          checkBtn.type = 'button';
+          checkBtn.className = 'watch-row-check' + (isChecked ? ' is-checked' : '');
+          checkBtn.textContent = '✓';
+          checkBtn.setAttribute('aria-label', '선택');
+          checkBtn.addEventListener('click', () => toggleChecked(w));
+          row.appendChild(checkBtn);
+
+          const nameBox = document.createElement('div');
+          nameBox.className = 'watch-row-namebox';
+          const nameLine = document.createElement('div');
+          nameLine.className = 'watch-row-nameline';
+          const name = document.createElement('span');
+          name.className = 'watch-row-name';
+          name.textContent = w.ship_name || w.boat_name || '-';
+          nameLine.appendChild(name);
+          const badge = document.createElement('span');
+          badge.className = 'watch-row-status watch-row-status-' + info.cls;
+          badge.textContent = info.text;
+          nameLine.appendChild(badge);
+          nameBox.appendChild(nameLine);
+
+          // 선단(한 배 URL이 여러 척을 내놓는 경우) 소속 배는 회사명도 같이
+          // 보여준다 - 아니면 "1호"만 보고 어느 선사인지 알 수 없다. 마지막
+          // 확인 시각도 같은 줄에 붙여 "언제 기준 상태인지"를 알 수 있게 한다.
+          const metaParts = [];
+          if (w.boat_name && w.boat_name !== w.ship_name) metaParts.push(w.boat_name);
+          metaParts.push(w.last_checked_at ? fmtLogTime(w.last_checked_at) + ' 확인' : '아직 확인 전');
+          const metaLine = document.createElement('div');
+          metaLine.className = 'watch-row-meta';
+          metaLine.textContent = metaParts.join(' · ');
+          nameBox.appendChild(metaLine);
+          row.appendChild(nameBox);
+
+          const seat = document.createElement('span');
+          seat.className = 'watch-row-seat watch-row-seat-' + info.cls;
+          seat.textContent = (info.cls === 'open' || info.cls === 'soon')
+            ? (w.available != null ? '남은자리 ' + w.available : '남은자리 있음')
+            : info.text;
+          row.appendChild(seat);
+
+          const link = document.createElement('a');
+          link.className = 'watch-row-link' + (w.url ? '' : ' is-disabled');
+          link.target = '_blank';
+          link.rel = 'noopener';
+          link.href = w.url || '#';
+          link.textContent = '예약 →';
+          row.appendChild(link);
+
+          const removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'watch-row-remove';
+          removeBtn.textContent = '해제';
+          removeBtn.addEventListener('click', () => remove(w));
+          row.appendChild(removeBtn);
+
+          table.appendChild(row);
+        });
+
+        groupEl.appendChild(table);
+        container.appendChild(groupEl);
       });
     }
 
     function renderActionbar() {
       const selectAllBtn = document.getElementById('select-all-btn');
+      const mark = document.getElementById('select-all-mark');
       const label = document.getElementById('watch-selected-label');
       const deleteBtn = document.getElementById('delete-selected-btn');
+      // 전체/일부/없음 3상태 - 예약현황 화면의 선단 마스터 토글과 같은
+      // 관용구(Claude Design v2 masterMark). 라벨 텍스트는 안 바뀌고(항상
+      // "전체 선택") 마크+배경색으로만 상태를 보여준다.
+      const allOn = watches.length > 0 && checked.size === watches.length;
+      const partial = checked.size > 0 && !allOn;
       if (selectAllBtn) {
-        selectAllBtn.textContent = (checked.size === watches.length && watches.length > 0)
-          ? '선택 해제' : '전체 선택';
+        selectAllBtn.className = 'watch-select-all-btn' + (allOn ? ' all-on' : partial ? ' partial' : '');
       }
+      if (mark) mark.textContent = allOn ? '✓' : partial ? '–' : '';
       if (label) {
         label.textContent = checked.size
           ? `${checked.size}건 선택됨`
