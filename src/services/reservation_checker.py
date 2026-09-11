@@ -80,8 +80,8 @@ def _sanitize_fish_text(text: str) -> str | None:
     cleaned = str(text).strip()
     cleaned = re.sub(r'[\u200b\u200c\u200d\ufeff]+', '', cleaned).strip()
     cleaned = re.sub(r'(낚시\s*종류|낚시종류|어종)\s*[:：-]?\s*', '', cleaned, flags=re.I).strip()
-    cleaned = re.sub(r'^[★☆◆■▶▷\[\(<\s]+', '', cleaned).strip()
-    cleaned = re.sub(r'[★☆◆■▶▷\]\)>\s]+$', '', cleaned).strip()
+    cleaned = re.sub(r'^[★☆◆■▶▷●\[\(<\s]+', '', cleaned).strip()
+    cleaned = re.sub(r'[★☆◆■▶▷●\]\)>\s]+$', '', cleaned).strip()
 
     for sep in ['[', ' 탐사', ' 출조', ' 이벤트', ' 예약', ' 조황']:
         if sep in cleaned:
@@ -103,8 +103,8 @@ def _clean_notice_fish_text(text: str) -> str | None:
     cleaned = str(text).strip()
     cleaned = re.sub(r'[\u200b\u200c\u200d\ufeff]+', '', cleaned).strip()
     cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-    cleaned = re.sub(r'^[\-–—★☆◆■▶▷\[\(<\s]+', '', cleaned).strip()
-    cleaned = re.sub(r'[\-–—★☆◆■▶▷\]\)>\s]+$', '', cleaned).strip()
+    cleaned = re.sub(r'^[\-–—★☆◆■▶▷●\[\(<\s]+', '', cleaned).strip()
+    cleaned = re.sub(r'[\-–—★☆◆■▶▷●\]\)>\s]+$', '', cleaned).strip()
     cleaned = re.sub(r'(낚시\s*종류|낚시종류|어종)\s*[:：-]?\s*', '', cleaned, flags=re.I).strip()
 
     if not cleaned:
@@ -140,15 +140,16 @@ def _extract_fish_from_notice_area(node) -> str | None:
 
 def _extract_fish_from_special_marker(text: str) -> str | None:
     """
-    특수문자(★/◆/☆)로 감싼 어종 전체를 추출
+    특수문자(★/◆/☆/●)로 감싼 어종 전체를 추출
     예: "★봄 쭈꾸미 ★[8만원]" → "봄 쭈꾸미"
     예: "◆봄 왕쭈꾸미 전문 출조 ◆[8만원]" → "봄 왕쭈꾸미 전문 출조"
+    예: "●갑오징어전문출조●" → "갑오징어전문출조" (나폴리/뉴해덕 계열 사이트)
     """
     if not text:
         return None
-    
-    # ★...★ / ◆...◆ / ☆...☆ 패턴 추출 (탐욕적이지 않게)
-    pattern = r'(★|◆|☆)\s*([^★◆☆\[]*?)\s*(★|◆|☆)'
+
+    # ★...★ / ◆...◆ / ☆...☆ / ●...● 패턴 추출 (탐욕적이지 않게)
+    pattern = r'(★|◆|☆|●)\s*([^★◆☆●\[]*?)\s*(★|◆|☆|●)'
     match = re.search(pattern, text)
     
     if not match:
@@ -218,6 +219,99 @@ def _is_valid_ship_name(name: str, extra_valid_names: set | None = None,
     # 실제 DB에 등록된 배 이름이면 인정 (신규 등록 배가 필터에 걸리지 않도록)
     if extra_valid_names and name in extra_valid_names:
         return True
+    return False
+
+
+def _interpret_boat_status_text(raw_status_text: str) -> tuple[str, int | None]:
+    """상태 이미지 alt 텍스트나 상태 칸 텍스트 하나를 (status_type, available)
+    로 해석한다. "일반 게시판 패턴"의 admin-right div(있는 사이트)와 admin-
+    right 래퍼 없이 상태 칸에 <img alt="..."> 만 있는 사이트(실측: 뉴해덕호)
+    둘 다 같은 규칙을 써야 해서 뽑아냈다 - 신호를 어디서 읽었든(admin-right
+    div 안 img, 상태 칸에 바로 있는 img, 모바일 div 패턴) 해석은 하나로
+    통일한다."""
+    if re.search(r'점검일', raw_status_text):
+        return "maintenance", 0
+    m = (re.search(r'남은\s*자리\s*[:：]?\s*(\d+)', raw_status_text)
+         or re.search(r'남은자리\s*(\d+)', raw_status_text)
+         or re.search(r'(\d+)\s*명', raw_status_text))
+    if m:
+        try:
+            return "open", int(m.group(1))
+        except Exception:
+            return "unknown", None
+    if re.search(r'예약완료|예약\s*완료', raw_status_text):
+        return "reserved", 0
+    if re.search(r'매진|마감|예약마감', raw_status_text):
+        return "full", 0
+    if re.search(r'입금대기', raw_status_text):
+        return "pending", None
+    return "unknown", None
+
+
+def _parse_mobile_reservation_boat_v3(soup: BeautifulSoup, date8: str) -> list[dict]:
+    """모바일 전용 reservation_boat_v3 템플릿(실측: 태풍투어낚시,
+    manaru.com/m/) - <tr> 자체가 없고 대신
+    `div.ship_name > <h2>배이름</h2>` + `p.ship_num > <img alt="...">(상태)
+    + <a onclick="...date=YYYYMMDD...">`(예약 팝업 날짜) 구조다. 한 페이지에
+    여러 날짜(주간 리스트)가 섞여 나오고 감싸는 날짜별 컨테이너 자체가 없어서,
+    각 상태 버튼의 onclick 안 date= 값으로 원하는 날짜만 걸러낸다."""
+    entries: list[dict] = []
+    seen_wraps = set()
+    for a in soup.select('p.ship_num a[onclick]'):
+        onclick = a.get('onclick') or ''
+        if f'date={date8}' not in onclick:
+            continue
+        img = a.find_previous_sibling('img')
+        if not img or not img.has_attr('alt'):
+            continue
+        wrap = a.find_parent(class_='ship_name')
+        if wrap is None or id(wrap) in seen_wraps:
+            continue
+        seen_wraps.add(id(wrap))
+
+        name_el = wrap.find('h2')
+        ship_name = name_el.get_text(strip=True) if name_el else None
+        if not ship_name:
+            continue
+
+        raw_status_text = img['alt'].strip()
+        status_type, available = _interpret_boat_status_text(raw_status_text)
+        if not _is_valid_ship_name(ship_name, has_ship_signals=(status_type != "unknown")):
+            continue
+        ship_name = _clean_ship_name(ship_name)
+
+        # 어종: 같은 배 블록의 공지 영역에서 시도(데스크톱 사이트처럼
+        # <img alt="공지">가 아니라 색 있는 div 라벨을 쓰므로 일반 키워드
+        # 매칭으로 폴백한다).
+        ship_fish = None
+        notice_area = wrap.select_one('.ship_notice')
+        if notice_area:
+            ship_fish = (_extract_fish_from_notice_area(notice_area)
+                        or _extract_known_fish(notice_area.get_text(" ", strip=True)))
+
+        display_status = "-"
+        if status_type == "maintenance":
+            display_status = "점검일"
+        elif status_type in ("reserved", "full"):
+            display_status = "예약마감"
+        elif status_type == "open" and available is not None:
+            display_status = f"남은자리 {available}명"
+        elif status_type == "pending":
+            display_status = "입금대기"
+        else:
+            display_status = raw_status_text or "알 수 없음"
+
+        entries.append({
+            "ship_name": ship_name,
+            "status": status_type,
+            "available": available,
+            "raw_status_text": raw_status_text,
+            "display_status": display_status,
+            "row_html": str(wrap),
+            "fish": ship_fish,
+        })
+    return entries
+
 
 def build_query_url(base_url: str, year: int, month: int, day: int) -> str:
     """
@@ -633,15 +727,28 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                             if fish_td:
                                 fish = fish_td.get_text(" ", strip=True)
 
-        # 컨테이너 내 tr을 우선 사용, 없으면 문서 전체 tr로 폴백
+        # 컨테이너 내 tr을 우선 사용한다. 컨테이너 자체가 없는 사이트(실측:
+        # 나폴리호 - div#new-div-{date8} 래퍼 없이 상태 이미지가 바로
+        # div[id^="admin-right-{date8}-"] 안에 있다)는 그 id에 날짜가
+        # 박혀 있으므로, 그 조상 tr만 모아 정확히 그 날짜의 배 행만 잡는다
+        # (페이지 전체 tr 폴백보다 훨씬 정확 - 뒤 이름 검증에서 다른 날짜
+        # 행이 섞여 들어오는 것도 막는다).
         rows = []
         if container:
             rows = container.select("tr") or []
         if not rows:
+            admin_right_divs = soup.select(f'div[id^="admin-right-{date8}-"]')
+            seen_tr_ids = set()
+            for admin_div in admin_right_divs:
+                tr = admin_div.find_parent('tr')
+                if tr is not None and id(tr) not in seen_tr_ids:
+                    seen_tr_ids.add(id(tr))
+                    rows.append(tr)
+        if not rows:
             rows = soup.select("tr")
-        
+
         if debug_enabled:
-            print(f"DEBUG_ROWS: container_rows={len(container.select('tr') if container else 0)}, total_rows={len(rows)}")
+            print(f"DEBUG_ROWS: container_rows={(len(container.select('tr')) if container else 0)}, total_rows={len(rows)}")
         
         exclude_keywords = {"공지사항", "입금대기", "선박명", "공지", "오늘:"}
         current_fish = fish  # 페이지 레벨 어종으로 시작
@@ -757,35 +864,24 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
             available = None
             status_type = "unknown"
 
+            # 상태 이미지를 admin-right 래퍼 안에서 먼저 찾고, 없으면 상태 칸에
+            # 바로 있는 <img alt="..."> 도 시도한다(실측: 뉴해덕호는 admin-right
+            # 래퍼가 없고 tds[2]에 <img alt="예약완료"> 만 있다 - 예전엔 이 경우
+            # tds[1](공지/입금자 정보 칸, 완전히 다른 칸)의 텍스트로 잘못 추측했다).
+            status_img = None
             if admin_div:
-                img = admin_div.find("img")
-                if img and img.has_attr("alt"):
-                    raw_status_text = img["alt"].strip()
-                else:
-                    raw_status_text = admin_div.get_text(" ", strip=True)
+                status_img = admin_div.find("img")
+            elif len(tds) >= 3:
+                status_img = tds[-1].find("img", alt=True)
 
-                if re.search(r'점검일', raw_status_text):
-                    status_type = "maintenance"
-                    available = 0
-                else:
-                    m = re.search(r'남은\s*자리\s*[:：]?\s*(\d+)', raw_status_text) or                             re.search(r'남은자리\s*(\d+)', raw_status_text) or                             re.search(r'(\d+)\s*명', raw_status_text)
-
-                    if m:
-                        try:
-                            available = int(m.group(1))
-                            status_type = "open"
-                        except Exception:
-                            available = None
-                            status_type = "unknown"
-                    elif re.search(r'예약완료|예약 완료', raw_status_text):
-                        status_type = "reserved"
-                        available = 0
-                    elif re.search(r'매진|마감|예약마감', raw_status_text):
-                        status_type = "full"
-                        available = 0
-                    else:
-                        status_type = "unknown"
+            if status_img and status_img.has_attr("alt"):
+                raw_status_text = status_img["alt"].strip()
+                status_type, available = _interpret_boat_status_text(raw_status_text)
+            elif admin_div:
+                raw_status_text = admin_div.get_text(" ", strip=True)
+                status_type, available = _interpret_boat_status_text(raw_status_text)
             else:
+                # 상태 이미지를 아예 못 찾았을 때만 기존처럼 tds[1] 텍스트로 추측한다.
                 second_text = tds[1].get_text(" ", strip=True)
                 raw_status_text = second_text
                 if re.search(r'입금대기', second_text):
@@ -827,8 +923,12 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                 except Exception:
                     print("DEBUG_BOARD_ENTRY:", ship_name, status_type, available, display_status, ship_fish)
 
-            # 유효한 배 이름인지 검증
-            if not _is_valid_ship_name(ship_name, {known_ship_name} if known_ship_name else None):
+            # 유효한 배 이름인지 검증. 상태를 실제로 읽어냈으면(예약완료/남은자리
+            # 등) 구조 신호가 있는 것이므로 이름이 "호"로 안 끝나도 배로 인정한다
+            # (실측: 나폴리(신조선)/나폴리2/뉴나폴리 등 - sunsang24 분기의
+            # 팀에프원/팀에프투 수정과 같은 이유).
+            if not _is_valid_ship_name(ship_name, {known_ship_name} if known_ship_name else None,
+                                       has_ship_signals=(status_type != "unknown")):
                 continue
 
             # 배 이름 정리 (예약하기 등 제거)
@@ -843,6 +943,11 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                 "row_html": str(tr),
                 "fish": ship_fish
             })
+
+        # 폴백 1.5: tr 기반 추출이 0건이면 모바일 div 패턴(실측: 태풍투어낚시)을
+        # 시도한다. 이 사이트는 <tr> 자체가 없어서 위 로직이 원천적으로 못 잡는다.
+        if not entries:
+            entries = _parse_mobile_reservation_boat_v3(soup, date8)
 
         # 폴백 2: 위 방식으로 entries가 비면 admin-right 블록을 직접 스캔
         if not entries:

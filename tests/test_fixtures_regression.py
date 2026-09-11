@@ -191,3 +191,48 @@ def test_independent_domain_ships_have_no_operating_hours(monkeypatch):
     result = parse_fixture('independent/칸피싱_KHAN_20261003', monkeypatch)
     assert result['entries'], '이 fixture 에는 배가 있어야 검증이 성립한다'
     assert all(e['shiptime_from'] is None and e['shiptime_to'] is None for e in result['entries'])
+
+
+# --- reservation_boat_v3 계열 독립 도메인(나폴리호/뉴해덕호/태풍투어낚시) ---
+# 사용자 제보: 이 3개 배가 파싱이 안 된다. 실제 라이브 응답을 받아보니 빈
+# 일정이 아니라 진짜 파싱 버그였다(사이트마다 컨테이너/상태 표시 방식이
+# 갈려서 "일반 게시판 패턴"이 하나만 겨우 맞았다). 세 사이트 다 0척이 아니어야
+# 한다는 걸 명시적으로 고정해서, 나중에 다시 깨지면 바로 드러나게 한다.
+
+def test_napoli_style_site_without_new_div_wrapper_is_parsed(monkeypatch):
+    """나폴리호: 배별 행을 감싸는 div#new-div-{date8}가 없고 대신
+    div[id^="admin-right-{date8}-"]만 있다 - 컨테이너 없이도 그 조상 tr을
+    모아 정확히 5척(그중 '호'로 안 끝나는 이름도 포함)이 나와야 한다."""
+    result = parse_fixture('independent/나폴리호_20261017', monkeypatch)
+    names = [e['ship_name'] for e in result['entries']]
+
+    assert len(result['entries']) == 5
+    assert '나폴리(신조선)' in names, '"호"로 안 끝나는 이름도 구조 신호로 인정돼야 한다'
+    assert all(e['status'] != 'unknown' for e in result['entries'])
+
+
+def test_haeduk_style_site_reads_status_from_bare_img_alt(monkeypatch):
+    """뉴해덕호: 컨테이너는 있지만 상태 이미지가 admin-right div 없이 상태
+    칸에 바로 <img alt="예약완료">로만 있다 - 예전엔 옆 칸(공지/입금자 정보)
+    텍스트를 잘못 상태로 읽었다."""
+    result = parse_fixture('independent/뉴해덕호_20261017', monkeypatch)
+
+    assert len(result['entries']) == 1
+    entry = result['entries'][0]
+    assert entry['ship_name'] == '뉴해덕호'
+    assert entry['status'] == 'reserved'
+    assert entry['display_status'] == '예약마감', \
+        f"상태 칸이 아니라 다른 칸(공지/입금자 정보) 텍스트를 읽었다: {entry['display_status']!r}"
+
+
+def test_mobile_div_based_site_is_parsed_and_scoped_by_date(monkeypatch):
+    """태풍투어낚시(마나루 /m/ 모바일 페이지): <tr> 자체가 없는 div 기반
+    구조고, 한 페이지에 여러 날짜(10/17~10/23)가 섞여 나온다. onclick의
+    date= 값으로 걸러서 정확히 그 날짜의 7척만 나와야 한다(다른 날짜 배가
+    섞여 들어오면 안 된다)."""
+    result = parse_fixture('independent/태풍투어낚시_20261017', monkeypatch)
+    names = [e['ship_name'] for e in result['entries']]
+
+    assert len(result['entries']) == 7
+    assert names == ['은양호', '루나호', '영복1호', '항공모함', '하진호', '나르샤호', '푸른호']
+    assert all(e['status'] != 'unknown' for e in result['entries'])

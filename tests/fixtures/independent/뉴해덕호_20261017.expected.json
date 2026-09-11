@@ -1,15 +1,15 @@
 {
   "entries": [
     {
-      "ship_name": "▷ 라온피싱 ◁",
+      "ship_name": "뉴해덕호",
       "status": "reserved",
       "available": 0,
       "display_status": "예약마감",
-      "fish": "갑오징어 전문 출조",
+      "fish": "갑오징어 출조합니다.",
       "shiptime_from": null,
       "shiptime_to": null
     }
   ],
-  "tide": "14물",
+  "tide": null,
   "error": null
 }

@@ -1,47 +1,65 @@
 {
   "entries": [
     {
-      "ship_name": "나폴리(신조선)",
+      "ship_name": "은양호",
       "status": "reserved",
       "available": 0,
       "display_status": "예약마감",
-      "fish": "갑오징어전문출조",
+      "fish": "갑오징어",
       "shiptime_from": null,
       "shiptime_to": null
     },
     {
-      "ship_name": "나폴리2",
+      "ship_name": "루나호",
       "status": "reserved",
       "available": 0,
       "display_status": "예약마감",
-      "fish": "쭈꾸미갑오징어",
+      "fish": "갑오징어",
       "shiptime_from": null,
       "shiptime_to": null
     },
     {
-      "ship_name": "나폴리7",
+      "ship_name": "영복1호",
       "status": "reserved",
       "available": 0,
       "display_status": "예약마감",
-      "fish": "갑오징어전문출조",
+      "fish": "갑오징어",
       "shiptime_from": null,
       "shiptime_to": null
     },
     {
-      "ship_name": "뉴나폴리",
+      "ship_name": "항공모함",
       "status": "reserved",
       "available": 0,
       "display_status": "예약마감",
-      "fish": "쭈꾸미갑오징어",
+      "fish": "갑오징어",
       "shiptime_from": null,
       "shiptime_to": null
     },
     {
-      "ship_name": "엠피닉스(나폴리9)",
+      "ship_name": "하진호",
       "status": "reserved",
       "available": 0,
       "display_status": "예약마감",
-      "fish": "쭈꾸미갑오징어",
+      "fish": "갑오징어",
+      "shiptime_from": null,
+      "shiptime_to": null
+    },
+    {
+      "ship_name": "나르샤호",
+      "status": "reserved",
+      "available": 0,
+      "display_status": "예약마감",
+      "fish": "갑오징어",
+      "shiptime_from": null,
+      "shiptime_to": null
+    },
+    {
+      "ship_name": "푸른호",
+      "status": "reserved",
+      "available": 0,
+      "display_status": "예약마감",
+      "fish": "갑오징어",
       "shiptime_from": null,
       "shiptime_to": null
     }
