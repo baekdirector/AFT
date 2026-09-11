@@ -70,7 +70,7 @@
     <div class="admin-head">
       <div>
         <h1>접속 이력</h1>
-        <div class="sub">최근 30일 · 최대 1000건</div>
+        <div class="sub">최근 {{ retention_days }}일(한국시간) · 최대 1000건</div>
       </div>
       <form class="admin-logout-form" method="post" action="{{ url_for('views.admin_logout') }}">
         <button type="submit">로그아웃</button>
@@ -86,7 +86,7 @@
         <div class="visit-day-label">{{ g.day }} · {{ g.rows|length }}건</div>
         <table class="visit-table">
           <thead>
-            <tr><th>시간</th><th>기기</th><th>위치</th><th>페이지</th><th>IP</th></tr>
+            <tr><th>일시</th><th>기기</th><th>위치</th><th>페이지</th><th>IP</th></tr>
           </thead>
           <tbody>
             {% for r in g.rows %}

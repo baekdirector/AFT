@@ -212,9 +212,10 @@ def purge_old_check_logs(now: datetime | None = None) -> int:
     return deleted
 
 
-#: /admin 접속 이력 보관 기간. 체크 기록(2일)과 달리 방문 추세를 보려는
-#: 목적이라 훨씬 길게 잡는다.
-VISIT_LOG_RETENTION_DAYS = 90
+#: /admin 접속 이력 보관 기간(사용자 결정 - "최대 1주일 접속 이력 데이터만
+#: 유지"). 오늘부터 이 일수만큼만 굴러가며 남는다 - 예를 들어 오늘이
+#: 9/11이면 9/4 이전 기록은 다음 정리 때 지워진다.
+VISIT_LOG_RETENTION_DAYS = 7
 
 
 def purge_old_visit_logs(now: datetime | None = None) -> int:

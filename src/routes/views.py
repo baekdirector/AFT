@@ -1483,11 +1483,11 @@ def admin_page():
     if not session.get('admin_authed'):
         return render_template('admin.html', authed=False, form=form)
 
-    from datetime import timedelta
-    from models import VisitLog
-    from services.ip_location import resolve_missing
+    from models import IpLocation, VisitLog
+    from services.ip_location import format_location, resolve_missing
+    from services.snapshot_repository import VISIT_LOG_RETENTION_DAYS
 
-    cutoff = datetime.utcnow() - timedelta(days=30)
+    cutoff = datetime.utcnow() - timedelta(days=VISIT_LOG_RETENTION_DAYS)
     logs = (VisitLog.query.filter(VisitLog.visited_at >= cutoff)
             .order_by(VisitLog.visited_at.desc()).limit(1000).all())
 
@@ -1496,7 +1496,6 @@ def admin_page():
     except Exception as e:
         current_app.logger.error('IP 위치 조회 중 오류: %s', e, exc_info=e)
 
-    from models import IpLocation
     ips = {row.ip for row in logs if row.ip}
     locations = {row.ip: row for row in IpLocation.query.filter(IpLocation.ip.in_(ips)).all()} if ips else {}
 
@@ -1505,29 +1504,24 @@ def admin_page():
     current_day = None
     current_rows = None
     for row in logs:
-        day = row.visited_at.strftime('%Y-%m-%d')
+        # visited_at 은 UTC로 저장돼 있다 - 관리자가 보는 화면이니 KST로
+        # 바꿔서 보여준다(날짜별 묶음 기준도 KST 자정 기준이어야 자연스럽다).
+        visited_kst = row.visited_at.replace(tzinfo=timezone.utc).astimezone(KST)
+        day = visited_kst.strftime('%Y-%m-%d')
         if day != current_day:
             current_day = day
             current_rows = []
             groups.append({'day': day, 'rows': current_rows})
-        loc = locations.get(row.ip)
-        if loc is None:
-            location_label = '-'
-        elif loc.is_private:
-            location_label = '로컬'
-        elif loc.city:
-            location_label = f'{loc.city} ({loc.region})' if loc.region and loc.region != loc.city else loc.city
-        else:
-            location_label = '확인 실패'
         current_rows.append({
-            'time': row.visited_at.strftime('%H:%M'),
+            'time': visited_kst.strftime('%Y-%m-%d %H:%M:%S'),
             'device': DEVICE_LABELS.get(row.device_type, row.device_type),
-            'location': location_label,
+            'location': format_location(locations.get(row.ip)),
             'path': row.path,
             'ip': row.ip or '-',
         })
 
-    return render_template('admin.html', authed=True, groups=groups)
+    return render_template('admin.html', authed=True, groups=groups,
+                           retention_days=VISIT_LOG_RETENTION_DAYS)
 
 
 @views.route('/admin/logout', methods=['POST'])
