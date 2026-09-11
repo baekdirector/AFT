@@ -1,5 +1,7 @@
 // Versioned cache name for easy invalidation
-const CACHE_VERSION = 'v2';
+// v3: 파비콘/앱 아이콘 교체(밤바다 배 모티프) - manifest.json 이 precache 대상이라
+// 버전을 올려야 설치된 PWA 가 새 아이콘/매니페스트를 받는다.
+const CACHE_VERSION = 'v3';
 const PRECACHE = `aft-precache-${CACHE_VERSION}`;
 const RUNTIME = `aft-runtime-${CACHE_VERSION}`;
 
