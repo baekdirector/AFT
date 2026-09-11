@@ -48,6 +48,7 @@ def _fake_check(monkeypatch, side_effect=None):
                 'ship_name': known_ship_name, 'status': 'open', 'available': 5,
                 'raw_status_text': '남은자리 5명', 'display_status': '남은자리 5명',
                 'used_url': boat_url, 'fish': '광어',
+                'shiptime_from': '05:30', 'shiptime_to': '17:00',
             }],
         }
 
@@ -78,6 +79,19 @@ def test_stream_emits_start_every_boat_and_end(app, client, monkeypatch):
     # start + 71척 + end
     assert len(lines) == 73
     assert len([l for l in lines if l.get('registered_name')]) == 71
+
+
+def test_stream_carries_operating_hours_when_present(app, client, monkeypatch):
+    """운항시간(shiptime_from/to)이 파서 entry에 있으면 스트림 결과 줄까지
+    그대로 실려야 한다 - 예전엔 이 필드 자체를 읽지도 옮기지도 않았다."""
+    _seed(app, 1)
+    _fake_check(monkeypatch)
+
+    lines = _post(client)
+    result = next(l for l in lines if l.get('registered_name'))
+
+    assert result['entries'][0]['shiptime_from'] == '05:30'
+    assert result['entries'][0]['shiptime_to'] == '17:00'
 
 
 def test_boat_failure_is_isolated_and_still_reported(app, client, monkeypatch):

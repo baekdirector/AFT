@@ -31,7 +31,8 @@ def seeded(app):
         apply_observations(incheon.id, DATE, [
             Observation(boat_id=incheon.id, target_date=DATE, ship_name='1호',
                         status='open', available=3, display_status='남은자리 3명',
-                        fish='광어', source_url='https://a.example/x'),
+                        fish='광어', source_url='https://a.example/x',
+                        shiptime_from='05:30', shiptime_to='17:00'),
             Observation(boat_id=incheon.id, target_date=DATE, ship_name='2호',
                         status='full', available=0, display_status='예약마감'),
         ])
@@ -66,8 +67,17 @@ def test_rows_carry_everything_the_table_needs(client, seeded):
     assert row['status'] == 'open' and row['available'] == 3
     assert row['display_status'] == '남은자리 3명'
     assert row['fish'] == '광어'
+    assert row['shiptime_from'] == '05:30' and row['shiptime_to'] == '17:00'
     assert row['source_url'] == 'https://a.example/x'
     assert row['checked_at'], '언제 확인된 값인지 반드시 알려준다'
+
+
+def test_ship_without_registered_hours_has_null_shiptime(client, seeded):
+    """선사가 운항시간을 등록 안 한 배(2호)는 shiptime이 null이어야 한다."""
+    _, body = get(client, date=DATE)
+    row = next(r for r in body['rows'] if r['ship_name'] == '2호')
+
+    assert row['shiptime_from'] is None and row['shiptime_to'] is None
 
 
 def test_freshness_is_reported(client, seeded):

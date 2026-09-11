@@ -777,6 +777,22 @@
   max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .fleet-ship-seat { font-size: 11.5px; font-weight: 650; color: var(--ink-soft); white-space: nowrap; flex: none; }
+
+/* 운항시간 칩 - sunsang24(*.sunsang24.com/ship/schedule_fleet) 계열 선사가
+   등록한 경우에만 존재한다(실측: 약 70%). 선단 카드의 배별 행과 단일 배
+   카드 헤더 양쪽에서 재사용한다(buildShiptimeChip()). 톤 색상은 seatPill/
+   상태 배지와 같은 statusBucket() 분류를 그대로 따라 화면 안에서 색 의미가
+   갈리지 않게 한다. */
+.shiptime-chip {
+  display: inline-flex; align-items: center; gap: 4px; flex: none;
+  height: 20px; padding: 0 7px; border-radius: 6px;
+  font-size: 10.5px; font-weight: 740; letter-spacing: -0.1px;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.shiptime-chip-open { background: oklch(0.93 0.05 158); color: oklch(0.34 0.09 162); }
+.shiptime-chip-soon { background: oklch(0.95 0.05 78); color: oklch(0.42 0.1 62); }
+.shiptime-chip-closed { background: oklch(0.94 0.008 240); color: oklch(0.44 0.02 250); }
+.result-name-wrap { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .bell-toggle.bell-toggle-compact {
   margin-top: 0; padding: 5px 9px; border-radius: 99px; flex: none; gap: 5px;
 }
@@ -1844,7 +1860,8 @@ document.addEventListener('DOMContentLoaded', function(){
                             : entry.status === 'maintenance' ? 'maintenance'
                             : entry.status === 'cancelled' ? 'danger'
                             : (entry.status || 'unknown'),
-              available: entry.available, url: entry.source_url || '', url_path: entry.url_path || ''
+              available: entry.available, url: entry.source_url || '', url_path: entry.url_path || '',
+              shiptime_from: entry.shiptime_from || null, shiptime_to: entry.shiptime_to || null
             });
           }
           // 도착할 때마다 현재 선택된 정렬 기준으로 다시 정렬해서 그린다. 그래야
@@ -1932,7 +1949,8 @@ document.addEventListener('DOMContentLoaded', function(){
                     : r.status === 'cancelled' ? 'danger'
                     : (r.status || 'unknown'),
       available: r.available,
-      url: r.source_url || '', url_path: r.source_url || ''
+      url: r.source_url || '', url_path: r.source_url || '',
+      shiptime_from: r.shiptime_from || null, shiptime_to: r.shiptime_to || null
     };
   }
 
@@ -2447,6 +2465,25 @@ document.addEventListener('DOMContentLoaded', function(){
     return 'open';
   }
 
+  // 운항시간 칩 - shiptime_from/to가 둘 다 있을 때만(선사가 등록한 경우,
+  // 약 70%) 만들어 돌려준다. 없으면 null - 호출부가 그냥 안 붙이면 된다.
+  // 시간 차는 자정을 넘기는 야간 운항을 방어하려고 음수면 +24시간 한다.
+  function buildShiptimeChip(row) {
+    if (!row.shiptime_from || !row.shiptime_to) return null;
+    const [fh, fm] = row.shiptime_from.split(':').map(Number);
+    const [th, tm] = row.shiptime_to.split(':').map(Number);
+    let mins = (th * 60 + tm) - (fh * 60 + fm);
+    if (mins <= 0) mins += 24 * 60;
+    const hours = mins / 60;
+    const durText = Number.isInteger(hours) ? `${hours}시간` : `${hours.toFixed(1)}시간`;
+
+    const chip = document.createElement('span');
+    chip.className = 'shiptime-chip shiptime-chip-' + statusBucket(row);
+    chip.textContent = `🕑 ${row.shiptime_from}–${row.shiptime_to}`;
+    chip.title = `운항시간 ${row.shiptime_from} ~ ${row.shiptime_to} (약 ${durText})`;
+    return chip;
+  }
+
   // 선단 카드 안 배별 행 배경색 - 이름 문자열 해시로 hue를 뽑아 항상 같은
   // 이름은 같은 색, 다른 이름은(웬만하면) 다른 색이 되게 한다. 금어기
   // 팝업의 어종 아바타 색과 같은 방식(hash -> hue -> 연한 파스텔).
@@ -2729,10 +2766,20 @@ document.addEventListener('DOMContentLoaded', function(){
       // 배(선사) 이름 + 대표 남은자리 텍스트
       const head = document.createElement('div');
       head.className = 'result-card-head';
+      const nameWrap = document.createElement('div');
+      nameWrap.className = 'result-name-wrap';
       const name = document.createElement('h3');
       name.className = 'result-ship-name';
       name.textContent = isFleet ? (rep.registered_name || '-') : (rep.ship_name || rep.registered_name || '-');
-      head.appendChild(name);
+      nameWrap.appendChild(name);
+      // 단일 배 카드만 여기서 칩을 붙인다 - 선단은 대표 행 하나의 시간만
+      // 카드 헤더에 보이면 나머지 배 시간과 헷갈리므로, 배별 행(fleet-ship-row)
+      // 쪽에서 각자 보여준다(위 buildShiptimeChip(ship) 호출부).
+      if (!isFleet) {
+        const headHours = buildShiptimeChip(rep);
+        if (headHours) nameWrap.appendChild(headHours);
+      }
+      head.appendChild(nameWrap);
       const seat = document.createElement('div');
       seat.className = 'result-seat-text';
       seat.textContent = seatText(rep);
@@ -2764,6 +2811,8 @@ document.addEventListener('DOMContentLoaded', function(){
           shipName.textContent = ship.ship_name || '-';
           shipName.title = ship.ship_name || '';
           shipRow.appendChild(shipName);
+          const shipHours = buildShiptimeChip(ship);
+          if (shipHours) shipRow.appendChild(shipHours);
           // 선단 안 배들은 배마다 잡는 어종이 다르다(예: 레드헌터 선단 - 배별로
           // 주꾸미/문어/갈치 등 제각각) - 대표 행 하나의 어종만 카드에 보이면
           // 나머지 배들의 어종을 알 수 없다. 배 행마다 자기 어종을 따로 보여준다.

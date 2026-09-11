@@ -5,21 +5,27 @@
       "status": "full",
       "available": 0,
       "display_status": "예약마감",
-      "fish": "문어"
+      "fish": "문어",
+      "shiptime_from": "05:30",
+      "shiptime_to": "17:00"
     },
     {
       "ship_name": "레드히어로",
       "status": "full",
       "available": 0,
       "display_status": "예약마감",
-      "fish": "문어"
+      "fish": "문어",
+      "shiptime_from": "05:30",
+      "shiptime_to": "17:00"
     },
     {
       "ship_name": "레드퀸",
       "status": "full",
       "available": 0,
       "display_status": "예약마감",
-      "fish": "주꾸미"
+      "fish": "주꾸미",
+      "shiptime_from": "05:30",
+      "shiptime_to": "17:00"
     }
   ],
   "tide": "조금",

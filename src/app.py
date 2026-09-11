@@ -35,6 +35,30 @@ def _ensure_ip_location_hosting_column(app):
         app.logger.exception('ip_locations 스키마 보정 실패')
 
 
+def _ensure_snapshot_shiptime_columns(app):
+    """위 _ensure_ip_location_hosting_column 과 같은 이유(Alembic 없이 가볍게
+    유지, db.create_all() 은 기존 테이블에 새 컬럼을 안 얹어준다) - snapshots
+    테이블은 이미 운영 DB에 실데이터가 차 있어서 shiptime_from/shiptime_to
+    (운항시간 파싱 결과) 컬럼을 새로 보태야 한다. is_hosting 때와 달리 이번엔
+    nullable 컬럼이라 DEFAULT 도 필요 없고, 기존 행을 지울 필요도 없다 -
+    그냥 NULL로 남아있다가 다음 스크래핑 때 자연히 채워진다."""
+    from sqlalchemy import inspect, text
+    try:
+        inspector = inspect(db.engine)
+        if 'snapshots' not in inspector.get_table_names():
+            return
+        existing_columns = {col['name'] for col in inspector.get_columns('snapshots')}
+        missing = [c for c in ('shiptime_from', 'shiptime_to') if c not in existing_columns]
+        if not missing:
+            return
+        with db.engine.begin() as conn:
+            for col in missing:
+                conn.execute(text(f'ALTER TABLE snapshots ADD COLUMN {col} VARCHAR(5)'))
+        app.logger.info('snapshots 테이블에 %s 컬럼을 추가했다', missing)
+    except Exception:
+        app.logger.exception('snapshots 운항시간 컬럼 보정 실패')
+
+
 def create_app(test_config=None):
     app = Flask(__name__, static_folder='../img', static_url_path='/img')
     os.makedirs(app.instance_path, exist_ok=True)
@@ -121,6 +145,7 @@ def create_app(test_config=None):
     with app.app_context():
         db.create_all()
         _ensure_ip_location_hosting_column(app)
+        _ensure_snapshot_shiptime_columns(app)
         from db import initialize_shared_boats
         initialize_shared_boats()
 

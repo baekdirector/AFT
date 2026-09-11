@@ -60,6 +60,8 @@ def parse(name: str) -> dict:
                 'available': e.get('available'),
                 'display_status': e.get('display_status'),
                 'fish': e.get('fish'),
+                'shiptime_from': e.get('shiptime_from'),
+                'shiptime_to': e.get('shiptime_to'),
             }
             for e in (result.get('entries') or [])
         ],

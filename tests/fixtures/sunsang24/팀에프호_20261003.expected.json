@@ -5,14 +5,18 @@
       "status": "full",
       "available": 0,
       "display_status": "예약마감",
-      "fish": "갑오징어"
+      "fish": "갑오징어",
+      "shiptime_from": "04:00",
+      "shiptime_to": "16:00"
     },
     {
       "ship_name": "팀에프투",
       "status": "full",
       "available": 0,
       "display_status": "예약마감",
-      "fish": "갑오징어"
+      "fish": "갑오징어",
+      "shiptime_from": "04:30",
+      "shiptime_to": "17:00"
     }
   ],
   "tide": "조금",

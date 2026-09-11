@@ -130,3 +130,68 @@ def test_deleting_boat_removes_its_snapshots(app, boat):
         db.session.commit()
 
         assert Snapshot.query.count() == 0
+
+
+def test_shiptime_round_trips_through_snapshot_row(app, boat):
+    """운항시간(shiptime_from/to)이 Observation -> Snapshot 행 -> 다시
+    Observation 으로 왕복해도 그대로 유지돼야 한다(fish와 같은 패턴)."""
+    with app.app_context():
+        apply_observations(boat, DATE, [
+            o('open', 5, boat_id=boat, shiptime_from='05:30', shiptime_to='17:00')])
+
+        row = Snapshot.query.one()
+        assert (row.shiptime_from, row.shiptime_to) == ('05:30', '17:00')
+
+        loaded = load_observations(boat, DATE)[0]
+        assert (loaded.shiptime_from, loaded.shiptime_to) == ('05:30', '17:00')
+
+
+def test_shiptime_defaults_to_none_when_not_registered(app, boat):
+    """선사가 운항시간을 등록 안 한 배는 None으로 남아야 한다(약 70%만
+    등록 - 실측)."""
+    with app.app_context():
+        apply_observations(boat, DATE, [o('open', 5, boat_id=boat)])
+
+        row = Snapshot.query.one()
+        assert row.shiptime_from is None and row.shiptime_to is None
+
+
+def test_ensure_snapshot_shiptime_columns_backfills_missing_columns(app, boat):
+    """db.create_all()은 이미 배포된 snapshots 테이블에 새 컬럼을 얹어주지
+    않는다 - 앱 시작 시 idempotent ALTER TABLE로 보정한다(_ensure_ip_location_
+    hosting_column과 같은 패턴). is_hosting과 달리 nullable이라 기존 행을
+    지울 필요는 없다 - 컬럼만 생기고 기존 행은 NULL로 남아야 한다."""
+    from sqlalchemy import text
+
+    from src.app import _ensure_snapshot_shiptime_columns
+
+    with app.app_context():
+        apply_observations(boat, DATE, [o('open', 5, boat_id=boat,
+                                          shiptime_from='05:00', shiptime_to='15:00')])
+        db.session.execute(text('ALTER TABLE snapshots DROP COLUMN shiptime_from'))
+        db.session.execute(text('ALTER TABLE snapshots DROP COLUMN shiptime_to'))
+        db.session.commit()
+
+        _ensure_snapshot_shiptime_columns(app)
+
+        row = Snapshot.query.one()
+        assert row.shiptime_from is None, '컬럼 보정 후 기존 행은 지워지지 않고 NULL로 남아야 한다'
+
+        row.shiptime_from = '06:00'
+        row.shiptime_to = '16:00'
+        db.session.commit()
+        assert Snapshot.query.one().shiptime_from == '06:00'
+
+
+def test_ensure_snapshot_shiptime_columns_is_noop_when_already_present(app, boat):
+    """이미 컬럼이 있으면(정상 배포 상태) 기존 데이터를 건드리지 않는다."""
+    from src.app import _ensure_snapshot_shiptime_columns
+
+    with app.app_context():
+        apply_observations(boat, DATE, [o('open', 5, boat_id=boat,
+                                          shiptime_from='05:00', shiptime_to='15:00')])
+
+        _ensure_snapshot_shiptime_columns(app)
+
+        row = Snapshot.query.one()
+        assert (row.shiptime_from, row.shiptime_to) == ('05:00', '15:00')

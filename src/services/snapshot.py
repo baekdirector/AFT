@@ -50,6 +50,8 @@ class Observation:
     display_status: str = ''
     fish: str | None = None
     source_url: str = ''
+    shiptime_from: str | None = None  # 'HH:MM' - 선사가 등록한 경우에만 존재
+    shiptime_to: str | None = None
 
     @property
     def key(self) -> tuple:
@@ -206,5 +208,7 @@ def entries_to_observations(boat_id: int, target_date: str,
             display_status=entry.get('display_status') or entry.get('raw_status_text') or '',
             fish=entry.get('fish'),
             source_url=entry.get('source_url') or entry.get('url_path') or '',
+            shiptime_from=entry.get('shiptime_from'),
+            shiptime_to=entry.get('shiptime_to'),
         ))
     return observations

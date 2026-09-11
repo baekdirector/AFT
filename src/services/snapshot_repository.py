@@ -24,6 +24,8 @@ def _to_observation(row: Snapshot) -> Observation:
         display_status=row.display_status or '',
         fish=row.fish,
         source_url=row.source_url or '',
+        shiptime_from=row.shiptime_from,
+        shiptime_to=row.shiptime_to,
     )
 
 
@@ -95,6 +97,8 @@ def apply_many(target_date: str,
             row.available = obs.available
             row.display_status = obs.display_status
             row.fish = obs.fish
+            row.shiptime_from = obs.shiptime_from
+            row.shiptime_to = obs.shiptime_to
             row.source_url = obs.source_url
             row.checked_at = now
 
@@ -139,6 +143,8 @@ def apply_observations(boat_id: int, target_date: str,
         row.available = obs.available
         row.display_status = obs.display_status
         row.fish = obs.fish
+        row.shiptime_from = obs.shiptime_from
+        row.shiptime_to = obs.shiptime_to
         row.source_url = obs.source_url
         row.checked_at = now
 

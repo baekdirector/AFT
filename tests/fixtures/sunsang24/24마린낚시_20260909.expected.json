@@ -5,7 +5,9 @@
       "status": "unknown",
       "available": null,
       "display_status": "출조공지",
-      "fish": "주꾸미, 갑오징어"
+      "fish": "주꾸미, 갑오징어",
+      "shiptime_from": "05:00",
+      "shiptime_to": "15:00"
     }
   ],
   "tide": "4물",

@@ -496,7 +496,19 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
             if not ship_fish:
                 ship_fish = fish
             # ---------------------------------------
-            
+
+            # --- 배별 운항시간(shiptime) 추출: 선사가 등록한 경우에만 존재
+            # (실측: 팀에프호 fixture 93척 중 62척=약 67%) ---
+            ship_shiptime_from = None
+            ship_shiptime_to = None
+            shiptime_el = t.select_one('.shiptime .detail')
+            if shiptime_el:
+                shiptime_text = re.sub(r'\s+', ' ', shiptime_el.get_text(' ', strip=True)).strip()
+                m = re.match(r'^(\d{1,2}:\d{2})\s*~\s*(\d{1,2}:\d{2})$', shiptime_text)
+                if m:
+                    ship_shiptime_from, ship_shiptime_to = m.group(1), m.group(2)
+            # ---------------------------------------
+
             # debug: 파싱된 항목 콘솔 출력
             if debug_enabled:
                 try:
@@ -541,7 +553,9 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
                 "display_status": display_status,
                 "row_html": str(t),
                 "query_date": display_date,
-                "fish": ship_fish  # 배별 어종
+                "fish": ship_fish,  # 배별 어종
+                "shiptime_from": ship_shiptime_from,  # 배별 운항시간(있는 배만)
+                "shiptime_to": ship_shiptime_to
             })
 
         result = {"matched": True, "entries": entries, "date_id": date_id, "source_url": display_url, "tide": tide}

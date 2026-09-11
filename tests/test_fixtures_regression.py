@@ -74,6 +74,8 @@ def parse_fixture(name, monkeypatch):
                 'available': e.get('available'),
                 'display_status': e.get('display_status'),
                 'fish': e.get('fish'),
+                'shiptime_from': e.get('shiptime_from'),
+                'shiptime_to': e.get('shiptime_to'),
             }
             for e in (result.get('entries') or [])
         ],
@@ -159,3 +161,33 @@ def test_closed_boats_report_zero_remaining(name, monkeypatch):
     assert closed, '이 fixture 에는 마감된 배가 있어야 검증이 성립한다'
     assert all(e['available'] == 0 for e in closed), \
         f"마감인데 잔여석이 남아있다: {[(e['ship_name'], e['available']) for e in closed]}"
+
+
+@pytest.mark.parametrize('name', [
+    'sunsang24/레드헌터_선단_20261003',
+    'sunsang24/팀에프호_20261003',
+    'sunsang24/24마린낚시_20260909',
+])
+def test_sunsang24_ships_carry_operating_hours(name, monkeypatch):
+    """sunsang24 계열(schedule_fleet) 배 행에는 <li class="shiptime"><div
+    class="detail">05:30 ~ 17:00</div></li> 형태로 운항시간이 실려 있는데,
+    예전엔 이 마크업을 전혀 안 읽었다(사용자 제보: 예약현황 카드뷰에
+    운항시간을 보여달라). 배마다 선사가 등록한 경우에만 존재하므로
+    (실측: 없는 배도 있다) None 이어도 되지만, 'HH:MM' 형태로 뽑히면
+    from < to 여야 한다(같은 날 출항~귀항이므로)."""
+    result = parse_fixture(name, monkeypatch)
+    with_hours = [e for e in result['entries'] if e['shiptime_from']]
+
+    assert with_hours, f'{name} 에는 운항시간이 있는 배가 하나는 있어야 한다'
+    for e in with_hours:
+        assert e['shiptime_to'], f"{e['ship_name']}: shiptime_from만 있고 shiptime_to가 없다"
+        assert e['shiptime_from'] < e['shiptime_to'], \
+            f"{e['ship_name']}: 운항시간이 뒤집혔다 {e['shiptime_from']}~{e['shiptime_to']}"
+
+
+def test_independent_domain_ships_have_no_operating_hours(monkeypatch):
+    """sunsang24 계열이 아닌 독립 도메인(칸피싱 등)은 이 마크업 자체가 없다 -
+    엉뚱한 값을 만들어내지 않고 조용히 None이어야 한다."""
+    result = parse_fixture('independent/칸피싱_KHAN_20261003', monkeypatch)
+    assert result['entries'], '이 fixture 에는 배가 있어야 검증이 성립한다'
+    assert all(e['shiptime_from'] is None and e['shiptime_to'] is None for e in result['entries'])

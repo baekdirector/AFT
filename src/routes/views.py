@@ -480,10 +480,13 @@ def api_status():
                 'source_url': entry.get('used_url') or entry.get('source_url') or entry.get('url') or source_url,
                 'url_path': entry.get('used_url_path') or entry.get('url_path') or source_url,
                 'fish': entry.get('fish'),
+                'shiptime_from': entry.get('shiptime_from'),
+                'shiptime_to': entry.get('shiptime_to'),
             } for entry in info.get('entries', [])]
             if not entries:
                 entries = [{'ship_name': boat_name, 'status': 'unknown', 'available': None,
-                            'raw_status_text': '', 'source_url': source_url, 'url_path': source_url, 'fish': None}]
+                            'raw_status_text': '', 'source_url': source_url, 'url_path': source_url, 'fish': None,
+                            'shiptime_from': None, 'shiptime_to': None}]
             return {'boat_id': boat.id,
                     'registered_name': boat_name, 'city': boat.city, 'port': boat.port,
                     'query_date': f'{year:04d}-{month:02d}-{day:02d}', 'tide': info.get('tide'),
@@ -496,7 +499,8 @@ def api_status():
                     'tide': None, 'mulddae': get_mulddae(date(year, month, day), getattr(boat, 'city', '')),
                     'entries': [{'ship_name': boat_name, 'status': 'unknown',
                     'available': None, 'raw_status_text': f'조회 오류: {exc}',
-                    'source_url': boat.url, 'url_path': boat.url, 'fish': None}]}
+                    'source_url': boat.url, 'url_path': boat.url, 'fish': None,
+                    'shiptime_from': None, 'shiptime_to': None}]}
 
     def stream_results():
         configured_workers = current_app.config.get('STATUS_MAX_WORKERS', 4)
@@ -603,6 +607,8 @@ def api_status_cached():
             'available': snap.available,
             'display_status': snap.display_status,
             'fish': snap.fish,
+            'shiptime_from': snap.shiptime_from,
+            'shiptime_to': snap.shiptime_to,
             'source_url': snap.source_url or boat.url,
             'checked_at': snap.checked_at.isoformat() if snap.checked_at else None,
         })

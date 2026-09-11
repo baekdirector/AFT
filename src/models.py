@@ -65,6 +65,9 @@ class Snapshot(db.Model):
     available = db.Column(db.Integer, nullable=True)
     display_status = db.Column(db.String(255), nullable=True)
     fish = db.Column(db.String(255), nullable=True)
+    #: 운항시간(HH:MM) - sunsang24 계열 선사가 등록한 경우에만 존재.
+    shiptime_from = db.Column(db.String(5), nullable=True)
+    shiptime_to = db.Column(db.String(5), nullable=True)
     source_url = db.Column(db.String(2083), nullable=True)
 
     checked_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
