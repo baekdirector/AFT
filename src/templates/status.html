@@ -880,27 +880,12 @@
 }
 .popup-body { padding: 0; max-height: none; overflow: visible; }
 .popup-loading { text-align: center; padding: 40px; color: var(--ink-soft); }
-.result-split { display: flex; gap: 16px; background: #fff; border-radius: 0 0 18px 18px; overflow: hidden; min-height: 800px; }
-.result-left { flex: 1; min-width: 0; border-right: 1px solid var(--line-soft); overflow: visible; }
-.result-right { flex: 1; min-width: 0; background: #fff; overflow: visible; }
-.graph-panel { padding: 8px; background: #fff; height: 800px; overflow: visible; }
-#tide-table { width: 100%; border-collapse: collapse; }
-#tide-table thead th {
-  background: var(--bg-soft); padding: 14px 10px; font-size: 15px; font-weight: 650; color: oklch(0.35 0.02 255);
-  border-bottom: 2px solid var(--line); text-align: center;
-}
-#tide-table tbody td { padding: 14px 10px; border-bottom: 1px solid var(--line-soft); font-size: 14px; color: oklch(0.4 0.02 255); text-align: center; }
-#tide-table tbody tr:nth-child(even) { background: var(--bg-soft); }
-.time-cell { font-weight: 650; color: var(--ink); font-size: 14.5px; }
+.result-split { display: block; background: #fff; border-radius: 0 0 18px 18px; overflow: hidden; height: calc(92vh - 76px); }
+.result-right { width: 100%; height: 100%; background: #fff; overflow: visible; }
+.graph-panel { padding: 8px; background: #fff; height: 100%; overflow: visible; }
 
 @media (max-width: 900px) {
-  .result-split { flex-direction: column; }
-  #tide-table thead { display: none; }
-  #tide-table, #tide-table tbody, #tide-table tr, #tide-table td { display: block; width: 100%; }
-  #tide-table tr { margin-bottom: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: #fff; }
-  #tide-table td { border: 0 !important; padding: 6px 0; text-align: left !important; position: relative; padding-left: 90px; }
-  #tide-table td:before { content: attr(data-label); position: absolute; left: 0; width: 80px; font-weight: 650; color: oklch(0.35 0.02 255); font-size: 12px; }
-  .graph-panel { height: auto; min-height: 300px; }
+  .result-split { height: 80vh; }
 }
 
 @media (max-width: 768px) {
@@ -2986,7 +2971,7 @@ function closeWeatherPopup() {
   if (popup) popup.style.display = 'none';
 }
 
-async function fetchWeatherData(city, port, date, contentEl) {
+function fetchWeatherData(city, port, date, contentEl) {
   try {
     const BADA_PORT_IDS = {
       '남항(인천항)': 158,'연안부두': 158,'영흥항': 151,'오이도항': 380,'전곡항': 618,'평택항': 149,'장고항': 370,'삼길포항': 144,
@@ -3000,52 +2985,12 @@ async function fetchWeatherData(city, port, date, contentEl) {
       return;
     }
 
-    // 1) 표 데이터 시도 (실패해도 계속 진행)
-    let tideData = { data: [] };
-    let tideError = null;
-    try {
-      const qs = new URLSearchParams({ port_id: String(portId), date });
-      const resp = await fetch('/api/tide?' + qs.toString());
-      if (!resp.ok) {
-        // 10일 이후 조회 제한 안내 문구로 통일
-        tideError = '10일 이후에 날씨 정보는 조회가 안됩니다.';
-      } else {
-        const json = await resp.json();
-          if (json.error) tideError = json.error; else tideData = json;
-      }
-    } catch (e) {
-      tideError = '표 요청 실패: ' + e.message;
-    }
-
     const iframeSrc = 'https://www.badatime.com/' + portId + '/graph/' + encodeURIComponent(date);
 
-    // 3) HTML 구성
-    let resultHtml = '<div class="result-split">';
-    resultHtml += ' <div class="result-left"><table id="tide-table"><thead><tr>' +
-      '<th>시간</th><th>풍향</th><th>풍속</th><th>날씨</th><th>기온</th><th>파고/주기</th>' +
-      '</tr></thead><tbody id="tide-tbody">';
-    if (!tideError && tideData.data && tideData.data.length) {
-      tideData.data.forEach((r, idx) => {
-        const weatherDisplay = r.weather_icon_url ? '<img src="' + r.weather_icon_url + '" alt="" width="28" style="vertical-align:middle;margin-right:4px;">' + (r.weather_text||'') : (r.weather_text||'');
-        const windDirDisplay = r.wind_dir_icon_url ? '<img src="' + r.wind_dir_icon_url + '" alt="" width="16" style="vertical-align:middle;margin-right:4px;">' + (r.wind_dir||'') : (r.wind_dir||'');
-        let windSpeedColor = '#4b5563';
-        const ws = parseFloat(r.wind_speed || '0');
-        if (ws >= 5 && ws <= 7.9) windSpeedColor = '#f1c40f'; else if (ws >= 8 && ws <= 15) windSpeedColor = '#c0392b';
-        const bg = (idx % 2 === 0) ? '#fff' : '#f9fafb';
-        resultHtml += `<tr style="background:${bg}" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='${bg}'">` +
-          `<td class='time-cell' data-label='시간'>${r.time||''}</td><td data-label='풍향'>${windDirDisplay}</td>` +
-          `<td data-label='풍속' style='color:${windSpeedColor}'>${r.wind_speed||''}</td><td data-label='날씨'>${weatherDisplay}</td>` +
-          `<td data-label='기온'>${r.temperature||''}</td><td data-label='파고/주기'>${r.wave_height||''}</td></tr>`;
-      });
-    } else {
-      const msg = tideError ? `<span style='color:#dc2626'>${tideError}</span>` : '데이터가 없습니다.';
-      resultHtml += `<tr><td colspan='6' style='padding:24px;text-align:center;'>${msg}</td></tr>`;
-    }
-    resultHtml += '</tbody></table></div>';
-    resultHtml += ' <div class="result-right"><div id="graph-panel" class="graph-panel">' +
-      '<iframe id="badatime-graph-iframe" src="' + iframeSrc + '" style="width:100%;min-height:560px;border:0;background:#fff;" loading="lazy" title="Badatime 그래프"></iframe>' +
+    // 바다타임 물때 그래프만 팝업 전체 폭/높이를 써서 보여준다(표 데이터 패널은 폐지).
+    contentEl.innerHTML = '<div class="result-split"><div class="result-right"><div id="graph-panel" class="graph-panel">' +
+      '<iframe id="badatime-graph-iframe" src="' + iframeSrc + '" style="width:100%;height:100%;border:0;background:#fff;" loading="lazy" title="Badatime 그래프"></iframe>' +
       '</div></div></div>';
-    contentEl.innerHTML = resultHtml;
   } catch (err) {
     contentEl.innerHTML = '<div style="padding:20px;color:#ef4444;text-align:center;">에러: ' + err.message + '</div>';
   }
