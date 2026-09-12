@@ -176,3 +176,78 @@ def test_admin_page_renders_device_watch_summary(client, app, monkeypatch):
     # 형태로 확인한다(원문 그대로는 안 보임 - Jinja tojson 의 정상 동작).
     import json
     assert json.dumps('요약테스트배').strip('"') in html
+
+
+# ---- ip/device_type 이 없는 과거 구독자 - 접속 이력으로 추정 보완 ----
+# (사용자 제보: "기기 정보 없음"만 보이던 문제 - 컬럼이 생기기 전에 만들어진
+# 구독자는 재구독 전까지 계속 비어 있으므로, 같은 사람이 남긴 VisitLog로
+# 최선을 다해 추정해서 보여준다.)
+
+def _seed_legacy_subscriber_and_visit(app, visit_minutes_before=10, visit_ip='203.0.113.5',
+                                      visit_device_type='mobile', is_hosting=False,
+                                      boat_name='추정선단', ship_name='추정배'):
+    """ip/device_type 이 없는(레거시) 구독자 + 그 직전의 VisitLog 접속 기록을
+    함께 심는다. IpLocation 은 미리 캐시해둬서 외부 API 를 실제로 타지
+    않는다(테스트 결정성)."""
+    from datetime import datetime, timedelta
+    with app.app_context():
+        from models import Boat, IpLocation, Subscriber, VisitLog, Watch
+        boat = Boat(name=boat_name, url=f'https://example.com/{boat_name}',
+                   city='인천', port='연안부두')
+        db.session.add(boat)
+        db.session.add(IpLocation(ip=visit_ip, city='Suwon', region='Gyeonggi-do',
+                                  country='South Korea', is_private=False, is_hosting=is_hosting))
+        db.session.commit()
+
+        now = datetime.utcnow()
+        db.session.add(VisitLog(path='/watches', method='GET', ip=visit_ip,
+                                device_type=visit_device_type, user_agent='UA',
+                                visited_at=now - timedelta(minutes=visit_minutes_before)))
+        sub = Subscriber(endpoint=f'https://push.example/legacy-{visit_ip}-{ship_name}',
+                         p256dh='p', auth='a', created_at=now, last_seen_at=now)
+        db.session.add(sub)
+        db.session.commit()
+        watch = Watch(subscriber_id=sub.id, boat_id=boat.id, ship_name=ship_name,
+                      target_date='2026-12-25', active=True)
+        db.session.add(watch)
+        db.session.commit()
+        return sub.id
+
+
+def test_legacy_subscriber_without_ip_is_backfilled_from_recent_visit_log(client, app, monkeypatch):
+    _login(client, monkeypatch)
+    _seed_legacy_subscriber_and_visit(app, visit_minutes_before=10)
+
+    html = client.get('/admin').get_data(as_text=True)
+    assert '"ip": "203.0.113.5"' in html
+    assert '"device_type": "mobile"' in html
+    assert '"ip_estimated": true' in html
+    import json
+    assert json.dumps('수원 (경기도)').strip('"') in html  # place 도 같이 채워졌는지
+
+
+def test_legacy_subscriber_backfill_ignores_visit_older_than_one_hour(client, app, monkeypatch):
+    _login(client, monkeypatch)
+    _seed_legacy_subscriber_and_visit(app, visit_minutes_before=90)  # 1시간 초과
+
+    html = client.get('/admin').get_data(as_text=True)
+    assert '"ip_estimated": true' not in html
+    assert '"ip": null' in html
+
+
+def test_legacy_subscriber_backfill_ignores_hosting_bot_visits(client, app, monkeypatch):
+    _login(client, monkeypatch)
+    _seed_legacy_subscriber_and_visit(app, visit_minutes_before=5, is_hosting=True)
+
+    html = client.get('/admin').get_data(as_text=True)
+    assert '"ip_estimated": true' not in html
+    assert '"ip": null' in html
+
+
+def test_subscriber_with_its_own_ip_is_never_overwritten_by_backfill(client, app, monkeypatch):
+    _login(client, monkeypatch)
+    _seed_watch(app, ip='9.9.9.9', device_type='pc', ship_name='자기IP있음')
+
+    html = client.get('/admin').get_data(as_text=True)
+    assert '"ip": "9.9.9.9"' in html
+    assert '"ip_estimated": true' not in html

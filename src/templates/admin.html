@@ -167,6 +167,10 @@
   .device-kind { flex: none; font-size: 10px; font-weight: 760; padding: 3px 7px; border-radius: 6px; white-space: nowrap; color: #fff; background: oklch(0.46 0.11 235); }
   .device-kind.mobile { background: oklch(0.5 0.13 288); }
   .device-place { font-size: 11.5px; font-weight: 640; color: oklch(0.55 0.015 250); white-space: nowrap; }
+  .device-estimated {
+    flex: none; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; white-space: nowrap;
+    background: oklch(0.97 0.03 85); color: oklch(0.5 0.08 75); border: 1px solid oklch(0.88 0.05 85); cursor: help;
+  }
   .device-agent { font-size: 11px; font-weight: 580; color: oklch(0.6 0.015 250); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .device-meta { display: flex; align-items: center; gap: 7px; flex: none; }
   .device-total { flex: none; font-size: 11.5px; font-weight: 740; padding: 4px 9px; border-radius: 99px; white-space: nowrap; background: oklch(0.955 0.006 240); color: oklch(0.4 0.02 250); }
@@ -551,6 +555,7 @@
           '<span class="device-ip">' + esc(d.ip || '기기 정보 없음') + '</span>' +
           '<span class="device-kind' + (isMobile ? ' mobile' : '') + '">' + esc(d.device_label) + '</span>' +
           '<span class="device-place">' + esc(d.place || '-') + '</span>' +
+          (d.ip_estimated ? '<span class="device-estimated" title="구독 직전 접속 이력으로 추정한 값 - 정확하지 않을 수 있습니다">추정</span>' : '') +
         '</div>' +
         '<div class="device-agent">' + esc(d.user_agent || '') + '</div>';
       row.appendChild(main);

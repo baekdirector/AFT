@@ -1551,6 +1551,32 @@ def admin_page():
 
     devices = admin_list_devices()
 
+    # ip/device_type 컬럼이 생기기 전에 만들어진 구독자는 계속 NULL로 남는다
+    # (구독은 "알림 켜기"를 처음 누를 때만 서버를 부르지, 그 뒤 방문마다
+    # 갱신되지 않는다 - watch_views.push_subscribe 참고) - 접속 이력이 이미
+    # 갖고 있는 정보로 최선을 다해 추정해서 보여준다(사용자 요청: "접속이력엔
+    # 기기정보와 지역정보가 있으니 이걸 활용하라"). 알림을 켜려면 먼저 그
+    # 페이지를 열어야 하므로, 구독 직전(1시간 이내) 가장 가까운 접속 기록의
+    # IP/기기 종류를 빌려 쓰고 "추정" 표시를 달아 실제 값과 구분한다.
+    # 클라우드/봇 추정 접속은 후보에서 제외한다(실제 방문자가 아닐 가능성이
+    # 커서 추정 근거로 부적절).
+    for d in devices:
+        d['ip_estimated'] = False
+        if d['ip'] or not d['created_at']:
+            continue
+        created = datetime.fromisoformat(d['created_at'])
+        for row in logs:
+            if not row.ip:
+                continue
+            loc = locations.get(row.ip)
+            if loc and loc.is_hosting:
+                continue
+            if row.visited_at <= created and (created - row.visited_at) <= timedelta(hours=1):
+                d['ip'] = row.ip
+                d['device_type'] = row.device_type or 'unknown'
+                d['ip_estimated'] = True
+                break
+
     # 기기(구독자) IP도 접속이력과 같은 IpLocation 캐시로 위치를 붙인다 -
     # 같은 사람이 예전에 화면을 본 적 있으면 이미 캐시돼 있어 바로 나온다.
     device_ips = [d['ip'] for d in devices if d['ip']]

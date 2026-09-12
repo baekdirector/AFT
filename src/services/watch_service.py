@@ -292,6 +292,10 @@ def admin_list_devices() -> list[dict]:
             'ip': sub.ip,
             'device_type': sub.device_type,
             'user_agent': sub.user_agent,
+            # 구독 시점(=대략 "알림 켜기"를 누른 시점) - ip/device_type이 없는
+            # 과거 구독자를 VisitLog로 추정 보완할 때 기준 시각으로 쓴다
+            # (views.admin_page 참고).
+            'created_at': sub.created_at.isoformat() if sub.created_at else None,
             'last_seen_at': sub.last_seen_at.isoformat() if sub.last_seen_at else None,
             'watches': serialize_watches(sub_watches),
         })
