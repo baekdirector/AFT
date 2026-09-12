@@ -22,11 +22,17 @@ class WatchLimitExceeded(Exception):
 
 
 def upsert_subscriber(endpoint: str, p256dh: str, auth: str,
-                      label: str | None = None) -> Subscriber:
+                      label: str | None = None, ip: str | None = None,
+                      device_type: str | None = None,
+                      user_agent: str | None = None) -> Subscriber:
     """푸시 구독을 저장한다. 같은 endpoint 면 갱신한다.
 
     브라우저는 구독을 조용히 갱신(rotate)할 수 있으므로 endpoint 를 키로 두고
     upsert 한다. 새 행을 계속 쌓으면 같은 사람에게 중복 알림이 간다.
+
+    ip/device_type/user_agent 는 관리자 콘솔의 "알림 등록" 탭이 기기별로
+    감시를 묶어 보여주기 위한 표시용 정보다(services.visit_logger 와 같은
+    계산). 없으면(예: 과거 구독) 그냥 기존 값을 유지한다.
     """
     if not endpoint or not p256dh or not auth:
         raise ValueError('구독 정보가 불완전합니다.')
@@ -40,6 +46,12 @@ def upsert_subscriber(endpoint: str, p256dh: str, auth: str,
         sub.auth = auth
         if label:
             sub.label = label
+    if ip:
+        sub.ip = ip
+    if device_type:
+        sub.device_type = device_type
+    if user_agent:
+        sub.user_agent = user_agent
     sub.last_seen_at = datetime.utcnow()
     db.session.commit()
     return sub
@@ -245,3 +257,60 @@ def watches_for(boat_id: int, target_date: str, ship_name: str) -> list[Watch]:
             .filter_by(boat_id=boat_id, target_date=target_date,
                        ship_name=ship_name, active=True)
             .all())
+
+
+def admin_list_devices() -> list[dict]:
+    """관리자 콘솔 "알림 등록" 탭용 - 활성 감시가 있는 구독자(기기)별로 묶어
+    돌려준다.
+
+    한 Subscriber = 브라우저 푸시 구독 하나 = 실제 기기 한 대이므로, 이걸
+    그룹 키로 쓴다(IP로 묶으면 같은 공유기 아래 다른 사람이 섞일 수 있다).
+    구독 시점에 저장해둔 ip/device_type/user_agent(모두 nullable - 과거
+    구독자는 없을 수 있다)와, serialize_watches() 로 채운 감시 목록(배 이름·
+    상태·남은자리·예약 URL 포함)을 함께 담는다.
+    """
+    watches = Watch.query.filter_by(active=True).all()
+    if not watches:
+        return []
+
+    by_subscriber: dict[int, list[Watch]] = {}
+    for w in watches:
+        by_subscriber.setdefault(w.subscriber_id, []).append(w)
+
+    subscribers = {
+        s.id: s for s in
+        Subscriber.query.filter(Subscriber.id.in_(by_subscriber.keys())).all()
+    }
+
+    devices = []
+    for sub_id, sub_watches in by_subscriber.items():
+        sub = subscribers.get(sub_id)
+        if sub is None:
+            continue
+        devices.append({
+            'subscriber_id': sub_id,
+            'ip': sub.ip,
+            'device_type': sub.device_type,
+            'user_agent': sub.user_agent,
+            'last_seen_at': sub.last_seen_at.isoformat() if sub.last_seen_at else None,
+            'watches': serialize_watches(sub_watches),
+        })
+    devices.sort(key=lambda d: d['last_seen_at'] or '', reverse=True)
+    return devices
+
+
+def admin_release_watches(watch_ids: list[int]) -> int:
+    """관리자가 소유 구독자와 무관하게 지정한 감시들을 일괄 해제한다.
+
+    관리자 콘솔의 개별 해제/날짜 전체 해제/기기 전체 해제/선택 해제 4가지
+    액션이 전부 이 함수 하나로 수렴한다 - 프론트가 대상 id 집합만 다르게
+    계산해서 보낸다. remove_watch 와 같은 이유로 하드 삭제는 안 한다.
+    """
+    if not watch_ids:
+        return 0
+    rows = Watch.query.filter(Watch.id.in_(watch_ids), Watch.active.is_(True)).all()
+    for w in rows:
+        w.active = False
+    if rows:
+        db.session.commit()
+    return len(rows)

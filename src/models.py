@@ -139,6 +139,14 @@ class Subscriber(db.Model):
     label = db.Column(db.String(100), nullable=True)          # 사람이 알아볼 별칭
     telegram_chat_id = db.Column(db.String(64), nullable=True)  # 보조 채널(추후)
 
+    #: 구독(등록) 시점에 기록하는 기기 정보 - 관리자 콘솔의 "알림 등록" 탭이
+    #: 기기별로 감시를 묶어 보여주는 데 쓴다(services.visit_logger 의
+    #: client_ip()/device_type() 과 같은 계산, 같은 방식). 기존 구독자는
+    #: NULL로 남고 다음 구독 갱신 때 채워진다.
+    ip = db.Column(db.String(64), nullable=True)
+    device_type = db.Column(db.String(16), nullable=True)
+    user_agent = db.Column(db.String(500), nullable=True)
+
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     last_seen_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 

@@ -28,9 +28,12 @@ _TABLET_RE = re.compile(r'iPad|Tablet|Nexus 7|Nexus 9|Nexus 10|KFAPWI', re.IGNOR
 _MOBILE_RE = re.compile(r'Mobi|Android|iPhone|iPod|BlackBerry|Windows Phone', re.IGNORECASE)
 
 
-def _client_ip() -> str | None:
+def client_ip() -> str | None:
     """Render는 프록시 뒤에 있어서 request.remote_addr 만으로는 프록시 IP만
-    보인다. X-Forwarded-For 의 첫 값(원 클라이언트)을 우선 쓴다."""
+    보인다. X-Forwarded-For 의 첫 값(원 클라이언트)을 우선 쓴다.
+
+    구독 저장 시점(watch_views.push_subscribe)에서도 같은 계산이 필요해
+    공개 함수로 뒀다."""
     forwarded = request.headers.get('X-Forwarded-For')
     if forwarded:
         first = forwarded.split(',')[0].strip()
@@ -59,7 +62,7 @@ def log_visit() -> None:
         db.session.add(VisitLog(
             path=request.path,
             method=request.method,
-            ip=_client_ip(),
+            ip=client_ip(),
             device_type=device_type(ua),
             user_agent=ua,
         ))

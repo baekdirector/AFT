@@ -3,10 +3,9 @@
 {% block content %}
 <style>
   :root {
-    --ink: oklch(0.24 0.02 255);
-    --accent: oklch(0.52 0.14 250);
+    --ink: oklch(0.22 0.02 250);
+    --accent: oklch(0.46 0.12 248);
   }
-  .admin-wrap { max-width: 980px; margin: 0 auto; padding: clamp(20px, 4vw, 40px) clamp(14px, 3vw, 28px) 60px; }
   .admin-login-card {
     max-width: 360px; margin: 80px auto 0; padding: 28px 26px; background: #fff;
     border: 1px solid oklch(0.9 0.008 250); border-radius: 16px;
@@ -25,106 +24,686 @@
   }
   .admin-login-card button:hover { filter: brightness(1.05); }
 
-  .admin-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; gap: 12px; flex-wrap: wrap; }
-  .admin-head h1 { font-size: 19px; margin: 0; color: var(--ink); }
-  .admin-head .sub { font-size: 12.5px; color: oklch(0.56 0.015 250); margin-top: 4px; }
+  /* ================= 콘솔 셸 ================= */
+  .admin-console { min-height: 100vh; color: var(--ink); font-feature-settings: 'tnum' 1; }
+  .admin-topbar {
+    position: sticky; top: 0; z-index: 40; background: oklch(1 0 0 / 0.9); backdrop-filter: blur(20px) saturate(160%);
+    border-bottom: 1px solid oklch(0.92 0.008 240);
+  }
+  .admin-topbar-inner {
+    max-width: 1320px; margin: 0 auto; padding: 0 clamp(14px, 2.4vw, 28px); height: 58px;
+    display: flex; align-items: center; gap: 11px;
+  }
+  .admin-logo {
+    width: 32px; height: 32px; flex: none; border-radius: 11px;
+    background: linear-gradient(150deg, oklch(0.52 0.12 248), oklch(0.4 0.1 235));
+    display: grid; place-items: center; font-size: 16px; line-height: 1;
+  }
+  .admin-title-main { font-size: 14px; font-weight: 770; letter-spacing: -0.4px; line-height: 1.25; white-space: nowrap; }
+  .admin-title-sub { font-size: 10.5px; font-weight: 580; color: oklch(0.58 0.012 250); line-height: 1.3; white-space: nowrap; }
+  .admin-pill {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.4px; padding: 4px 8px; border-radius: 7px;
+    color: #fff; background: oklch(0.48 0.14 288); white-space: nowrap; flex: none;
+  }
+  .admin-logout-form { margin-left: 7px; }
   .admin-logout-form button {
-    padding: 8px 14px; border: 1px solid oklch(0.86 0.01 250); border-radius: 10px; background: #fff;
-    font-size: 13px; font-weight: 650; color: oklch(0.4 0.02 255); cursor: pointer;
+    height: 34px; padding: 0 13px; border-radius: 10px; border: 1px solid oklch(0.91 0.008 240);
+    background: #fff; font-size: 12.5px; font-weight: 660; color: oklch(0.44 0.02 250); cursor: pointer; white-space: nowrap;
   }
-  .admin-logout-form button:hover { background: oklch(0.97 0.005 250); }
+  .admin-logout-form button:hover { border-color: oklch(0.8 0.02 240); }
 
-  .visit-day { margin-bottom: 22px; }
-  .visit-day-label {
-    font-size: 13px; font-weight: 700; color: oklch(0.45 0.02 255); margin: 0 0 8px;
-    padding-bottom: 6px; border-bottom: 1px solid oklch(0.9 0.008 250);
+  .admin-body { max-width: 1320px; margin: 0 auto; padding: clamp(14px, 2.2vw, 24px) clamp(14px, 2.4vw, 28px) 60px; }
+
+  .admin-tabs {
+    display: flex; gap: 6px; overflow-x: auto; padding: 4px; background: #fff;
+    border: 1px solid oklch(0.925 0.008 240); border-radius: 14px; margin-bottom: clamp(14px, 2vw, 22px); scrollbar-width: none;
   }
-  .visit-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .visit-table th {
-    text-align: left; font-size: 11.5px; font-weight: 650; color: oklch(0.56 0.015 250);
-    padding: 6px 10px; border-bottom: 1px solid oklch(0.92 0.006 250);
+  .admin-tab {
+    display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 15px; border-radius: 11px;
+    border: none; cursor: pointer; font-size: 13.5px; font-weight: 730; letter-spacing: -0.3px; flex: none;
+    background: transparent; color: oklch(0.42 0.02 250); transition: all 0.15s;
   }
-  .visit-table td { padding: 7px 10px; border-bottom: 1px solid oklch(0.95 0.004 250); color: var(--ink); }
-  .visit-device { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 620; }
-  .visit-empty { text-align: center; padding: 60px 0; color: oklch(0.6 0.015 250); font-size: 13.5px; }
+  .admin-tab.active {
+    background: linear-gradient(145deg, oklch(0.5 0.13 248), oklch(0.4 0.11 238)); color: #fff;
+    box-shadow: 0 5px 14px oklch(0.45 0.12 248 / 0.28);
+  }
+  .admin-tab-count {
+    font-size: 10.5px; font-weight: 780; padding: 2px 7px; border-radius: 99px; white-space: nowrap;
+    background: oklch(0.95 0.006 240); color: oklch(0.52 0.015 250);
+  }
+  .admin-tab.active .admin-tab-count { background: oklch(1 0 0 / 0.22); color: #fff; }
+
+  .admin-panel-head {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 14px;
+  }
+  .admin-panel-head h1 { margin: 0; font-size: clamp(21px, 2.8vw, 27px); font-weight: 800; letter-spacing: -1.1px; line-height: 1.15; }
+  .admin-panel-head .sub { margin: 6px 0 0; font-size: 12.5px; font-weight: 560; color: oklch(0.54 0.015 250); }
+
+  .admin-seg { display: flex; gap: 2px; padding: 3px; background: oklch(0.945 0.006 240); border-radius: 10px; flex: none; }
+  .admin-seg button {
+    height: 30px; padding: 0 13px; border-radius: 8px; border: none; font-size: 12px; font-weight: 700;
+    white-space: nowrap; flex: none; cursor: pointer; transition: all 0.15s; background: transparent; color: oklch(0.54 0.015 250);
+  }
+  .admin-seg button.active { background: #fff; color: oklch(0.26 0.02 250); box-shadow: 0 1px 3px oklch(0.4 0.02 240 / 0.16); }
 
   .bot-filter-note {
-    display: flex; align-items: center; gap: 6px; margin-bottom: 16px; padding: 8px 12px;
-    background: oklch(0.97 0.01 85); border: 1px solid oklch(0.88 0.02 85); border-radius: 10px;
-    font-size: 12.5px; color: oklch(0.45 0.03 80);
+    display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 13px;
+    background: oklch(0.975 0.02 85); border: 1px solid oklch(0.9 0.04 85); margin-bottom: 14px;
+    font-size: 12.5px; font-weight: 620; color: oklch(0.42 0.06 75);
   }
-  .bot-filter-note a { font-weight: 650; }
+  .bot-filter-note a { margin-left: auto; flex: none; font-weight: 740; color: oklch(0.42 0.12 248); }
+
+  .visit-day { margin-bottom: 14px; }
+  .visit-day-head { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+  .visit-day-head .d { font-size: 13px; font-weight: 780; letter-spacing: -0.4px; white-space: nowrap; }
+  .visit-day-head .c { font-size: 11.5px; font-weight: 680; color: oklch(0.56 0.015 250); white-space: nowrap; }
+  .visit-day-head .line { flex: 1; height: 1px; background: oklch(0.94 0.006 240); }
+  .visit-card { background: #fff; border: 1px solid oklch(0.925 0.008 240); border-radius: 14px; overflow-x: auto; }
+  .visit-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 520px; }
+  .visit-table th {
+    text-align: left; font-size: 10.5px; font-weight: 740; letter-spacing: 0.2px; color: oklch(0.56 0.015 250);
+    padding: 9px 14px; background: oklch(0.978 0.004 240);
+  }
+  .visit-table td { padding: 10px 14px; border-top: 1px solid oklch(0.965 0.006 240); color: oklch(0.4 0.015 250); white-space: nowrap; }
+  .visit-table tr:nth-child(even) td { background: oklch(0.99 0.002 240); }
+  .visit-device { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; color: var(--ink); }
+  .visit-page-badge {
+    font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 6px; white-space: nowrap;
+    background: oklch(0.955 0.006 240); color: oklch(0.5 0.015 250);
+  }
+  .visit-page-badge.watches { background: oklch(0.95 0.03 168); color: oklch(0.36 0.08 172); }
+  .visit-page-badge.status { background: oklch(0.955 0.022 235); color: oklch(0.4 0.1 238); }
   .bot-badge {
     display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
     background: oklch(0.94 0.015 85); color: oklch(0.5 0.04 80); font-size: 11px; font-weight: 650;
   }
+  .visit-empty, .admin-empty {
+    text-align: center; padding: 56px 20px; color: oklch(0.6 0.015 250); font-size: 13.5px;
+    background: #fff; border: 1px dashed oklch(0.88 0.01 240); border-radius: 18px;
+  }
+
+  /* ================= 알림 등록 탭 ================= */
+  .watch-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .watch-stat-hero {
+    border-radius: 15px; padding: 14px 16px; color: #fff;
+    background: linear-gradient(145deg, oklch(0.42 0.11 245), oklch(0.32 0.08 240));
+    box-shadow: 0 8px 20px oklch(0.4 0.1 245 / 0.2);
+  }
+  .watch-stat-hero .lbl { font-size: 11.5px; font-weight: 620; opacity: 0.78; }
+  .watch-stat { border-radius: 15px; padding: 14px 16px; background: #fff; border: 1px solid oklch(0.925 0.008 240); }
+  .watch-stat .lbl { font-size: 11.5px; font-weight: 620; color: oklch(0.56 0.015 250); }
+  .watch-stat-val { display: flex; align-items: baseline; gap: 4px; margin-top: 5px; }
+  .watch-stat-val .n { font-size: 28px; font-weight: 800; letter-spacing: -1.4px; line-height: 1; }
+  .watch-stat-val .u { font-size: 13px; font-weight: 640; color: oklch(0.62 0.015 250); }
+
+  .watch-toolbar {
+    display: flex; align-items: center; gap: 9px; flex-wrap: wrap; padding: 10px 13px; background: #fff;
+    border: 1px solid oklch(0.925 0.008 240); border-radius: 13px; margin-bottom: 12px;
+  }
+  .watch-search {
+    display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 10px;
+    background: oklch(0.97 0.005 240); flex: 1 1 220px; min-width: 0;
+  }
+  .watch-search input { flex: 1; min-width: 0; border: none; background: transparent; outline: none; font-size: 13px; font-weight: 560; }
+  .watch-toolbar-btn {
+    height: 36px; padding: 0 13px; border-radius: 10px; border: 1px solid oklch(0.91 0.008 240); background: #fff;
+    font-size: 12px; font-weight: 680; color: oklch(0.44 0.02 250); cursor: pointer; white-space: nowrap; flex: none;
+  }
+  .watch-checked-label { font-size: 12px; font-weight: 620; color: oklch(0.56 0.015 250); white-space: nowrap; }
+  .watch-release-btn {
+    height: 36px; padding: 0 14px; border-radius: 10px; border: none; font-size: 12.5px; font-weight: 720;
+    white-space: nowrap; flex: none; margin-left: auto; background: oklch(0.945 0.006 240); color: oklch(0.72 0.012 250);
+    cursor: default;
+  }
+  .watch-release-btn.enabled { background: oklch(0.55 0.18 25); color: #fff; cursor: pointer; }
+
+  .device-card { background: #fff; border-radius: 16px; overflow: hidden; border: 1px solid oklch(0.925 0.008 240); box-shadow: 0 1px 2px oklch(0.4 0.02 240 / 0.04); margin-bottom: 11px; }
+  .device-card.checked { border-color: oklch(0.6 0.12 248); box-shadow: 0 4px 16px oklch(0.46 0.12 248 / 0.13); }
+  .device-row { display: flex; align-items: center; gap: 11px; flex-wrap: wrap; padding: 13px 15px; }
+  .device-avatar { width: 36px; height: 36px; flex: none; border-radius: 12px; display: grid; place-items: center; font-size: 16px; line-height: 1; background: oklch(0.955 0.022 235); }
+  .device-avatar.mobile { background: oklch(0.95 0.03 288); }
+  .device-main { flex: 1 1 190px; min-width: 0; }
+  .device-ip { font-size: 14px; font-weight: 780; letter-spacing: -0.4px; white-space: nowrap; }
+  .device-kind { flex: none; font-size: 10px; font-weight: 760; padding: 3px 7px; border-radius: 6px; white-space: nowrap; color: #fff; background: oklch(0.46 0.11 235); }
+  .device-kind.mobile { background: oklch(0.5 0.13 288); }
+  .device-place { font-size: 11.5px; font-weight: 640; color: oklch(0.55 0.015 250); white-space: nowrap; }
+  .device-agent { font-size: 11px; font-weight: 580; color: oklch(0.6 0.015 250); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .device-meta { display: flex; align-items: center; gap: 7px; flex: none; }
+  .device-total { flex: none; font-size: 11.5px; font-weight: 740; padding: 4px 9px; border-radius: 99px; white-space: nowrap; background: oklch(0.955 0.006 240); color: oklch(0.4 0.02 250); }
+  .device-open { flex: none; font-size: 11.5px; font-weight: 740; padding: 4px 9px; border-radius: 99px; white-space: nowrap; color: #fff; background: oklch(0.5 0.13 158); }
+  .device-last { font-size: 11px; font-weight: 620; color: oklch(0.6 0.015 250); white-space: nowrap; }
+  .device-btn { height: 32px; padding: 0 12px; border-radius: 9px; border: 1px solid oklch(0.93 0.02 25); background: #fff; font-size: 11.5px; font-weight: 700; color: oklch(0.52 0.17 25); cursor: pointer; white-space: nowrap; }
+  .device-btn:hover { background: oklch(0.97 0.02 25); }
+  .device-expand { flex: none; width: 32px; height: 32px; border-radius: 9px; border: 1px solid oklch(0.92 0.008 240); background: #fff; font-size: 12px; color: oklch(0.44 0.02 250); cursor: pointer; }
+  .chk {
+    flex: none; width: 20px; height: 20px; border-radius: 6px; cursor: pointer; font-size: 11px; line-height: 1;
+    display: grid; place-items: center; transition: all 0.15s; border: 1.5px solid oklch(0.86 0.01 240); background: #fff; color: transparent;
+  }
+  .chk.on { border-color: oklch(0.46 0.12 248); background: oklch(0.46 0.12 248); color: #fff; }
+
+  .device-body { border-top: 1px solid oklch(0.95 0.006 240); background: oklch(0.985 0.004 240); padding: 12px 15px 14px; }
+  .date-group { margin-bottom: 12px; }
+  .date-group:last-child { margin-bottom: 0; }
+  .date-group-head { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; }
+  .date-group-head .lbl { font-size: 12.5px; font-weight: 780; letter-spacing: -0.3px; white-space: nowrap; }
+  .date-group-head .cnt { font-size: 11px; font-weight: 680; color: oklch(0.56 0.015 250); white-space: nowrap; }
+  .date-group-head .line { flex: 1; height: 1px; background: oklch(0.93 0.006 240); }
+  .date-group-head .release-date { flex: none; border: none; background: transparent; font-size: 11.5px; font-weight: 700; color: oklch(0.54 0.015 250); cursor: pointer; white-space: nowrap; }
+  .date-group-head .release-date:hover { color: oklch(0.5 0.17 25); }
+  .date-group-body { background: #fff; border: 1px solid oklch(0.93 0.008 240); border-radius: 12px; overflow: hidden; }
+  .watch-row {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center; gap: 10px;
+    padding: 10px 13px; border-top: 1px solid oklch(0.965 0.006 240);
+  }
+  .watch-row:first-child { border-top: none; }
+  .watch-row.checked { background: oklch(0.976 0.014 248); }
+  .watch-boat { font-size: 13px; font-weight: 740; letter-spacing: -0.3px; white-space: nowrap; }
+  .watch-status { flex: none; font-size: 10px; font-weight: 740; padding: 2px 7px; border-radius: 6px; white-space: nowrap; color: #fff; }
+  .watch-status.tone-open { background: oklch(0.5 0.13 158); }
+  .watch-status.tone-soon { background: oklch(0.66 0.15 68); }
+  .watch-status.tone-off { background: oklch(0.48 0.015 250); }
+  .watch-status.tone-none { background: oklch(0.68 0.012 250); }
+  .watch-meta { font-size: 11px; font-weight: 580; color: oklch(0.58 0.015 250); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .watch-seat { justify-self: end; flex: none; font-size: 11px; font-weight: 740; padding: 4px 9px; border-radius: 99px; white-space: nowrap; background: oklch(0.955 0.006 240); color: oklch(0.52 0.015 250); }
+  .watch-seat.tone-open, .watch-seat.tone-soon { color: #fff; }
+  .watch-seat.tone-open { background: oklch(0.5 0.13 158); }
+  .watch-seat.tone-soon { background: oklch(0.66 0.15 68); }
+  .watch-link {
+    display: inline-flex; align-items: center; justify-content: center; height: 30px; padding: 0 11px; border-radius: 9px;
+    background: oklch(0.955 0.02 248); font-size: 11.5px; font-weight: 700; color: oklch(0.42 0.12 248); white-space: nowrap; flex: none;
+  }
+  .watch-link:hover { background: oklch(0.92 0.04 248); color: oklch(0.42 0.12 248); }
+  .watch-release {
+    flex: none; height: 30px; padding: 0 11px; border-radius: 9px; border: 1px solid oklch(0.92 0.008 240); background: #fff;
+    font-size: 11.5px; font-weight: 680; color: oklch(0.48 0.02 250); cursor: pointer; white-space: nowrap;
+  }
+  .watch-release:hover { border-color: oklch(0.78 0.09 25); color: oklch(0.5 0.17 25); }
+
+  @media (max-width: 768px) {
+    .visit-table { min-width: 480px; }
+    .device-row { padding: 12px; }
+    .watch-row { grid-template-columns: auto minmax(0, 1fr); row-gap: 6px; }
+    .watch-seat { justify-self: start; grid-column: 2; }
+    .watch-link, .watch-release { grid-column: 2; justify-self: start; }
+  }
 </style>
 
-<div class="admin-wrap">
-  {% if not authed %}
-    <div class="admin-login-card">
-      <h1>관리자 로그인</h1>
-      <form method="post" action="{{ url_for('views.admin_page') }}">
-        {{ form.csrf_token }}
-        <div class="admin-field">
-          <label for="admin-username">아이디</label>
-          {{ form.username(id="admin-username", autocomplete="username") }}
-        </div>
-        <div class="admin-field">
-          <label for="admin-password">비밀번호</label>
-          {{ form.password(id="admin-password", type="password", autocomplete="current-password") }}
-        </div>
-        <button type="submit">로그인</button>
-      </form>
-    </div>
-  {% else %}
-    <div class="admin-head">
-      <div>
-        <h1>접속 이력</h1>
-        <div class="sub">최근 {{ retention_days }}일(한국시간) · 최대 1000건</div>
+<div class="admin-console">
+{% if not authed %}
+  <div class="admin-login-card">
+    <h1>관리자 로그인</h1>
+    <form method="post" action="{{ url_for('views.admin_page') }}">
+      {{ form.csrf_token }}
+      <div class="admin-field">
+        <label for="admin-username">아이디</label>
+        {{ form.username(id="admin-username", autocomplete="username") }}
       </div>
+      <div class="admin-field">
+        <label for="admin-password">비밀번호</label>
+        {{ form.password(id="admin-password", type="password", autocomplete="current-password") }}
+      </div>
+      <button type="submit">로그인</button>
+    </form>
+  </div>
+{% else %}
+  <header class="admin-topbar">
+    <div class="admin-topbar-inner">
+      <div class="admin-logo">🛥️</div>
+      <div style="min-width:0;">
+        <div class="admin-title-main">AFT 관리자</div>
+        <div class="admin-title-sub">admin · 관리자 권한</div>
+      </div>
+      <div style="flex:1 1 0; min-width:0;"></div>
+      <span class="admin-pill">ADMIN</span>
       <form class="admin-logout-form" method="post" action="{{ url_for('views.admin_logout') }}">
         <button type="submit">로그아웃</button>
       </form>
     </div>
+  </header>
 
-    {% if hidden_bot_count %}
-      <div class="bot-filter-note">
-        ☁️ 클라우드/봇으로 추정되는 접속 {{ hidden_bot_count }}건을 숨겼습니다
-        · <a href="{{ url_for('views.admin_page', bots='show') }}">모두 보기</a>
-      </div>
-    {% elif show_bots %}
-      <div class="bot-filter-note">
-        클라우드/봇 추정 접속도 함께 표시 중입니다(☁️ 표시)
-        · <a href="{{ url_for('views.admin_page') }}">다시 숨기기</a>
-      </div>
-    {% endif %}
+  {{ form.csrf_token }}
 
-    {% if not groups %}
-      <div class="visit-empty">아직 기록된 접속이 없습니다.</div>
-    {% endif %}
+  <div class="admin-body">
+    <nav class="admin-tabs">
+      <button type="button" class="admin-tab active" data-tab="access">
+        <span>📋</span><span>접속 이력</span><span class="admin-tab-count">{{ total_visits }}</span>
+      </button>
+      <button type="button" class="admin-tab" data-tab="watch">
+        <span>🔔</span><span>알림 등록</span><span class="admin-tab-count" id="stat-tab-count">{{ total_watches }}</span>
+      </button>
+    </nav>
 
-    {% for g in groups %}
-      <div class="visit-day">
-        <div class="visit-day-label">{{ g.day }} · {{ g.rows|length }}건</div>
-        <table class="visit-table">
-          <thead>
-            <tr><th>일시</th><th>기기</th><th>위치</th><th>페이지</th><th>IP</th></tr>
-          </thead>
-          <tbody>
-            {% for r in g.rows %}
-              <tr>
-                <td>{{ r.time }}</td>
-                <td><span class="visit-device">{{ '📱' if r.device == '모바일' else ('💻' if r.device == 'PC' else '❓') }} {{ r.device }}</span></td>
-                <td>{{ r.location }}{% if r.is_hosting %}<span class="bot-badge">☁️ 클라우드/봇</span>{% endif %}</td>
-                <td>{{ r.path }}</td>
-                <td>{{ r.ip }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+    <!-- ================= 접속 이력 ================= -->
+    <section id="tab-access">
+      <div class="admin-panel-head">
+        <div>
+          <h1>접속 이력</h1>
+          <p class="sub">최근 {{ retention_days }}일(한국시간) · 최대 1000건</p>
+        </div>
+        <div class="admin-seg" id="access-device-filter">
+          <button type="button" class="active" data-device="all">전체</button>
+          <button type="button" data-device="pc">PC</button>
+          <button type="button" data-device="mobile">모바일</button>
+        </div>
       </div>
-    {% endfor %}
-  {% endif %}
+
+      {% if hidden_bot_count %}
+        <div class="bot-filter-note">
+          ☁️ 클라우드/봇으로 추정되는 접속 {{ hidden_bot_count }}건을 숨겼습니다
+          <a href="{{ url_for('views.admin_page', bots='show') }}">모두 보기</a>
+        </div>
+      {% elif show_bots %}
+        <div class="bot-filter-note">
+          클라우드/봇 추정 접속도 함께 표시 중입니다(☁️ 표시)
+          <a href="{{ url_for('views.admin_page') }}">다시 숨기기</a>
+        </div>
+      {% endif %}
+
+      {% if not groups %}
+        <div class="visit-empty">아직 기록된 접속이 없습니다.</div>
+      {% endif %}
+
+      {% for g in groups %}
+        <div class="visit-day">
+          <div class="visit-day-head">
+            <span class="d">{{ g.day }}</span><span class="c">{{ g.rows|length }}건</span><span class="line"></span>
+          </div>
+          <div class="visit-card">
+            <table class="visit-table">
+              <thead><tr><th>일시</th><th>기기</th><th>위치</th><th>페이지</th><th>IP</th></tr></thead>
+              <tbody>
+                {% for r in g.rows %}
+                  <tr data-device="{{ r.device_type }}">
+                    <td>{{ r.time }}</td>
+                    <td><span class="visit-device">{{ '📱' if r.device_type == 'mobile' else ('🖥' if r.device_type == 'pc' else '❓') }} {{ r.device }}</span></td>
+                    <td>{{ r.location }}{% if r.is_hosting %}<span class="bot-badge">☁️ 클라우드/봇</span>{% endif %}</td>
+                    <td>
+                      {% if r.path == '/watches' %}<span class="visit-page-badge watches">{{ r.path }}</span>
+                      {% elif r.path == '/status' %}<span class="visit-page-badge status">{{ r.path }}</span>
+                      {% else %}<span class="visit-page-badge">{{ r.path }}</span>{% endif %}
+                    </td>
+                    <td>{{ r.ip }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endfor %}
+    </section>
+
+    <!-- ================= 알림 등록 ================= -->
+    <section id="tab-watch" hidden>
+      <div class="admin-panel-head">
+        <div>
+          <h1>알림 등록</h1>
+          <p class="sub">접속 이력으로 구분한 기기별 빈자리 알림 · 관리자가 직접 해제할 수 있습니다</p>
+        </div>
+        <div class="admin-seg" id="watch-device-filter">
+          <button type="button" class="active" data-device="all">전체</button>
+          <button type="button" data-device="pc">PC</button>
+          <button type="button" data-device="mobile">모바일</button>
+        </div>
+      </div>
+
+      <div class="watch-stats">
+        <div class="watch-stat-hero">
+          <div class="lbl">등록 기기</div>
+          <div class="watch-stat-val"><span class="n" id="stat-device-count">{{ device_count }}</span><span class="u">대</span></div>
+        </div>
+        <div class="watch-stat">
+          <div class="lbl">등록 알림</div>
+          <div class="watch-stat-val"><span class="n" id="stat-total-watches">{{ total_watches }}</span><span class="u">건</span></div>
+        </div>
+        <div class="watch-stat">
+          <div class="lbl">자리 있음</div>
+          <div class="watch-stat-val"><span class="n" id="stat-open-watches" style="color:oklch(0.48 0.12 158);">{{ open_watches }}</span><span class="u">건</span></div>
+        </div>
+        <div class="watch-stat">
+          <div class="lbl">감시 날짜</div>
+          <div class="watch-stat-val"><span class="n" id="stat-watch-dates">{{ watch_date_count }}</span><span class="u">일</span></div>
+        </div>
+      </div>
+
+      <div class="watch-toolbar">
+        <div class="watch-search">
+          <span style="font-size:13px; color:oklch(0.62 0.015 250);">⌕</span>
+          <input type="text" id="watch-query" placeholder="IP · 위치 · 선사 · 배 이름 검색" />
+        </div>
+        <button type="button" class="watch-toolbar-btn" id="watch-expand-all">모두 펼치기</button>
+        <div class="watch-checked-label" id="watch-checked-label">체크해서 한 번에 해제할 수 있어요</div>
+        <button type="button" class="watch-release-btn" id="watch-release-checked">선택 해제</button>
+      </div>
+
+      <div id="admin-devices"></div>
+      <div class="admin-empty" id="admin-devices-empty" hidden>조건에 맞는 기기가 없습니다</div>
+    </section>
+  </div>
+{% endif %}
 </div>
+
+{% if authed %}
+<script>
+(function () {
+  const DEVICES_RAW = {{ devices|tojson }};
+  const csrfToken = document.getElementById('csrf_token').value;
+
+  // ---- 탭 전환 ----
+  document.querySelectorAll('.admin-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.admin-tab').forEach(b => b.classList.toggle('active', b === btn));
+      const tab = btn.getAttribute('data-tab');
+      document.getElementById('tab-access').hidden = tab !== 'access';
+      document.getElementById('tab-watch').hidden = tab !== 'watch';
+    });
+  });
+
+  // ---- 접속 이력 탭: PC/모바일 필터(서버가 이미 렌더링한 행을 숨기기만) ----
+  document.querySelectorAll('#access-device-filter button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#access-device-filter button').forEach(b => b.classList.toggle('active', b === btn));
+      const dev = btn.getAttribute('data-device');
+      document.querySelectorAll('#tab-access tr[data-device]').forEach(tr => {
+        tr.style.display = (dev === 'all' || tr.getAttribute('data-device') === dev) ? '' : 'none';
+      });
+      document.querySelectorAll('#tab-access .visit-day').forEach(day => {
+        const anyVisible = Array.from(day.querySelectorAll('tr[data-device]')).some(tr => tr.style.display !== 'none');
+        day.style.display = anyVisible ? '' : 'none';
+      });
+    });
+  });
+
+  // ---- 알림 등록 탭: 상태(status) 해석 - watches.html의 watchStatusInfo()와
+  // 같은 뜻의 매핑이다(원시 값을 두 화면이 다르게 보여주면 안 된다). ----
+  function watchStatusInfo(w) {
+    if (!w.status) return { tone: 'none', text: '확인 전' };
+    let tone = (w.status === 'full' || w.status === 'reserved') ? 'off'
+             : w.status === 'maintenance' ? 'off'
+             : w.status === 'cancelled' ? 'off'
+             : (w.status === 'open' ? 'open' : 'off');
+    if (tone === 'open' && w.available != null && w.available <= 3) tone = 'soon';
+    const text = tone === 'open' ? '예약가능'
+               : tone === 'soon' ? '마감임박'
+               : w.status === 'maintenance' ? '점검일'
+               : w.status === 'cancelled' ? '운항불가'
+               : (w.display_status || '예약마감');
+    return { tone, text };
+  }
+  function fmtDateLabel(iso) {
+    const p = (iso || '').split('-');
+    if (p.length !== 3) return iso || '-';
+    const d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+    return Number(p[1]) + '월 ' + Number(p[2]) + '일 (' + ['일','월','화','수','목','금','토'][d.getDay()] + ')';
+  }
+  function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  // ---- 상태 ----
+  const state = { query: '', deviceFilter: 'all', checked: new Set(), openIds: new Set(), devices: DEVICES_RAW };
+
+  function dropWatchIds(ids) {
+    const idSet = new Set(ids);
+    state.devices = state.devices
+      .map(d => ({ ...d, watches: d.watches.filter(w => !idSet.has(w.id)) }))
+      .filter(d => d.watches.length > 0);
+    ids.forEach(id => state.checked.delete(id));
+  }
+
+  async function releaseIds(ids, confirmMsg, successMsg) {
+    if (!ids.length) return;
+    if (confirmMsg) {
+      const ok = await showConfirm(confirmMsg, { confirmText: '해제', danger: true });
+      if (!ok) return;
+    }
+    try {
+      const resp = await fetch('{{ url_for("views.admin_release_watches_route") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ watch_ids: ids }),
+      });
+      const body = await resp.json();
+      if (!resp.ok) throw new Error(body.error || '해제 중 오류가 발생했습니다.');
+      dropWatchIds(ids);
+      render();
+      showToast(successMsg || (body.released + '건의 알림을 해제했습니다'), { type: 'success' });
+    } catch (err) {
+      showToast(err.message || '해제 중 오류가 발생했습니다.', { type: 'error' });
+    }
+  }
+
+  // 해제 후 상단 통계 카드/탭 배지도 같이 갱신한다 - state.devices 가 곧
+  // 진실의 원천이라(전체 새로고침 없이 DOM에서 직접 빼는 구조), 서버가 처음
+  // 내려준 값 그대로 남아있으면 방금 한 해제가 반영 안 된 것처럼 보인다.
+  function updateStats() {
+    let totalWatches = 0, openWatches = 0;
+    const dates = new Set();
+    state.devices.forEach(d => d.watches.forEach(w => {
+      totalWatches++;
+      dates.add(w.target_date);
+      if (watchStatusInfo(w).tone === 'open') openWatches++;
+    }));
+    document.getElementById('stat-device-count').textContent = state.devices.length;
+    document.getElementById('stat-total-watches').textContent = totalWatches;
+    document.getElementById('stat-open-watches').textContent = openWatches;
+    document.getElementById('stat-watch-dates').textContent = dates.size;
+    document.getElementById('stat-tab-count').textContent = totalWatches;
+  }
+
+  function render() {
+    updateStats();
+    const q = state.query.trim().toLowerCase();
+    const container = document.getElementById('admin-devices');
+    const empty = document.getElementById('admin-devices-empty');
+    container.innerHTML = '';
+
+    let shown = state.devices.filter(d => state.deviceFilter === 'all' || d.device_type === state.deviceFilter);
+    if (q) {
+      shown = shown.map(d => {
+        const hitDevice = ((d.ip || '') + (d.place || '')).toLowerCase().includes(q);
+        const watches = hitDevice ? d.watches : d.watches.filter(w => ((w.boat_name || '') + (w.ship_name || '')).toLowerCase().includes(q));
+        return { ...d, watches };
+      }).filter(d => d.watches.length > 0);
+    }
+
+    empty.hidden = shown.length > 0;
+
+    let totalChecked = 0;
+    state.devices.forEach(d => d.watches.forEach(w => { if (state.checked.has(w.id)) totalChecked++; }));
+    document.getElementById('watch-checked-label').textContent = totalChecked ? totalChecked + '건 선택됨' : '체크해서 한 번에 해제할 수 있어요';
+    const releaseBtn = document.getElementById('watch-release-checked');
+    releaseBtn.classList.toggle('enabled', totalChecked > 0);
+
+    const allOpen = shown.length > 0 && shown.every(d => state.openIds.has(d.subscriber_id));
+    document.getElementById('watch-expand-all').textContent = allOpen ? '모두 접기' : '모두 펼치기';
+
+    shown.forEach(d => {
+      const allIds = d.watches.map(w => w.id);
+      const devChecked = allIds.length > 0 && allIds.every(id => state.checked.has(id));
+      const isOpen = state.openIds.has(d.subscriber_id);
+      const openCount = d.watches.filter(w => watchStatusInfo(w).tone === 'open').length;
+      const isMobile = d.device_type === 'mobile';
+
+      const card = document.createElement('article');
+      card.className = 'device-card' + (devChecked ? ' checked' : '');
+
+      const row = document.createElement('div');
+      row.className = 'device-row';
+
+      const chk = document.createElement('button');
+      chk.type = 'button';
+      chk.className = 'chk' + (devChecked ? ' on' : '');
+      chk.textContent = '✓';
+      chk.addEventListener('click', () => {
+        if (devChecked) allIds.forEach(id => state.checked.delete(id));
+        else allIds.forEach(id => state.checked.add(id));
+        render();
+      });
+      row.appendChild(chk);
+
+      const avatar = document.createElement('div');
+      avatar.className = 'device-avatar' + (isMobile ? ' mobile' : '');
+      avatar.textContent = isMobile ? '📱' : '🖥';
+      row.appendChild(avatar);
+
+      const main = document.createElement('div');
+      main.className = 'device-main';
+      main.innerHTML =
+        '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">' +
+          '<span class="device-ip">' + esc(d.ip || '기기 정보 없음') + '</span>' +
+          '<span class="device-kind' + (isMobile ? ' mobile' : '') + '">' + esc(d.device_label) + '</span>' +
+          '<span class="device-place">' + esc(d.place || '-') + '</span>' +
+        '</div>' +
+        '<div class="device-agent">' + esc(d.user_agent || '') + '</div>';
+      row.appendChild(main);
+
+      const meta = document.createElement('div');
+      meta.className = 'device-meta';
+      meta.innerHTML =
+        '<span class="device-total">알림 ' + d.watches.length + '건</span>' +
+        (openCount ? '<span class="device-open">자리 ' + openCount + '</span>' : '');
+      const releaseAllBtn = document.createElement('button');
+      releaseAllBtn.type = 'button';
+      releaseAllBtn.className = 'device-btn';
+      releaseAllBtn.textContent = '전체 해제';
+      releaseAllBtn.addEventListener('click', () => releaseIds(allIds, (d.ip || '이 기기') + '의 알림 ' + allIds.length + '건을 모두 해제할까요?'));
+      meta.appendChild(releaseAllBtn);
+      const lastSeen = document.createElement('span');
+      lastSeen.style.cssText = 'font-size:11px;font-weight:620;color:oklch(0.6 0.015 250);white-space:nowrap;';
+      lastSeen.textContent = d.last_seen_at ? d.last_seen_at.slice(0, 16).replace('T', ' ') : '';
+      meta.appendChild(lastSeen);
+      const expandBtn = document.createElement('button');
+      expandBtn.type = 'button';
+      expandBtn.className = 'device-expand';
+      expandBtn.textContent = isOpen ? '⌃' : '⌄';
+      expandBtn.addEventListener('click', () => {
+        if (isOpen) state.openIds.delete(d.subscriber_id); else state.openIds.add(d.subscriber_id);
+        render();
+      });
+      meta.appendChild(expandBtn);
+      row.appendChild(meta);
+      card.appendChild(row);
+
+      if (isOpen) {
+        const byDate = {};
+        d.watches.forEach(w => { (byDate[w.target_date] = byDate[w.target_date] || []).push(w); });
+        const body = document.createElement('div');
+        body.className = 'device-body';
+
+        Object.keys(byDate).sort().forEach(date => {
+          const items = byDate[date].slice().sort((a, b) => (a.boat_name || '').localeCompare(b.boat_name || '', 'ko'));
+          const ids = items.map(w => w.id);
+          const gChecked = ids.every(id => state.checked.has(id));
+
+          const grp = document.createElement('div');
+          grp.className = 'date-group';
+          const head = document.createElement('div');
+          head.className = 'date-group-head';
+          const gChk = document.createElement('button');
+          gChk.type = 'button';
+          gChk.className = 'chk' + (gChecked ? ' on' : '');
+          gChk.textContent = '✓';
+          gChk.addEventListener('click', () => {
+            if (gChecked) ids.forEach(id => state.checked.delete(id));
+            else ids.forEach(id => state.checked.add(id));
+            render();
+          });
+          head.appendChild(gChk);
+          head.innerHTML +=
+            '<span class="lbl">' + esc(fmtDateLabel(date)) + '</span>' +
+            '<span class="cnt">' + ids.length + '척</span><span class="line"></span>';
+          const relBtn = document.createElement('button');
+          relBtn.type = 'button';
+          relBtn.className = 'release-date';
+          relBtn.textContent = '날짜 전체 해제';
+          relBtn.addEventListener('click', () => releaseIds(ids, fmtDateLabel(date) + ' 알림 ' + ids.length + '건을 해제할까요?'));
+          head.appendChild(relBtn);
+          grp.appendChild(head);
+
+          const gBody = document.createElement('div');
+          gBody.className = 'date-group-body';
+          items.forEach(w => {
+            const s = watchStatusInfo(w);
+            const on = state.checked.has(w.id);
+            const r = document.createElement('div');
+            r.className = 'watch-row' + (on ? ' checked' : '');
+            const wChk = document.createElement('button');
+            wChk.type = 'button';
+            wChk.className = 'chk' + (on ? ' on' : '');
+            wChk.textContent = '✓';
+            wChk.addEventListener('click', () => {
+              if (on) state.checked.delete(w.id); else state.checked.add(w.id);
+              render();
+            });
+            r.appendChild(wChk);
+
+            const info = document.createElement('div');
+            info.style.minWidth = '0';
+            info.innerHTML =
+              '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+                '<span class="watch-boat">' + esc(w.ship_name) + '</span>' +
+                '<span class="watch-status tone-' + s.tone + '">' + esc(s.text) + '</span>' +
+              '</div>' +
+              '<div class="watch-meta">' + esc(w.boat_name || '') + '</div>';
+            r.appendChild(info);
+
+            const seat = document.createElement('span');
+            const seatText = s.tone === 'open' ? '남은자리 ' + (w.available ?? '') : s.tone === 'soon' ? '잔여 ' + (w.available ?? '') : s.text;
+            seat.className = 'watch-seat tone-' + s.tone;
+            seat.textContent = seatText;
+            r.appendChild(seat);
+
+            const link = document.createElement('a');
+            link.className = 'watch-link';
+            link.href = w.url || '#';
+            link.target = '_blank';
+            link.rel = 'noopener';
+            link.textContent = '예약 →';
+            r.appendChild(link);
+
+            const relOne = document.createElement('button');
+            relOne.type = 'button';
+            relOne.className = 'watch-release';
+            relOne.textContent = '해제';
+            relOne.addEventListener('click', () => releaseIds([w.id], null, esc(w.ship_name) + ' 알림을 해제했습니다'));
+            r.appendChild(relOne);
+
+            gBody.appendChild(r);
+          });
+          grp.appendChild(gBody);
+          body.appendChild(grp);
+        });
+        card.appendChild(body);
+      }
+
+      container.appendChild(card);
+    });
+  }
+
+  document.getElementById('watch-query').addEventListener('input', e => { state.query = e.target.value; render(); });
+  document.querySelectorAll('#watch-device-filter button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#watch-device-filter button').forEach(b => b.classList.toggle('active', b === btn));
+      state.deviceFilter = btn.getAttribute('data-device');
+      render();
+    });
+  });
+  document.getElementById('watch-expand-all').addEventListener('click', () => {
+    const shownIds = state.devices
+      .filter(d => state.deviceFilter === 'all' || d.device_type === state.deviceFilter)
+      .map(d => d.subscriber_id);
+    const allOpen = shownIds.length > 0 && shownIds.every(id => state.openIds.has(id));
+    if (allOpen) state.openIds.clear();
+    else shownIds.forEach(id => state.openIds.add(id));
+    render();
+  });
+  document.getElementById('watch-release-checked').addEventListener('click', () => {
+    const ids = [];
+    state.devices.forEach(d => d.watches.forEach(w => { if (state.checked.has(w.id)) ids.push(w.id); }));
+    if (!ids.length) return;
+    releaseIds(ids, '선택한 알림 ' + ids.length + '건을 해제할까요?');
+  });
+
+  render();
+})();
+</script>
+{% endif %}
 {% endblock %}

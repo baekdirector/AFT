@@ -1540,19 +1540,84 @@ def admin_page():
         current_rows.append({
             'time': visited_kst.strftime('%Y-%m-%d %H:%M:%S'),
             'device': DEVICE_LABELS.get(row.device_type, row.device_type),
+            'device_type': row.device_type or 'unknown',
             'location': format_location(loc),
             'path': row.path,
             'ip': row.ip or '-',
             'is_hosting': is_hosting,
         })
 
-    return render_template('admin.html', authed=True, groups=groups,
+    from services.watch_service import admin_list_devices
+
+    devices = admin_list_devices()
+
+    # 기기(구독자) IP도 접속이력과 같은 IpLocation 캐시로 위치를 붙인다 -
+    # 같은 사람이 예전에 화면을 본 적 있으면 이미 캐시돼 있어 바로 나온다.
+    device_ips = [d['ip'] for d in devices if d['ip']]
+    try:
+        resolve_missing(device_ips)
+    except Exception as e:
+        current_app.logger.error('기기 IP 위치 조회 중 오류: %s', e, exc_info=e)
+    device_locations = (
+        {row.ip: row for row in IpLocation.query.filter(IpLocation.ip.in_(device_ips)).all()}
+        if device_ips else {}
+    )
+    for d in devices:
+        d['place'] = format_location(device_locations.get(d['ip']))
+        d['device_label'] = DEVICE_LABELS.get(d['device_type'], d['device_type'] or '알 수 없음')
+
+    total_watches = sum(len(d['watches']) for d in devices)
+    open_watches = sum(1 for d in devices for w in d['watches'] if w.get('status') == 'open')
+    watch_dates = {w['target_date'] for d in devices for w in d['watches']}
+    device_type_counts = {'pc': 0, 'mobile': 0, 'tablet': 0, 'unknown': 0}
+    for d in devices:
+        device_type_counts[d['device_type'] or 'unknown'] = device_type_counts.get(d['device_type'] or 'unknown', 0) + 1
+
+    total_visits = sum(len(g['rows']) for g in groups)
+
+    return render_template('admin.html', authed=True, groups=groups, form=form,
                            retention_days=VISIT_LOG_RETENTION_DAYS,
-                           show_bots=show_bots, hidden_bot_count=hidden_bot_count)
+                           show_bots=show_bots, hidden_bot_count=hidden_bot_count,
+                           total_visits=total_visits,
+                           devices=devices, device_count=len(devices),
+                           total_watches=total_watches, open_watches=open_watches,
+                           watch_date_count=len(watch_dates),
+                           device_type_counts=device_type_counts)
 
 
 @views.route('/admin/logout', methods=['POST'])
 def admin_logout():
     session.pop('admin_authed', None)
     return redirect(url_for('views.admin_page'))
+
+
+@views.route('/admin/watches/release', methods=['POST'])
+def admin_release_watches_route():
+    """관리자 콘솔 "알림 등록" 탭의 해제 액션(개별/날짜 전체/기기 전체/선택
+    해제)이 전부 여기로 모인다 - 프론트가 대상 watch id 목록만 다르게 계산해
+    보낸다. 세션 쿠키로 인증되는 관리자 액션이라 CSRF가 실제로 의미 있는데,
+    이 프로젝트는 CSRFProtect 를 전역으로 걸어두지 않아(다른 /api/* 는 로그인
+    없이 구독 endpoint 자체가 신원이라 필요 없었다) 여기서만 수동 검증한다."""
+    if not session.get('admin_authed'):
+        return jsonify({'error': '로그인이 필요합니다.'}), 403
+
+    from flask_wtf.csrf import validate_csrf
+    from wtforms.validators import ValidationError
+    token = request.headers.get('X-CSRFToken', '')
+    try:
+        validate_csrf(token)
+    except ValidationError:
+        return jsonify({'error': 'CSRF 토큰이 올바르지 않습니다. 새로고침 후 다시 시도해주세요.'}), 400
+
+    from services.watch_service import admin_release_watches
+
+    data = request.get_json(silent=True) or {}
+    watch_ids = data.get('watch_ids') or []
+    try:
+        watch_ids = [int(i) for i in watch_ids]
+    except (TypeError, ValueError):
+        return jsonify({'error': '잘못된 요청입니다.'}), 400
+
+    released = admin_release_watches(watch_ids)
+    return jsonify({'released': released})
 

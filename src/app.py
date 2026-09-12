@@ -59,6 +59,29 @@ def _ensure_snapshot_shiptime_columns(app):
         app.logger.exception('snapshots 운항시간 컬럼 보정 실패')
 
 
+def _ensure_subscriber_device_columns(app):
+    """위 두 함수와 같은 이유(Alembic 없이 가볍게 유지) - subscribers 테이블에
+    관리자 콘솔 "알림 등록" 탭이 기기별로 묶어 보여줄 ip/device_type/
+    user_agent 컬럼을 보탠다. shiptime 때와 같은 이유로 전부 nullable이라
+    기존 행을 건드릴 필요가 없다 - 다음 구독 갱신 때 자연히 채워진다."""
+    from sqlalchemy import inspect, text
+    try:
+        inspector = inspect(db.engine)
+        if 'subscribers' not in inspector.get_table_names():
+            return
+        existing_columns = {col['name'] for col in inspector.get_columns('subscribers')}
+        missing = [c for c in ('ip', 'device_type', 'user_agent') if c not in existing_columns]
+        if not missing:
+            return
+        col_types = {'ip': 'VARCHAR(64)', 'device_type': 'VARCHAR(16)', 'user_agent': 'VARCHAR(500)'}
+        with db.engine.begin() as conn:
+            for col in missing:
+                conn.execute(text(f'ALTER TABLE subscribers ADD COLUMN {col} {col_types[col]}'))
+        app.logger.info('subscribers 테이블에 %s 컬럼을 추가했다', missing)
+    except Exception:
+        app.logger.exception('subscribers 기기정보 컬럼 보정 실패')
+
+
 def create_app(test_config=None):
     app = Flask(__name__, static_folder='../img', static_url_path='/img')
     os.makedirs(app.instance_path, exist_ok=True)
@@ -146,6 +169,7 @@ def create_app(test_config=None):
         db.create_all()
         _ensure_ip_location_hosting_column(app)
         _ensure_snapshot_shiptime_columns(app)
+        _ensure_subscriber_device_columns(app)
         from db import initialize_shared_boats
         initialize_shared_boats()
 

@@ -15,6 +15,7 @@ from flask import Blueprint, current_app, jsonify, request
 
 from db import db
 from models import MAX_WATCHES_PER_SUBSCRIBER, Boat, Subscriber
+from services import visit_logger
 from services.notify import webpush
 from services.watch_service import (
     WatchLimitExceeded,
@@ -95,12 +96,16 @@ def push_subscribe():
     """브라우저 푸시 구독을 저장한다. 같은 endpoint 면 갱신한다."""
     data = request.get_json(silent=True) or {}
     keys = data.get('keys') or {}
+    ua = (request.headers.get('User-Agent') or '')[:500]
     try:
         subscriber = upsert_subscriber(
             endpoint=data.get('endpoint'),
             p256dh=keys.get('p256dh'),
             auth=keys.get('auth'),
             label=data.get('label'),
+            ip=visit_logger.client_ip(),
+            device_type=visit_logger.device_type(ua),
+            user_agent=ua,
         )
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
