@@ -289,6 +289,7 @@ def admin_list_devices() -> list[dict]:
             continue
         devices.append({
             'subscriber_id': sub_id,
+            'label': sub.label,
             'ip': sub.ip,
             'device_type': sub.device_type,
             'user_agent': sub.user_agent,
@@ -318,3 +319,17 @@ def admin_release_watches(watch_ids: list[int]) -> int:
     if rows:
         db.session.commit()
     return len(rows)
+
+
+def admin_set_device_label(subscriber_id: int, label: str | None) -> Subscriber | None:
+    """관리자 콘솔에서 기기(구독자)에 별명을 붙이거나(예: "백감독", "김조사")
+    지운다. IP만으로는 누가 누군지 알아보기 어렵다는 요청으로 추가했다 -
+    Subscriber.label 은 원래 있던 컬럼(예전엔 아무도 안 채웠다)을 그대로
+    쓴다. 빈 문자열/공백은 지우는 것으로 취급한다."""
+    sub = Subscriber.query.get(subscriber_id)
+    if sub is None:
+        return None
+    label = (label or '').strip()
+    sub.label = label or None
+    db.session.commit()
+    return sub

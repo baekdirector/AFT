@@ -251,3 +251,97 @@ def test_subscriber_with_its_own_ip_is_never_overwritten_by_backfill(client, app
     html = client.get('/admin').get_data(as_text=True)
     assert '"ip": "9.9.9.9"' in html
     assert '"ip_estimated": true' not in html
+
+
+# ---- 기기 별명(Subscriber.label) ----
+# 사용자 요청: IP/위치만으로는 누구 기기인지 알아보기 어려우니, "백감독"/
+# "김조사" 처럼 관리자가 직접 알아볼 수 있는 이름을 붙일 수 있게 해달라.
+
+def test_admin_list_devices_includes_label(app):
+    sub_id, _watch_id = _seed_watch(app, ship_name='별명테스트배')
+    with app.app_context():
+        from models import Subscriber
+        Subscriber.query.get(sub_id).label = '백감독'
+        db.session.commit()
+
+        from services.watch_service import admin_list_devices
+        devices = admin_list_devices()
+        assert devices[0]['label'] == '백감독'
+
+
+def test_admin_set_device_label_sets_and_clears(app):
+    sub_id, _watch_id = _seed_watch(app, ship_name='설정테스트배')
+    with app.app_context():
+        from services.watch_service import admin_set_device_label
+
+        sub = admin_set_device_label(sub_id, '  김조사  ')
+        assert sub.label == '김조사'  # 앞뒤 공백은 정리된다
+
+        sub2 = admin_set_device_label(sub_id, '')
+        assert sub2.label is None  # 빈 문자열은 지우는 것으로 취급
+
+
+def test_admin_set_device_label_unknown_subscriber_returns_none(app):
+    with app.app_context():
+        from services.watch_service import admin_set_device_label
+        assert admin_set_device_label(999999, '아무개') is None
+
+
+def test_label_route_requires_admin_login(client):
+    rv = client.post('/admin/devices/1/label', json={'label': '아무개'})
+    assert rv.status_code == 403
+
+
+def test_label_route_requires_csrf_token(client, app, monkeypatch):
+    _login(client, monkeypatch)
+    sub_id, _watch_id = _seed_watch(app, ship_name='CSRF별명배')
+
+    rv = client.post(f'/admin/devices/{sub_id}/label', json={'label': '아무개'})
+    assert rv.status_code == 400
+    with app.app_context():
+        from models import Subscriber
+        assert Subscriber.query.get(sub_id).label is None
+
+
+def test_label_route_sets_label_and_returns_it(client, app, monkeypatch):
+    _login(client, monkeypatch)
+    sub_id, _watch_id = _seed_watch(app, ship_name='정상별명배')
+    csrf = _csrf_token(client, '/admin')
+
+    rv = client.post(f'/admin/devices/{sub_id}/label', json={'label': '백감독'},
+                     headers={'X-CSRFToken': csrf})
+    assert rv.status_code == 200
+    assert rv.get_json() == {'label': '백감독'}
+    with app.app_context():
+        from models import Subscriber
+        assert Subscriber.query.get(sub_id).label == '백감독'
+
+
+def test_label_route_rejects_overly_long_label(client, app, monkeypatch):
+    _login(client, monkeypatch)
+    sub_id, _watch_id = _seed_watch(app, ship_name='긴별명배')
+    csrf = _csrf_token(client, '/admin')
+
+    rv = client.post(f'/admin/devices/{sub_id}/label', json={'label': 'a' * 101},
+                     headers={'X-CSRFToken': csrf})
+    assert rv.status_code == 400
+
+
+def test_label_route_unknown_subscriber_returns_404(client, monkeypatch):
+    _login(client, monkeypatch)
+    csrf = _csrf_token(client, '/admin')
+    rv = client.post('/admin/devices/999999/label', json={'label': '아무개'},
+                     headers={'X-CSRFToken': csrf})
+    assert rv.status_code == 404
+
+
+def test_admin_page_shows_saved_label_in_devices_json(client, app, monkeypatch):
+    _login(client, monkeypatch)
+    sub_id, _watch_id = _seed_watch(app, ship_name='화면표시배')
+    with app.app_context():
+        from services.watch_service import admin_set_device_label
+        admin_set_device_label(sub_id, '백감독')
+
+    html = client.get('/admin').get_data(as_text=True)
+    import json
+    assert json.dumps('백감독').strip('"') in html

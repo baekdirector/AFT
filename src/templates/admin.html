@@ -163,7 +163,9 @@
   .device-avatar { width: 36px; height: 36px; flex: none; border-radius: 12px; display: grid; place-items: center; font-size: 16px; line-height: 1; background: oklch(0.955 0.022 235); }
   .device-avatar.mobile { background: oklch(0.95 0.03 288); }
   .device-main { flex: 1 1 190px; min-width: 0; }
+  .device-main-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
   .device-ip { font-size: 14px; font-weight: 780; letter-spacing: -0.4px; white-space: nowrap; }
+  .device-ip-secondary { font-size: 11.5px; font-weight: 620; color: oklch(0.58 0.015 250); white-space: nowrap; }
   .device-kind { flex: none; font-size: 10px; font-weight: 760; padding: 3px 7px; border-radius: 6px; white-space: nowrap; color: #fff; background: oklch(0.46 0.11 235); }
   .device-kind.mobile { background: oklch(0.5 0.13 288); }
   .device-place { font-size: 11.5px; font-weight: 640; color: oklch(0.55 0.015 250); white-space: nowrap; }
@@ -171,7 +173,36 @@
     flex: none; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; white-space: nowrap;
     background: oklch(0.97 0.03 85); color: oklch(0.5 0.08 75); border: 1px solid oklch(0.88 0.05 85); cursor: help;
   }
+  .device-label-edit {
+    flex: none; width: 22px; height: 22px; border-radius: 7px; border: 1px solid transparent; background: transparent;
+    font-size: 12px; color: oklch(0.62 0.015 250); cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .device-label-edit:hover { background: oklch(0.955 0.022 235); border-color: oklch(0.88 0.02 240); color: oklch(0.42 0.12 248); }
   .device-agent { font-size: 11px; font-weight: 580; color: oklch(0.6 0.015 250); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .device-label-overlay {
+    position: fixed; inset: 0; z-index: 90; background: oklch(0.2 0.02 255 / 0.4);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .device-label-box {
+    width: min(92vw, 360px); background: #fff; border-radius: 16px; padding: 20px;
+    box-shadow: 0 20px 50px oklch(0.2 0.03 255 / 0.25);
+  }
+  .device-label-title { font-size: 15.5px; font-weight: 780; letter-spacing: -0.3px; margin-bottom: 6px; }
+  .device-label-desc { font-size: 12px; font-weight: 550; color: oklch(0.56 0.015 250); margin-bottom: 14px; line-height: 1.5; }
+  .device-label-input {
+    width: 100%; height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid oklch(0.86 0.01 250);
+    font-size: 14px; box-sizing: border-box; outline: none;
+  }
+  .device-label-input:focus { border-color: oklch(0.6 0.12 248); }
+  .device-label-actions { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+  .device-label-btn {
+    height: 36px; padding: 0 14px; border-radius: 10px; border: none; font-size: 12.5px; font-weight: 700; cursor: pointer;
+  }
+  .device-label-btn.clear { background: transparent; color: oklch(0.54 0.15 25); margin-right: auto; }
+  .device-label-btn.clear:hover { background: oklch(0.97 0.02 25); }
+  .device-label-btn.cancel { background: oklch(0.95 0.006 240); color: oklch(0.44 0.02 250); }
+  .device-label-btn.save { background: linear-gradient(145deg, oklch(0.5 0.13 248), oklch(0.4 0.11 238)); color: #fff; }
   .device-meta { display: flex; align-items: center; gap: 7px; flex: none; }
   .device-total { flex: none; font-size: 11.5px; font-weight: 740; padding: 4px 9px; border-radius: 99px; white-space: nowrap; background: oklch(0.955 0.006 240); color: oklch(0.4 0.02 250); }
   .device-open { flex: none; font-size: 11.5px; font-weight: 740; padding: 4px 9px; border-radius: 99px; white-space: nowrap; color: #fff; background: oklch(0.5 0.13 158); }
@@ -372,7 +403,7 @@
       <div class="watch-toolbar">
         <div class="watch-search">
           <span style="font-size:13px; color:oklch(0.62 0.015 250);">⌕</span>
-          <input type="text" id="watch-query" placeholder="IP · 위치 · 선사 · 배 이름 검색" />
+          <input type="text" id="watch-query" placeholder="IP · 위치 · 별명 · 선사 · 배 이름 검색" />
         </div>
         <button type="button" class="watch-toolbar-btn" id="watch-expand-all">모두 펼치기</button>
         <div class="watch-checked-label" id="watch-checked-label">체크해서 한 번에 해제할 수 있어요</div>
@@ -474,6 +505,77 @@
     }
   }
 
+  // 기기 별명 - IP/위치만으로는 누구 기기인지 알아보기 어렵다는 요청으로
+  // 추가했다(예: 수원에서 잡히는 기기 = "백감독"). Subscriber.label(원래
+  // 있던 컬럼, 예전엔 아무도 안 채웠다)을 그대로 쓴다.
+  function promptDeviceLabel(current) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'device-label-overlay';
+      const box = document.createElement('div');
+      box.className = 'device-label-box';
+      box.innerHTML =
+        '<div class="device-label-title">기기 별명 설정</div>' +
+        '<div class="device-label-desc">IP·위치만으로 누구 기기인지 알아보기 어려울 때, 알아볼 수 있는 이름을 붙여두세요.</div>';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.maxLength = 100;
+      input.placeholder = '예: 백감독, 김조사';
+      input.value = current || '';
+      input.className = 'device-label-input';
+      box.appendChild(input);
+      const actions = document.createElement('div');
+      actions.className = 'device-label-actions';
+      const clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'device-label-btn clear';
+      clearBtn.textContent = '별명 지우기';
+      clearBtn.hidden = !current;
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.className = 'device-label-btn cancel';
+      cancelBtn.textContent = '취소';
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button';
+      saveBtn.className = 'device-label-btn save';
+      saveBtn.textContent = '저장';
+      actions.appendChild(clearBtn);
+      actions.appendChild(cancelBtn);
+      actions.appendChild(saveBtn);
+      box.appendChild(actions);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+
+      function close(result) { overlay.remove(); resolve(result); }
+      clearBtn.addEventListener('click', () => close(''));
+      cancelBtn.addEventListener('click', () => close(null));
+      saveBtn.addEventListener('click', () => close(input.value));
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); close(input.value); }
+        if (e.key === 'Escape') { e.preventDefault(); close(null); }
+      });
+      setTimeout(() => { input.focus(); input.select(); }, 50);
+    });
+  }
+
+  async function saveDeviceLabel(subscriberId, label) {
+    try {
+      const resp = await fetch('/admin/devices/' + subscriberId + '/label', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ label }),
+      });
+      const body = await resp.json();
+      if (!resp.ok) throw new Error(body.error || '별명 저장 중 오류가 발생했습니다.');
+      state.devices = state.devices.map(d => d.subscriber_id === subscriberId ? { ...d, label: body.label } : d);
+      render();
+      showToast(body.label ? '별명을 저장했습니다: ' + body.label : '별명을 지웠습니다.', { type: 'success' });
+    } catch (err) {
+      showToast(err.message || '별명 저장 중 오류가 발생했습니다.', { type: 'error' });
+    }
+  }
+
   // 해제 후 상단 통계 카드/탭 배지도 같이 갱신한다 - state.devices 가 곧
   // 진실의 원천이라(전체 새로고침 없이 DOM에서 직접 빼는 구조), 서버가 처음
   // 내려준 값 그대로 남아있으면 방금 한 해제가 반영 안 된 것처럼 보인다.
@@ -502,7 +604,7 @@
     let shown = state.devices.filter(d => state.deviceFilter === 'all' || d.device_type === state.deviceFilter);
     if (q) {
       shown = shown.map(d => {
-        const hitDevice = ((d.ip || '') + (d.place || '')).toLowerCase().includes(q);
+        const hitDevice = ((d.ip || '') + (d.place || '') + (d.label || '')).toLowerCase().includes(q);
         const watches = hitDevice ? d.watches : d.watches.filter(w => ((w.boat_name || '') + (w.ship_name || '')).toLowerCase().includes(q));
         return { ...d, watches };
       }).filter(d => d.watches.length > 0);
@@ -550,14 +652,28 @@
 
       const main = document.createElement('div');
       main.className = 'device-main';
+      const primaryLabel = d.label || d.ip || '기기 정보 없음';
+      const secondaryIp = (d.label && d.ip) ? d.ip : null;
       main.innerHTML =
-        '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">' +
-          '<span class="device-ip">' + esc(d.ip || '기기 정보 없음') + '</span>' +
+        '<div class="device-main-row">' +
+          '<span class="device-ip">' + esc(primaryLabel) + '</span>' +
+          (secondaryIp ? '<span class="device-ip-secondary">' + esc(secondaryIp) + '</span>' : '') +
           '<span class="device-kind' + (isMobile ? ' mobile' : '') + '">' + esc(d.device_label) + '</span>' +
           '<span class="device-place">' + esc(d.place || '-') + '</span>' +
           (d.ip_estimated ? '<span class="device-estimated" title="구독 직전 접속 이력으로 추정한 값 - 정확하지 않을 수 있습니다">추정</span>' : '') +
         '</div>' +
         '<div class="device-agent">' + esc(d.user_agent || '') + '</div>';
+      const editLabelBtn = document.createElement('button');
+      editLabelBtn.type = 'button';
+      editLabelBtn.className = 'device-label-edit';
+      editLabelBtn.title = d.label ? '별명 수정' : '별명 설정';
+      editLabelBtn.textContent = '✎';
+      editLabelBtn.addEventListener('click', async () => {
+        const result = await promptDeviceLabel(d.label || '');
+        if (result === null) return;
+        await saveDeviceLabel(d.subscriber_id, result.trim());
+      });
+      main.querySelector('.device-main-row').appendChild(editLabelBtn);
       row.appendChild(main);
 
       const meta = document.createElement('div');

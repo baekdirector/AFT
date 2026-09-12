@@ -1617,13 +1617,12 @@ def admin_logout():
     return redirect(url_for('views.admin_page'))
 
 
-@views.route('/admin/watches/release', methods=['POST'])
-def admin_release_watches_route():
-    """관리자 콘솔 "알림 등록" 탭의 해제 액션(개별/날짜 전체/기기 전체/선택
-    해제)이 전부 여기로 모인다 - 프론트가 대상 watch id 목록만 다르게 계산해
-    보낸다. 세션 쿠키로 인증되는 관리자 액션이라 CSRF가 실제로 의미 있는데,
-    이 프로젝트는 CSRFProtect 를 전역으로 걸어두지 않아(다른 /api/* 는 로그인
-    없이 구독 endpoint 자체가 신원이라 필요 없었다) 여기서만 수동 검증한다."""
+def _admin_action_guard():
+    """관리자 콘솔의 상태 변경 액션(감시 해제/기기 별명 설정 등) 공통 게이트.
+    세션 쿠키로 인증되는 관리자 액션이라 CSRF가 실제로 의미 있는데, 이
+    프로젝트는 CSRFProtect 를 전역으로 걸어두지 않아(다른 /api/* 는 로그인
+    없이 구독 endpoint 자체가 신원이라 필요 없었다) 여기서만 수동 검증한다.
+    막혔으면 (jsonify 에러, 상태코드) 를, 통과했으면 None 을 돌려준다."""
     if not session.get('admin_authed'):
         return jsonify({'error': '로그인이 필요합니다.'}), 403
 
@@ -1634,6 +1633,17 @@ def admin_release_watches_route():
         validate_csrf(token)
     except ValidationError:
         return jsonify({'error': 'CSRF 토큰이 올바르지 않습니다. 새로고침 후 다시 시도해주세요.'}), 400
+    return None
+
+
+@views.route('/admin/watches/release', methods=['POST'])
+def admin_release_watches_route():
+    """관리자 콘솔 "알림 등록" 탭의 해제 액션(개별/날짜 전체/기기 전체/선택
+    해제)이 전부 여기로 모인다 - 프론트가 대상 watch id 목록만 다르게 계산해
+    보낸다."""
+    guard = _admin_action_guard()
+    if guard:
+        return guard
 
     from services.watch_service import admin_release_watches
 
@@ -1646,4 +1656,28 @@ def admin_release_watches_route():
 
     released = admin_release_watches(watch_ids)
     return jsonify({'released': released})
+
+
+@views.route('/admin/devices/<int:subscriber_id>/label', methods=['POST'])
+def admin_set_device_label_route(subscriber_id):
+    """관리자 콘솔 "알림 등록" 탭에서 기기(구독자)에 별명을 붙인다(예: IP만
+    보고는 누군지 알 수 없으니 "백감독"/"김조사" 처럼 알아볼 수 있는 이름을
+    직접 입력). 빈 문자열을 보내면 별명을 지운다."""
+    guard = _admin_action_guard()
+    if guard:
+        return guard
+
+    from services.watch_service import admin_set_device_label
+
+    data = request.get_json(silent=True) or {}
+    label = data.get('label')
+    if label is not None and not isinstance(label, str):
+        return jsonify({'error': '잘못된 요청입니다.'}), 400
+    if label and len(label) > 100:
+        return jsonify({'error': '별명은 100자 이내로 입력해주세요.'}), 400
+
+    sub = admin_set_device_label(subscriber_id, label)
+    if sub is None:
+        return jsonify({'error': '해당 기기를 찾을 수 없습니다.'}), 404
+    return jsonify({'label': sub.label})
 
