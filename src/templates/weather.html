@@ -213,8 +213,38 @@ input.weather-select { background-image: none; }
 .weather-result-header p { margin: 4px 0 0; font-size: 12px; opacity: 0.85; word-break: break-all; }
 .weather-result-header p a { color: #fff; text-decoration: underline; }
 .weather-result-body { background: #fff; }
-.graph-panel { padding: 8px; background: #fff; height: 800px; overflow: visible; }
-.graph-frame { display: block; width: 100%; height: 100%; border: 0; background: #0b1320; }
+
+/* 날씨/물때 자체 위젯 - status.html 팝업과 동일한 위젯을 페이지 형태로
+   그린다(사용자 요청: iframe cross-origin 제약으로 LNB를 못 지우고 패널
+   크기도 못 바꿔서, services.badatime_parser.GraphPageParser가 뽑은 원시
+   데이터만으로 완전히 새로 그리기로 했다). 색은 바다타임 스크립트가 실제
+   쓰는 값을 그대로 재사용(간조 파랑/만조 빨강/일출·일몰 황토/월출·월몰
+   진황토) - 사용자가 이미 본 화면과 위화감 없게. */
+.tide-widget { padding: 18px 22px; }
+.popup-error { text-align: center; padding: 40px; color: oklch(0.55 0.18 25); }
+.tide-widget-top { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+.tide-name { font-size: 21px; font-weight: 800; color: var(--ink); }
+.tide-flow { font-size: 13.5px; font-weight: 650; color: #0e7490; background: oklch(0.95 0.03 200); padding: 5px 13px; border-radius: 999px; }
+.tide-widget-body { display: flex; gap: 26px; flex-wrap: wrap; align-items: flex-start; }
+.tide-timeline { position: relative; flex: 0 0 300px; min-height: 620px; }
+.tide-timeline-bar { position: absolute; left: 50%; top: 8px; bottom: 8px; width: 6px; margin-left: -3px; background: #e5e7eb; border-radius: 3px; }
+.tide-pill {
+  position: absolute; transform: translateY(-50%); max-width: 132px; padding: 6px 10px; border-radius: 10px;
+  color: #fff; font-size: 11.5px; font-weight: 700; line-height: 1.35; box-shadow: 0 2px 6px rgba(0,0,0,.15); white-space: pre-line;
+}
+.tide-pill-left { right: calc(50% + 12px); text-align: right; }
+.tide-pill-right { left: calc(50% + 12px); text-align: left; }
+.tide-hourly-list { flex: 1 1 360px; min-width: 280px; display: flex; flex-direction: column; gap: 6px; }
+.tide-hour-row { display: grid; grid-template-columns: 42px 1fr 44px 1fr 56px; align-items: center; gap: 8px; padding: 8px 11px; background: #f9fafb; border-radius: 10px; font-size: 12.5px; }
+.tide-hour-time { font-weight: 700; color: var(--ink); }
+.tide-hour-weather { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tide-hour-weather img { width: 22px; height: 22px; flex: none; }
+.tide-hour-weather span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tide-hour-temp { font-weight: 650; text-align: center; }
+.tide-hour-wind { display: flex; align-items: center; gap: 5px; color: #475569; min-width: 0; overflow: hidden; }
+.tide-hour-wind img { width: 15px; height: 15px; flex: none; }
+.tide-hour-wind span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tide-hour-wave { color: #475569; text-align: right; white-space: nowrap; }
 
 /* 바다낚시지수(KHOA). 오늘부터 +5일만 예보한다 - 범위 밖 날짜가 훨씬 흔하므로
    '없음'을 오류가 아니라 담담한 안내로 보인다. */
@@ -252,7 +282,8 @@ input.weather-select { background-image: none; }
   .aux-links { order: 2; }
   .weather-form-grid { flex-direction: column; align-items: stretch; }
   .weather-field { flex: 1 1 auto; }
-  .graph-panel { height: 520px; padding: 4px; }
+  .tide-widget-body { flex-direction: column; }
+  .tide-timeline { flex: none; width: 100%; min-height: 460px; }
 }
 </style>
 
@@ -321,25 +352,102 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     const dateStr = dateEl.value; // YYYY-MM-DD
+    const city = citySel.value;
     resultWrap.style.display = 'block';
     titleEl.textContent = `${portName} (${dateStr})`;
-    subEl.textContent = dateStr || '요청 중...';
+    subEl.textContent = '조회 중...';
+    graphPanel.innerHTML = '<div class="popup-error" style="color:var(--ink-soft);">조회 중…</div>';
 
-    graphPanel.innerHTML = `
-      <iframe
-        id="badatime-graph-iframe"
-        src="https://www.badatime.com/${portId}/graph/${encodeURIComponent(dateStr)}"
-        class="graph-frame"
-        loading="lazy"
-        title="Badatime 그래프"
-      ></iframe>
-    `;
-
-    const tideUrl = `https://www.badatime.com/${portId}/tide/${dateStr}`;
-    subEl.innerHTML = `${dateStr} · <a href="${tideUrl}" target="_blank" rel="noopener">${tideUrl}</a>`;
+    try {
+      const qs = new URLSearchParams({ port_id: String(portId), date: dateStr, city: city || '' });
+      const resp = await fetch('/api/tide?' + qs.toString());
+      const body = await resp.json();
+      if (!resp.ok || body.status !== 'success') {
+        graphPanel.innerHTML = `<div class="popup-error">${body.error || '날씨/물때 정보를 불러오지 못했습니다.'}</div>`;
+        subEl.textContent = '조회 실패';
+        return;
+      }
+      subEl.textContent = dateStr;
+      renderTideWidget(body.data, graphPanel);
+    } catch (err) {
+      graphPanel.innerHTML = `<div class="popup-error">에러: ${err.message}</div>`;
+      subEl.textContent = '조회 실패';
+    }
 
     loadFishingIndex(portName, dateStr);
   });
+
+  // 바다타임 iframe을 대체하는 자체 위젯 렌더러(status.html의 날씨/물때
+  // 팝업과 동일 - 이 프로젝트는 화면마다 독립된 script 블록이라 복제한다).
+  function renderTideWidget(data, contentEl) {
+    function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+    function toMinutes(hhmm) {
+      const p = (hhmm || '').split(':');
+      if (p.length !== 2) return null;
+      return Number(p[0]) * 60 + Number(p[1]);
+    }
+    function topPct(hhmm) {
+      const min = toMinutes(hhmm);
+      return min == null ? null : (min / 1440 * 100).toFixed(2) + '%';
+    }
+
+    const TIDE_COLOR = { low: '#2C6ED5', high: '#CC3333' };
+    const SUN_COLOR = '#9D7300', MOON_COLOR = '#5D4400';
+
+    const leftPills = (data.tide_events || []).map(ev => {
+      const top = topPct(ev.time);
+      if (top == null) return '';
+      return '<div class="tide-pill tide-pill-left" style="top:' + top + ';background:' + TIDE_COLOR[ev.type] + ';">' + esc(ev.label) + '</div>';
+    }).join('');
+
+    const sm = data.sun_moon || {};
+    const rightDefs = [
+      ['sunrise', '일출', SUN_COLOR], ['sunset', '일몰', SUN_COLOR],
+      ['moonrise', '월출', MOON_COLOR], ['moonset', '월몰', MOON_COLOR],
+    ];
+    const rightPills = rightDefs.map(([key, label, color]) => {
+      const time = sm[key];
+      const top = topPct(time);
+      if (!time || top == null) return '';
+      return '<div class="tide-pill tide-pill-right" style="top:' + top + ';background:' + color + ';">' + esc(label + ' ' + time) + '</div>';
+    }).join('');
+
+    const hourlyRows = (data.hourly || []).map(h => (
+      '<div class="tide-hour-row">' +
+        '<div class="tide-hour-time">' + esc(h.time) + '</div>' +
+        '<div class="tide-hour-weather">' +
+          (h.weather_icon_url ? '<img src="' + esc(h.weather_icon_url) + '" alt="">' : '') +
+          '<span>' + esc(h.weather_text) + '</span>' +
+        '</div>' +
+        '<div class="tide-hour-temp">' + esc(h.temperature) + '</div>' +
+        '<div class="tide-hour-wind">' +
+          (h.wind_dir_icon_url ? '<img src="' + esc(h.wind_dir_icon_url) + '" alt="">' : '') +
+          '<span>' + esc(h.wind_dir) + ' ' + esc(h.wind_speed) + '</span>' +
+        '</div>' +
+        '<div class="tide-hour-wave">' + esc(h.wave_height) + '</div>' +
+      '</div>'
+    )).join('');
+
+    const tideName = data.mulddae || data.tide_label || '';
+    const flowText = (data.flow_percent != null) ? ('물흐름 : ' + data.flow_percent + '%') : '';
+
+    if (!leftPills && !rightPills && !hourlyRows) {
+      contentEl.innerHTML = '<div class="popup-error">날씨/물때 정보를 찾을 수 없습니다.</div>';
+      return;
+    }
+
+    contentEl.innerHTML =
+      '<div class="tide-widget">' +
+        '<div class="tide-widget-top">' +
+          (tideName ? '<span class="tide-name">' + esc(tideName) + '</span>' : '') +
+          (flowText ? '<span class="tide-flow">' + esc(flowText) + '</span>' : '') +
+        '</div>' +
+        '<div class="tide-widget-body">' +
+          '<div class="tide-timeline"><div class="tide-timeline-bar"></div>' + leftPills + rightPills + '</div>' +
+          '<div class="tide-hourly-list">' + (hourlyRows || '<div class="popup-error">시간대별 날씨 정보가 없습니다.</div>') + '</div>' +
+        '</div>' +
+      '</div>';
+  }
 
   // 바다낚시지수(KHOA). 오늘부터 +5일만 예보되므로 대부분은 '범위 밖'이 정상이다.
   async function loadFishingIndex(portName, dateStr) {

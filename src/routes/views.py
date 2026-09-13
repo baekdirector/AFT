@@ -967,78 +967,38 @@ def api_fishing_index():
 
 @views.route('/api/tide')
 def api_tide():
-    """바다타임 특정 항구 번호(port_id)의 주간(week_container) 정보를 파싱하여 시간대별 데이터 반환.
-    요청: /api/tide?port_id=118
-    반환 필드: time, wind_dir, wind_speed, weather, temperature, wave_info
-    바다타임 페이지에 풍향/풍속/날씨/기온/파고가 모두 없을 수 있으므로 가용한 정보만 구성하고 나머지는 추정/빈값 처리.
+    """바다타임 그래프 페이지(/{port_id}/graph/{date})를 파싱해 시간대별
+    날씨·간조/만조·일출몰/월출몰·물때/물흐름을 한 번에 반환한다.
+
+    예전엔 표 페이지(/tide/{date})와 그래프 페이지(/graph/{date})를 각각
+    따로 파싱하는 API 두 개(TideTableParser 기반 /api/tide, 미사용이던
+    /api/tide_graph)가 있었는데, 그래프 페이지 하나에 더 풍부한 데이터가
+    이미 다 있어서(GraphPageParser) 여기 하나로 합쳤다. status.html 팝업과
+    weather.html이 더 이상 바다타임을 iframe으로 그대로 띄우지 않고 이 API
+    결과로 자체 위젯을 그린다 - iframe은 cross-origin이라 안쪽 LNB를 못
+    지우고 패널 크기도 못 바꿔서(사용자 제보), 원시 데이터만 가져와 우리
+    마크업으로 완전히 새로 그리기로 했다.
+
+    city를 같이 보내면 우리 자체 mulddae 계산(N물 숫자, 서해/남해 규칙별)도
+    함께 내려준다 - 바다타임 쪽 물때 텍스트(data.tide_label, 예: "무시")와는
+    별개 값이라 서로 안 섞는다(기존 방침 유지).
     """
     import requests
-    from bs4 import BeautifulSoup
-    from services.badatime_parser import TideTableParser
-    
+    from services.badatime_parser import GraphPageParser
+
     port_id = request.args.get('port_id', type=int)
     if not port_id:
         return validation_error_response('port_id 파라미터가 필요합니다.'), 400
 
     date_str = request.args.get('date')
-    base_url = f"https://www.badatime.com/{port_id}/tide"
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36'
-    }
-    
-    try:
-        used_url = f"{base_url}/{date_str}" if date_str else base_url
-        resp = requests.get(used_url, headers=headers, timeout=10)
-        if resp.status_code != 200:
-            return error_response(f'페이지 응답 오류: {resp.status_code}', error_code='HTTP_ERROR'), 502
-    except requests.RequestException as e:
-        return error_response(f'요청 실패: {str(e)}', error_code='REQUEST_FAILED'), 500
-
-    soup = BeautifulSoup(resp.text, 'html.parser')
-    week_container = soup.select_one('.week_container')
-    if not week_container:
-        return error_response('week_container를 찾을 수 없습니다.', error_code='PARSING_ERROR'), 500
-
-    table = week_container.select_one('table.week_table')
-    if not table:
-        return error_response('week_table을 찾을 수 없습니다.', error_code='PARSING_ERROR'), 500
-
-    try:
-        parser = TideTableParser(table)
-        data_out = parser.parse()
-        if data_out is None:
-            return error_response('테이블 파싱 실패', error_code='PARSING_ERROR'), 500
-        
-        return success_response({
-            'port_id': port_id,
-            'source_url': used_url if date_str else base_url,
-            'data': data_out,
-            'date': date_str
-        })
-    except Exception as e:
-        return error_response(f'파싱 오류: {str(e)}', error_code='PARSING_ERROR'), 500
-
-# New: Parse Badatime graph page and return only summary table + chart script
-@views.route('/api/tide_graph', methods=['GET'])
-def api_tide_graph():
-    """Badatime 그래프 페이지(/{port_id}/graph/{date})에서 요약 테이블(pc_txt_view)과
-    차트 컨테이너(#chartdiv) 및 해당 스크립트만 추출해서 반환.
-    응답: { status, data: { pc_html, chart_html, script, source_url } }
-    """
-    import requests
-    from bs4 import BeautifulSoup
-    import re
-
-    port_id = request.args.get('port_id', type=int)
-    date_str = request.args.get('date', default='')
-    if not port_id or not date_str:
-        return validation_error_response('port_id와 date가 필요합니다.'), 400
+    if not date_str:
+        return validation_error_response('date 파라미터가 필요합니다.'), 400
 
     source_url = f"https://www.badatime.com/{port_id}/graph/{date_str}"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36'
     }
-    
+
     try:
         resp = requests.get(source_url, headers=headers, timeout=10)
         if resp.status_code != 200:
@@ -1046,63 +1006,24 @@ def api_tide_graph():
     except requests.RequestException as e:
         return error_response(f'요청 실패: {str(e)}', error_code='REQUEST_FAILED'), 500
 
-    soup = BeautifulSoup(resp.text, 'html.parser')
+    data = GraphPageParser(resp.text).parse()
 
-    # PC 요약 테이블
-    pc_view = soup.select_one('div.pc_txt_view')
-    pc_html = pc_view.decode() if pc_view else ''
+    mulddae = None
+    city = request.args.get('city')
+    if city:
+        try:
+            from services.tide.mulddae import get_mulddae
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            mulddae = get_mulddae(target_date, city)
+        except Exception as e:
+            current_app.logger.warning('mulddae 계산 실패(%s, %s): %s', date_str, city, e)
 
-    # 모바일 요약 테이블
-    mo_view = soup.select_one('div.mo_txt_view')
-    mo_html = mo_view.decode() if mo_view else ''
+    data['mulddae'] = mulddae
+    data['port_id'] = port_id
+    data['date'] = date_str
+    data['source_url'] = source_url
 
-    # 차트 컨테이너와 스크립트
-    chart_div = soup.select_one('#chartdiv') or soup.select_one('.graph-wrap') or soup.select_one('#main_chart')
-    chart_html = ''
-    script_text = ''
-    if chart_div:
-        chart_div_copy = BeautifulSoup(str(chart_div), 'html.parser')
-        chart_root = chart_div_copy.select_one('#chartdiv') or chart_div_copy.select_one('.graph-wrap') or chart_div_copy.select_one('#main_chart')
-        if chart_root:
-            style_val = chart_root.get('style', '')
-            if 'height:' not in style_val:
-                style_val = (style_val + '; height: 460px;').strip('; ')
-                chart_root['style'] = style_val
-        chart_html = str(chart_div_copy)
-
-        script_nodes = chart_div.find_all('script')
-        if not script_nodes:
-            next_script = chart_div.find_next('script')
-            if next_script:
-                script_nodes.append(next_script)
-        if not script_nodes:
-            script_nodes = [s for s in soup.find_all('script') if 'main_chart' in (s.get_text('') or '') or 'chartdiv' in (s.get_text('') or '') or 'am4core' in (s.get_text('') or '')]
-
-        if script_nodes:
-            script_text = '\n'.join(s.get_text('\n') for s in script_nodes if s)
-
-        def absolutize_urls(html_text: str) -> str:
-            html_text = re.sub(r'(["\'])(\/\/(?:images|img)\.badatime\.com[^"\']*)(["\'])', r"https:\1\2\3", html_text)
-            html_text = re.sub(r'(["\'])\/img\/icon\/(sunrise|sunset)\.svg(["\'])', r'\1/img/\2.svg\3', html_text)
-            return html_text
-
-        def absolutize_script_urls(script_text: str) -> str:
-            script_text = re.sub(r'(["\'])\/img\/icon\/(sunrise|sunset)\.svg(["\'])', r'\1/img/\2.svg\3', script_text)
-            return script_text
-
-        pc_html = absolutize_urls(pc_html)
-        mo_html = absolutize_urls(mo_html)
-        chart_html = absolutize_urls(chart_html)
-        if script_text:
-            script_text = absolutize_script_urls(script_text)
-
-    return success_response({
-        'pc_html': pc_html,
-        'mo_html': mo_html,
-        'chart_html': chart_html,
-        'script': script_text,
-        'source_url': source_url,
-    })
+    return success_response(data)
 
 @views.route('/map')
 def map_page():

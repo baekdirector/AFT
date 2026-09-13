@@ -1,0 +1,3942 @@
+
+
+
+
+
+
+<html>
+<head>
+<link rel="shortcut icon" href="//images.badatime.com/favicon.ico">
+<meta http-equiv="Content-Type" content="text/html;">
+<meta name="viewport" content="user-scalable=yes, initial-scale=1.0, width=device-width">
+<TITLE>소호항 물때 그래프, 소호항 상세 물때 정보검색 - 바다타임</TITLE>
+<meta name="description" content = "소호항 물때 그래프, 소호항 상세 물때, 소호항 물때표, 소호항 간조만조시간, 물세기, 음력날짜, 월령, 달모양, 일출일몰시간, 풍향, 풍속, 파고, 소호항 날씨 소호항 바다 관련 정보">
+<meta name="keywords" content="소호항 물때 그래프, 소호항 상세 물때, 소호항 물때, 소호항 간조 시간, 소호항 만조 시간, 일출일몰시간, 소호항 날씨, 소호항 바람, 소호항 풍향, 소호항 풍속, 소호항 파고, 소호항 습도,소호항 앞바다 날씨 소호항 바다 수온">
+<meta name="classification" content="소호항 물때 그래프, 소호항 상세 물때, 소호항 날씨, 소호항 바람 예보, 최대 풍속, 풍향, 파도,소호항 윈디 날씨 ,소호항 날씨 소호항 바다 관련 정보">
+<link rel="stylesheet" href="/r/css/css_260819.css?v=3" type="text/css">
+<script src="/js/jquery-3.2.1.min.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
+<script src="https://cdn.amcharts.com/lib/4/core.js"></script>
+<script src="https://cdn.amcharts.com/lib/4/charts.js"></script>
+<script src="https://cdn.amcharts.com/lib/4/themes/animated.js"></script>
+<script src="https://cdn.amcharts.com/lib/4/lang/ko_KR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-shape@3"></script>
+<style>
+.middle-container { width: 100%; display: flex; justify-content: center; }
+.middle {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  max-width: 1180px;
+}
+aside.sidebar {
+  flex: 0 0 220px; width: 220px; min-width: 220px; max-width: 220px;
+}
+.sidebar-inner { padding-right: 10px; }
+main.content {
+  flex: 1 1 auto;
+  min-width: 0;              /* flex overflow 방지 핵심 */
+}
+
+.date_view { display: flex; align-items: center; background:#F6F6F6;}
+
+.graph-wrap{
+  width:calc(100% - 2px);
+  display:flex;
+  align-items:flex-start;
+  border: 1px solid #DEDEDE;
+  
+}
+
+#chartdiv{
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
+  height: 620px;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: #fff;
+  padding: 8px 0; 
+}
+
+.chart-topbar{
+  position:absolute;
+  left:0;
+  right:0;
+  height:44px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  box-sizing:border-box;
+  background:#fff;
+}
+
+/* ✅ 실제 그래프/타임라인이 들어갈 영역 */
+#chartBody{
+  position:absolute;
+  left:0;
+  right:0;
+  top: calc(16px + 44px);   /* padding-top 8 + topbar 46 */
+  bottom:16px;              /* padding-bottom 8 유지 */
+  overflow:hidden;
+}
+
+/* 텍스트 스타일은 취향대로 */
+.ct-mid { display:flex; align-items:center; gap:8px; min-width:0; justify-content:center; }
+.ct-mid{ flex:1; justify-content:center; }
+.ct-tide{ font-weight:800; font-size:24px; white-space:nowrap; font-weight:700;}
+.ct-flow{ font-weight:600; font-size:15px; color: #003A2D;}
+.ct-moon{ width:24px; height:24px; }
+.ct-moon-text{ font-weight:800; font-size:12px; color:#555; }
+
+.weather-panel{
+  flex: 0 0 280px;
+  width: 280px;
+  border-left:1px solid #DEDEDE;
+  background:#fff;
+  overflow:hidden;
+  height: 620px;
+  box-sizing:border-box;
+}
+
+.weather-list{
+  height: 620px;
+  overflow:auto;
+}
+
+/* ✅ 4단 그리드 (시간 | 날씨 | 기온 | 풍) */
+.wp-row{
+  display: grid;
+  grid-template-columns: 48px 1fr 64px 78px;
+  align-items: center;
+  border-bottom: 1px solid #EFEFEF;
+  min-height: 64px;
+}
+
+/* ✅ grid item들이 내용 때문에 폭 늘어나는 걸 방지 */
+.wp-row > div{
+  min-width: 0;
+}
+
+/* 2) 날씨 칸 */
+.wp-weather{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+  min-width: 0;
+}
+
+/* ✅ 왼쪽 시간 컬럼(회색 배경) */
+.wp-time{
+  height: 100%;
+  background:#F3F3F3;
+  border-right:1px solid #E6E6E6;
+  border-bottom:1px solid #E6E6E6;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  font-size:14px;
+  font-weight:700;
+  box-sizing:border-box;
+}
+
+.wp-ico{
+  width: 24px;
+  height: 24px;
+}
+
+.wp-sky{
+  font-size: 14px;
+  line-height: 1.2;
+  color: #2A5580;
+  font-weight: 600;
+
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+
+  overflow: hidden;
+  word-break: break-word;   /* ✅ 긴 문장 대비 */
+}
+.wp-right{
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+/* 3) 기온/강수 칸 */
+.wp-tempbox{
+  display:flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 4px;
+  min-width: 0;
+}
+
+.wp-temp{
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.wp-rain{
+  margin-top: 6px;
+  font-size: 14px;
+  color: #000;
+  font-weight: 400;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* ✅ 칸 좁으면 ... 처리 */
+}
+
+/* ✅ 오른쪽: 풍향/풍속/파고 (세로 2~3줄) */
+.wp-wind{
+  padding:7px 12px 7px 0px;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  color:#111;
+  font-size:14px;
+  font-weight: 500;
+  line-height:1.15;
+}
+
+.wp-wind{
+  min-width: 0;
+}
+.wp-wind-top{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:4px;
+  white-space:nowrap;
+}
+.wp-wind-top img{
+  width:16px;
+  height:16px;
+  vertical-align:middle;
+}
+.wp-wind-sub{
+  text-align:right;
+  color:#000;
+  font-weight: 500;
+}
+.muted{
+  color:#656565;
+  font-weight:400;
+  font-size: 12px;
+}
+
+/* ✅ 오늘 '현재' 행 강조(옵션) */
+.wp-row.now .wp-time{
+  background:#FBF2E3;
+}
+.wp-row.now{
+  background:#FBF2E3;
+}
+
+#timeline{
+  border-radius: 24px;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 20px;
+  transform: translateX(-50%);
+  background: #D6D6D6;
+  border-radius: 20px;
+}
+
+#labels-container{
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.timeline-label{
+  position: absolute;
+  padding-top:6px;
+  padding-bottom:6px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-weight: 700;
+  color: #000;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.timeline-label.top{ top: 0px; }
+.timeline-label.mid{
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.timeline-label.bottom{ bottom: 0px; }
+
+#labels-container{
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.custom-label{
+  position: absolute;
+  padding: 6px 8px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: pre-line;
+  text-align: center;
+  transform: translateY(-50%);
+}
+
+.custom-label.tide{
+  left: calc(50% - 28px);
+  transform: translate(-100%, -50%);
+}
+.custom-label.sun, .custom-label.moon{
+  left: calc(50% + 30px);
+  transform: translate(0, -50%);
+}
+
+.current-time{
+  width:38px;
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  font-weight: 600;
+  background: #000;
+  color:white;
+  padding: 2px;
+  border-radius: 20px;
+  text-align: center;
+  z-index: 4;
+}
+
+.blinking-text{ display:inline-block; }
+
+/* 하단 amCharts 영역 */
+#main_chart {
+  width: calc(100% - 2px);
+  height:460px;
+  border-left: 1px solid #DEDEDE;
+  border-right: 1px solid #DEDEDE;
+  border-bottom: 1px solid #DEDEDE;
+}
+
+.week_table-container {
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto;
+    position: relative;
+}
+
+.week_table {
+    border-collapse: collapse;
+    width: max-content; /* 가로 너비를 자동으로 조절 */
+    text-align: center;
+}
+
+.week_table td {
+    font-size: 14px;
+    min-width: 70px;
+    max-width: 70px;
+    font-weight: 500;
+    padding: 6px;
+    color: #000;
+}
+
+/* 첫 번째 열(항목명) 고정 */
+.week_table td:first-child {
+    position: sticky;
+    left: 0;
+    background: white; /* 고정된 열이 가려지지 않도록 배경 설정 */
+    z-index: 2;
+    font-weight: 600;
+    text-align: left;
+}
+.bold-placeholder::placeholder {
+  color: #999 !important; /* 진한 파란색 */
+  font-weight: 500 !important;
+}
+
+#main_chart {
+  width: calc(100% - 2px);
+  height:460px;
+  border-left: 1px solid #DEDEDE; 
+  border-right: 1px solid #DEDEDE; 
+  border-bottom: 1px solid #DEDEDE;
+  
+}
+
+.tabcontent > ul > li { display: block; } 
+li:hover {
+  cursor:pointer;
+  text-decoration: underline;
+}
+
+.pc_menubar{
+  display: flex;
+  justify-content: center;  /* ✅ PC 가운데정렬 핵심 */
+  align-items: center;
+  gap: 0;                   /* 필요시 */
+}
+.mo_menubar{ display: none; }
+
+@media (min-width: 769px) {
+    .pc_menubar { display: flex; }
+	.mo_menubar { display: none; }
+}
+@media(max-width: 768px) {
+	.pc_menubar { display: none; }
+	.mo_menubar{
+		display: flex;
+		justify-content: flex-start; /* 모바일은 보통 왼쪽 + 가로스크롤 */
+		align-items: center;
+	}
+	.graph-wrap{ display:block; }
+    .weather-panel{ display:none; }
+	#main_chart {
+	  height:440px;
+	  border-left: none;
+	  border-right: none;
+	}
+	#chartdiv{ height: 520px; }
+}
+@media(max-width: 499px) {
+	#main_chart {
+	  height:420px;
+	}
+}
+
+/* ✅ PC에서는 기존 week_container(표) 숨김: 이미지처럼 “오른쪽 패널”만 쓸 때 */
+@media(min-width: 768px){
+  .week_container{ display:none; }
+}
+</style>
+</head>
+<body topmargin="0" leftmargin="0"  marginwidth="0" marginheight="0">
+
+
+
+
+
+
+
+
+
+
+
+
+
+<head>
+<LINK rel="SHORTCUT ICON" href="//images.badatime.com/favicon.ico">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/bxslider/4.2.12/jquery.bxslider.min.js"></script>
+
+<style>
+.header--index { background: #FFF; box-shadow: 0 1px 4px 1px rgba(159, 159, 159, 0.25); }
+.header.header--index { background: #FFF; box-shadow: 0 1px 4px 1px rgba(159, 159, 159, 0.25); }
+
+a { text-decoration:none; }
+a:hover { text-decoration: underline; }
+
+.scroll_lock { overflow: hidden; }
+@media (min-width: 768px) { .scroll_lock { position: fixed; } }
+
+.text-container { animation: marquee 10s linear infinite; }
+@keyframes marquee { 0%{transform:translateX(0);} 100%{transform:translateX(-100%);} }
+
+.header-fix {width:100%;max-width:1180px;margin:auto;}
+.header__inner {display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+.header__item.logo {text-align:left;padding:1rem;flex:3;width:140px;height:30px;text-decoration:none;}
+.header__item.logo .logo {width:140px;height:30px;}
+.header__item.search {flex:4;margin:1.25rem 0;}
+.header__item.menu {text-align:center;padding:.5rem 1rem;flex:3;}
+.header__item .header__a {font-size:14px;font-weight:600;}
+.header__form {display:flex;justify-content:flex-end;}
+.header__hr {border:none;border-bottom:1px solid #dbdbdb;width:100%;margin:0;padding:0;position:absolute;left:0;}
+.header__hamburger_on_off_btn { height:auto; cursor:pointer; padding-right:6px; }
+
+.header__hamburger_outer_back { position:absolute; top:0; left:0; z-index:9999; width:100%; height:100vh; display:flex; }
+.header__hamburger_inner_left { width:calc(100% - 400px); background:rgb(100 100 100 / 70%); }
+.header__hamburger_inner_right { background:#fff; width:100%; max-width:400px; margin-left:auto; position:relative; overflow-y:scroll}
+.header__hamburgers_back { margin:40px 32px; }
+.header__hamburgers_close_btn { position:absolute; top:14px; right:28px; cursor:pointer; }
+.header__hamburgers_menu { display:flex; cursor:pointer; margin:20px 0px 16px 30px; color:#555; user-select:none; -webkit-tap-highlight-color:transparent;}
+
+.dp_none { display:none; }
+
+/* search box css start */
+.input-group { position:relative; display:flex; align-items:center; }
+.form-control {display:block;width:100%;padding:.375rem .75rem;font-size:1rem;font-weight:400;line-height:1.5;color:#495057;background-color:#fff;background-clip:padding-box;border:none;border-radius:.25rem;transition:border-color .15s ease-in-out,box-shadow .15s ease-in-out;outline:none;}
+
+.header__search_form  {margin:0; position:relative; height:38px; width:440px; z-index:99;}
+.header__search_form_outline { border:2px solid #0D47A1; border-radius:20px; background:#fff; }
+.header__input_part .header__input_part__pre_logo { padding:0 0 0 16px; outline:none; border:none; align-self:center; }
+.header__input_part .header__input { width:100%; padding:8px 12px; font-family:Arial; color:#333; font-size:14px; outline:none; line-height:1rem; border-radius:0; background:transparent; }
+.header__input_part .header__input::placeholder { color:#999; }
+.header__input_part .header__submit { padding:0 14px; outline:none; border:none; background:transparent; }
+.header__input_part .header__submit .submit { width:18px; height:auto; }
+
+.header__searchwords_hr { width:calc(100% - 28px); margin:0; border:0; border-bottom:1px solid #eee; }
+.header__searchwords_inner { margin:0px 0px 16px; position:relative; }
+.header__words_back { display:flex; align-items:center; flex-wrap:wrap; font-size:14px; color:#767676; padding:10px 16px; position:relative; cursor:pointer; flex-wrap: nowrap; min-width: 0;}
+.header__words_img { padding:0 12px 0 0; }
+.header__words { display: flex; overflow:hidden; text-overflow:ellipsis; font-size:14px; display: flex; min-width: 0; white-space: nowrap;}
+.color_icpart { color:#f7941d; }
+.header__recent_del { margin-left:auto; cursor:pointer; padding-left:8px;}
+
+.header__words .addr{
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+}
+
+.header__words span:not(.addr){
+  flex: 0 0 auto;
+}
+
+#searchWordsInner .header__words {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+#searchWordsInner .header__words .name {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+#searchWordsInner .header__words .addr {
+  font-size: 12px;
+  color: #9E9E9E;
+  position: relative;
+  top: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 기본은 숨김(PC 포함) */
+.mobile-warning-chip { display: none; }
+
+@media(min-width: 769px) {
+  .mobileman7 {display:none;}
+  .warning-msg {display:none;}
+  .typoon-msg {display:none;}
+  .header__words_back.on { background:#eee; }
+  .header__recent_del { display:none; }
+  .header__words_back.on .header__recent_del { display:block; }
+  .header__recent_del.on img { background:#dbdbdb; padding:2px; position:absolute; top:8px; right:14px; border-radius:100%; }
+}
+
+@media (max-width: 768px) {
+  .header__search_form { min-width:240px; width:60vw; height:36px; }
+  .header__input_part .header__input_part__pre_logo { padding:0 0 0 1rem }
+  .header__input_part .header__input { padding:8px 10px; line-height:16px; }
+  .header__input_part .header__submit { display:none; padding:0 20px 0 0; }
+  .header__searchwords { position:fixed; z-index:10; top:0; left:0; width:100%; height:100%; background:#fff; border-radius:0; border:none; }
+  .header__searchwords_top { padding:0 20px; display:flex; align-items:center; height:61px; }
+  .header__searchwords_input { width:100%; height:38px; font-size:16px; line-height:1; background:#fff; padding:10px; border-radius:20px; border-top-right-radius:0; border-bottom-right-radius:0; outline:none; }
+  .header__searchwords_button { border:none; padding:0; background:#fff; cursor:pointer; }
+  .header__searchwords_button.close { margin-right:8px; }
+  .header__searchwords_button.reset, .header__searchwords_button.submit { background:#fff; padding:9px; }
+  .header__searchwords_button.submit { border-top-right-radius:20px; border-bottom-right-radius:20px; }
+  .header__words_back { font-size:16px; padding:18px 20px; }
+  .header__words_img { width:20px; height:20px; padding:0 20px 0 2px; }
+  .header__words { font-size:16px; }
+  .header__recent_del { padding-right:8px; }
+  .header__recent_del img { width:20px; height:20px; }
+
+  .mobile-warning-chip {
+    display: inline-flex;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    gap: 6px;
+    border-radius: 4px;
+    background: #FFE7E5;
+    color: #AE0606;
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .mobile-warning-chip .header__a {
+    color: #AE0606;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width:768px) {
+	.header__item.logo {width:50px;height:34px; padding: 1rem;}
+	.header__item.logo .logo {width: 50px; height:30px; padding:4px; content:url(/img/logo_m1.png);}
+	.header__inner { flex-wrap: nowrap; gap: 12px;}
+	.header__nav {padding-left: 0;}
+	.header__item {min-width: 0;}
+	.header__item.logo {flex: 0 0 auto;padding: .3rem;}
+	.header__item.search {flex: 1 1 auto; min-width: 0; margin: .6rem 0;}
+	.header__search_form {width: 100% !important;min-width: 0 !important;}
+	.header__input_part .header__input { min-width: 0;}
+	.header__item.menu {flex: 0 0 auto; padding: 0;}
+}
+
+@media (max-width:399px) {
+	.header__inner { flex-wrap: nowrap; gap: 8px;}
+}
+
+@media not all and (min-width: 769px) {
+  #pc_main { display:none; }
+  #mo_main { display:block; }
+  #header__text { display:none; }
+  .header__hamburger { display:block; }
+}
+@media all and (min-width: 769px) {
+  #pc_main { display:block; }
+  #mo_main { display:none; }
+  #header__text { display:block; }
+  .header__hamburger { display:none; }
+}
+
+@keyframes blink { 0% {opacity:0;} 100% {opacity:1;} }
+.blinking { animation: blink 1s ease-in-out infinite alternate; }
+
+.android-only { display:none; }
+</style>
+</head>
+
+<header class="header">
+  <form id="postForm" method="POST" action="/warning">
+    <input type="hidden" name="selectedValue" id="selectedValue">
+  </form>
+  <center class="header-fix">
+    <div class="header__inner">
+
+      <div class="header__item logo">
+        <a href="https://www.badatime.com">
+          <img src="/img/badatime_logo2.png" id="badatimeLogo" class="logo" alt="badatime" />
+        </a>
+      </div>
+
+      <div class="header__item search">
+        <form class="header__search_form" name="frmSearch" method="GET" action="/search/" onsubmit="return searchInputCheck(this)">
+          <div class="header__search_form_outline">
+            <div>
+              <div class="header__input_part input-group">
+                <div class="header__input_part__pre_logo mobilenone5">
+                  <img src="/img/icon/ic_search_gray.png" width="16" height="16">
+                </div>
+                <!-- ✅ PC 입력만 name=seaword 유지 -->
+                <input type="text" class="header__input font_size_basic form-control"
+                       placeholder="지역 검색" id="sSearchWord" name="seaword" value="" autocomplete="off">
+                <button type="submit" class="header__submit">
+                  <img class="submit" src="/svg/search_btn.svg" width="18" height="18">
+                </button>
+              </div>
+
+              <div class="header__searchwords dp_none" id="searchWordsList">
+                <div class="header__searchwords_top mobileman7">
+                  <button type="button" class="header__searchwords_button close" onclick="searchwordsOnClick('close')">
+                    <img class="submit" src="/img/icon/ic_prev_4d.png" width="24" height="24">
+                  </button>
+
+                  <!-- ✅ 모바일 input: name 제거(중복 seaword 전송 방지) -->
+                  <input type="text" class="header__searchwords_input form-control"
+                         placeholder="지역 검색" id="sSearchWordMob" value="" autocomplete="off">
+
+                  <button type="button" class="header__searchwords_button reset" onclick="searchwordsOnClick('reset')">
+                    <img class="submit" src="/img/icon/ic_x_back_8.png" width="20" height="20">
+                  </button>
+                  <button type="button" class="header__searchwords_button submit" onclick="searchwordsOnClick('submit')">
+                    <img class="submit" src="/img/icon/ic_search_gray.png" width="20" height="20">
+                  </button>
+                </div>
+                <hr class="header__searchwords_hr">
+                <div class="header__searchwords_inner" id="searchWordsInner"></div>
+              </div>
+
+            </div>
+          </div>
+        </form>
+      </div>
+
+	  
+
+      <div class="header__item menu">
+        <div id="header__text" style="text-align:right;">
+          
+            <div style="display:inline-flex; padding:8px 12px; justify-content:flex-end; align-items:center; gap:6px; border-radius:4px; color:#2C6ED5; background:#DBE9FF; font-weight:600; font-size:14px;">
+              <img src="/svg/alert2.svg" width="16" height="16"/>
+              <a class="header__a" href="/warning" style="color:#2C6ED5;">기상특보</a>
+            </div>
+          
+        </div>
+
+        <div class="header__hamburger mobileman10" onclick="hamburgerClick()">
+          
+            <img class="header__hamburger_on_off_btn" src="/img/icon/ic_hamburger.png" width="32" height="32" />
+          
+        </div>
+      </div>
+
+      <article class="header__hamburger_outer_back mobileman10 dp_none" id="hamburgerBack">
+        <div class="header__hamburger_inner_left" onclick="hamburgerClick()"></div>
+        <div class="header__hamburger_inner_right hamburgers">
+          <div class="header__hamburgers_back">
+            <img class="header__hamburgers_close_btn" onclick="hamburgerClick()" src="/img/icon/ic_x.png" width="24" height="24"/>
+            <div class="header__hamburgers_menu font_size_xlarge" style="margin-top:16px;"></div>
+            
+			<hr id="widgetSettingHr" class="header__searchwords_hr" style="display:none;">
+			<div id="widgetSettingMenu" class="header__hamburgers_menu font_size_xlarge" style="display:none;">
+				<a href="/r/widget_setting.jsp" style="color:#000; font-size:18px;"><b>※ 위젯 설정</b></a>
+			</div>
+			
+			<hr class="header__searchwords_hr">
+            <div class="header__hamburgers_menu font_size_xlarge">
+              
+                <img src="/svg/alert2.svg" width="16" height="16">&nbsp;&nbsp;
+                <a class="header__a" href="#" onclick="submitWithValue(0); return false;" style="color:#2C6ED5;">기상특보</a>
+              
+            </div>
+
+            <hr class="header__searchwords_hr">
+            <div class="header__hamburgers_menu font_size_xlarge">
+              
+                <img src="/svg/alert2.svg" width="16" height="16">&nbsp;&nbsp;
+                <a class="header__a" href="#" onclick="submitWithValue(1); return false;" style="color:#2C6ED5;">태풍정보</a>
+              
+            </div>
+
+            <hr class="header__searchwords_hr">
+            <div class="header__hamburgers_menu font_size_xlarge"><a href="/guide" style="color:#000;">물때표 보는법</a></div>
+            <hr class="header__searchwords_hr">
+            <div class="header__hamburgers_menu font_size_xlarge"><a href="/cctv" style="color:#000;">실시간 바다영상</a></div>
+            <hr class="header__searchwords_hr">
+            <div class="header__hamburgers_menu font_size_xlarge"><a href="/1/road" style="color:#000;">바다갈라짐</a></div>
+            <hr class="header__searchwords_hr">
+            <div class="header__hamburgers_menu font_size_xlarge"><a href="/sunrise-calc" style="color:#000;">일출ㆍ일몰</a></div>
+            <hr class="header__searchwords_hr">
+            <div class="header__hamburgers_menu font_size_xlarge"><a href="/gearing" style="color:#000;">낚시채비</a></div>
+            <hr class="header__searchwords_hr">
+            <div class="header__hamburgers_menu font_size_xlarge"><a href="/calendar-store" style="color:#000;">물때달력판매</a></div>
+            <hr class="header__searchwords_hr">
+            <div class="header__hamburgers_menu font_size_xlarge"><a href="/ocean-info" style="color:#000;">해양정보판매</a></div>
+            <hr class="header__searchwords_hr">
+            <div class="header__hamburgers_menu font_size_xlarge"><a href="/link-sample" style="color:#000;">링크교환</a></div>
+            <hr class="header__searchwords_hr">
+            <div class="header__hamburgers_menu font_size_xlarge"><a href="/guestbook" style="color:#000;">방명록</a></div>
+            <hr class="header__searchwords_hr">
+
+            <!-- Android WebView only -->
+            <div id="jma-android-menu" class="android-only">
+
+				<div class="header__hamburgers_menu font_size_xlarge android-jma-item"
+					   data-title="파고예보 (일본기상청)"
+					   data-parse-url="https://www.imocwx.com/cwm.php?Area=1&Time=0"
+					   data-start="https://www.imocwx.com/cwm/cwmsjp_"
+					   data-end=".png">파고예보 (일본기상청)</div>
+				<hr class="header__searchwords_hr">
+				<div class="header__hamburgers_menu font_size_xlarge android-jma-item"
+					   data-title="강수량예보 (일본기상청)"
+					   data-parse-url="https://www.imocwx.com/guid.php?Area=1&Type=1&Time=0"
+					   data-start="https://www.imocwx.com/guid/gd1"
+					   data-end="sjp.png">강수량예보 (일본기상청)</div>
+				<hr class="header__searchwords_hr">
+				<div class="header__hamburgers_menu font_size_xlarge android-jma-item"
+					   data-title="비구름예보 (일본기상청)"
+					   data-parse-url="https://www.imocwx.com/guid.php?Type=0&Area=1&Time=0"
+					   data-start="https://www.imocwx.com/guid/gd0"
+					   data-end="sjp.png">비구름예보 (일본기상청)</div>
+				<hr class="header__searchwords_hr">
+            </div>
+
+          </div>
+        </div>
+      </article>
+
+    </div>
+  </center>
+</header>
+
+<script>
+/* =========================
+   공통 유틸
+========================= */
+(function(){
+  const bodyTag = document.querySelector('body');
+  let clientWidth = bodyTag ? bodyTag.clientWidth : window.innerWidth;
+  let clientTop = window.pageYOffset || 0;
+
+  function buildSearchUrl(wordRaw){
+    const w = (wordRaw || '').trim();
+    return "/search/?seaword=" + encodeURIComponent(w);
+  }
+
+  function getSeaName(se){
+    const n = Number(se);
+    if(n === 0) return "서해";
+    if(n === 1) return "남해";
+    if(n === 2 || n === 4) return "동해";
+    if(n === 3) return "제주";
+    return "";
+  }
+
+  function makeWordsRow({type, icon, seaLabel, nameText, addrText, dataName, showDelete, cookieName}) {
+    const row = document.createElement('div');
+    row.className = 'header__words_back ' + type;
+    row.setAttribute('data-name', dataName);
+
+    const img = document.createElement('img');
+    img.className = 'header__words_img';
+    img.src = icon;
+    img.width = 16; img.height = 16;
+
+    const words = document.createElement('div');
+    words.className = 'header__words';
+
+    const seaSpan = document.createElement('span');
+    seaSpan.style.color = '#2C6ED5';
+    seaSpan.innerHTML = seaLabel ? '(' + seaLabel + ')&nbsp;' : '';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.style.color = '#222222';
+    nameSpan.style.fontWeight = '500';
+    nameSpan.textContent = nameText || '';
+	nameSpan.className = 'name';
+
+    words.appendChild(seaSpan);
+    words.appendChild(nameSpan);
+
+    if (addrText) {
+      const addrSpan = document.createElement('span');
+      addrSpan.style.color = '#9E9E9E';
+      addrSpan.style.fontWeight = '400';
+      addrSpan.style.fontSize = '12px';
+      addrSpan.textContent = ' ' + addrText;
+	  addrSpan.className = 'addr';
+      words.appendChild(addrSpan);
+    }
+
+    row.appendChild(img);
+    row.appendChild(words);
+
+    if (showDelete && cookieName) {
+      const del = document.createElement('div');
+      del.className = 'header__recent_del';
+      del.dataset.cookie = cookieName;
+      del.setAttribute('role','button');
+      del.setAttribute('aria-label','최근 검색 삭제');
+
+      const delImg = document.createElement('img');
+      delImg.src = '/img/icon/ic_x.png';
+      delImg.width = 16; delImg.height = 16;
+
+      del.appendChild(delImg);
+      row.appendChild(del);
+    }
+
+    row.addEventListener('mouseenter', () => row.classList.add('on'));
+    row.addEventListener('mouseleave', () => row.classList.remove('on'));
+    return row;
+  }
+
+  function setCookie(name, value, days) {
+    const d = new Date();
+    d.setTime(d.getTime() + (days*24*60*60*1000));
+    const expires = "expires=" + d.toUTCString();
+    document.cookie = name + "=" + encodeURIComponent(value) + ";" + expires + ";path=/";
+  }
+
+  function deleteCookieEverywhere(cookie_name) {
+    document.cookie = cookie_name + '=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/;';
+    document.cookie = cookie_name + '=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=.badatime.com;';
+    if (location.protocol === 'https:') {
+      document.cookie = cookie_name + '=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=.badatime.com; Secure;';
+    }
+  }
+
+  window.submitWithValue = function(val) {
+    document.getElementById('selectedValue').value = val;
+    document.getElementById('postForm').submit();
+  };
+
+  window.closeWarning = function() {
+    setCookie('closeWarningToday', 'true', 1);
+    const el = document.getElementById('warning-msg');
+    if (el) el.style.display = 'none';
+  };
+
+  window.closeTypoon = function() {
+    setCookie('closeTypoonToday', 'true', 1);
+    const el = document.getElementById('typoon-msg');
+    if (el) el.style.display = 'none';
+  };
+
+  /* =========================
+     햄버거
+  ========================= */
+  let hamburger_status = false;
+  const hamburgerBox = document.getElementById('hamburgerBack');
+  
+  /*
+  window.hamburgerClick = function() {
+    if (!hamburgerBox) return;
+    hamburger_status = !hamburger_status;
+    if (hamburger_status) {
+      hamburgerBox.classList.remove('dp_none');
+      bodyTag.classList.add('scroll_lock');
+    } else {
+      hamburgerBox.classList.add('dp_none');
+      bodyTag.classList.remove('scroll_lock');
+    }
+  };
+  */
+  
+  window.hamburgerClick = function() {
+	  if (!hamburgerBox) return;
+
+	  hamburger_status = !hamburger_status;
+
+	  if (hamburger_status) {
+		hamburgerBox.classList.remove('dp_none');
+		bodyTag.classList.add('scroll_lock');
+
+		try {
+		  if (typeof AndroidBridge !== "undefined" && AndroidBridge) {
+			AndroidBridge.setHamburgerOpen(true);
+		  }
+		} catch (e) {
+		  console.log("setHamburgerOpen(true) error:", e);
+		}
+
+	  } else {
+		hamburgerBox.classList.add('dp_none');
+		bodyTag.classList.remove('scroll_lock');
+
+		try {
+		  if (typeof AndroidBridge !== "undefined" && AndroidBridge) {
+			AndroidBridge.setHamburgerOpen(false);
+		  }
+		} catch (e) {
+		  console.log("setHamburgerOpen(false) error:", e);
+		}
+	  }
+	};
+
+  window.addEventListener("resize", function() {
+    const nextWidth = bodyTag ? bodyTag.clientWidth : window.innerWidth;
+    if (hamburgerBox && !hamburgerBox.classList.contains('dp_none')) {
+      if (clientWidth > 1023 && nextWidth <= 1023) bodyTag.classList.add('scroll_lock');
+      else if (clientWidth <= 1023 && nextWidth > 1023) bodyTag.classList.remove('scroll_lock');
+    }
+    clientWidth = nextWidth;
+  });
+
+  /* =========================
+     검색: 인기/최근 + 자동완성
+  ========================= */
+  const popularPartsData = "부산/1,인천/158,통영/25,여수/41,완도/60,군산/119,목포/105,울산/214,속초/192";
+  let searchWordsPR = "P"; // R recent / P popular
+  let searchWordsOnce = false;
+
+  const searchWordsInner = document.getElementById("searchWordsInner");
+  const searchWordsList = document.getElementById("searchWordsList");
+
+  const searchForm = document.forms['frmSearch'];
+  const searchInput = document.getElementById('sSearchWord');
+  const searchInputMob = document.getElementById('sSearchWordMob');
+
+  let searchFormMouse = false;
+  let searchInputMouse = false;
+
+  function readRecentFromCookies(max = 8) {
+	  const raw = document.cookie ? document.cookie.split(';') : [];
+	  const map = new Map(); // idx -> {name, idx, ts}
+
+	  for (let i = 0; i < raw.length; i++) {
+			const kv = raw[i].split('=');
+			if (kv.length < 2) continue;
+
+			const cname = kv[0].trim();
+			if (!cname || cname.indexOf('badatime_') !== 0) continue;
+
+			const idxFromName = cname.substring('badatime_'.length).trim();
+			if (!idxFromName) continue;
+
+			try {
+			  const decoded = decodeURIComponent(kv.slice(1).join('=').trim());
+			  const parts = decoded.split('/');
+			  const name = parts[0] || '';
+			  const idxInVal = parts[1] || idxFromName;
+			  const ts = Number(parts[2] || 0);
+
+			  const prev = map.get(idxFromName);
+			  if (!prev || ts > prev.ts) {
+				map.set(idxFromName, { name, idx: idxInVal, ts });
+			  }
+			} catch(e) {}
+		}
+
+		const sorted = Array.from(map.values())
+			.sort((a, b) => (b.ts || 0) - (a.ts || 0))
+			.slice(0, max);
+
+		return sorted.map(x => (x.name + '/' + x.idx));
+	}
+
+  function fetchSeMapByIds(ids) {
+    ids = (ids || []).filter(Boolean);
+    ids = [...new Set(ids)];
+    if (ids.length === 0) return Promise.resolve({});
+
+    return $.ajax({
+      url: "/r/getSeaAddrByIdxJson.jsp",
+      type: "GET",
+      dataType: "json",
+      data: { ids: ids.join(",") }
+    }).then(map => map || {}).catch(() => ({}));
+  }
+
+  function clearWordsInner() {
+    if (!searchWordsInner) return;
+    while (searchWordsInner.firstChild) searchWordsInner.removeChild(searchWordsInner.firstChild);
+  }
+
+  async function renderSearchWords(mode, dataStrOrArr) {
+    if (!searchWordsInner) return;
+
+    const arr = Array.isArray(dataStrOrArr)
+      ? dataStrOrArr
+      : (dataStrOrArr || '').split(',').map(s => s.trim()).filter(Boolean);
+
+    let renderArr = [];
+	if (mode === 'R') renderArr = arr.slice(0, 8);
+	else renderArr = arr.slice();
+
+    const ids = renderArr.map(v => (v.split('/')[1] || '').trim()).filter(Boolean);
+    const seMap = await fetchSeMapByIds(ids);
+
+    clearWordsInner();
+
+    for (let i = 0; i < renderArr.length; i++) {
+      const v = renderArr[i] || "";
+      const sp = v.split('/');
+      const nameOnly = sp[0] || '';
+      const idOnly = sp[1] || '';
+
+      const seaObj = seMap[idOnly] || {};
+      const seaText = getSeaName(seaObj.se);
+      const addrText = seaObj.addr || '';
+
+      const row = makeWordsRow({
+        type: (mode === 'R' ? 'recent' : 'popular'),
+        icon: (mode === 'R' ? '/img/icon/recent.png' : '/img/icon/popular.png'),
+        seaLabel: seaText,
+        nameText: nameOnly,
+        addrText: addrText,
+        dataName: v,
+        showDelete: (mode === 'R'),
+        cookieName: (mode === 'R' ? ('badatime_' + idOnly) : null)
+      });
+
+      searchWordsInner.appendChild(row);
+    }
+  }
+
+  function searchWordsF() {
+    if (searchWordsOnce) {
+      if (searchWordsPR === 'R') return renderSearchWords('R', readRecentFromCookies(8));
+      return renderSearchWords('P', popularPartsData);
+    }
+
+    const recent = readRecentFromCookies(8);
+    if (recent.length > 0) {
+      searchWordsPR = 'R';
+      searchWordsOnce = true;
+      return renderSearchWords('R', recent);
+    } else {
+      searchWordsPR = 'P';
+      searchWordsOnce = true;
+      return renderSearchWords('P', popularPartsData);
+    }
+  }
+
+  searchWordsF();
+
+  if (searchWordsInner && !window.__recentDelBound) {
+    window.__recentDelBound = true;
+
+    searchWordsInner.addEventListener('click', function (e) {
+      const delBtn = e.target.closest('.header__recent_del');
+      const itemBtn = e.target.closest('.header__words_back');
+
+      if (delBtn) {
+        e.stopPropagation();
+        const cookieName = delBtn.dataset.cookie;
+        const item = delBtn.closest('.header__words_back');
+        if (item) item.remove();
+        if (cookieName) deleteCookieEverywhere(cookieName);
+
+        const remain = document.querySelectorAll('.header__words_back.recent').length;
+        if (remain === 0) renderSearchWords('P', popularPartsData);
+        return;
+      }
+
+      if (itemBtn) {
+          const keyword = itemBtn.getAttribute("data-name") || "";
+		  if (!keyword) return;
+		  const sp = keyword.split('/');
+		  const idx = sp[1] || '';
+		  if (idx) location.href = "/" + idx + "/tide";
+      }
+    });
+  }
+
+  function openSearchList() {
+    if (!searchWordsList) return;
+    clientTop = window.pageYOffset || 0;
+    if (searchWordsList.classList.contains('dp_none')) {
+      searchWordsList.classList.remove('dp_none');
+      if (window.innerWidth <= 768) {
+        bodyTag.classList.add('scroll_lock');
+        if (searchInputMob) searchInputMob.focus();
+      }
+    }
+  }
+
+  function closeSearchList() {
+    if (!searchWordsList) return;
+    searchWordsList.classList.add('dp_none');
+    bodyTag.classList.remove('scroll_lock');
+    window.scrollTo(0, clientTop);
+  }
+
+  if (searchForm) {
+    searchForm.addEventListener("mouseenter", () => { searchFormMouse = true; });
+    searchForm.addEventListener("mouseleave", () => { searchFormMouse = false; });
+  }
+  if (searchInput) {
+    searchInput.addEventListener("mouseenter", () => { searchInputMouse = true; });
+    searchInput.addEventListener("mouseleave", () => { searchInputMouse = false; });
+    searchInput.addEventListener("focus", openSearchList);
+  }
+
+  window.addEventListener("click", (e) => {
+    if (!searchInputMouse && !searchFormMouse && searchWordsList && !searchWordsList.classList.contains('dp_none') && window.innerWidth > 768) {
+      closeSearchList();
+    }
+  }, false);
+
+  window.addEventListener("resize", function() {
+    if (!searchWordsList || searchWordsList.classList.contains('dp_none')) return;
+
+    if (window.innerWidth <= 768) {
+      bodyTag.classList.add('scroll_lock');
+      if (searchInputMob) searchInputMob.focus();
+    } else {
+      bodyTag.classList.remove('scroll_lock');
+      window.scrollTo(0, clientTop);
+      if (searchInput) searchInput.focus();
+    }
+  });
+
+  function isEnglish(str) {
+    return /[a-zA-Z]/.test(str || "");
+  }
+
+  // ✅ ✅ ✅ 핵심: name 기반 접근 제거, id 기반으로만
+  window.searchInputCheck = function(theForm) {
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) return false;
+
+    const pcInput = document.getElementById('sSearchWord');
+    const mobInput = document.getElementById('sSearchWordMob');
+
+    if (mobInput && mobInput.value.trim() !== '') {
+      pcInput.value = mobInput.value;
+    }
+
+    const wordRaw = (pcInput.value || '');
+    const word = wordRaw.trim().toUpperCase();
+    const regKorean = /[ㄱ-ㅎㅏ-ㅣ가-힣]/;
+
+    if (word === '') {
+      alert("검색어를 입력해주세요!");
+      pcInput.value = '';
+      pcInput.focus();
+      return false;
+    }
+
+    const first = word.substring(0,1);
+    const firstOk = (first >= '0' && first <= '9') || regKorean.test(word);
+    if (!firstOk) {
+      alert("검색어를 확인해주세요! \n한글, 숫자만 사용 가능합니다.");
+      pcInput.value = '';
+      pcInput.focus();
+      return false;
+    }
+
+    if (isEnglish(word)) {
+      alert("검색어를 확인해주세요! \n 한글, 숫자만 사용 가능.");
+      pcInput.value = '';
+      pcInput.focus();
+      return false;
+    }
+
+    // ✅ action은 고정(/search/) + GET (query는 input name=seaword로 자동 붙음)
+    theForm.action = "/search/";
+    theForm.method = "GET";
+    return true;
+  };
+
+  window.searchwordsOnClick = function(a) {
+    if (a === 'close') {
+      searchWordsF();
+      closeSearchList();
+      if (searchInputMob) searchInputMob.value = '';
+      return;
+    }
+    if (a === 'reset') {
+      searchWordsF();
+      if (searchInputMob) searchInputMob.value = '';
+      return;
+    }
+    if (a === 'submit') {
+      const inputEl = document.getElementById("sSearchWordMob");
+      let word = inputEl ? inputEl.value.trim() : "";
+      if (!word && inputEl && inputEl.getAttribute("data-final")) {
+        word = (inputEl.getAttribute("data-final") || "").trim();
+      }
+      if (word === "") {
+        alert("검색어를 입력해주세요!");
+        return;
+      }
+      location.href = buildSearchUrl(word);
+    }
+  };
+
+  /* =========================
+     자동완성(AJAX)
+  ========================= */
+  let debounceTimer = null;
+
+  async function renderAutocomplete(list) {
+	  clearWordsInner();
+
+	  const items = (list || []).map(it => ({
+		idx: String(it.idx || '').trim(),
+		name: (it.name || ''),
+		se: it.se
+	  })).filter(it => it.idx);
+
+	  const ids = items.map(it => it.idx);
+	  const seMap = await fetchSeMapByIds(ids);
+
+	  items.forEach(it => {
+		const seaObj = seMap[it.idx] || {};
+		const seaText = getSeaName(seaObj.se ?? it.se);
+		const addrText = seaObj.addr || '';
+
+		const dataName = it.name + '/' + it.idx;
+
+		const row = makeWordsRow({
+		  type: 'auto_complete',
+		  icon: '/img/icon/auto_complete.png',
+		  seaLabel: seaText,
+		  nameText: it.name,
+		  addrText: addrText,
+		  dataName: dataName,
+		  showDelete: false
+		});
+
+		searchWordsInner.appendChild(row);
+	  });
+	}
+
+  function initialSearch() {
+    return searchWordsF();
+  }
+
+  function autoComplete(keywordRaw) {
+	  const STR = (keywordRaw || '').toUpperCase();
+	  if (STR.length === 0) return initialSearch();
+
+	  return $.ajax({
+		url: '/r/autoCompleteJson_260108.jsp',
+		type: 'GET',
+		dataType: 'json',
+		data: { keyword: STR }
+	  }).then(response => renderAutocomplete(response))
+		.catch(() => initialSearch());
+	}
+
+  function onInputChanged(val) {
+    openSearchList();
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => autoComplete(val), 150);
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener("input", (e) => onInputChanged(e.target.value));
+  }
+  if (searchInputMob) {
+    searchInputMob.addEventListener("input", (e) => onInputChanged(e.target.value));
+  }
+
+  function bindMobileEnter(inputEl) {
+    if (!inputEl) return;
+
+    inputEl.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        window.searchwordsOnClick('submit');
+      }
+    });
+
+    inputEl.addEventListener('keyup', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        window.searchwordsOnClick('submit');
+      }
+    });
+  }
+
+  bindMobileEnter(searchInputMob);
+
+  /* =========================
+     키보드 네비게이션 (PC)
+  ========================= */
+  const normalize = (str = '') => {
+    return str.toLowerCase().trim().replace(/\s+/g,'').replace(/[^가-힣a-z0-9]/g,'');
+  };
+
+  document.addEventListener('keydown', function(e) {
+    if (window.innerWidth <= 768) return;
+
+    const list = document.querySelectorAll(".header__words_back");
+    if (!searchWordsList || searchWordsList.classList.contains('dp_none')) return;
+    if (!list || list.length === 0) return;
+
+    const arr = Array.from(list);
+    const arrowIndex = arr.findIndex(item => item.classList.contains('on'));
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const factor = e.key === 'ArrowDown' ? 1 : -1;
+      const nextIndex = (arrowIndex + factor + arr.length) % arr.length;
+      arr.forEach(item => item.classList.remove('on'));
+      arr[nextIndex].classList.add('on');
+
+      const fullName = arr[nextIndex].getAttribute('data-name') || '';
+      const nameOnly = (fullName.split('/')[0] || '');
+      if (searchInput) searchInput.value = nameOnly;
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      initialSearch();
+      if (searchInput) searchInput.value = '';
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+
+      const inputValue = (searchInput ? searchInput.value : '').trim();
+      const inputNorm = normalize(inputValue);
+
+      const selected = (arrowIndex >= 0) ? arr[arrowIndex] : null;
+
+      const goByIdx = (idx) => location.href = "/" + idx + "/tide";
+      const goSearch = () => location.href = buildSearchUrl(inputValue);
+
+      if (selected) {
+        const dn = selected.getAttribute('data-name') || '';
+        const idx = (dn.split('/')[1] || '');
+        if (idx) goByIdx(idx);
+        else goSearch();
+        return;
+      }
+
+      if (arr.length === 1) {
+        const dn = arr[0].getAttribute('data-name') || '';
+        const name = (dn.split('/')[0] || '');
+        const idx = (dn.split('/')[1] || '');
+        if (idx && normalize(name) === inputNorm) {
+          goByIdx(idx);
+          return;
+        }
+      }
+      goSearch();
+    }
+  });
+
+})();
+</script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    var hr = document.getElementById("widgetSettingHr");
+    var menu = document.getElementById("widgetSettingMenu");
+    var jmaMenu = document.getElementById("jma-android-menu");
+
+    function showAndroidMenus() {
+        if (hr) hr.style.display = "";
+        if (menu) menu.style.display = "";
+        if (jmaMenu) jmaMenu.style.display = "block";
+    }
+
+    try {
+        var isAndroid = false;
+        var versionCode = 0;
+        var ua = navigator.userAgent || "";
+
+        console.log("UA:", ua);
+        console.log("AndroidBridge exists:", typeof AndroidBridge !== "undefined");
+
+        // 1차: 브릿지 직접 호출
+        if (typeof AndroidBridge !== "undefined" && AndroidBridge) {
+            try {
+                var platform = String(AndroidBridge.getPlatform());
+                var vc = parseInt(AndroidBridge.getVersionCode(), 10) || 0;
+
+                console.log("platform:", platform);
+                console.log("versionCode:", vc);
+
+                if (platform.toLowerCase() === "android") {
+                    isAndroid = true;
+                }
+                versionCode = vc;
+            } catch (bridgeErr) {
+                console.log("bridge call error:", bridgeErr);
+            }
+        }
+
+        // 2차: User-Agent 보조 체크
+        if (!isAndroid || versionCode <= 0) {
+            if (ua.indexOf("BadatimeNew/Android") !== -1) {
+                isAndroid = true;
+                var match = ua.match(/VC=(\d+)/);
+                if (match && match[1]) {
+                    versionCode = parseInt(match[1], 10) || 0;
+                }
+            }
+        }
+
+        console.log("final isAndroid:", isAndroid);
+        console.log("final versionCode:", versionCode);
+
+        if (isAndroid && versionCode >= 5) {
+            showAndroidMenus();
+            console.log("android menus shown");
+        } else {
+            console.log("android menus hidden");
+        }
+
+        // JMA 메뉴 클릭 이벤트 연결
+        var items = document.querySelectorAll(".android-jma-item");
+        items.forEach(function(item) {
+            item.addEventListener("click", function() {
+                try {
+                    if (typeof AndroidBridge !== "undefined" && AndroidBridge) {
+                        var title = item.getAttribute("data-title") || "";
+                        var parseUrl = item.getAttribute("data-parse-url") || "";
+                        var start = item.getAttribute("data-start") || "";
+                        var end = item.getAttribute("data-end") || "";
+
+                        AndroidBridge.openImoc(title, parseUrl, start, end);
+                    }
+                } catch (e) {
+                    console.log("openImoc error:", e);
+                }
+            });
+        });
+
+    } catch (e) {
+        console.log("widget/android menu check error:", e);
+    }
+});
+</script>
+<!-- TOP 메뉴 시작 -->
+<div class="menubar_wrap">
+    <div class="menubar_scroll">
+        <ul class="detail_menubar">
+			<li class="btn-3" onclick="location.href='/826/tide'">통합검색</li>
+			<li class="divider">|</li>
+			<li class="btn-sel" onclick="location.href='/826/graph'">상세물때</li>
+			<li class="btn-3" onclick="location.href='/826/daily'">날짜별물때</li>
+			<li class="btn-3" onclick="location.href='/826/calendar'">물때달력</li>
+			<li class="btn-3" onclick="location.href='/826/road'">바다갈라짐</li>
+			<li class="divider">|</li>
+			<li class="btn-3" onclick="location.href='/826/sea-cast'">바다날씨</li>
+			<li class="btn-3" onclick="location.href='/826/windy'">윈디날씨</li>
+			<li class="btn-3" onclick="location.href='/826/hour-cast'">시간별날씨</li>
+			<li class="btn-3" onclick="location.href='/826/dust'">미세먼지</li>
+			<li class="divider">|</li>
+			<li class="btn-3" onclick="location.href='/826/sea-temp'">바다수온</li>
+			<li class="btn-3" onclick="location.href='/826/sea-map'">전자해도</li>
+			<li class="btn-3" onclick="location.href='/826/obs'">조위/부이</li>
+			<li class="divider">|</li>
+			<li class="btn-3" onclick="location.href='/826/sunrise-set'">일출몰</li>
+			<li class="btn-3" onclick="location.href='/826/spots'">낚시포인트</li>
+			<li class="btn-3" onclick="location.href='/826/videos'">낚시영상</li>
+			<li class="btn-3" onclick="location.href='/826/calendar-store'">물때달력구매</li>
+        </ul>
+    </div>
+</div>
+
+<!--
+<div style="width:100%;" align="center">
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+<ins class="adsbygoogle ads_mid"
+     style="display:block; min-width:300px;max-width:1180px;width:100%;height:150px;margin-top:12px;"
+     data-ad-client="ca-pub-0137114390088293"
+     data-ad-slot="4474558288"
+     data-ad-format="horizontal"
+     data-full-width-responsive="false"></ins>
+<script>
+     (adsbygoogle = window.adsbygoogle || []).push({});
+</script>
+</div>
+-->
+<div class="middle-container">
+	<div class="middle">
+		<aside class="sidebar">
+			
+			
+
+<style>
+.sidemap-wrap {
+  position: relative;      /* 자식 absolute 기준 */
+  display: inline-block;   /* 이미지 크기만큼만 감싸게 */
+  border-top: 4px solid #e4e4e4;     /* 위쪽 선 */
+  border-bottom: 4px solid #e4e4e4;  /* 아래쪽 선 */
+  padding: 12px 0;   
+  
+}
+
+/* 이미지 */
+.sidemap-img {
+  -webkit-user-drag: none; /* 크롬/사파리 */
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+  display: block;
+}
+
+/* 공통 라벨 스타일 */
+.sidemap-label {
+  position: absolute;
+  transform: translate(-50%, -50%); /* 좌표를 가운데 기준으로 맞추기 */
+  font-size: 14px;
+  font-family: Pretendard, sans-serif;
+  font-weight: 600;
+  color: #000;
+  white-space: nowrap;
+
+}
+.sidemap-label a:hover {
+  color: #dd4814;     /* 마우스 올렸을 때 색 */
+  text-decoration: underline;  /* 호버 시 밑줄 */
+}
+
+.sidemap-label.n1 { top: 37.2%; left: 81.2%; }
+.sidemap-label.n2 { top: 50.4%; left: 81.2%; }
+.sidemap-label.n3 { top: 63.2%; left: 81.2%; }
+.sidemap-label.n4 { top: 76.8%; left: 81.2%; }
+.sidemap-label.n5 { top: 89.8%; left: 81.2%; }
+
+.div_side {
+	display: flex;  
+	align-items: center;  
+	padding: 8px; 
+	border-radius: 8px; 
+	border: 1px solid #DEDEDE;
+	background: #F9F9F9; 
+	margin-bottom:16px;
+}
+
+ul.gw-nav.gw-nav-list li ul.gw-submenu li a.menu-active,
+ul.gw-nav.gw-nav-list li ul.gw-submenu li a.menu-active:visited {
+  color: #dd4814 !important;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* 현재 열린 상위 메뉴 강조(원하면 사용) */
+.gw-nav li.active-open > a .gw-menu-text {
+  font-weight: 700;
+}
+</style>
+<script src="/js/bs_leftnavi.js"></script>
+<link rel="stylesheet" type="text/css" href="/bs_leftnavi.css">
+<script>
+function goPost(url, params) {
+    const form = document.createElement("form");
+    form.method = "post";
+    form.action = url;
+
+    // params 객체 안에 있는 값들을 hidden input 으로 자동 삽입
+    Object.keys(params).forEach(key => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = key;
+        input.value = params[key];
+        form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+
+<div width="100%" style="padding-right:10px;">
+	<div style="height:30px; font-size:16px; color:#000; padding-left:5px; font-weight:700;"> | 남해 물때그래프 | </div>
+	
+	<div class="sidemap-wrap">
+		<img class="sidemap-img" src="/img/m210_1.png" alt="">
+		<div class="sidemap-label n1"><a style="color:#000;" href="#" onclick="goPost('/time-map/1', {category:'1', lat:35.1, lon:129.033333333333, GE: 826}); return false;">부산 인근</a></div>
+		<div class="sidemap-label n2"><a style="color:#000;" href="#" onclick="goPost('/time-map/1', {category:'1', lat:34.85, lon:128.433333333333, GE: 826}); return false;">통영 인근</a></div>
+		<div class="sidemap-label n3"><a style="color:#000;" href="#" onclick="goPost('/time-map/1', {category:'1', lat:34.75, lon:127.766666666667, GE: 826}); return false;">여수 인근</a></div>
+		<div class="sidemap-label n4"><a style="color:#000;" href="#" onclick="goPost('/time-map/1', {category:'1', lat:34.1333333333333, lon:127.316666666667, GE: 826}); return false;">거문도 인근</a></div>
+		<div class="sidemap-label n5"><a style="color:#000;" href="#" onclick="goPost('/time-map/1', {category:'1', lat:34.3166666666667, lon:126.766666666667, GE: 826}); return false;">완도 인근</a></div>
+	</div>
+
+	<div width="100%">
+		<ul class="gw-nav gw-nav-list">
+        <li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">부산광역시</span> <b class="gw-arrow"></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/1/graph'>부산</a></li>
+			<li><a href='/2/graph'>영도</a></li>
+			<li><a href='/3/graph'>다대포</a></li>
+			<li><a href='/4/graph'>대항동</a></li>
+			<li><a href='/5/graph'>가덕도</a></li>
+			<li><a href='/233/graph'>부산신항</a></li>
+			<li><a href='/241/graph'>해운대</a></li>
+			<li><a href='/242/graph'>해양박물관</a></li>
+			<li><a href='/452/graph'>북형제도</a></li>
+			<li><a href='/453/graph'>송정</a></li>
+			<li><a href='/537/graph'>동선항</a></li>
+			<li><a href='/570/graph'>용호부두</a></li>
+			<li><a href='/1147/graph'>대항항</a></li>
+			<li><a href='/1148/graph'>새바지항</a></li>
+			<li><a href='/1149/graph'>다대포항</a></li>
+			<li><a href='/1150/graph'>감천항동방파제</a></li>
+			<li><a href='/1151/graph'>감천항서방파제</a></li>
+			<li><a href='/1152/graph'>나무섬</a></li>
+			<li><a href='/1153/graph'>북형제섬</a></li>
+			<li><a href='/1154/graph'>남형제섬</a></li>
+			<li><a href='/1156/graph'>해양대방파제</a></li>
+			<li><a href='/1157/graph'>조도방파제</a></li>
+			<li><a href='/1158/graph'>오륙도방파제</a></li>
+			<li><a href='/1159/graph'>민락항</a></li>
+			<li><a href='/1160/graph'>미포방파제</a></li>
+			<li><a href='/1161/graph'>청사포방파제</a></li>
+			<li><a href='/1162/graph'>구덕포방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">부산광역시 기장군</span> <b class="gw-arrow"></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/217/graph'>고리</a></li>
+			<li><a href='/218/graph'>대변항</a></li>
+			<li><a href='/1163/graph'>공수방파제</a></li>
+			<li><a href='/1164/graph'>동암방파제</a></li>
+			<li><a href='/1165/graph'>대변방파제</a></li>
+			<li><a href='/1166/graph'>월전방파제</a></li>
+			<li><a href='/1167/graph'>죽성방파제</a></li>
+			<li><a href='/1168/graph'>학리방파제</a></li>
+			<li><a href='/1169/graph'>온정방파제</a></li>
+			<li><a href='/1170/graph'>동백방파제</a></li>
+			<li><a href='/1171/graph'>칠암방파제</a></li>
+			<li><a href='/1172/graph'>문중방파제</a></li>
+			<li><a href='/1173/graph'>문동방파제</a></li>
+			<li><a href='/1174/graph'>임랑방파제</a></li>
+			<li><a href='/1175/graph'>월내방파제</a></li>
+          </ul>
+        </li>
+		
+        <li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">창원시</span> <b class="gw-arrow icon-arrow-up8"></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/6/graph'>진해</a></li>
+			<li><a href='/7/graph'>행암만</a></li>
+			<li><a href='/10/graph'>운풍포</a></li>
+			<li><a href='/244/graph'>귀산동</a></li>
+			<li><a href='/245/graph'>원전항</a></li>
+			<li><a href='/246/graph'>광암항</a></li>
+			<li><a href='/391/graph'>진해동섬</a></li>
+			<li><a href='/392/graph'>삼포</a></li>
+			<li><a href='/8/graph'>마산</a></li>
+			<li><a href='/245/graph'>원전항</a></li>
+			<li><a href='/246/graph'>광암항</a></li>
+			<li><a href='/792/graph'>거차항</a></li>
+			<li><a href='/1049/graph'>창포방파제</a></li>
+			<li><a href='/1050/graph'>진동항</a></li>
+			<li><a href='/1051/graph'>양도</a></li>
+			<li><a href='/1052/graph'>수우도방파제</a></li>
+			<li><a href='/1053/graph'>다구방파제</a></li>
+			<li><a href='/1054/graph'>욱곡방파제</a></li>
+			<li><a href='/1055/graph'>반동방파제</a></li>
+			<li><a href='/1056/graph'>장구</a></li>
+			<li><a href='/1057/graph'>구복방파제</a></li>
+			<li><a href='/1060/graph'>심리방파제</a></li>
+			<li><a href='/1061/graph'>남포방파제</a></li>
+			<li><a href='/1062/graph'>옥계방파제</a></li>
+			<li><a href='/1063/graph'>덕동방파제</a></li>
+			<li><a href='/1064/graph'>가포본동방파제</a></li>
+			<li><a href='/1066/graph'>귀산방파제</a></li>
+			<li><a href='/1144/graph'>원전방파제</a></li>
+			<li><a href='/1145/graph'>실리방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">거제시 옥포동 | 장목면</span> <b class="gw-arrow icon-arrow-up8"></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/18/graph'>옥포항</a></li>
+			<li><a href='/393/graph'>송진포</a></li>
+			<li><a href='/394/graph'>시방항</a></li>
+			<li><a href='/395/graph'>거제외포</a></li>
+			<li><a href='/502/graph'>구영리</a></li>
+			<li><a href='/571/graph'>농소항</a></li>
+			<li><a href='/572/graph'>장목항</a></li>
+			<li><a href='/1117/graph'>외포방파제</a></li>
+			<li><a href='/1118/graph'>흥남방파제</a></li>
+			<li><a href='/1119/graph'>이수도방파제</a></li>
+			<li><a href='/1120/graph'>시방방파제</a></li>
+			<li><a href='/1121/graph'>대금방파제</a></li>
+			<li><a href='/1122/graph'>관포방파제</a></li>
+			<li><a href='/1123/graph'>황포방파제</a></li>
+			<li><a href='/1139/graph'>계도</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">거제시 하청면 | 연초면</span> <b class="gw-arrow icon-arrow-up8"></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/454/graph'>오비리</a></li>
+			<li><a href='/573/graph'>하청항</a></li>
+			<li><a href='/574/graph'>연구리</a></li>
+			<li><a href='/1124/graph'>물안방파제</a></li>
+			<li><a href='/1125/graph'>옥계방파제</a></li>
+			<li><a href='/1126/graph'>대곡방파제</a></li>
+			<li><a href='/1127/graph'>송포방파제</a></li>
+			<li><a href='/1128/graph'>금곡방파제</a></li>
+			<li><a href='/1129/graph'>덕곡방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">거제시 고현읍 | 거제면</span> <b class="gw-arrow icon-arrow-up8"></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/9/graph'>고현항</a></li>
+			<li><a href='/23/graph'>죽림항</a></li>
+			<li><a href='/254/graph'>실리항</a></li>
+			<li><a href='/397/graph'>서정리</a></li>
+			<li><a href='/1098/graph'>서상방파제</a></li>
+			<li><a href='/1099/graph'>산달도방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">거제시 사등면 | 둔덕면</span> <b class="gw-arrow icon-arrow-up8"></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/12/graph'>계도항</a></li>
+			<li><a href='/14/graph'>견내량</a></li>
+			<li><a href='/15/graph'>성포항</a></li>
+			<li><a href='/247/graph'>사등면</a></li>
+			<li><a href='/253/graph'>학산리</a></li>
+			<li><a href='/500/graph'>사근리</a></li>
+			<li><a href='/1067/graph'>왜선포항</a></li>
+			<li><a href='/1068/graph'>화도방파제</a></li>
+			<li><a href='/1069/graph'>연막포항</a></li>
+			<li><a href='/1104/graph'>어항</a></li>
+			<li><a href='/1105/graph'>대평방파제</a></li>
+			<li><a href='/1106/graph'>당항</a></li>
+			<li><a href='/1107/graph'>학산항</a></li>
+			<li><a href='/1131/graph'>사등방파제</a></li>
+			<li><a href='/1132/graph'>성포방파제</a></li>
+			<li><a href='/1133/graph'>가조항</a></li>
+			<li><a href='/1134/graph'>창외항</a></li>
+			<li><a href='/1135/graph'>군령포항</a></li>
+			<li><a href='/1136/graph'>실전방파제</a></li>
+			<li><a href='/1137/graph'>유교항</a></li>
+			<li><a href='/1138/graph'>신교방파제</a></li>
+			<li><a href='/1140/graph'>창촌방파제</a></li>
+			<li><a href='/1141/graph'>신전방파제</a></li>
+			<li><a href='/1142/graph'>지석방파제</a></li>
+          </ul>
+        </li>
+
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">거제시 장승포동 | 일운면</span> <b class="gw-arrow icon-arrow-up8"></b> </a>
+          <ul class="gw-submenu">
+			<li><a href='/19/graph'>장승포항</a></li>
+			<li><a href='/1113/graph'>장승포방파제</a></li>
+            <li><a href='/20/graph'>지세포항</a></li>
+			<li><a href='/21/graph'>구조라</a></li>
+			<li><a href='/1110/graph'>구조라방파제</a></li>
+			<li><a href='/1111/graph'>지심도</a></li>
+			<li><a href='/1112/graph'>지세포방파제</a></li>
+          </ul>
+        </li>
+		
+        <li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">거제시 동부면 | 남부면</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/22/graph'>저구리</a></li>
+			<li><a href='/250/graph'>다대다포항</a></li>
+			<li><a href='/251/graph'>대포근포항</a></li>
+			<li><a href='/396/graph'>북여도</a></li>
+			<li><a href='/575/graph'>쌍근항</a></li>
+			<li><a href='/1083/graph'>홍포</a></li>
+			<li><a href='/1086/graph'>저구방파제</a></li>
+			<li><a href='/1087/graph'>쌍근방파제</a></li>
+			<li><a href='/1088/graph'>율포항</a></li>
+			<li><a href='/1093/graph'>가배항</a></li>
+			<li><a href='/1094/graph'>함박금방파제</a></li>
+			<li><a href='/1095/graph'>쪽박금방파제</a></li>
+			<li><a href='/1096/graph'>당넘방파제</a></li>
+			<li><a href='/1097/graph'>오송리방파제</a></li>
+			<li><a href='/1108/graph'>다포방파제</a></li>
+			<li><a href='/1109/graph'>고촌방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">통영시 (+용남면)</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/25/graph'>통영</a></li>
+			<li><a href='/1005/graph'>평림항</a></li>
+			<li><a href='/1007/graph'>미수동방파제</a></li>
+			<li><a href='/1030/graph'>마리나리조트방파제</a></li>
+			<li><a href='/1032/graph'>동호항방파제</a></li>
+			<li><a href='/578/graph'>장문리</a></li>
+			<li><a href='/1033/graph'>선촌항</a></li>
+			<li><a href='/1034/graph'>동암항</a></li>
+			<li><a href='/1035/graph'>견유방파제</a></li>
+			<li><a href='/1036/graph'>내포방파제</a></li>
+			<li><a href='/1037/graph'>지도방파제</a></li>
+			<li><a href='/1038/graph'>기호방파제</a></li>
+			<li><a href='/1058/graph'>어의방파제</a></li>
+			<li><a href='/1059/graph'>수도방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">통영시 도산면 | 광도면</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/248/graph'>안정리예포</a></li>
+			<li><a href='/1001/graph'>전마선도선장</a></li>
+			<li><a href='/1002/graph'>사량도도선장</a></li>
+			<li><a href='/1003/graph'>수월리방파제</a></li>
+			<li><a href='/1004/graph'>대도호</a></li>
+			<li><a href='/1039/graph'>손덕방파제</a></li>
+			<li><a href='/1040/graph'>이종항</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">통영시 산양읍</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/257/graph'>삼덕항</a></li>
+			<li><a href='/258/graph'>풍화리</a></li>
+			<li><a href='/398/graph'>추도리</a></li>
+			<li><a href='/1008/graph'>벌포항</a></li>
+			<li><a href='/1009/graph'>경포항</a></li>
+			<li><a href='/1010/graph'>해란항</a></li>
+			<li><a href='/1011/graph'>함박항</a></li>
+			<li><a href='/1012/graph'>명지항</a></li>
+			<li><a href='/1013/graph'>모상항</a></li>
+			<li><a href='/1014/graph'>소웅포항</a></li>
+			<li><a href='/1015/graph'>대웅포항</a></li>
+			<li><a href='/1016/graph'>삼덕방파제</a></li>
+			<li><a href='/1017/graph'>곤리항</a></li>
+			<li><a href='/1018/graph'>연명방파제</a></li>
+			<li><a href='/1019/graph'>만지항</a></li>
+			<li><a href='/1020/graph'>연대항</a></li>
+			<li><a href='/1021/graph'>송도</a></li>
+			<li><a href='/1022/graph'>저도방파제</a></li>
+			<li><a href='/1023/graph'>학림방파제</a></li>
+			<li><a href='/1024/graph'>마동(척포)방파제</a></li>
+			<li><a href='/1025/graph'>오곡방파제</a></li>
+			<li><a href='/1028/graph'>새바지</a></li>
+			<li><a href='/1029/graph'>이운방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">통영시 한산면</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/13/graph'>통영죽도</a></li>
+			<li><a href='/24/graph'>용초도</a></li>
+			<li><a href='/234/graph'>소매물도</a></li>
+			<li><a href='/249/graph'>통영홍도</a></li>
+			<li><a href='/252/graph'>매물도항</a></li>
+			<li><a href='/255/graph'>호두항</a></li>
+			<li><a href='/577/graph'>염호리</a></li>
+			<li><a href='/1026/graph'>비진도외항</a></li>
+			<li><a href='/1027/graph'>비진도내항</a></li>
+			<li><a href='/1070/graph'>관암</a></li>
+			<li><a href='/1071/graph'>제승당</a></li>
+			<li><a href='/1072/graph'>문어포방파제</a></li>
+			<li><a href='/1073/graph'>장작지항</a></li>
+			<li><a href='/1074/graph'>하포항</a></li>
+			<li><a href='/1075/graph'>용초항</a></li>
+			<li><a href='/1077/graph'>한산방파제</a></li>
+			<li><a href='/1078/graph'>봉암방파제</a></li>
+			<li><a href='/1079/graph'>죽도방파제</a></li>
+			<li><a href='/1080/graph'>장사도나루터</a></li>
+			<li><a href='/1081/graph'>매물도</a></li>
+			<li><a href='/1089/graph'>곡룡포항</a></li>
+			<li><a href='/1090/graph'>예곡</a></li>
+			<li><a href='/1091/graph'>추원</a></li>
+			<li><a href='/1092/graph'>당촌방파제</a></li>
+			<li><a href='/1100/graph'>동좌방파제</a></li>
+			<li><a href='/1101/graph'>서좌</a></li>
+			<li><a href='/1102/graph'>소고포도선장</a></li>
+			<li><a href='/1103/graph'>비산항</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">통영시 사량면</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/28/graph'>사량도</a></li>
+			<li><a href='/261/graph'>능양항</a></li>
+			<li><a href='/539/graph'>수우도</a></li>
+			<li><a href='/979/graph'>술미도</a></li>
+			<li><a href='/980/graph'>대항선착장</a></li>
+			<li><a href='/981/graph'>옥동선착장</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">통영시 욕지면</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/29/graph'>욕지도</a></li>
+			<li><a href='/59/graph'>장직도</a></li>
+			<li><a href='/227/graph'>교본초</a></li>
+			<li><a href='/256/graph'>연화도</a></li>
+			<li><a href='/262/graph'>북구항</a></li>
+			<li><a href='/399/graph'>갈도</a></li>
+			<li><a href='/990/graph'>두미도북부</a></li>
+			<li><a href='/991/graph'>두미도동부</a></li>
+			<li><a href='/992/graph'>산등마을</a></li>
+			<li><a href='/993/graph'>탄항마을</a></li>
+			<li><a href='/994/graph'>하노대도</a></li>
+			<li><a href='/995/graph'>도포항</a></li>
+			<li><a href='/996/graph'>목과항</a></li>
+			<li><a href='/997/graph'>욕지도남측</a></li>
+			<li><a href='/998/graph'>우도</a></li>
+			<li><a href='/999/graph'>연화항</a></li>
+			<li><a href='/1000/graph'>동두항</a></li>
+			<li><a href='/1417/graph'>국도항</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">고성군</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/16/graph'>우두포</a></li>
+			<li><a href='/17/graph'>성진포</a></li>
+			<li><a href='/26/graph'>고성만</a></li>
+			<li><a href='/27/graph'>자란도</a></li>
+			<li><a href='/259/graph'>남포항</a></li>
+			<li><a href='/260/graph'>용암포</a></li>
+			<li><a href='/501/graph'>화당리</a></li>
+			<li><a href='/503/graph'>맥전포항</a></li>
+			<li><a href='/504/graph'>덕호리</a></li>
+			<li><a href='/538/graph'>포교항</a></li>
+			<li><a href='/576/graph'>당항포</a></li>
+			<li><a href='/977/graph'>상족암</a></li>
+			<li><a href='/983/graph'>맥전포방파제</a></li>
+			<li><a href='/984/graph'>사량도카페리</a></li>
+			<li><a href='/985/graph'>사량도유람선</a></li>
+			<li><a href='/986/graph'>삼태</a></li>
+			<li><a href='/987/graph'>와도</a></li>
+			<li><a href='/988/graph'>덕명방파제</a></li>
+			<li><a href='/1041/graph'>화당방파제</a></li>
+			<li><a href='/1042/graph'>거류방파제</a></li>
+			<li><a href='/1043/graph'>우두포방파제</a></li>
+			<li><a href='/1044/graph'>당항항</a></li>
+			<li><a href='/1045/graph'>내산방파제</a></li>
+			<li><a href='/1046/graph'>막포방파제</a></li>
+			<li><a href='/1047/graph'>양촌방파제</a></li>
+			<li><a href='/1048/graph'>시락방파제</a></li>
+			<li><a href='/1424/graph'>비사도</a></li>
+			<li><a href='/1425/graph'>토끼섬</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">사천시</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/31/graph'>삼천포</a></li>
+			<li><a href='/263/graph'>대방동</a></li>
+			<li><a href='/274/graph'>비토리</a></li>
+			<li><a href='/400/graph'>삼천포신항</a></li>
+			<li><a href='/402/graph'>대방진굴항</a></li>
+			<li><a href='/493/graph'>곤양면중항리</a></li>
+			<li><a href='/541/graph'>신수항</a></li>
+			<li><a href='/542/graph'>사천대포항</a></li>
+			<li><a href='/32/graph'>사천진주만</a></li>
+			<li><a href='/962/graph'>단항방파제</a></li>
+			<li><a href='/963/graph'>신도방파제</a></li>
+			<li><a href='/964/graph'>초양방파제</a></li>
+			<li><a href='/965/graph'>마도방파제</a></li>
+			<li><a href='/966/graph'>저도</a></li>
+			<li><a href='/967/graph'>실안방파제</a></li>
+			<li><a href='/969/graph'>삼천포방파제</a></li>
+			<li><a href='/970/graph'>대구동방파제</a></li>
+			<li><a href='/975/graph'>진널방파제</a></li>
+			<li><a href='/976/graph'>사등방파제</a></li>
+          </ul>
+        </li>
+		
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">하동군</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/277/graph'>신노량항</a></li>
+			<li><a href='/279/graph'>갈사리</a></li>
+			<li><a href='/546/graph'>술상항</a></li>
+			<li><a href='/895/graph'>나팔포구</a></li>
+			<li><a href='/896/graph'>대도방파제</a></li>
+			<li><a href='/897/graph'>노량항</a></li>
+			<li><a href='/899/graph'>차면방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">남해군 설천면 | 고현면</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/34/graph'>노량리</a></li>
+			<li><a href='/275/graph'>봉우항</a></li>
+			<li><a href='/278/graph'>감암리</a></li>
+			<li><a href='/544/graph'>동갈화항</a></li>
+			<li><a href='/545/graph'>문의리</a></li>
+			<li><a href='/898/graph'>감암방파제</a></li>
+			<li><a href='/900/graph'>갈화방파제</a></li>
+			<li><a href='/953/graph'>비란방파제</a></li>
+			<li><a href='/954/graph'>모천방파제</a></li>
+			<li><a href='/955/graph'>진목방파제</a></li>
+			<li><a href='/956/graph'>왕지방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">남해군 서면 | 남면</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/37/graph'>평산리</a></li>
+			<li><a href='/38/graph'>서상항</a></li>
+			<li><a href='/403/graph'>임포리</a></li>
+			<li><a href='/506/graph'>선구리</a></li>
+			<li><a href='/901/graph'>정포리방파제</a></li>
+			<li><a href='/902/graph'>회룡선착장</a></li>
+			<li><a href='/903/graph'>노구</a></li>
+			<li><a href='/904/graph'>유포</a></li>
+			<li><a href='/905/graph'>염해방파제</a></li>
+			<li><a href='/906/graph'>남상리방파제</a></li>
+			<li><a href='/907/graph'>작장리방파제</a></li>
+			<li><a href='/908/graph'>상남방파제</a></li>
+			<li><a href='/909/graph'>예계방파제</a></li>
+			<li><a href='/910/graph'>서상방파제</a></li>
+			<li><a href='/911/graph'>구미동방파제</a></li>
+			<li><a href='/912/graph'>덕월리방파제</a></li>
+			<li><a href='/913/graph'>평산방파제</a></li>
+			<li><a href='/914/graph'>유구방파제</a></li>
+			<li><a href='/915/graph'>사촌방파제</a></li>
+			<li><a href='/916/graph'>향촌방파제</a></li>
+			<li><a href='/917/graph'>홍현방파제</a></li>
+			<li><a href='/918/graph'>야촌방파제</a></li>
+			<li><a href='/919/graph'>두곡방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">남해군 남해읍 | 이동면</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/276/graph'>초음리</a></li>
+			<li><a href='/543/graph'>선소항</a></li>
+			<li><a href='/920/graph'>화계방파제</a></li>
+			<li><a href='/921/graph'>원천항</a></li>
+			<li><a href='/951/graph'>초양방파제</a></li>
+			<li><a href='/952/graph'>섬호방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">남해군 창선면 | 삼동면</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/30/graph'>물건항</a></li>
+			<li><a href='/264/graph'>동천리</a></li>
+			<li><a href='/401/graph'>지족리</a></li>
+			<li><a href='/505/graph'>창선도</a></li>
+			<li><a href='/540/graph'>장포항</a></li>
+			<li><a href='/547/graph'>대벽리</a></li>
+			<li><a href='/941/graph'>은점방파제</a></li>
+			<li><a href='/942/graph'>물건방파제</a></li>
+			<li><a href='/943/graph'>양화금방파제</a></li>
+			<li><a href='/944/graph'>노루목방파제</a></li>
+			<li><a href='/945/graph'>둔촌방파제</a></li>
+			<li><a href='/946/graph'>전도방파제</a></li>
+			<li><a href='/947/graph'>해창방파제</a></li>
+			<li><a href='/948/graph'>금송방파제</a></li>
+			<li><a href='/949/graph'>수장포방파제</a></li>
+			<li><a href='/950/graph'>신흥항</a></li>
+			<li><a href='/957/graph'>광천항</a></li>
+			<li><a href='/958/graph'>서대방파제</a></li>
+			<li><a href='/959/graph'>율도방파제</a></li>
+			<li><a href='/960/graph'>대벽방파제</a></li>
+			<li><a href='/961/graph'>진걸음선창</a></li>
+			<li><a href='/971/graph'>가인방파제</a></li>
+			<li><a href='/972/graph'>고두방파제</a></li>
+			<li><a href='/973/graph'>당항방파제</a></li>
+			<li><a href='/974/graph'>냉천방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">남해군 상주면 | 미조면</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/35/graph'>양아리</a></li>
+			<li><a href='/36/graph'>미조항</a></li>
+			<li><a href='/579/graph'>상주면</a></li>
+			<li><a href='/922/graph'>벽련방파제</a></li>
+			<li><a href='/923/graph'>노도항</a></li>
+			<li><a href='/924/graph'>두모방파제</a></li>
+			<li><a href='/925/graph'>소량방파제</a></li>
+			<li><a href='/926/graph'>상주방파제</a></li>
+			<li><a href='/927/graph'>송정방파제</a></li>
+			<li><a href='/928/graph'>설리방파제</a></li>
+			<li><a href='/929/graph'>떼섬</a></li>
+			<li><a href='/930/graph'>사도</a></li>
+			<li><a href='/931/graph'>애도</a></li>
+			<li><a href='/932/graph'>범섬방파제</a></li>
+			<li><a href='/933/graph'>조도방파제</a></li>
+			<li><a href='/934/graph'>미조항방파제</a></li>
+			<li><a href='/935/graph'>목과도</a></li>
+			<li><a href='/936/graph'>고도</a></li>
+			<li><a href='/937/graph'>초전방파제</a></li>
+			<li><a href='/938/graph'>항도방파제</a></li>
+			<li><a href='/939/graph'>노구방파제</a></li>
+			<li><a href='/940/graph'>대지포방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">광양시ㆍ순천시</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/39/graph'>광양</a></li>
+			<li><a href='/894/graph'>망덕포구</a></li>
+			<li><a href='/222/graph'>순천만</a></li>
+			<li><a href='/791/graph'>용두항</a></li>
+			<li><a href='/792/graph'>거차항</a></li>
+			<li><a href='/794/graph'>화포항</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">여수시 (행정동)</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/41/graph'>여수</a></li>
+			<li><a href='/271/graph'>국동항</a></li>
+			<li><a href='/272/graph'>소호동</a></li>
+			<li><a href='/280/graph'>월내동</a></li>
+			<li><a href='/826/graph'>소호항</a></li>
+			<li><a href='/827/graph'>넙내리방파제</a></li>
+			<li><a href='/828/graph'>소경도방파제</a></li>
+			<li><a href='/829/graph'>큰방파제</a></li>
+			<li><a href='/830/graph'>안방파제</a></li>
+			<li><a href='/831/graph'>여수구항</a></li>
+			<li><a href='/886/graph'>종화동방파제</a></li>
+			<li><a href='/887/graph'>오동도방파제</a></li>
+			<li><a href='/888/graph'>여수신항방파제</a></li>
+			<li><a href='/889/graph'>만성리방파제</a></li>
+			<li><a href='/890/graph'>신덕항</a></li>
+			<li><a href='/891/graph'>묘도차도선대기소</a></li>
+			<li><a href='/892/graph'>묘도</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">여수시 돌산읍</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/265/graph'>두문포</a></li>
+			<li><a href='/266/graph'>율림리</a></li>
+			<li><a href='/270/graph'>돌산항</a></li>
+			<li><a href='/832/graph'>평사방파제</a></li>
+			<li><a href='/833/graph'>모장방파제</a></li>
+			<li><a href='/834/graph'>항대방파제</a></li>
+			<li><a href='/835/graph'>금천방파제</a></li>
+			<li><a href='/836/graph'>서외방파제</a></li>
+			<li><a href='/837/graph'>돌산방파제</a></li>
+			<li><a href='/838/graph'>송도방파제</a></li>
+			<li><a href='/868/graph'>신기방파제</a></li>
+			<li><a href='/869/graph'>작금방파제</a></li>
+			<li><a href='/873/graph'>성두방파제</a></li>
+			<li><a href='/874/graph'>항일암항</a></li>
+			<li><a href='/875/graph'>소율방파제</a></li>
+			<li><a href='/876/graph'>대율방파제</a></li>
+			<li><a href='/877/graph'>백포방바제</a></li>
+			<li><a href='/878/graph'>두문포방파제</a></li>
+			<li><a href='/879/graph'>계동항</a></li>
+			<li><a href='/880/graph'>작은계동방파제</a></li>
+			<li><a href='/881/graph'>월호방파제</a></li>
+			<li><a href='/882/graph'>안굴전방파제</a></li>
+			<li><a href='/883/graph'>월전방파제</a></li>
+			<li><a href='/884/graph'>상하동방파제</a></li>
+			<li><a href='/885/graph'>진목방파제</a></li>
+			<li><a href='/893/graph'>송도</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">여수시 율촌면 | 소라면</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/282/graph'>달천도</a></li>
+			<li><a href='/283/graph'>봉전리</a></li>
+			<li><a href='/798/graph'>복개도</a></li>
+			<li><a href='/799/graph'>섬달천</a></li>
+			<li><a href='/1271/graph'>반월</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">여수시 화양면 | 화정면</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/43/graph'>낭도항</a></li>
+			<li><a href='/45/graph'>대여자도</a></li>
+			<li><a href='/46/graph'>조발도</a></li>
+			<li><a href='/228/graph'>백야도</a></li>
+			<li><a href='/273/graph'>세포리</a></li>
+			<li><a href='/281/graph'>사도</a></li>
+			<li><a href='/404/graph'>안포리</a></li>
+			<li><a href='/580/graph'>호령항</a></li>
+			<li><a href='/795/graph'>대동마을</a></li>
+			<li><a href='/796/graph'>여자도</a></li>
+			<li><a href='/797/graph'>송여자도</a></li>
+			<li><a href='/800/graph'>운두도</a></li>
+			<li><a href='/801/graph'>이목방파제</a></li>
+			<li><a href='/802/graph'>벌구방파제</a></li>
+			<li><a href='/803/graph'>조발도방파제</a></li>
+			<li><a href='/804/graph'>둔병도</a></li>
+			<li><a href='/805/graph'>적금도방파제</a></li>
+			<li><a href='/806/graph'>규포항</a></li>
+			<li><a href='/807/graph'>사도방파제</a></li>
+			<li><a href='/808/graph'>추도항</a></li>
+			<li><a href='/809/graph'>장사도</a></li>
+			<li><a href='/810/graph'>상계도</a></li>
+			<li><a href='/811/graph'>장수방파제</a></li>
+			<li><a href='/812/graph'>힛도방파제</a></li>
+			<li><a href='/813/graph'>백야도방파제</a></li>
+			<li><a href='/814/graph'>상화도방파제</a></li>
+			<li><a href='/815/graph'>하화도방파제</a></li>
+			<li><a href='/816/graph'>모전방파제</a></li>
+			<li><a href='/817/graph'>호령방파제</a></li>
+			<li><a href='/818/graph'>여석방파제</a></li>
+			<li><a href='/819/graph'>제도항</a></li>
+			<li><a href='/820/graph'>화산</a></li>
+			<li><a href='/821/graph'>별촌방파제</a></li>
+			<li><a href='/822/graph'>자봉도</a></li>
+			<li><a href='/823/graph'>월항방파제</a></li>
+			<li><a href='/824/graph'>쏨뱅이방파제</a></li>
+			<li><a href='/825/graph'>호두방파제</a></li>
+			<li><a href='/839/graph'>월호방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">여수시 남면</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/44/graph'>월전항</a></li>
+			<li><a href='/267/graph'>심포항</a></li>
+			<li><a href='/268/graph'>여수연도항</a></li>
+			<li><a href='/269/graph'>작도</a></li>
+			<li><a href='/405/graph'>두모리</a></li>
+			<li><a href='/455/graph'>우학리</a></li>
+			<li><a href='/507/graph'>안도항</a></li>
+			<li><a href='/840/graph'>독정이방파제</a></li>
+			<li><a href='/841/graph'>벌통방파제</a></li>
+			<li><a href='/842/graph'>송고방파제</a></li>
+			<li><a href='/843/graph'>여남방파제</a></li>
+			<li><a href='/844/graph'>함구미방파제</a></li>
+			<li><a href='/845/graph'>초포방파제</a></li>
+			<li><a href='/846/graph'>직포방파제</a></li>
+			<li><a href='/847/graph'>학동방파제</a></li>
+			<li><a href='/848/graph'>심포방파제</a></li>
+			<li><a href='/849/graph'>우학리방파제</a></li>
+			<li><a href='/850/graph'>독사골방파제</a></li>
+			<li><a href='/851/graph'>우실포방파제</a></li>
+			<li><a href='/852/graph'>심장리방파제</a></li>
+			<li><a href='/853/graph'>안도방파제</a></li>
+			<li><a href='/854/graph'>역포방파제</a></li>
+			<li><a href='/855/graph'>이야포방파제</a></li>
+			<li><a href='/856/graph'>동고지방파제</a></li>
+			<li><a href='/857/graph'>소유방파제</a></li>
+			<li><a href='/858/graph'>수항도</a></li>
+			<li><a href='/859/graph'>대유방파제</a></li>
+			<li><a href='/860/graph'>여천기미방파제</a></li>
+			<li><a href='/861/graph'>소두라도소방파제</a></li>
+			<li><a href='/862/graph'>소두라도대방파제</a></li>
+			<li><a href='/863/graph'>인금방파제</a></li>
+			<li><a href='/864/graph'>선창방파제</a></li>
+			<li><a href='/865/graph'>월전</a></li>
+			<li><a href='/866/graph'>마족</a></li>
+			<li><a href='/867/graph'>개머리방파제</a></li>
+			<li><a href='/870/graph'>대횡간도방파제</a></li>
+			<li><a href='/871/graph'>소횡간도방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">여수시 삼산면</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/49/graph'>손죽도</a></li>
+			<li><a href='/50/graph'>광도</a></li>
+			<li><a href='/51/graph'>거문도</a></li>
+			<li><a href='/52/graph'>초도</a></li>
+			<li><a href='/294/graph'>평도</a></li>
+			<li><a href='/295/graph'>문도</a></li>
+			<li><a href='/743/graph'>초도남측</a></li>
+			<li><a href='/762/graph'>소거문도</a></li>
+			<li><a href='/763/graph'>거문항</a></li>
+			<li><a href='/773/graph'>대룡도</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">고흥군 대서 | 남양 | 과역</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/552/graph'>안남리</a></li>
+			<li><a href='/725/graph'>수문동나루터</a></li>
+			<li><a href='/235/graph'>고흥우도</a></li>
+			<li><a href='/550/graph'>월정리</a></li>
+			<li><a href='/285/graph'>백일도</a></li>
+			<li><a href='/784/graph'>원주도</a></li>
+			<li><a href='/785/graph'>해하도</a></li>
+			<li><a href='/786/graph'>진지도</a></li>
+			<li><a href='/787/graph'>미덕도</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">고흥군 두원 | 도덕 | 도양</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/219/graph'>녹동</a></li>
+			<li><a href='/291/graph'>득량도</a></li>
+			<li><a href='/292/graph'>고흥방조제</a></li>
+			<li><a href='/293/graph'>풍류리</a></li>
+			<li><a href='/408/graph'>시산항</a></li>
+			<li><a href='/443/graph'>녹동항</a></li>
+			<li><a href='/726/graph'>용동포나루터</a></li>
+			<li><a href='/727/graph'>용동항</a></li>
+			<li><a href='/728/graph'>잠두항</a></li>
+			<li><a href='/754/graph'>동봉항</a></li>
+			<li><a href='/1496/graph'>신흥방파제(고흥)</a></li>
+			<li><a href='/1506/graph'>장수방파제</a></li>
+			<li><a href='/1507/graph'>장예방파제</a></li>
+			<li><a href='/1509/graph'>무학도</a></li>
+			<li><a href='/1510/graph'>부아도</a></li>
+			<li><a href='/1498/graph'>용당양식장옆갯바위</a></li>
+			<li><a href='/1508/graph'>월하방파제</a></li>
+			<li><a href='/1511/graph'>담낭방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">고흥군 풍양 | 금산 | 도화</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/53/graph'>거금수도</a></li>
+			<li><a href='/220/graph'>고흥발포</a></li>
+			<li><a href='/289/graph'>익금</a></li>
+			<li><a href='/406/graph'>풍남항</a></li>
+			<li><a href='/407/graph'>거금도</a></li>
+			<li><a href='/491/graph'>고흥금진항</a></li>
+			<li><a href='/551/graph'>구암리</a></li>
+			<li><a href='/729/graph'>우두항</a></li>
+			<li><a href='/744/graph'>연산항</a></li>
+			<li><a href='/745/graph'>어전리방파제</a></li>
+			<li><a href='/746/graph'>공고지방파제</a></li>
+			<li><a href='/747/graph'>익금방파제</a></li>
+			<li><a href='/748/graph'>금장방파제</a></li>
+			<li><a href='/749/graph'>오천항</a></li>
+			<li><a href='/750/graph'>오천방파제</a></li>
+			<li><a href='/752/graph'>월포방파제</a></li>
+			<li><a href='/753/graph'>신평</a></li>
+			<li><a href='/755/graph'>가화방파제</a></li>
+			<li><a href='/756/graph'>전어포방파제</a></li>
+			<li><a href='/757/graph'>구암방파제</a></li>
+			<li><a href='/758/graph'>죽도</a></li>
+			<li><a href='/759/graph'>지죽방파제</a></li>
+			<li><a href='/760/graph'>발포항</a></li>
+			<li><a href='/761/graph'>덕중방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">고흥군 점암 | 영남 | 포두</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/286/graph'>금사리</a></li>
+			<li><a href='/492/graph'>여호항</a></li>
+			<li><a href='/548/graph'>남열항</a></li>
+			<li><a href='/771/graph'>석사방파제</a></li>
+			<li><a href='/772/graph'>익금방파제</a></li>
+			<li><a href='/775/graph'>연신목방파제</a></li>
+			<li><a href='/776/graph'>동래도</a></li>
+			<li><a href='/779/graph'>비사도</a></li>
+			<li><a href='/780/graph'>옥태도</a></li>
+			<li><a href='/781/graph'>남열방파제</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">고흥군 동일면 | 봉래면</span> <b></b> </a>
+          <ul class="gw-submenu">
+            <li><a href='/47/graph'>사양도</a></li>
+			<li><a href='/48/graph'>나로도항</a></li>
+			<li><a href='/287/graph'>봉영리</a></li>
+			<li><a href='/288/graph'>염포</a></li>
+			<li><a href='/549/graph'>덕흥항</a></li>
+			<li><a href='/764/graph'>꼭두녀</a></li>
+			<li><a href='/765/graph'>중촌방파제</a></li>
+			<li><a href='/766/graph'>꼬리새우섬</a></li>
+			<li><a href='/767/graph'>창포항</a></li>
+			<li><a href='/768/graph'>엄남방파제</a></li>
+			<li><a href='/769/graph'>봉호방파제</a></li>
+			<li><a href='/770/graph'>사양도방파제</a></li>
+			<li><a href='/774/graph'>용흥도</a></li>
+			<li><a href='/778/graph'>구룡방파제</a></li>
+			<li><a href='/782/graph'>바래섬</a></li>
+			<li><a href='/783/graph'>소영</a></li>
+			<li><a href='/872/graph'>수락도</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">보성군</span> <b></b> </a>
+          <ul class="gw-submenu">
+			<li><a href='/284/graph'>해도</a></li>
+			<li><a href='/489/graph'>동율리</a></li>
+			<li><a href='/718/graph'>군학항</a></li>
+			<li><a href='/719/graph'>율포항</a></li>
+			<li><a href='/720/graph'>동율항</a></li>
+			<li><a href='/721/graph'>군농항</a></li>
+			<li><a href='/722/graph'>선소항</a></li>
+			<li><a href='/723/graph'>청암항</a></li>
+			<li><a href='/724/graph'>해평항</a></li>
+			<li><a href='/788/graph'>대포항</a></li>
+			<li><a href='/789/graph'>지주도</a></li>
+			<li><a href='/790/graph'>상진항</a></li>
+			<li><a href='/793/graph'>장도</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">장흥군</span> <b></b> </a>
+          <ul class="gw-submenu">
+			<li><a href='/290/graph'>고마리</a></li>
+			<li><a href='/409/graph'>대리</a></li>
+			<li><a href='/410/graph'>회진항</a></li>
+			<li><a href='/490/graph'>수문리</a></li>
+			<li><a href='/715/graph'>노력도</a></li>
+			<li><a href='/716/graph'>삼산항</a></li>
+			<li><a href='/717/graph'>장환항</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">완도군 금당 | 금일 | 생일</span> <b></b> </a>
+          <ul class="gw-submenu">
+			<li><a href='/54/graph'>금당도</a></li>
+			<li><a href='/55/graph'>평일도</a></li>
+			<li><a href='/296/graph'>덕우도</a></li>
+			<li><a href='/411/graph'>울포항</a></li>
+			<li><a href='/412/graph'>도장항</a></li>
+			<li><a href='/413/graph'>완도사동항</a></li>
+			<li><a href='/488/graph'>생일도</a></li>
+			<li><a href='/582/graph'>가학항</a></li>
+			<li><a href='/730/graph'>비견</a></li>
+			<li><a href='/731/graph'>신도</a></li>
+			<li><a href='/732/graph'>충도항</a></li>
+			<li><a href='/733/graph'>동송항</a></li>
+			<li><a href='/734/graph'>금일해당화해변</a></li>
+			<li><a href='/735/graph'>동백항</a></li>
+			<li><a href='/736/graph'>일정항터미널</a></li>
+			<li><a href='/737/graph'>서성항</a></li>
+			<li><a href='/738/graph'>금곡해변</a></li>
+			<li><a href='/739/graph'>매물도</a></li>
+			<li><a href='/740/graph'>황제도</a></li>
+			<li><a href='/741/graph'>장도</a></li>
+			<li><a href='/742/graph'>원도</a></li>
+			<li><a href='/1485/graph'>다랑도</a></li>
+			<li><a href='/1486/graph'>대사도</a></li>
+			<li><a href='/1492/graph'>부도</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">완도군 고금 | 약산 | 신지</span> <b></b> </a>
+          <ul class="gw-submenu">
+			<li><a href='/56/graph'>약산도</a></li>
+			<li><a href='/57/graph'>마도수도</a></li>
+			<li><a href='/58/graph'>덕동</a></li>
+			<li><a href='/298/graph'>방죽포항</a></li>
+			<li><a href='/299/graph'>득암리</a></li>
+			<li><a href='/457/graph'>어두리</a></li>
+			<li><a href='/554/graph'>월양항</a></li>
+			<li><a href='/555/graph'>청용리</a></li>
+			<li><a href='/683/graph'>강독</a></li>
+			<li><a href='/691/graph'>가교도선장</a></li>
+			<li><a href='/692/graph'>가옥재방파제</a></li>
+			<li><a href='/693/graph'>용초방파제</a></li>
+			<li><a href='/694/graph'>칠인리방파제</a></li>
+			<li><a href='/695/graph'>봉명방파제</a></li>
+			<li><a href='/696/graph'>상정방파제</a></li>
+			<li><a href='/697/graph'>대곡방파제</a></li>
+			<li><a href='/698/graph'>연동방파제</a></li>
+			<li><a href='/699/graph'>척찬리방파제</a></li>
+			<li><a href='/700/graph'>화성방파제</a></li>
+			<li><a href='/701/graph'>백촌방파제</a></li>
+			<li><a href='/702/graph'>송곡</a></li>
+			<li><a href='/703/graph'>물하태도선장</a></li>
+			<li><a href='/704/graph'>명사방파제</a></li>
+			<li><a href='/705/graph'>울물방파제</a></li>
+			<li><a href='/706/graph'>석화포방파제</a></li>
+			<li><a href='/707/graph'>방죽포방파제</a></li>
+			<li><a href='/708/graph'>동촌방파제</a></li>
+			<li><a href='/709/graph'>동고리방파제</a></li>
+			<li><a href='/710/graph'>세포방파제</a></li>
+			<li><a href='/712/graph'>치도</a></li>
+			<li><a href='/713/graph'>해동항</a></li>
+			<li><a href='/714/graph'>당목항</a></li>
+			<li><a href='/1487/graph'>고금도</a></li>
+			<li><a href='/1490/graph'>모황도</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">완도군 군외면 | 완도읍</span> <b></b> </a>
+          <ul class="gw-submenu">
+			<li><a href='/60/graph'>완도</a></li>
+			<li><a href='/302/graph'>화흥포</a></li>
+			<li><a href='/456/graph'>사후도</a></li>
+			<li><a href='/486/graph'>달도리</a></li>
+			<li><a href='/584/graph'>원동항</a></li>
+			<li><a href='/658/graph'>흑일도</a></li>
+			<li><a href='/663/graph'>동화도</a></li>
+			<li><a href='/669/graph'>신흥방파제</a></li>
+			<li><a href='/670/graph'>대문리방파제</a></li>
+			<li><a href='/671/graph'>갈문리방파제</a></li>
+			<li><a href='/672/graph'>삼두리방파제</a></li>
+			<li><a href='/673/graph'>당인리방파제</a></li>
+			<li><a href='/674/graph'>신정방파제</a></li>
+			<li><a href='/678/graph'>고마도</a></li>
+			<li><a href='/679/graph'>남선리방파제</a></li>
+			<li><a href='/680/graph'>영풍방파제</a></li>
+			<li><a href='/681/graph'>불목방파제</a></li>
+			<li><a href='/682/graph'>대야방파제</a></li>
+			<li><a href='/684/graph'>완도(씨월드)방파제</a></li>
+			<li><a href='/685/graph'>망남방파제</a></li>
+			<li><a href='/686/graph'>망석항</a></li>
+			<li><a href='/687/graph'>석장리방파제</a></li>
+			<li><a href='/1491/graph'>백일도(완도)</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">완도군 노화 | 보길 | 소안</span> <b></b> </a>
+          <ul class="gw-submenu">
+			<li><a href='/63/graph'>소안항</a></li>
+			<li><a href='/64/graph'>이목항</a></li>
+			<li><a href='/303/graph'>마삭도</a></li>
+			<li><a href='/305/graph'>넙도</a></li>
+			<li><a href='/306/graph'>보옥항</a></li>
+			<li><a href='/414/graph'>이월리</a></li>
+			<li><a href='/485/graph'>어룡도</a></li>
+			<li><a href='/651/graph'>대장구도</a></li>
+			<li><a href='/652/graph'>대정원도</a></li>
+			<li><a href='/653/graph'>죽굴도</a></li>
+			<li><a href='/659/graph'>예작도</a></li>
+			<li><a href='/660/graph'>당사도</a></li>
+			<li><a href='/661/graph'>횡간도방파제</a></li>
+			<li><a href='/1336/graph'>노록도</a></li>
+			<li><a href='/1478/graph'>소안도남측</a></li>
+			<li><a href='/1479/graph'>소안도이월</a></li>
+			<li><a href='/1480/graph'>외모도</a></li>
+			<li><a href='/1483/graph'>노화도</a></li>
+			<li><a href='/1484/graph'>노화도동측</a></li>
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">완도군 청산면</span> <b></b> </a>
+          <ul class="gw-submenu">
+			<li><a href='/61/graph'>청산도</a></li>
+			<li><a href='/65/graph'>여서도</a></li>
+			<li><a href='/297/graph'>대모도</a></li>
+			<li><a href='/487/graph'>국산리</a></li>
+			<li><a href='/553/graph'>신흥항</a></li>
+			<li><a href='/688/graph'>소모도</a></li>
+			<li><a href='/689/graph'>모서항</a></li>
+			<li><a href='/690/graph'>모동리방파제</a></li>
+			<li><a href='/711/graph'>청산도서측</a></li>
+			<li><a href='/1488/graph'>청산도남측</a></li>
+			<li><a href='/1477/graph'>여서도남측</a></li>
+			<li><a href='/1493/graph'>불근도</a></li>
+
+          </ul>
+        </li>
+		
+		<li class="init-arrow-down"> <a href="javascript:void(0)"> <span class="gw-menu-text">강진군</span> <b></b> </a>
+          <ul class="gw-submenu">
+			<li><a href='/62/graph'>마량항</a></li>
+			<li><a href='/301/graph'>하저리</a></li>
+			<li><a href='/556/graph'>가우도</a></li>
+			<li><a href='/581/graph'>사초항</a></li>
+			<li><a href='/677/graph'>망호</a></li>
+          </ul>
+        </li>
+      </ul>
+	</div>
+	<br>
+	<a style="text-decoration: none; display: block; width: 100%;" href="#" onclick="goPost('/time-map/0', {category:'1', GE: 826}); return false;">
+		<div class="div_side">
+			<img src="/img/icon/btn_seo.png" alt="서해 통합검색" style="width: 40px; height:40px; border-radius: 8px;">
+			<div style="color: #424242; font-size: 16px; font-weight: 600; padding-left:16px;">서해 물때그래프</div>
+		</div>
+	</a>
+	<a style="text-decoration: none; display: block; width: 100%;" href="#" onclick="goPost('/time-map/1', {category:'1', GE: 826}); return false;">
+		<div class="div_side">
+			<img src="/img/icon/btn_nam.png" alt="남해 통합검색" style="width: 40px; height:40px; border-radius: 8px;">
+			<div style="color: #424242; font-size: 16px; font-weight: 600; padding-left:16px;">남해 물때그래프</div>
+		</div>
+	</a>
+	<a style="text-decoration: none; display: block; width: 100%;" href="#" onclick="goPost('/time-map/2', {category:'1', GE: 826}); return false;">
+		<div class="div_side">
+			<img src="/img/icon/btn_dong.png" alt="동해 통합검색" style="width: 40px; height:40px; border-radius: 8px;">
+			<div style="color: #424242; font-size: 16px; font-weight: 600; padding-left:16px;">동해 물때그래프</div>
+		</div>
+	</a>
+	<a style="text-decoration: none; display: block; width: 100%;" href="#" onclick="goPost('/time-map/3', {category:'1', GE: 826}); return false;">
+		<div class="div_side">
+			<img src="/img/icon/btn_jeju.png" alt="제주 통합검색" style="width: 40px; height:40px; border-radius: 8px;">
+			<div style="color: #424242; font-size: 16px; font-weight: 600; padding-left:16px;">제주 물때그래프</div>
+		</div>
+	</a>
+	
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // 현재 페이지 경로 (예: /153/tide)
+  var currentPath = window.location.pathname || "";
+
+  var menuLinks = document.querySelectorAll('.gw-submenu a');
+  var activeLink = null;
+
+  // 1차: href 전체 경로와 완전히 일치하는 링크 찾기
+  menuLinks.forEach(function(a) {
+    var href = a.getAttribute('href');
+    if (!href) return;
+
+    var hrefPath = href.split('?')[0];
+    var pathOnly = currentPath.split('?')[0];
+
+    if (hrefPath === pathOnly) {
+      activeLink = a;
+    }
+  });
+
+  // 2차: 앞에 오는 번호(포인트 ID) 기준으로 느슨하게 매칭 (예: /153, /153/tide 등)
+  if (!activeLink) {
+    var curSeg = currentPath.split('/')[1]; // "153"
+    if (curSeg) {
+      menuLinks.forEach(function(a) {
+        var href = a.getAttribute('href');
+        if (!href) return;
+        var hrefSeg = href.split('/')[1];
+        if (hrefSeg === curSeg && !activeLink) {
+          activeLink = a;
+        }
+      });
+    }
+  }
+
+  if (activeLink) {
+    // 선택된 링크 강조
+    activeLink.classList.add('menu-active');
+
+    // 상위 서브메뉴 펼치기
+    var submenu = activeLink.closest('.gw-submenu');
+    if (submenu) {
+      submenu.style.display = 'block';
+
+      // 상위 li도 표시용 클래스 추가
+      var parentLi = submenu.parentElement;
+      if (parentLi && parentLi.classList.contains('init-arrow-down')) {
+        parentLi.classList.add('active-open');
+      }
+    }
+  }
+});
+</script>
+			
+		</aside>
+		
+		<main class="content">
+			
+			<table class="PC_title" border="0" width="100%"  cellspacing="0"  cellpadding="0" align="center" style="font-size:13px;">
+				<tr><td colspan="2" align="center">
+				<p align="right" >
+				오늘날짜 : 양력 2026년 9월 14일 / 음력 2026년 8월 4일 / 丙午 말띠<br>
+				Soho Port 전라남도 여수시 소호동 평균해면하:175cm / 동경127:39 북위34:44
+				</p>
+				</td></tr>
+				<tr cellpadding="4">
+					<td class="title" valign="top" style="margin-top:8px;"><h1>&nbsp;&nbsp;소호항 상세물때</h1></td>
+					<td style="width:250px; text-align:right; padding-top:6px; color:#757575; font-size: 12px; font-weight: 600; letter-spacing: -0.48px;">(풍속 : m/s, 파고 : m, 강수량: mm)</td>
+				</tr>
+			</table>
+			<div class="MO_title" width="99%">
+				<a href="https://www.badatime.com" style="color:#0000FF;">홈</a> &gt;		
+				<a href="#" style="color:#0000FF;" onclick="goPost('/time-map/1', {category:'1', lat:34.744706, lon:127.656432, GE: 826}); return false;">남해</a> &gt; 
+				<a href="/826/tide" style="color:#0000FF;">소호항</a> &gt;
+				<a href="/826/graph" style="color:#0000FF;">상세물때</a>
+			</div>
+			
+			<div class="date_view">
+				
+				<a href="/826/graph/2026-9-18">
+					<div style="width:48px; height:44px; display: flex; justify-content: center; align-items: center; background-color:#D6D6D6;"><img width="16" height="14" src="/svg/left.svg"/></div>
+				</a>
+				
+				<div style="text-align: center; flex: 1; font-size: 20px; color: #000; font-weight: 700;">
+					<div class="pc_date">9.19 (토) <span style="color: #757575; font-size: 14px; font-weight: 600;">(음 8.9)</span></div>
+				</div>
+				
+				<a href="/826/graph/2026-9-20">
+					<div style="width:48px; height:44px; display: flex; justify-content: center; align-items: center; background-color:#D6D6D6;"><img width="16" height="14" src="/svg/right.svg"/></div>
+				</a>
+				
+			</div>
+			
+
+			<div class="graph-wrap">
+			  <div id="chartdiv">
+				<div class="chart-topbar" id="chartTopbar">
+					<div class="ct-mid">
+					  <img class="ct-moon" src="//images.badatime.com/moon3/9.png" alt="월령"/>
+					  <span class="ct-tide">1물</span>
+					  
+						
+						<span class="ct-flow">물흐름 : 3%</span>
+						
+					</div>
+				  </div>
+				  
+				  <div id="chartBody"></div>
+			  </div>
+			  
+				<aside class="weather-panel" id="weatherPanel">
+				  <div class="weather-list" id="weatherList">
+					
+
+					<div class="wp-row ">
+					  <!-- 1) 시간 -->
+					  <div class="wp-time">
+						
+						  <span>00시</span>
+						
+					  </div>
+
+					  <!-- 2) 날씨(아이콘 + sky 2줄) -->
+					  <div class="wp-weather">
+						<img class="wp-ico" src="/img/icon/3.png" alt=""/>
+						<div class="wp-sky">흐림</div>
+					  </div>
+
+					  <!-- 3) 기온(강수량) -->
+					  <div class="wp-tempbox">
+						<div class="wp-temp">23°</div>
+						
+					  </div>
+
+					  <!-- 4) 풍향/풍속/파고 -->
+					  <div class="wp-wind">
+						<div class="wp-wind-top">
+						  <img src="https://www.badatime.com/img/icon/wind_speed/NE2.png" alt=""/>
+						  <span>북동</span>
+						</div>
+						<div class="wp-wind-sub">4.3 <span class="muted">m/s</span></div>
+						<div class="wp-wind-sub">1.09 <span class="muted">m</span></div>
+					  </div>
+					</div>
+
+					
+
+					<div class="wp-row ">
+					  <!-- 1) 시간 -->
+					  <div class="wp-time">
+						
+						  <span>03시</span>
+						
+					  </div>
+
+					  <!-- 2) 날씨(아이콘 + sky 2줄) -->
+					  <div class="wp-weather">
+						<img class="wp-ico" src="/img/icon/3.png" alt=""/>
+						<div class="wp-sky">흐림</div>
+					  </div>
+
+					  <!-- 3) 기온(강수량) -->
+					  <div class="wp-tempbox">
+						<div class="wp-temp">22°</div>
+						
+					  </div>
+
+					  <!-- 4) 풍향/풍속/파고 -->
+					  <div class="wp-wind">
+						<div class="wp-wind-top">
+						  <img src="https://www.badatime.com/img/icon/wind_speed/NE2.png" alt=""/>
+						  <span>북동</span>
+						</div>
+						<div class="wp-wind-sub">3.9 <span class="muted">m/s</span></div>
+						<div class="wp-wind-sub">1.03 <span class="muted">m</span></div>
+					  </div>
+					</div>
+
+					
+
+					<div class="wp-row ">
+					  <!-- 1) 시간 -->
+					  <div class="wp-time">
+						
+						  <span>06시</span>
+						
+					  </div>
+
+					  <!-- 2) 날씨(아이콘 + sky 2줄) -->
+					  <div class="wp-weather">
+						<img class="wp-ico" src="/img/icon/4.png" alt=""/>
+						<div class="wp-sky">비</div>
+					  </div>
+
+					  <!-- 3) 기온(강수량) -->
+					  <div class="wp-tempbox">
+						<div class="wp-temp">20°</div>
+						
+						  <div class="wp-rain">2.1 <span class="muted">mm</span></div>
+						
+					  </div>
+
+					  <!-- 4) 풍향/풍속/파고 -->
+					  <div class="wp-wind">
+						<div class="wp-wind-top">
+						  <img src="https://www.badatime.com/img/icon/wind_speed/NE2.png" alt=""/>
+						  <span>북동</span>
+						</div>
+						<div class="wp-wind-sub">4.0 <span class="muted">m/s</span></div>
+						<div class="wp-wind-sub">0.97 <span class="muted">m</span></div>
+					  </div>
+					</div>
+
+					
+
+					<div class="wp-row ">
+					  <!-- 1) 시간 -->
+					  <div class="wp-time">
+						
+						  <span>09시</span>
+						
+					  </div>
+
+					  <!-- 2) 날씨(아이콘 + sky 2줄) -->
+					  <div class="wp-weather">
+						<img class="wp-ico" src="/img/icon/3.png" alt=""/>
+						<div class="wp-sky">흐림</div>
+					  </div>
+
+					  <!-- 3) 기온(강수량) -->
+					  <div class="wp-tempbox">
+						<div class="wp-temp">23°</div>
+						
+					  </div>
+
+					  <!-- 4) 풍향/풍속/파고 -->
+					  <div class="wp-wind">
+						<div class="wp-wind-top">
+						  <img src="https://www.badatime.com/img/icon/wind_speed/NE2.png" alt=""/>
+						  <span>북동</span>
+						</div>
+						<div class="wp-wind-sub">4.8 <span class="muted">m/s</span></div>
+						<div class="wp-wind-sub">0.86 <span class="muted">m</span></div>
+					  </div>
+					</div>
+
+					
+
+					<div class="wp-row ">
+					  <!-- 1) 시간 -->
+					  <div class="wp-time">
+						
+						  <span>12시</span>
+						
+					  </div>
+
+					  <!-- 2) 날씨(아이콘 + sky 2줄) -->
+					  <div class="wp-weather">
+						<img class="wp-ico" src="/img/icon/4.png" alt=""/>
+						<div class="wp-sky">비</div>
+					  </div>
+
+					  <!-- 3) 기온(강수량) -->
+					  <div class="wp-tempbox">
+						<div class="wp-temp">26°</div>
+						
+						  <div class="wp-rain">0.9 <span class="muted">mm</span></div>
+						
+					  </div>
+
+					  <!-- 4) 풍향/풍속/파고 -->
+					  <div class="wp-wind">
+						<div class="wp-wind-top">
+						  <img src="https://www.badatime.com/img/icon/wind_speed/E2.png" alt=""/>
+						  <span>동</span>
+						</div>
+						<div class="wp-wind-sub">3.9 <span class="muted">m/s</span></div>
+						<div class="wp-wind-sub">0.86 <span class="muted">m</span></div>
+					  </div>
+					</div>
+
+					
+
+					<div class="wp-row ">
+					  <!-- 1) 시간 -->
+					  <div class="wp-time">
+						
+						  <span>15시</span>
+						
+					  </div>
+
+					  <!-- 2) 날씨(아이콘 + sky 2줄) -->
+					  <div class="wp-weather">
+						<img class="wp-ico" src="/img/icon/4.png" alt=""/>
+						<div class="wp-sky">비</div>
+					  </div>
+
+					  <!-- 3) 기온(강수량) -->
+					  <div class="wp-tempbox">
+						<div class="wp-temp">29°</div>
+						
+						  <div class="wp-rain">2.3 <span class="muted">mm</span></div>
+						
+					  </div>
+
+					  <!-- 4) 풍향/풍속/파고 -->
+					  <div class="wp-wind">
+						<div class="wp-wind-top">
+						  <img src="https://www.badatime.com/img/icon/wind_speed/NE1.png" alt=""/>
+						  <span>북동</span>
+						</div>
+						<div class="wp-wind-sub">2.7 <span class="muted">m/s</span></div>
+						<div class="wp-wind-sub">0.73 <span class="muted">m</span></div>
+					  </div>
+					</div>
+
+					
+
+					<div class="wp-row ">
+					  <!-- 1) 시간 -->
+					  <div class="wp-time">
+						
+						  <span>18시</span>
+						
+					  </div>
+
+					  <!-- 2) 날씨(아이콘 + sky 2줄) -->
+					  <div class="wp-weather">
+						<img class="wp-ico" src="/img/icon/4.png" alt=""/>
+						<div class="wp-sky">비</div>
+					  </div>
+
+					  <!-- 3) 기온(강수량) -->
+					  <div class="wp-tempbox">
+						<div class="wp-temp">27°</div>
+						
+						  <div class="wp-rain">0.8 <span class="muted">mm</span></div>
+						
+					  </div>
+
+					  <!-- 4) 풍향/풍속/파고 -->
+					  <div class="wp-wind">
+						<div class="wp-wind-top">
+						  <img src="https://www.badatime.com/img/icon/wind_speed/N1.png" alt=""/>
+						  <span>북</span>
+						</div>
+						<div class="wp-wind-sub">2.1 <span class="muted">m/s</span></div>
+						<div class="wp-wind-sub">1.2 <span class="muted">m</span></div>
+					  </div>
+					</div>
+
+					
+
+					<div class="wp-row ">
+					  <!-- 1) 시간 -->
+					  <div class="wp-time">
+						
+						  <span>21시</span>
+						
+					  </div>
+
+					  <!-- 2) 날씨(아이콘 + sky 2줄) -->
+					  <div class="wp-weather">
+						<img class="wp-ico" src="/img/icon/4.png" alt=""/>
+						<div class="wp-sky">비</div>
+					  </div>
+
+					  <!-- 3) 기온(강수량) -->
+					  <div class="wp-tempbox">
+						<div class="wp-temp">25°</div>
+						
+						  <div class="wp-rain">0.1 <span class="muted">mm</span></div>
+						
+					  </div>
+
+					  <!-- 4) 풍향/풍속/파고 -->
+					  <div class="wp-wind">
+						<div class="wp-wind-top">
+						  <img src="https://www.badatime.com/img/icon/wind_speed/NE2.png" alt=""/>
+						  <span>북동</span>
+						</div>
+						<div class="wp-wind-sub">4.5 <span class="muted">m/s</span></div>
+						<div class="wp-wind-sub">1.19 <span class="muted">m</span></div>
+					  </div>
+					</div>
+
+					
+
+					<div class="wp-row ">
+					  <!-- 1) 시간 -->
+					  <div class="wp-time">
+						
+						  <span>24시</span>
+						
+					  </div>
+
+					  <!-- 2) 날씨(아이콘 + sky 2줄) -->
+					  <div class="wp-weather">
+						<img class="wp-ico" src="/img/icon/2.png" alt=""/>
+						<div class="wp-sky">구름조금</div>
+					  </div>
+
+					  <!-- 3) 기온(강수량) -->
+					  <div class="wp-tempbox">
+						<div class="wp-temp">24°</div>
+						
+					  </div>
+
+					  <!-- 4) 풍향/풍속/파고 -->
+					  <div class="wp-wind">
+						<div class="wp-wind-top">
+						  <img src="https://www.badatime.com/img/icon/wind_speed/NE2.png" alt=""/>
+						  <span>북동</span>
+						</div>
+						<div class="wp-wind-sub">4.2 <span class="muted">m/s</span></div>
+						<div class="wp-wind-sub">0.99 <span class="muted">m</span></div>
+					  </div>
+					</div>
+
+					
+				  </div>
+				</aside>
+				
+			  
+			</div>
+
+
+			<!-- ✅ 타임라인/라벨 스크립트 (기존 로직 유지 + #chartdiv 기준점은 CSS에서 해결) -->
+			
+			<script>
+			(function() {
+			  var chartDiv = document.getElementById("chartdiv");
+			  var chartBody = document.getElementById("chartBody"); // ✅ 추가
+			  
+			  
+			  var timeline = document.getElementById("timeline");
+			  if (!timeline) {
+				timeline = document.createElement("div");
+				timeline.id = "timeline";
+				chartBody.appendChild(timeline);
+			  }
+			  
+			  // labelsContainer도 chartBody에 붙임
+			  var labelsContainer = document.getElementById("labels-container");
+			  if (!labelsContainer) {
+				labelsContainer = document.createElement("div");
+				labelsContainer.id = "labels-container";
+				chartBody.appendChild(labelsContainer);
+			  }
+			  
+			  var label00 = document.createElement("div");
+			  label00.className = "timeline-label top";
+			  label00.innerText = "00";
+			  timeline.appendChild(label00);
+			  
+			  var label12 = document.createElement("div");
+			  label12.className = "timeline-label mid";
+			  label12.innerText = "12";
+			  timeline.appendChild(label12);
+			  
+			  var label24 = document.createElement("div");
+			  label24.className = "timeline-label bottom";
+			  label24.innerText = "24";
+			  timeline.appendChild(label24);
+
+			  function timeToTopPx(timeString){
+				var h = 0, m = 0;
+
+				if (timeString === "24:00") {
+				  h = 24; m = 0;
+				} else {
+				  var parts = (timeString || "").split(":");
+				  h = parseInt(parts[0], 10) || 0;
+				  m = parseInt(parts[1], 10) || 0;
+				}
+
+				var minutes = h * 60 + m;
+				
+				/*
+				var style = getComputedStyle(chartDiv);
+				var paddingTop = parseFloat(style.paddingTop) || 0;
+				var paddingBottom = parseFloat(style.paddingBottom) || 0;
+				var usableHeight = chartDiv.clientHeight - paddingTop - paddingBottom;
+				
+				return paddingTop + (minutes / 1440) * usableHeight;
+				*/
+				
+				// ✅ chartBody 기준으로 계산 (padding 필요 없음)
+				var usableHeight = chartBody.clientHeight;
+				return (minutes / 1440) * usableHeight;
+			  }
+
+			  function clearLabels(){
+				labelsContainer.innerHTML = "";
+			  }
+
+			  function addLabel(cls, text, topPx, bgColor){
+				  var el = document.createElement("div");
+				  el.className = "custom-label " + cls;
+				  el.innerText = text;
+				  el.style.backgroundColor = bgColor;
+
+				  // 먼저 임시로 top 지정해서 DOM에 붙인 뒤 실제 높이를 잰다
+				  el.style.top = topPx + "px";
+				  labelsContainer.appendChild(el);
+
+				  // ✅ 여기서부터가 핵심: 라벨이 아래/위로 잘리지 않게 top을 보정(clamp)
+				  // chartBody 기준(안전 여백 포함)
+				  var H = chartBody.clientHeight || 1;
+
+				  var safeTop = 6;     // 필요하면 조절
+				  var safeBottom = 22; // 필요하면 조절 (너 bottom:18px이면 22~28 권장)
+
+				  // 라벨 높이(실측)
+				  var rect = el.getBoundingClientRect();
+				  var h = rect.height || 18;
+
+				  // top은 "라벨 중앙" 기준이니까, 위/아래가 잘리지 않도록 범위 제한
+				  var minTop = safeTop + h/2;
+				  var maxTop = (H - safeBottom) - h/2;
+
+				  var clamped = topPx;
+				  if (clamped < minTop) clamped = minTop;
+				  if (clamped > maxTop) clamped = maxTop;
+
+				  el.style.top = clamped + "px";
+				  return el;
+				}
+
+			  function stackRightLabels(els){
+				  if (!els || !els.length) return;
+
+				  // chartBody 영역 기준으로만 계산
+				  var H = chartBody.clientHeight || 1;
+
+				  // ✅ 안전 여백 (원하면 조절)
+				  var safeTop = 6;       // 위쪽 최소 여백
+				  var safeBottom = 22;   // 아래쪽 최소 여백 (bottom:18px면 22~28 권장)
+
+				  var minTop = safeTop + 2;
+				  var maxTop = (H - safeBottom) - 2;
+
+				  // 높이 측정 후 정렬 (top은 라벨 "중앙" 기준)
+				  var items = els.map(function(el){
+					var t = parseFloat(el.style.top) || 0;
+					var h = el.getBoundingClientRect().height || 18;
+					return { el: el, top: t, height: h };
+				  }).sort(function(a,b){ return a.top - b.top; });
+
+				  var gap = 6; // 라벨 사이 최소 간격(px)
+
+				  // 0) 먼저 각 라벨을 경계 안으로 1차 클램프
+				  for (var c=0; c<items.length; c++){
+					var it = items[c];
+					var minCenter = minTop + it.height/2;
+					var maxCenter = maxTop - it.height/2;
+					if (it.top < minCenter) it.top = minCenter;
+					if (it.top > maxCenter) it.top = maxCenter;
+				  }
+
+				  // 1) 위에서 아래로 내려가며 겹치면 아래로 밀기
+				  for (var i=1; i<items.length; i++){
+					var prev = items[i-1];
+					var cur  = items[i];
+
+					var prevBottom = prev.top + prev.height/2;
+					var needCenter = prevBottom + gap + cur.height/2;
+
+					if (cur.top < needCenter) cur.top = needCenter;
+
+					// 아래 경계 초과 방지
+					var curMaxCenter = (maxTop - cur.height/2);
+					if (cur.top > curMaxCenter) cur.top = curMaxCenter;
+				  }
+				  
+				  
+				  // 2) 바닥 넘치면 전체를 위로 끌어올리기
+				  var last = items[items.length-1];
+				  var lastBottom = last.top + last.height/2;
+				  if (lastBottom > maxTop){
+					var overflow = lastBottom - maxTop;
+					for (var j=0; j<items.length; j++){
+					  items[j].top -= overflow;
+					}
+				  }
+
+				  // 3) 위쪽이 깨지면 위쪽을 맞추고 다시 스태킹
+				  var first = items[0];
+				  var firstTop = first.top - first.height/2;
+				  if (firstTop < minTop){
+					var under = minTop - firstTop;
+					for (var k=0; k<items.length; k++){
+					  items[k].top += under;
+					}
+
+					// 다시 스태킹(재겹침 방지)
+					for (var i2=1; i2<items.length; i2++){
+					  var p2 = items[i2-1];
+					  var c2 = items[i2];
+
+					  var p2Bottom = p2.top + p2.height/2;
+					  var need2 = p2Bottom + gap + c2.height/2;
+
+					  if (c2.top < need2) c2.top = need2;
+
+					  var c2Max = (maxTop - c2.height/2);
+					  if (c2.top > c2Max) c2.top = c2Max;
+					}
+				  }
+
+				  // 적용
+				  items.forEach(function(it){
+					it.el.style.top = it.top + "px";
+				  });
+				}
+
+			  function updateVerticalTimeline(){
+				clearLabels();
+
+				
+
+				// 왼쪽(만조/간조)
+				var tideTimes = [
+				
+				  {time: "00:51", label: "만조 00:51\n(246) ▲+51", type: "high"},
+				
+				  {time: "07:07", label: "간조 07:07\n(143) ▼-103", type: "low"},
+				
+				  {time: "14:32", label: "만조 14:32\n(258) ▲+115", type: "high"},
+				
+				  {time: "22:33", label: "간조 22:33\n(203) ▼-55", type: "low"},
+				
+				];
+
+				tideTimes.forEach(function(tide){
+				  var topPx = timeToTopPx(tide.time);
+				  if (tide.type === "high") addLabel("tide", tide.label, topPx, "#CC3333");
+				  else addLabel("tide", tide.label, topPx, "#2C6ED5");
+				});
+				
+				// 오른쪽(일출/일몰/월출/월몰)
+				var sunriseTime = "06:15";
+				var sunsetTime  = "18:31";
+				var moonriseTime = "14:04";
+				var moonsetTime  = "23:31";
+
+				var rightEls = [];
+				
+				if (sunriseTime && sunriseTime.indexOf("--") === -1) {
+					rightEls.push(
+						addLabel("sun", "일출 " + sunriseTime, timeToTopPx(sunriseTime), "#9D7300")
+					);
+				}
+
+				if (sunsetTime && sunsetTime.indexOf("--") === -1) {
+					rightEls.push(
+						addLabel("sun", "일몰 " + sunsetTime, timeToTopPx(sunsetTime), "#9D7300")
+					);
+				}
+
+				if (moonriseTime && moonriseTime.indexOf("--") === -1) {
+					rightEls.push(
+						addLabel("moon", "월출 " + moonriseTime, timeToTopPx(moonriseTime), "#5D4400")
+					);
+				}
+
+				if (moonsetTime && moonsetTime.indexOf("--") === -1) {
+					rightEls.push(
+						addLabel("moon", "월몰 " + moonsetTime, timeToTopPx(moonsetTime), "#5D4400")
+					);
+				}
+				// ✅ 핵심: 오른쪽 라벨끼리 겹치면 자동으로 Y 조정
+				stackRightLabels(rightEls);
+			  }
+
+			  updateVerticalTimeline();
+			  window.addEventListener("resize", updateVerticalTimeline);
+			})();
+			</script>
+			
+			
+			
+			<div class="week_container">
+				<div class="week_table-container">
+					<table class="week_table">
+						<tbody>
+							<tr style="border-top: 1px solid #DEDEDE; padding:2px;">
+								<td height="22px">09.19 (토)</td>
+								
+								 <td id="hour-00" align="center" style="color:#424242; ">00시</td>
+								
+								 <td id="hour-03" align="center" style="color:#424242; ">03시</td>
+								
+								 <td id="hour-06" align="center" style="color:#424242; ">06시</td>
+								
+								 <td id="hour-09" align="center" style="color:#424242; ">09시</td>
+								
+								 <td id="hour-12" align="center" style="color:#424242; ">12시</td>
+								
+								 <td id="hour-15" align="center" style="color:#424242; ">15시</td>
+								
+								 <td id="hour-18" align="center" style="color:#424242; ">18시</td>
+								
+								 <td id="hour-21" align="center" style="color:#424242; ">21시</td>
+								
+								 <td id="hour-24" align="center" style="color:#424242; ">24시</td>
+								
+							</tr>
+							<tr>
+								<td height="22px" style="font-weight:500; color: #424242;">날씨</td>
+								
+								<td align="center" style="">
+									<picture>
+									  <source srcset="/img/webP/forecast/3.webp" type="image/webp">
+									  <img border="0" src="https://www.badatime.com/img/icon/3.png" width="40" height="40">
+									</picture>
+								</td>
+								
+								<td align="center" style="">
+									<picture>
+									  <source srcset="/img/webP/forecast/3.webp" type="image/webp">
+									  <img border="0" src="https://www.badatime.com/img/icon/3.png" width="40" height="40">
+									</picture>
+								</td>
+								
+								<td align="center" style="">
+									<picture>
+									  <source srcset="/img/webP/forecast/4.webp" type="image/webp">
+									  <img border="0" src="https://www.badatime.com/img/icon/4.png" width="40" height="40">
+									</picture>
+								</td>
+								
+								<td align="center" style="">
+									<picture>
+									  <source srcset="/img/webP/forecast/3.webp" type="image/webp">
+									  <img border="0" src="https://www.badatime.com/img/icon/3.png" width="40" height="40">
+									</picture>
+								</td>
+								
+								<td align="center" style="">
+									<picture>
+									  <source srcset="/img/webP/forecast/4.webp" type="image/webp">
+									  <img border="0" src="https://www.badatime.com/img/icon/4.png" width="40" height="40">
+									</picture>
+								</td>
+								
+								<td align="center" style="">
+									<picture>
+									  <source srcset="/img/webP/forecast/4.webp" type="image/webp">
+									  <img border="0" src="https://www.badatime.com/img/icon/4.png" width="40" height="40">
+									</picture>
+								</td>
+								
+								<td align="center" style="">
+									<picture>
+									  <source srcset="/img/webP/forecast/4.webp" type="image/webp">
+									  <img border="0" src="https://www.badatime.com/img/icon/4.png" width="40" height="40">
+									</picture>
+								</td>
+								
+								<td align="center" style="">
+									<picture>
+									  <source srcset="/img/webP/forecast/4.webp" type="image/webp">
+									  <img border="0" src="https://www.badatime.com/img/icon/4.png" width="40" height="40">
+									</picture>
+								</td>
+								
+								<td align="center" style="">
+									<picture>
+									  <source srcset="/img/webP/forecast/2.webp" type="image/webp">
+									  <img border="0" src="https://www.badatime.com/img/icon/2.png" width="40" height="40">
+									</picture>
+								</td>
+								
+							</tr>
+							<tr style="border-bottom: 1px solid #DEDEDE;">
+								<td></td>
+								
+								<td style="color: #A76900; font-weight:600; font-size: 14px; ">흐림</td>
+								
+								<td style="color: #A76900; font-weight:600; font-size: 14px; ">흐림</td>
+								
+								<td style="color: #A76900; font-weight:600; font-size: 14px; ">비</td>
+								
+								<td style="color: #A76900; font-weight:600; font-size: 14px; ">흐림</td>
+								
+								<td style="color: #A76900; font-weight:600; font-size: 14px; ">비</td>
+								
+								<td style="color: #A76900; font-weight:600; font-size: 14px; ">비</td>
+								
+								<td style="color: #A76900; font-weight:600; font-size: 14px; ">비</td>
+								
+								<td style="color: #A76900; font-weight:600; font-size: 14px; ">비</td>
+								
+								<td style="color: #A76900; font-weight:600; font-size: 14px; ">구름조금</td>
+								
+							</tr>
+							<tr style="border-bottom: 1px solid #DEDEDE; background: #F3F9FE;">
+								<td style="font-weight:500; color: #424242;">기온</td>
+								
+								<td style="">23º</td>
+								
+								<td style="">22º</td>
+								
+								<td style="">20º</td>
+								
+								<td style="">23º</td>
+								
+								<td style="">26º</td>
+								
+								<td style="">29º</td>
+								
+								<td style="">27º</td>
+								
+								<td style="">25º</td>
+								
+								<td style="">24º</td>
+								
+							</tr>
+							<tr style="border-bottom: 1px solid #DEDEDE;">
+								<td style="font-weight:500; color: #424242;">풍향</td>
+								
+								<td style="">
+									<img src="https://www.badatime.com/img/icon/wind_speed/NE2.png" width="16" height="16" style="vertical-align: middle;"/>
+									<span style="vertical-align: middle;">북동</span>
+								</td>
+								
+								<td style="">
+									<img src="https://www.badatime.com/img/icon/wind_speed/NE2.png" width="16" height="16" style="vertical-align: middle;"/>
+									<span style="vertical-align: middle;">북동</span>
+								</td>
+								
+								<td style="">
+									<img src="https://www.badatime.com/img/icon/wind_speed/NE2.png" width="16" height="16" style="vertical-align: middle;"/>
+									<span style="vertical-align: middle;">북동</span>
+								</td>
+								
+								<td style="">
+									<img src="https://www.badatime.com/img/icon/wind_speed/NE2.png" width="16" height="16" style="vertical-align: middle;"/>
+									<span style="vertical-align: middle;">북동</span>
+								</td>
+								
+								<td style="">
+									<img src="https://www.badatime.com/img/icon/wind_speed/E2.png" width="16" height="16" style="vertical-align: middle;"/>
+									<span style="vertical-align: middle;">동</span>
+								</td>
+								
+								<td style="">
+									<img src="https://www.badatime.com/img/icon/wind_speed/NE1.png" width="16" height="16" style="vertical-align: middle;"/>
+									<span style="vertical-align: middle;">북동</span>
+								</td>
+								
+								<td style="">
+									<img src="https://www.badatime.com/img/icon/wind_speed/N1.png" width="16" height="16" style="vertical-align: middle;"/>
+									<span style="vertical-align: middle;">북</span>
+								</td>
+								
+								<td style="">
+									<img src="https://www.badatime.com/img/icon/wind_speed/NE2.png" width="16" height="16" style="vertical-align: middle;"/>
+									<span style="vertical-align: middle;">북동</span>
+								</td>
+								
+								<td style="">
+									<img src="https://www.badatime.com/img/icon/wind_speed/NE2.png" width="16" height="16" style="vertical-align: middle;"/>
+									<span style="vertical-align: middle;">북동</span>
+								</td>
+								
+							</tr>
+							<tr style="border-bottom: 1px solid #DEDEDE;">
+								<td style="font-weight:500; color: #424242;">풍속 <span style="color: #757575; font-size: 12px; font-weight: 400;">m/s</span></td>
+								
+								<td style="">4.3</td>
+								
+								<td style="">3.9</td>
+								
+								<td style="">4.0</td>
+								
+								<td style="">4.8</td>
+								
+								<td style="">3.9</td>
+								
+								<td style="">2.7</td>
+								
+								<td style="">2.1</td>
+								
+								<td style="">4.5</td>
+								
+								<td style="">4.2</td>
+								
+							</tr>
+							<tr style="border-bottom: 1px solid #DEDEDE;">
+								<td style="font-weight:500; color: #424242;">파고 <span style="color: #757575; font-size: 12px; font-weight: 400;">m</span></td>
+								
+								<td style="">1.09</td>
+								
+								<td style="">1.03</td>
+								
+								<td style="">0.97</td>
+								
+								<td style="">0.86</td>
+								
+								<td style="">0.86</td>
+								
+								<td style="">0.73</td>
+								
+								<td style="">1.2</td>
+								
+								<td style="">1.19</td>
+								
+								<td style="">0.99</td>
+								
+							</tr>
+							<tr style="border-bottom: 1px solid #DEDEDE;">
+								<td style="font-weight:500; color: #424242;">습도 <span style="color: #757575; font-size: 12px; font-weight: 400;">%</span></td>
+								
+								<td style="">87</td>
+								
+								<td style="">87</td>
+								
+								<td style="">91</td>
+								
+								<td style="">87</td>
+								
+								<td style="">78</td>
+								
+								<td style="">77</td>
+								
+								<td style="">80</td>
+								
+								<td style="">80</td>
+								
+								<td style="">82</td>
+								
+							</tr>
+							<tr style="border-bottom: 1px solid #DEDEDE;">
+								<td style="font-weight:500; color: #424242;">강수량 <span style="color: #757575; font-size: 12px; font-weight: 400;">mm</span></td>
+								
+								<td style="">0.0</td>
+								
+								<td style="">0.0</td>
+								
+								<td style="">2.1</td>
+								
+								<td style="">0.0</td>
+								
+								<td style="">0.9</td>
+								
+								<td style="">2.3</td>
+								
+								<td style="">0.8</td>
+								
+								<td style="">0.1</td>
+								
+								<td style="">0.0</td>
+								
+							</tr>
+						</tbody>
+					</table>
+				</div>	
+			</div>
+			<script>
+			document.addEventListener("DOMContentLoaded", function () {
+
+			  /*
+			  var current = document.getElementById("currentHour");
+			  if (current) {
+				current.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+			  }
+			  */
+			  
+			  const current = document.getElementById("currentHour");
+			  if (!current) return;
+
+			  const scrollContainer = current.closest(".week_table-container"); 
+			  // 실제 가로 스크롤 되는 부모로 맞춰야 함
+
+			  if (!scrollContainer) return;
+
+			  const offsetLeft = current.offsetLeft;
+			  const center =
+				offsetLeft -
+				(scrollContainer.clientWidth / 2) +
+				(current.clientWidth / 2);
+
+			  scrollContainer.scrollTo({
+				left: center,
+				behavior: "smooth"
+			  });
+			});
+			</script>
+			
+
+			<div id="main_chart"></div>
+			<script>
+			function getDayOfWeek(date) {
+			  let formatter = new Intl.DateTimeFormat("ko-KR", { weekday: "short" });
+			  return formatter.format(date);
+			}
+
+			am4core.options.commercialLicense = true;
+			am4core.useTheme(am4themes_animated);
+
+			var main_chart = am4core.create("main_chart", am4charts.XYChart);
+			main_chart.language.locale = am4lang_ko_KR;
+			main_chart.background.fill = am4core.color("#fff");
+			main_chart.dateFormatter.inputDateFormat = "yyyy-MM-dd HH:mm";
+
+			// Add data
+			main_chart.data = [
+			  
+			  {
+				date: "2026-9-18 22:30",
+				value: 175,
+				data1: "",
+				data2: "",
+				text_color: ""
+			  },
+			  
+
+			  
+
+			  
+			  {
+				date: "2026-9-19 00:51",
+				value: 246,
+				value_text: "(246 cm)",
+				data1: "00:51",
+				data2: "▲+51",
+				text_color: "#FF6969",
+				circle_color: am4core.color("#FF6969")
+			  },
+			  
+
+			  
+			  {
+				date: "2026-9-19 07:07",
+				value: 143,
+				value_text: "(143 cm)",
+				data1: "07:07",
+				data2: "▼-103",
+				text_color: "#2C6ED5",
+				circle_color: am4core.color("#2C6ED5")
+			  },
+			  
+
+			  
+			  {
+				date: "2026-9-19 14:32",
+				value: 258,
+				value_text: "(258 cm)",
+				data1: "14:32",
+				data2: "▲+115",
+				text_color: "#FF6969",
+				circle_color: am4core.color("#FF6969")
+			  },
+			  
+
+			  
+			  {
+				date: "2026-9-19 22:33",
+				value: 203,
+				value_text: "(203 cm)",
+				data1: "22:33",
+				data2: "▼-55",
+				text_color: "#2C6ED5",
+				circle_color: am4core.color("#2C6ED5")
+			  },
+			  
+
+			  
+			  {
+				date: "2026-9-20 01:30",
+				value: 175,
+				data1: "",
+				data2: "",
+				text_color: ""
+			  },
+			  
+			];
+
+			// Create X axis (Date)
+			var dateAxis = main_chart.xAxes.push(new am4charts.DateAxis());
+			dateAxis.renderer.grid.template.location = 0;
+			dateAxis.dateFormats.setKey("hour", "HH시");
+			dateAxis.periodChangeDateFormats.setKey("hour", "[bold]HH시[/]\n[font-size:14px]MM.dd[/]");
+			dateAxis.renderer.minGridDistance = 50;
+			dateAxis.renderer.labels.template.fontSize = 16;
+			dateAxis.renderer.grid.template.disabled = true;
+			dateAxis.baseInterval = { timeUnit: "hour" };
+
+			dateAxis.renderer.labels.template.adapter.add("textOutput", function(text) {
+			  return "[color=#757575]" + text + "[/color]";
+			});
+			dateAxis.renderer.grid.template.stroke = am4core.color("#E2E2E2");
+			dateAxis.renderer.grid.template.strokeOpacity = 0.8;
+			dateAxis.renderer.grid.template.strokeWidth = 1;
+
+			// Create Y axis (Value)
+			var valueAxis = main_chart.yAxes.push(new am4charts.ValueAxis());
+			valueAxis.renderer.grid.template.disabled = true;
+			valueAxis.renderer.labels.template.disabled = true;
+			valueAxis.renderer.ticks.template.disabled = true;
+			valueAxis.renderer.baseGrid.disabled = true;
+			valueAxis.extraMax = 0.6;
+
+			// Create LineSeries
+			var series = main_chart.series.push(new am4charts.LineSeries());
+			series.dataFields.valueY = "value";
+			series.dataFields.dateX = "date";
+			series.strokeWidth = 0;
+			series.tensionX = 0.9;
+			series.tooltipText = "{valueY}";
+			series.fillOpacity = 0.3;
+			series.fill = am4core.color("rgb(142, 156, 179)");
+
+			// Add bullets for custom labels
+			var bullet = series.bullets.push(new am4charts.Bullet());
+			var label = bullet.createChild(am4core.Label);
+			label.html =
+			  '<tspan style="font-size:22px; color:#364662; font-weight: 700; align:center;">{data1}</tspan><br>' +
+			  '<tspan style="font-size:16px; color:{text_color};">{data2}</tspan><br>' +
+			  '<tspan style="font-size:16px; color:#364662; font-weight: 400;">{value_text}</tspan>';
+			label.dy = -50;
+			label.align = "center";
+			label.valign = "middle";
+			label.horizontalCenter = "middle";
+			label.verticalCenter = "middle";
+
+			var circle1 = bullet.createChild(am4core.Circle);
+			circle1.width = 10;
+			circle1.height = 10;
+			circle1.propertyFields.fill = "circle_color";
+			circle1.stroke = am4core.color("#FFFFFF");
+			circle1.strokeWidth = 2;
+
+			// 그래프 백그라운드 색상 적용
+			function addBackgroundFill(startDate, endDate, color) {
+			  var axisFill = dateAxis.axisRanges.create();
+			  axisFill.date = new Date(startDate);
+			  axisFill.endDate = new Date(endDate);
+			  axisFill.axisFill.fill = am4core.color(color);
+			  axisFill.axisFill.fillOpacity = 0.8;
+			  axisFill.label.disabled = true;
+			}
+
+			addBackgroundFill(
+			  "2026-9-18 21:00",
+			  "2026-9-19 06:15",
+			  "#E0E0E0"
+			);
+			addBackgroundFill(
+			  "2026-9-19 18:31",
+			  "2026-9-20 03:00",
+			  "#E0E0E0"
+			);
+
+			/* =========================
+			   ✅ 일출/일몰 라벨 (방법 A)
+			   ========================= */
+			var labelData = [
+			  {
+				key: "sunrise",
+				date: "2026-9-19 06:15",
+				text: "06:15",
+				image: "/img/icon/sunrise.svg",
+				color: "#A76900",
+				fontSize: 17,
+				fontWeight: "900"
+			  },
+			  {
+				key: "sunset",
+				date: "2026-9-19 18:31",
+				text: "18:31",
+				image: "/img/icon/sunset.svg",
+				color: "#A76900",
+				fontSize: 17,
+				fontWeight: "900"
+			  }
+			];
+
+			var labelNodes = {}; // key -> { container, dateObj }
+
+			function createSunLabel(labelInfo) {
+			  var container = main_chart.plotContainer.createChild(am4core.Container);
+			  container.layout = "horizontal";
+			  container.isMeasured = false;
+
+			  var image = container.createChild(am4core.Image);
+			  image.href = labelInfo.image;
+			  image.width = 20;
+			  image.height = 20;
+
+			  var customLabel = container.createChild(am4core.Label);
+			  customLabel.text = labelInfo.text;
+			  customLabel.fontSize = labelInfo.fontSize;
+			  customLabel.fontWeight = labelInfo.fontWeight;
+			  customLabel.fill = am4core.color(labelInfo.color);
+
+			  container.y = 2;
+
+			  labelNodes[labelInfo.key] = {
+				container: container,
+				dateObj: new Date(labelInfo.date)
+			  };
+			}
+
+			function updateSunLabelPositions() {
+			  Object.keys(labelNodes).forEach(function(key) {
+				var node = labelNodes[key];
+				var pos = dateAxis.dateToPosition(node.dateObj);
+				var x = dateAxis.renderer.positionToCoordinate(pos);
+				node.container.x = x;
+			  });
+			}
+
+			main_chart.events.on("ready", function() {
+			  labelData.forEach(createSunLabel);
+			  updateSunLabelPositions();
+			});
+
+			// 데이터 재계산 후에도 위치 보정
+			main_chart.events.on("datavalidated", function() {
+			  updateSunLabelPositions();
+			});
+
+			// 반응형(리사이즈) 시 위치 보정
+			main_chart.events.on("sizechanged", function() {
+			  updateSunLabelPositions();
+			});
+			</script>
+
+		</main>
+	</div>
+</div>
+
+<style>
+a {text-decoration: none;}
+
+@media not all and (min-width: 769px) {
+    #pc_bottom { display: none; }
+	#mo_bottom { display: block; }
+}
+
+@media all and (min-width: 769px) {
+    #pc_bottom { display: block; }
+	#mo_bottom { display: none; }
+}
+.bottom {text-align:center;}
+.bottom a {font-size: 14px; font-weight: 400; color: #424242; text-decoration: none; padding:12px;}
+a:hover {
+  text-decoration: underline;
+}
+</style>
+<div id="pc_bottom" style="width:100%; padding:12px 0px; border-top: 1px solid rgba(221, 238, 221, 0.93); background: #F7F7F7;">
+<div class="bottom" >
+<a href="/guide" target=_parent>물때보는법</a>
+<a href="/sunrise-calc" target=_parent>일출몰계산</a>
+<a href="/cctv" target=_parent>실시간바다영상</a>
+<a href="/gearing" target=_parent>낚시채비</a>
+<a href="/ac-zone" target=_parent>출입통제장소</a>
+<a href="/jeju-vr" target=_parent>제주360°VR</a>
+<a href="/calendar-store" target=_parent>물때달력판매</a>
+<a href="/ocean-info" target=_parent>해양정보판매</a>
+<a href="/link-sample" target=_parent>링크교환</a>
+<a href="/guestbook" target=_parent>의견남기기</a>
+</div>
+
+<div style="margin-top:30px; text-align:center; color: #A7A7A7; font-size: 12px; font-weight: 400;">
+상호명 : (주)인터버드 | 대표이사 : 성낙복 ㅣ <a href="//www.badatime.com/private.html">[개인정보취급방침]</a><br>
+사업자등록번호 : 602-81-25941 ㅣ 통신판매업 신고번호 : 2003-부산영도-0052<br>	
+E-mail : <a href="mailto:master@badatime.com">badatime@gmail.com</a><br>	
+Copyright (c) badatime.com All rights reserved.
+</div>
+
+</div>
+<div id="mo_bottom">
+<div style="margin-top:8px; margin-bottom:8px;">
+<center>
+<script type="text/javascript">
+google_ad_client = "ca-pub-1946140099700194";
+/* badatime_mobile중간(320x50) */
+google_ad_slot = "3654516850";
+google_ad_width = 320;
+google_ad_height = 50;
+</script>
+<script type="text/javascript"
+src="//pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</center>
+
+</div>
+<div style="width:100%; background-color:#F7F7F7">
+<table class="bottom" border="0" width="100%" cellspacing="0" cellpadding="0" height="30">
+<tr>
+<td width="30%"><a href="/guestbook" target=_parent>의견남기기</a></td>
+<td width="40%"><a href="/private.html" target=_parent>개인정보취급방침</a></td>
+<td width="30%"><a href="/link-sample" target=_parent>링크교환</a></td>
+</tr>
+</table>
+<div align="center" style="padding:12px;"><img src="//images.badatime.com/badatime_bottom.png" width="130" height="28"></div>
+</div>
+</div>
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-1036276-3']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+  if (window.innerWidth < 768) return;
+
+  var panel = document.getElementById("weatherList");
+  if (!panel) return;
+
+  var nowRow = panel.querySelector(".wp-row.now");
+  if (!nowRow) return;
+
+  var top = nowRow.offsetTop - (panel.clientHeight / 2) + (nowRow.clientHeight / 2);
+  if (top < 0) top = 0;
+  panel.scrollTop = top;
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+{
+  "hourly": [
+    {
+      "time": "00시",
+      "weather_icon_url": "https://www.badatime.com/img/icon/3.png",
+      "weather_text": "흐림",
+      "temperature": "23°",
+      "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/NE2.png",
+      "wind_dir": "북동",
+      "wind_speed": "4.3 m/s",
+      "wave_height": "1.09 m"
+    },
+    {
+      "time": "03시",
+      "weather_icon_url": "https://www.badatime.com/img/icon/3.png",
+      "weather_text": "흐림",
+      "temperature": "22°",
+      "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/NE2.png",
+      "wind_dir": "북동",
+      "wind_speed": "3.9 m/s",
+      "wave_height": "1.03 m"
+    },
+    {
+      "time": "06시",
+      "weather_icon_url": "https://www.badatime.com/img/icon/4.png",
+      "weather_text": "비",
+      "temperature": "20°",
+      "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/NE2.png",
+      "wind_dir": "북동",
+      "wind_speed": "4.0 m/s",
+      "wave_height": "0.97 m"
+    },
+    {
+      "time": "09시",
+      "weather_icon_url": "https://www.badatime.com/img/icon/3.png",
+      "weather_text": "흐림",
+      "temperature": "23°",
+      "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/NE2.png",
+      "wind_dir": "북동",
+      "wind_speed": "4.8 m/s",
+      "wave_height": "0.86 m"
+    },
+    {
+      "time": "12시",
+      "weather_icon_url": "https://www.badatime.com/img/icon/4.png",
+      "weather_text": "비",
+      "temperature": "26°",
+      "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/E2.png",
+      "wind_dir": "동",
+      "wind_speed": "3.9 m/s",
+      "wave_height": "0.86 m"
+    },
+    {
+      "time": "15시",
+      "weather_icon_url": "https://www.badatime.com/img/icon/4.png",
+      "weather_text": "비",
+      "temperature": "29°",
+      "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/NE1.png",
+      "wind_dir": "북동",
+      "wind_speed": "2.7 m/s",
+      "wave_height": "0.73 m"
+    },
+    {
+      "time": "18시",
+      "weather_icon_url": "https://www.badatime.com/img/icon/4.png",
+      "weather_text": "비",
+      "temperature": "27°",
+      "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/N1.png",
+      "wind_dir": "북",
+      "wind_speed": "2.1 m/s",
+      "wave_height": "1.2 m"
+    },
+    {
+      "time": "21시",
+      "weather_icon_url": "https://www.badatime.com/img/icon/4.png",
+      "weather_text": "비",
+      "temperature": "25°",
+      "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/NE2.png",
+      "wind_dir": "북동",
+      "wind_speed": "4.5 m/s",
+      "wave_height": "1.19 m"
+    },
+    {
+      "time": "24시",
+      "weather_icon_url": "https://www.badatime.com/img/icon/2.png",
+      "weather_text": "구름조금",
+      "temperature": "24°",
+      "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/NE2.png",
+      "wind_dir": "북동",
+      "wind_speed": "4.2 m/s",
+      "wave_height": "0.99 m"
+    }
+  ],
+  "tide_events": [
+    {
+      "time": "00:51",
+      "label": "만조 00:51\n(246) ▲+51",
+      "type": "high"
+    },
+    {
+      "time": "07:07",
+      "label": "간조 07:07\n(143) ▼-103",
+      "type": "low"
+    },
+    {
+      "time": "14:32",
+      "label": "만조 14:32\n(258) ▲+115",
+      "type": "high"
+    },
+    {
+      "time": "22:33",
+      "label": "간조 22:33\n(203) ▼-55",
+      "type": "low"
+    }
+  ],
+  "sun_moon": {
+    "sunrise": "06:15",
+    "sunset": "18:31",
+    "moonrise": "14:04",
+    "moonset": "23:31"
+  },
+  "flow_percent": 3,
+  "tide_label": "1물"
+}

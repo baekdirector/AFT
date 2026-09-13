@@ -880,12 +880,42 @@
 }
 .popup-body { padding: 0; max-height: none; overflow: visible; }
 .popup-loading { text-align: center; padding: 40px; color: var(--ink-soft); }
-.result-split { display: block; background: #fff; border-radius: 0 0 18px 18px; overflow: hidden; height: calc(92vh - 76px); }
-.result-right { width: 100%; height: 100%; background: #fff; overflow: visible; }
-.graph-panel { padding: 8px; background: #fff; height: 100%; overflow: visible; }
+.popup-error { text-align: center; padding: 40px; color: oklch(0.55 0.18 25); }
+
+/* 날씨/물때 자체 위젯 - 예전엔 바다타임 그래프 페이지를 iframe으로 그대로
+   띄웠는데, cross-origin이라 안쪽 LNB를 못 지우고 패널 크기도 못 바꿨다
+   (사용자 제보). services.badatime_parser.GraphPageParser가 뽑아준 원시
+   데이터(시간대별 날씨/간조·만조/일출몰·월출몰/물때/물흐름)만으로 우리
+   마크업으로 새로 그린다 - LNB 자체가 없고, 폭도 팝업에 맞춰 우리가 정한다. */
+.tide-widget { height: calc(92vh - 76px); overflow-y: auto; padding: 18px 22px; box-sizing: border-box; }
+.tide-widget-top { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+.tide-name { font-size: 21px; font-weight: 800; color: var(--ink, #1f2937); }
+.tide-flow { font-size: 13.5px; font-weight: 650; color: #0e7490; background: oklch(0.95 0.03 200); padding: 5px 13px; border-radius: 999px; }
+.tide-widget-body { display: flex; gap: 26px; flex-wrap: wrap; align-items: flex-start; }
+.tide-timeline { position: relative; flex: 0 0 300px; min-height: 620px; }
+.tide-timeline-bar { position: absolute; left: 50%; top: 8px; bottom: 8px; width: 6px; margin-left: -3px; background: #e5e7eb; border-radius: 3px; }
+.tide-pill {
+  position: absolute; transform: translateY(-50%); max-width: 132px; padding: 6px 10px; border-radius: 10px;
+  color: #fff; font-size: 11.5px; font-weight: 700; line-height: 1.35; box-shadow: 0 2px 6px rgba(0,0,0,.15); white-space: pre-line;
+}
+.tide-pill-left { right: calc(50% + 12px); text-align: right; }
+.tide-pill-right { left: calc(50% + 12px); text-align: left; }
+.tide-hourly-list { flex: 1 1 360px; min-width: 280px; display: flex; flex-direction: column; gap: 6px; }
+.tide-hour-row { display: grid; grid-template-columns: 42px 1fr 44px 1fr 56px; align-items: center; gap: 8px; padding: 8px 11px; background: #f9fafb; border-radius: 10px; font-size: 12.5px; }
+.tide-hour-time { font-weight: 700; color: var(--ink, #1f2937); }
+.tide-hour-weather { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tide-hour-weather img { width: 22px; height: 22px; flex: none; }
+.tide-hour-weather span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tide-hour-temp { font-weight: 650; text-align: center; }
+.tide-hour-wind { display: flex; align-items: center; gap: 5px; color: #475569; min-width: 0; overflow: hidden; }
+.tide-hour-wind img { width: 15px; height: 15px; flex: none; }
+.tide-hour-wind span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tide-hour-wave { color: #475569; text-align: right; white-space: nowrap; }
 
 @media (max-width: 900px) {
-  .result-split { height: 80vh; }
+  .tide-widget { height: 80vh; }
+  .tide-widget-body { flex-direction: column; }
+  .tide-timeline { flex: none; width: 100%; min-height: 460px; }
 }
 
 @media (max-width: 768px) {
@@ -2954,7 +2984,7 @@ function openWeatherPopup(city, port, date) {
   if (!popup) return;
 
   // 이미 팝업이 열려있으면 무시
-  if (popup.style.display === 'block' && content.querySelector('#badatime-graph-iframe')) {
+  if (popup.style.display === 'block' && content.querySelector('.tide-widget')) {
     return;
   }
 
@@ -2971,7 +3001,7 @@ function closeWeatherPopup() {
   if (popup) popup.style.display = 'none';
 }
 
-function fetchWeatherData(city, port, date, contentEl) {
+async function fetchWeatherData(city, port, date, contentEl) {
   try {
     const BADA_PORT_IDS = {
       '남항(인천항)': 158,'연안부두': 158,'영흥항': 151,'오이도항': 380,'전곡항': 618,'평택항': 149,'장고항': 370,'삼길포항': 144,
@@ -2981,19 +3011,96 @@ function fetchWeatherData(city, port, date, contentEl) {
     };
     const portId = BADA_PORT_IDS[port];
     if (!portId) {
-      contentEl.innerHTML = '<div style="padding:20px;color:#ef4444;">항구 ID를 찾을 수 없습니다: ' + port + '</div>';
+      contentEl.innerHTML = '<div class="popup-error">항구 ID를 찾을 수 없습니다: ' + port + '</div>';
       return;
     }
 
-    const iframeSrc = 'https://www.badatime.com/' + portId + '/graph/' + encodeURIComponent(date);
-
-    // 바다타임 물때 그래프만 팝업 전체 폭/높이를 써서 보여준다(표 데이터 패널은 폐지).
-    contentEl.innerHTML = '<div class="result-split"><div class="result-right"><div id="graph-panel" class="graph-panel">' +
-      '<iframe id="badatime-graph-iframe" src="' + iframeSrc + '" style="width:100%;height:100%;border:0;background:#fff;" loading="lazy" title="Badatime 그래프"></iframe>' +
-      '</div></div></div>';
+    const qs = new URLSearchParams({ port_id: String(portId), date, city: city || '' });
+    const resp = await fetch('/api/tide?' + qs.toString());
+    const body = await resp.json();
+    if (!resp.ok || body.status !== 'success') {
+      contentEl.innerHTML = '<div class="popup-error">' + (body.error || '날씨/물때 정보를 불러오지 못했습니다.') + '</div>';
+      return;
+    }
+    renderTideWidget(body.data, contentEl);
   } catch (err) {
-    contentEl.innerHTML = '<div style="padding:20px;color:#ef4444;text-align:center;">에러: ' + err.message + '</div>';
+    contentEl.innerHTML = '<div class="popup-error">에러: ' + err.message + '</div>';
   }
+}
+
+// 바다타임 iframe을 대체하는 자체 위젯 렌더러. /api/tide(GraphPageParser)가
+// 돌려준 원시 데이터(hourly/tide_events/sun_moon/flow_percent/tide_label/
+// mulddae)만으로 그린다 - 바다타임의 마크업/스크립트는 전혀 안 가져온다.
+// 간조=파랑/만조=빨강/일출·일몰=황토/월출·월몰=진황토는 바다타임 스크립트에
+// 실제로 쓰이는 색을 그대로 재사용했다(사용자가 이미 본 화면과 위화감 없게).
+function renderTideWidget(data, contentEl) {
+  function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function toMinutes(hhmm) {
+    const p = (hhmm || '').split(':');
+    if (p.length !== 2) return null;
+    return Number(p[0]) * 60 + Number(p[1]);
+  }
+  function topPct(hhmm) {
+    const min = toMinutes(hhmm);
+    return min == null ? null : (min / 1440 * 100).toFixed(2) + '%';
+  }
+
+  const TIDE_COLOR = { low: '#2C6ED5', high: '#CC3333' };
+  const SUN_COLOR = '#9D7300', MOON_COLOR = '#5D4400';
+
+  const leftPills = (data.tide_events || []).map(e => {
+    const top = topPct(e.time);
+    if (top == null) return '';
+    return '<div class="tide-pill tide-pill-left" style="top:' + top + ';background:' + TIDE_COLOR[e.type] + ';">' + esc(e.label) + '</div>';
+  }).join('');
+
+  const sm = data.sun_moon || {};
+  const rightDefs = [
+    ['sunrise', '일출', SUN_COLOR], ['sunset', '일몰', SUN_COLOR],
+    ['moonrise', '월출', MOON_COLOR], ['moonset', '월몰', MOON_COLOR],
+  ];
+  const rightPills = rightDefs.map(([key, label, color]) => {
+    const time = sm[key];
+    const top = topPct(time);
+    if (!time || top == null) return '';
+    return '<div class="tide-pill tide-pill-right" style="top:' + top + ';background:' + color + ';">' + esc(label + ' ' + time) + '</div>';
+  }).join('');
+
+  const hourlyRows = (data.hourly || []).map(h => (
+    '<div class="tide-hour-row">' +
+      '<div class="tide-hour-time">' + esc(h.time) + '</div>' +
+      '<div class="tide-hour-weather">' +
+        (h.weather_icon_url ? '<img src="' + esc(h.weather_icon_url) + '" alt="">' : '') +
+        '<span>' + esc(h.weather_text) + '</span>' +
+      '</div>' +
+      '<div class="tide-hour-temp">' + esc(h.temperature) + '</div>' +
+      '<div class="tide-hour-wind">' +
+        (h.wind_dir_icon_url ? '<img src="' + esc(h.wind_dir_icon_url) + '" alt="">' : '') +
+        '<span>' + esc(h.wind_dir) + ' ' + esc(h.wind_speed) + '</span>' +
+      '</div>' +
+      '<div class="tide-hour-wave">' + esc(h.wave_height) + '</div>' +
+    '</div>'
+  )).join('');
+
+  const tideName = data.mulddae || data.tide_label || '';
+  const flowText = (data.flow_percent != null) ? ('물흐름 : ' + data.flow_percent + '%') : '';
+
+  if (!leftPills && !rightPills && !hourlyRows) {
+    contentEl.innerHTML = '<div class="popup-error">날씨/물때 정보를 찾을 수 없습니다.</div>';
+    return;
+  }
+
+  contentEl.innerHTML =
+    '<div class="tide-widget">' +
+      '<div class="tide-widget-top">' +
+        (tideName ? '<span class="tide-name">' + esc(tideName) + '</span>' : '') +
+        (flowText ? '<span class="tide-flow">' + esc(flowText) + '</span>' : '') +
+      '</div>' +
+      '<div class="tide-widget-body">' +
+        '<div class="tide-timeline"><div class="tide-timeline-bar"></div>' + leftPills + rightPills + '</div>' +
+        '<div class="tide-hourly-list">' + (hourlyRows || '<div class="popup-error">시간대별 날씨 정보가 없습니다.</div>') + '</div>' +
+      '</div>' +
+    '</div>';
 }
 
 // 팝업 버튼 클릭 이벤트 위임

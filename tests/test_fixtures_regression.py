@@ -28,13 +28,22 @@ FIXTURE_ROOT = Path(__file__).parent / 'fixtures'
 
 
 def discover():
-    """(fixture 이름, html 경로, meta 경로) 목록."""
+    """(fixture 이름, html 경로, meta 경로) 목록.
+
+    이 하네스는 services.reservation_checker 전용이다 - tests/fixtures/badatime/
+    는 완전히 다른 모듈(services.badatime_parser.GraphPageParser, 시간대별
+    날씨/조석 파서)의 fixture라 meta.json 모양이 다르고(target_date가 아니라
+    port_id/date) 여기로 흘러들면 파싱 자체가 안 된다 - 그쪽은
+    test_badatime_parser.py가 같은 실측-fixture-우선 원칙으로 따로 검증한다.
+    """
     found = []
     for html_path in sorted(FIXTURE_ROOT.rglob('*.html')):
+        rel = html_path.relative_to(FIXTURE_ROOT).as_posix()
+        if rel.startswith('badatime/'):
+            continue
         meta_path = html_path.with_suffix('.meta.json')
         if meta_path.exists():
-            rel = html_path.relative_to(FIXTURE_ROOT).as_posix()[:-len('.html')]
-            found.append(pytest.param(rel, id=rel))
+            found.append(pytest.param(rel[:-len('.html')], id=rel[:-len('.html')]))
     return found
 
 
