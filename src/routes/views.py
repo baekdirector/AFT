@@ -9,8 +9,7 @@ from forms import BoatRegistrationForm, StatusCheckForm, BoatEditForm, AdminLogi
 from db import add_boat_instance, get_all_boats, delete_boat, get_boat_by_id, update_boat, upsert_port_coordinate
 from services.reservation_checker import check_single_boat
 from services.tide.mulddae import get_mulddae
-from forms import REGION_CHOICES
-from config import CITY_PORT_MAPPING, BADA_PORT_IDS
+from config import BADA_PORT_IDS
 from services.api_response import success_response, error_response, validation_error_response
 from services.status_service import StatusPageService
 from services.weather_tide_service import PortDataService
@@ -113,13 +112,15 @@ def healthz():
 
 
 def _city_port_map_with_registered_ports(boats):
-    """CITY_PORT_MAPPING 에 실제 등록된 배의 (지역, 항구)를 더한 사본.
+    """Port 표(PortDataService.get_city_port_mapping())에 실제 등록된 배의
+    (지역, 항구)를 더한 사본.
 
     등록 화면에서 "직접 입력"으로 새 항구를 추가하면, 그 배가 등록되는 순간부터
-    이 함수가 그 항구를 목록에 포함시킨다 - 별도 테이블 없이 다음 등록부터
-    바로 선택지로 나타나게 하기 위함이다. CITY_PORT_MAPPING 원본은 건드리지 않는다.
+    이 함수가 그 항구를 목록에 포함시킨다 - Port 표에 아직 없어도(위경도를
+    안 넣었으면 db.upsert_port_coordinate 도 안 만든다) 다음 등록부터 바로
+    선택지로 나타나게 하기 위함이다.
     """
-    merged = {city: list(ports) for city, ports in CITY_PORT_MAPPING.items()}
+    merged = {city: list(ports) for city, ports in PortDataService.get_city_port_mapping().items()}
     for boat in boats:
         city, port = boat.city, boat.port
         if not city or not port:
@@ -213,17 +214,17 @@ def register():
             if _is_ajax():
                 return jsonify({'success': False, 'message': msg}), 403
             flash(msg, 'danger')
-            return render_template('register.html', form=form)
+            return render_template('register.html', form=form, city_port_mapping=PortDataService.get_city_port_mapping())
         dup = _find_duplicate_url_boat(form.url.data)
         if dup:
             msg = f'이미 등록된 예약 URL입니다. (기존 배: {dup.name})'
             if _is_ajax():
                 return jsonify({'success': False, 'message': msg}), 409
             flash(msg, 'danger')
-            return render_template('register.html', form=form)
+            return render_template('register.html', form=form, city_port_mapping=PortDataService.get_city_port_mapping())
         try:
             add_boat_instance(form.name.data, form.url.data, form.city.data, form.port.data, form.note.data)
-            upsert_port_coordinate(form.port.data, form.lat.data, form.lon.data)
+            upsert_port_coordinate(form.port.data, form.lat.data, form.lon.data, form.city.data)
             if _is_ajax():
                 return jsonify({'success': True, 'message': '신규 배가 등록이 성공하였습니다.'})
             flash('배가 등록되었습니다.', 'success')
@@ -244,7 +245,7 @@ def register():
             flash(msg, 'danger')
     elif _is_ajax() and request.method == 'POST':
         return jsonify({'success': False, 'message': '입력값을 확인해주세요.'}), 400
-    return render_template('register.html', form=form)
+    return render_template('register.html', form=form, city_port_mapping=PortDataService.get_city_port_mapping())
 
 
 def _compute_region_counts(boats):
@@ -292,17 +293,17 @@ def edit_boat(boat_id):
                 if _is_ajax():
                     return jsonify({'success': False, 'message': msg}), 403
                 flash(msg, 'danger')
-                return render_template('edit_boat.html', form=form, boat_id=boat_id)
+                return render_template('edit_boat.html', form=form, boat_id=boat_id, city_port_mapping=PortDataService.get_city_port_mapping())
             dup = _find_duplicate_url_boat(form.url.data, exclude_boat_id=boat_id)
             if dup:
                 msg = f'이미 등록된 예약 URL입니다. (기존 배: {dup.name})'
                 if _is_ajax():
                     return jsonify({'success': False, 'message': msg}), 409
                 flash(msg, 'danger')
-                return render_template('edit_boat.html', form=form, boat_id=boat_id)
+                return render_template('edit_boat.html', form=form, boat_id=boat_id, city_port_mapping=PortDataService.get_city_port_mapping())
             try:
                 update_boat(boat_id, form.name.data, form.url.data, form.city.data, form.port.data, form.note.data)
-                upsert_port_coordinate(form.port.data, form.lat.data, form.lon.data)
+                upsert_port_coordinate(form.port.data, form.lat.data, form.lon.data, form.city.data)
                 if _is_ajax():
                     return jsonify({'success': True, 'message': '배 정보가 수정되었습니다.'})
                 flash('배 정보가 수정되었습니다.', 'success')
@@ -321,7 +322,7 @@ def edit_boat(boat_id):
         elif _is_ajax():
             return jsonify({'success': False, 'message': '입력값을 확인해주세요.'}), 400
 
-    return render_template('edit_boat.html', form=form, boat_id=boat_id)
+    return render_template('edit_boat.html', form=form, boat_id=boat_id, city_port_mapping=PortDataService.get_city_port_mapping())
 
 @views.route('/status', methods=['GET'])
 def status():
@@ -628,10 +629,14 @@ def api_status_cached():
 @views.route('/weather')
 def weather():
     """날씨 정보 조회 페이지"""
+    from services.holidays import kr_holidays_around
     return render_template('weather.html',
-                         city_port_mapping=CITY_PORT_MAPPING,
+                         city_port_mapping=PortDataService.get_city_port_mapping(),
                          port_coordinates=PortDataService.get_port_coordinates(),
-                         bada_port_ids=BADA_PORT_IDS)
+                         bada_port_ids=BADA_PORT_IDS,
+                         # 날짜 팝오버 달력에 공휴일을 빨간색으로 표시하기 위한 데이터 -
+                         # status.html(예약현황)의 같은 컴포넌트와 데이터 소스를 통일한다.
+                         kr_holidays=kr_holidays_around())
 
 
 @views.route('/api/weather', methods=['GET'])
@@ -1088,7 +1093,7 @@ def api_tide_month():
 def map_page():
     """지도 페이지 - 항구별 등록된 배 표시"""
     port_coordinates = PortDataService.get_port_coordinates()
-    city_port_mapping = CITY_PORT_MAPPING
+    city_port_mapping = PortDataService.get_city_port_mapping()
 
     boats = get_all_boats()
     boat_counts = {}
@@ -1581,6 +1586,15 @@ def admin_page():
 
     total_visits = sum(len(g['rows']) for g in groups)
 
+    from models import Port, Boat
+    ports = []
+    for p in Port.query.order_by(Port.region, Port.name).all():
+        ship_count = Boat.query.filter_by(port=p.name).count()
+        ports.append({
+            'id': p.id, 'region': p.region, 'name': p.name,
+            'lat': p.lat, 'lon': p.lon, 'ship_count': ship_count,
+        })
+
     return render_template('admin.html', authed=True, groups=groups, form=form,
                            retention_days=VISIT_LOG_RETENTION_DAYS,
                            show_bots=show_bots, hidden_bot_count=hidden_bot_count,
@@ -1588,7 +1602,8 @@ def admin_page():
                            devices=devices, device_count=len(devices),
                            total_watches=total_watches, open_watches=open_watches,
                            watch_date_count=len(watch_dates),
-                           device_type_counts=device_type_counts)
+                           device_type_counts=device_type_counts,
+                           ports=ports)
 
 
 @views.route('/admin/logout', methods=['POST'])
@@ -1660,4 +1675,104 @@ def admin_set_device_label_route(subscriber_id):
     if sub is None:
         return jsonify({'error': '해당 기기를 찾을 수 없습니다.'}), 404
     return jsonify({'label': sub.label})
+
+
+def _validate_port_fields(region, name, lat, lon, *, require_region):
+    """관리자 콘솔 "항구 정보" 탭의 추가/수정 공통 검증. 통과하면 None,
+    아니면 (jsonify 에러, 상태코드)를 돌려준다 - _admin_action_guard() 와
+    같은 관례."""
+    if not name or not str(name).strip():
+        return jsonify({'error': '항구명을 입력해 주세요.'}), 400
+    if require_region and (not region or not str(region).strip()):
+        return jsonify({'error': '지역을 입력해 주세요.'}), 400
+    try:
+        lat = float(lat)
+        lon = float(lon)
+    except (TypeError, ValueError):
+        return jsonify({'error': '위도·경도를 숫자로 입력해 주세요.'}), 400
+    if not (33 <= lat <= 39):
+        return jsonify({'error': '위도는 33~39 범위로 입력해 주세요.'}), 400
+    if not (124 <= lon <= 132):
+        return jsonify({'error': '경도는 124~132 범위로 입력해 주세요.'}), 400
+    return None
+
+
+@views.route('/admin/ports', methods=['POST'])
+def admin_create_port_route():
+    """관리자 콘솔 "항구 정보" 탭의 "새 항구 추가" 모달."""
+    guard = _admin_action_guard()
+    if guard:
+        return guard
+
+    from models import Port
+    from db import create_port
+
+    data = request.get_json(silent=True) or {}
+    region = (data.get('region') or '').strip()
+    name = (data.get('name') or '').strip()
+    lat, lon = data.get('lat'), data.get('lon')
+
+    err = _validate_port_fields(region, name, lat, lon, require_region=True)
+    if err:
+        return err
+    if Port.query.filter_by(name=name).first():
+        return jsonify({'error': '이미 등록된 항구명입니다.'}), 409
+
+    port = create_port(region, name, float(lat), float(lon))
+    return jsonify({'id': port.id, 'region': port.region, 'name': port.name,
+                    'lat': port.lat, 'lon': port.lon, 'ship_count': 0})
+
+
+@views.route('/admin/ports/<int:port_id>', methods=['POST'])
+def admin_update_port_route(port_id):
+    """관리자 콘솔 "항구 정보" 탭 - 표 안에서 이름/위도/경도를 바로 고치고
+    누르는 "저장" 버튼. 지역은 이 화면에서 수정 대상이 아니다(디자인 표에도
+    지역 칸은 읽기 전용 텍스트)."""
+    guard = _admin_action_guard()
+    if guard:
+        return guard
+
+    from models import Port
+    from db import update_port
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    lat, lon = data.get('lat'), data.get('lon')
+
+    err = _validate_port_fields(None, name, lat, lon, require_region=False)
+    if err:
+        return err
+    dup = Port.query.filter(Port.name == name, Port.id != port_id).first()
+    if dup:
+        return jsonify({'error': '이미 등록된 항구명입니다.'}), 409
+
+    try:
+        port = update_port(port_id, name, float(lat), float(lon))
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404
+    return jsonify({'id': port.id, 'region': port.region, 'name': port.name,
+                    'lat': port.lat, 'lon': port.lon})
+
+
+@views.route('/admin/ports/delete', methods=['POST'])
+def admin_delete_ports_route():
+    """관리자 콘솔 "항구 정보" 탭 - 개별 삭제(✕)와 "선택 삭제" 둘 다 여기로
+    모인다(프론트가 대상 id 목록만 다르게 보낸다). 그 항구를 쓰는 배가
+    있으면(사용자 결정 - 배 데이터는 절대 안 건드린다) 그 항구는 조용히
+    건너뛰고 skipped 로 알려준다."""
+    guard = _admin_action_guard()
+    if guard:
+        return guard
+
+    from db import delete_ports
+
+    data = request.get_json(silent=True) or {}
+    port_ids = data.get('port_ids') or []
+    try:
+        port_ids = [int(i) for i in port_ids]
+    except (TypeError, ValueError):
+        return jsonify({'error': '잘못된 요청입니다.'}), 400
+
+    result = delete_ports(port_ids)
+    return jsonify(result)
 

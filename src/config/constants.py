@@ -1,5 +1,11 @@
 """
 중앙 집중식 상수 정의 (city-port mapping, 항구 좌표, BADA 포트 ID)
+
+CITY_PORT_MAPPING/PORT_COORDINATES는 이제 "초기 시드 데이터"로만 쓰인다 -
+db.initialize_ports()가 앱 시작 시 이 두 dict를 models.Port 표로 1회만
+옮겨 담고, 그 뒤로는 모든 조회(PortDataService)가 그 표를 거친다. 항구
+추가·수정·삭제는 이제 관리자 콘솔("항구 정보" 탭)에서 코드 배포 없이
+한다 - 이 dict를 고쳐도 이미 시딩된 서버에는 반영되지 않는다.
 """
 
 # 지역별 항구 매핑

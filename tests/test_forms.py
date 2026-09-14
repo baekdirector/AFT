@@ -73,15 +73,22 @@ def test_status_check_form_invalid_month(app):
         assert form.month.data == 13  # 데이터는 설정되지만
 
 
-def test_region_choices_from_constants(app):
-    """REGION_CHOICES가 constants로부터 동적으로 생성되는지 확인"""
-    from forms import REGION_CHOICES
-    from config import CITY_PORT_MAPPING
-    
-    # REGION_CHOICES의 첫 번째는 빈 값 + 선택 텍스트
-    assert REGION_CHOICES[0] == ('', '지역을 선택하세요')
-    
-    # 나머지는 CITY_PORT_MAPPING의 키들
-    region_values = [choice[0] for choice in REGION_CHOICES[1:]]
-    for city in CITY_PORT_MAPPING.keys():
-        assert city in region_values
+def test_region_choices_from_db(app):
+    """get_region_choices()가 Port 표(DB)에서 동적으로 만들어지는지 확인.
+
+    예전엔 정적 CITY_PORT_MAPPING dict를 모듈 임포트 시점에 한 번만 계산해
+    REGION_CHOICES라는 상수로 뒀지만, 이제 지역 목록이 관리자 콘솔에서
+    편집 가능한 DB(Port 표)에서 나오므로 호출할 때마다 다시 계산해야 한다."""
+    from forms import get_region_choices
+
+    with app.app_context():
+        choices = get_region_choices()
+
+        # 첫 번째는 빈 값 + 선택 텍스트
+        assert choices[0] == ('', '지역을 선택하세요')
+
+        # 나머지는 앱 시작 시 시딩된 Port 표의 지역들과 일치해야 한다
+        from services.weather_tide_service import PortDataService
+        region_values = [choice[0] for choice in choices[1:]]
+        for city in PortDataService.get_city_port_mapping().keys():
+            assert city in region_values

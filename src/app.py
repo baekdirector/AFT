@@ -170,8 +170,9 @@ def create_app(test_config=None):
         _ensure_ip_location_hosting_column(app)
         _ensure_snapshot_shiptime_columns(app)
         _ensure_subscriber_device_columns(app)
-        from db import initialize_shared_boats
+        from db import initialize_shared_boats, initialize_ports
         initialize_shared_boats()
+        initialize_ports()
 
     return app
 

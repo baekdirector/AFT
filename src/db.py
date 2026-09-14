@@ -141,6 +141,94 @@ def _set_app_setting(key: str, value: str):
     db.session.commit()
 
 
+def initialize_ports():
+    """`Port` 표(models.Port)를 config.CITY_PORT_MAPPING × PORT_COORDINATES로
+    1회만 채운다(initialize_shared_boats()와 같은 AppSetting 플래그 패턴).
+    이 정적 dict는 이제 "초기 시드 데이터"로만 쓰이고, 시딩이 끝나면 앱의
+    모든 조회는 이 표를 거친다(PortDataService 참고) - 이후 항구 추가·수정·
+    삭제는 관리자 콘솔에서 코드 배포 없이 이 표에 직접 한다.
+
+    예전에 쓰던 PortCoordinate 표(정적 dict에 없는 새 항구의 좌표만 담던
+    오버레이 표)에 남은 행이 있으면 같이 옮겨 담는다 - 지역을 모르니
+    region=''으로 들어가고, 관리자가 나중에 채워 넣으면 된다."""
+    from models import Port
+    from config import CITY_PORT_MAPPING, PORT_COORDINATES
+
+    if _get_app_setting('ports_initialized') == 'true':
+        return
+
+    for region, port_names in CITY_PORT_MAPPING.items():
+        for name in port_names:
+            coords = PORT_COORDINATES.get(name)
+            if not coords:
+                continue
+            if Port.query.filter_by(name=name).first():
+                continue
+            db.session.add(Port(region=region, name=name, lat=coords['lat'], lon=coords['lon']))
+
+    inspector = inspect(db.engine)
+    if 'port_coordinates' in inspector.get_table_names():
+        legacy_rows = db.session.execute(text('SELECT port, lat, lon FROM port_coordinates')).fetchall()
+        for row in legacy_rows:
+            if Port.query.filter_by(name=row.port).first():
+                continue
+            db.session.add(Port(region='', name=row.port, lat=row.lat, lon=row.lon))
+
+    db.session.commit()
+    _set_app_setting('ports_initialized', 'true')
+
+
+def create_port(region: str, name: str, lat: float, lon: float):
+    from models import Port
+    port = Port(region=region, name=name, lat=lat, lon=lon)
+    db.session.add(port)
+    try:
+        db.session.commit()
+        return port
+    except Exception:
+        db.session.rollback()
+        raise
+
+
+def update_port(port_id: int, name: str, lat: float, lon: float):
+    from models import Port
+    port = Port.query.get(port_id)
+    if not port:
+        raise ValueError('항구를 찾을 수 없습니다.')
+    port.name = name
+    port.lat = lat
+    port.lon = lon
+    try:
+        db.session.commit()
+        return port
+    except Exception:
+        db.session.rollback()
+        raise
+
+
+def delete_ports(port_ids):
+    """체크된 항구를 지운다. 그 항구를 쓰는 배가 하나라도 있으면(사용자 결정 -
+    배 데이터는 절대 안 건드린다) 그 항구는 건너뛰고 skipped에 담아 돌려준다."""
+    from models import Port, Boat
+    deleted, skipped = [], []
+    for port_id in port_ids:
+        port = Port.query.get(port_id)
+        if not port:
+            continue
+        ship_count = Boat.query.filter_by(port=port.name).count()
+        if ship_count > 0:
+            skipped.append({'id': port.id, 'name': port.name, 'ship_count': ship_count})
+            continue
+        deleted.append({'id': port.id, 'name': port.name})
+        db.session.delete(port)
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    return {'deleted': deleted, 'skipped': skipped}
+
+
 def initialize_shared_boats():
     from models import Boat
 
@@ -249,20 +337,19 @@ def update_boat(boat_id: int, name: str, url: str, city: str, port: str, note: s
         db.session.rollback()
         raise
 
-def upsert_port_coordinate(port: str, lat, lon):
-    """새 항구의 위경도를 등록/수정 화면에서 선택 입력했을 때만 호출된다.
-    config.PORT_COORDINATES(정적 dict)에 이미 있는 항구는 조용히 무시한다 -
-    사용자 오타가 큐레이션된 좌표를 덮어쓰지 않게 하기 위함."""
-    from config import PORT_COORDINATES
-    from models import PortCoordinate
-    if lat is None or lon is None or port in PORT_COORDINATES:
+def upsert_port_coordinate(port: str, lat, lon, city: str = None):
+    """배 등록/수정 화면에서 목록에 없는 항구를 직접 입력하며 위경도까지
+    선택 입력했을 때만 호출된다. 이미 `Port` 표에 있는 항구(관리자가 큐레이션
+    했거나 앞서 등록된 값)는 조용히 무시한다 - 사용자 오타가 그 값을
+    덮어쓰지 않게 하기 위함. 새 항구면 `city`(배 등록 폼의 지역 선택값)를
+    region으로 그대로 써서 Port 표에 만든다 - 그래야 관리자 콘솔 "항구 정보"
+    탭에도 바로 나타난다."""
+    from models import Port
+    if lat is None or lon is None:
         return
-    row = PortCoordinate.query.filter_by(port=port).first()
-    if row:
-        row.lat = lat
-        row.lon = lon
-    else:
-        db.session.add(PortCoordinate(port=port, lat=lat, lon=lon))
+    if Port.query.filter_by(name=port).first():
+        return
+    db.session.add(Port(region=city or '', name=port, lat=lat, lon=lon))
     try:
         db.session.commit()
     except Exception:

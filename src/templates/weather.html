@@ -50,16 +50,40 @@
           </select>
         </div>
         <div class="weather-field">
-          <label class="weather-field-label" for="date">날짜</label>
-          <div class="fp-wrap">
-            <input id="date" class="weather-select date-input flatpickr-input" type="text" placeholder="YYYY-MM-DD" required />
-            <button type="button" id="open-cal" class="calendar-btn" aria-label="달력 열기">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2"></rect>
-                <path d="M16 2v4M8 2v4M3 10h18"></path>
-              </svg>
+          <label class="weather-field-label" for="date-btn">날짜</label>
+          <!-- status.html(예약현황)과 같은 자체 팝오버 달력 - flatpickr(범용
+               서드파티, 룩앤필이 달랐다) 대신 그 컴포넌트를 그대로 포팅했다
+               (사용자 지적: "날씨 페이지 달력이 예약현황과 다른 걸 쓰고
+               있다"). 값 저장은 그대로 hidden #date에 YYYY-MM-DD. -->
+          <div class="date-picker-wrap">
+            <button type="button" id="date-btn" class="date-btn" aria-expanded="false" aria-haspopup="true">
+              <span class="date-btn-icon">📅</span>
+              <span id="date-btn-label">날짜 선택</span>
+              <span class="date-btn-caret">⌄</span>
             </button>
+            <div id="cal-popover" class="cal-popover" style="display:none;" role="dialog" aria-label="날짜 선택 달력">
+              <div class="cal-popover-header">
+                <button type="button" id="cal-prev-btn" class="cal-nav-btn" aria-label="이전 달">‹</button>
+                <div id="cal-month-label" class="cal-month-label"></div>
+                <button type="button" id="cal-next-btn" class="cal-nav-btn" aria-label="다음 달">›</button>
+              </div>
+              <div class="cal-weekdays">
+                <div class="cal-weekday cal-weekday-sun">일</div>
+                <div class="cal-weekday">월</div>
+                <div class="cal-weekday">화</div>
+                <div class="cal-weekday">수</div>
+                <div class="cal-weekday">목</div>
+                <div class="cal-weekday">금</div>
+                <div class="cal-weekday cal-weekday-sat">토</div>
+              </div>
+              <div id="cal-days" class="cal-days"></div>
+              <div class="cal-popover-foot">
+                <button type="button" id="cal-today-btn" class="cal-foot-btn">오늘로</button>
+                <button type="button" id="cal-confirm-btn" class="cal-foot-btn cal-foot-btn-primary">확인</button>
+              </div>
+            </div>
           </div>
+          <input type="hidden" id="date" />
         </div>
         <div class="weather-field weather-field-btn">
           <button type="submit" class="btn-search">🔍 조회</button>
@@ -187,14 +211,6 @@
 input.weather-select { background-image: none; }
 .weather-select:focus { border-color: oklch(0.6 0.13 245); }
 .weather-select:disabled { color: var(--ink-softer); background-color: var(--bg-soft); }
-.fp-wrap { position: relative; display: flex; align-items: center; gap: 8px; }
-.date-input { flex: 1; min-width: 0; }
-.calendar-btn {
-  display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; flex: none;
-  border: 1px solid var(--line); border-radius: 14px; background: #fff; cursor: pointer; color: oklch(0.45 0.02 255);
-}
-.calendar-btn:hover { border-color: oklch(0.7 0.09 245); color: var(--accent); }
-.calendar-btn svg { width: 22px; height: 22px; }
 .btn-search {
   height: 46px; padding: 0 22px; border-radius: 14px; border: none; cursor: pointer;
   background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225)); color: #fff;
@@ -203,10 +219,74 @@ input.weather-select { background-image: none; }
 .btn-search:hover { filter: brightness(1.04); }
 .weather-note { margin: 12px 0 0; font-size: 12px; color: var(--ink-softer); }
 
-/* Flatpickr 사이즈/톤 보정 */
-.flatpickr-calendar { font-size: 15px; border-radius: 16px !important; box-shadow: 0 10px 30px oklch(0.2 0.02 255 / 0.15) !important; }
-.flatpickr-day.selected, .flatpickr-day.selected:hover { background: var(--accent); border-color: var(--accent); }
-.flatpickr-day.today { border-color: var(--accent); }
+/* 날짜: 팝오버 커스텀 달력 - status.html(예약현황)과 동일 컴포넌트를
+   그대로 포팅했다(공유 CSS 파일이 없는 이 프로젝트 관례상 복제). */
+.date-picker-wrap { position: relative; }
+.date-btn {
+  display: inline-flex; align-items: center; gap: 9px; height: 46px; padding: 0 16px; width: 100%; box-sizing: border-box;
+  border-radius: 14px; cursor: pointer; font-size: 14.5px; font-weight: 700; letter-spacing: -0.3px;
+  white-space: nowrap; border: 1px solid var(--line); background: #fff; color: oklch(0.28 0.02 255);
+  box-shadow: 0 2px 8px oklch(0.5 0.02 250 / 0.05); transition: all 0.18s ease;
+}
+.date-btn.is-open {
+  border-color: transparent; color: #fff;
+  background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225));
+  box-shadow: 0 8px 20px oklch(0.55 0.14 245 / 0.3);
+}
+.date-btn-icon { font-size: 16px; line-height: 1; }
+.date-btn-caret { margin-left: auto; font-size: 13px; line-height: 1; opacity: 0.6; transition: transform 0.2s ease; }
+.date-btn.is-open .date-btn-caret { transform: rotate(180deg); }
+
+.cal-popover {
+  position: absolute; top: calc(100% + 10px); left: 0; z-index: 70;
+  width: min(324px, calc(100vw - 44px)); padding: 16px; border-radius: 22px;
+  background: oklch(0.995 0.002 250); border: 1px solid var(--line);
+  box-shadow: 0 18px 44px oklch(0.35 0.03 255 / 0.16);
+  animation: calPopIn 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+@keyframes calPopIn { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+.cal-popover-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.cal-nav-btn {
+  width: 34px; height: 34px; border-radius: 12px; border: none; background: oklch(0.96 0.006 250);
+  color: oklch(0.4 0.02 255); font-size: 15px; cursor: pointer;
+}
+.cal-nav-btn:hover { background: oklch(0.92 0.01 250); }
+.cal-month-label { font-size: 15px; font-weight: 770; letter-spacing: -0.4px; color: var(--ink); }
+
+.cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 4px; }
+.cal-weekday { text-align: center; padding: 6px 0; font-size: 11.5px; font-weight: 700; color: oklch(0.62 0.012 255); }
+.cal-weekday-sun { color: oklch(0.62 0.15 25); }
+.cal-weekday-sat { color: oklch(0.58 0.11 250); }
+
+.cal-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.cal-day {
+  height: 40px; border-radius: 13px; cursor: pointer; font-size: 14px; font-weight: 620;
+  border: 1px solid transparent; background: transparent; color: oklch(0.3 0.02 255); transition: all 0.15s ease;
+}
+.cal-day:disabled { visibility: hidden; pointer-events: none; }
+.cal-day.cal-day-sun { color: oklch(0.6 0.15 25); }
+.cal-day.cal-day-sat { color: oklch(0.55 0.11 250); }
+.cal-day.cal-day-past { color: oklch(0.78 0.012 255); }
+.cal-day.cal-day-holiday { color: oklch(0.58 0.17 25); font-weight: 780; }
+.cal-day.cal-day-today {
+  font-weight: 760; border-color: oklch(0.8 0.07 245); background: oklch(0.97 0.015 245); color: oklch(0.42 0.13 245);
+}
+.cal-day.cal-day-selected {
+  font-weight: 780; border-color: transparent; color: #fff;
+  background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225));
+  box-shadow: 0 6px 14px oklch(0.55 0.14 245 / 0.32);
+}
+
+.cal-popover-foot { display: flex; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.cal-foot-btn {
+  flex: 1; height: 40px; border-radius: 13px; border: 1px solid var(--line); background: #fff;
+  font-size: 13px; font-weight: 700; color: oklch(0.42 0.02 255); cursor: pointer;
+}
+.cal-foot-btn-primary {
+  border: none; color: #fff; font-weight: 740;
+  background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225));
+}
 
 /* 결과 패널 - status.html 예약현황 화면의 날씨/물때 팝업과 동일하게, 왼쪽 표
    없이 바다타임 그래프가 패널 전체 폭을 쓴다(사용자 요청: "하단 날씨는
@@ -410,11 +490,6 @@ input.weather-select { background-image: none; }
 }
 </style>
 
-<!-- Flatpickr CDN (modern datepicker) -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ko.js"></script>
-
 <script>
 // 템플릿 데이터
 const CITY_PORTS = {{ city_port_mapping | tojson | safe }};
@@ -426,17 +501,140 @@ document.addEventListener('DOMContentLoaded', () => {
   const titleEl = document.getElementById('result-title');
   const subEl = document.getElementById('result-sub');
   const dateEl = document.getElementById('date');
-  const openBtn = document.getElementById('open-cal');
 
-  // Flatpickr init: yyyy-mm-dd, Korean weekdays, today default
-  const fp = flatpickr(dateEl, {
-    dateFormat: 'Y-m-d',
-    defaultDate: new Date(),
-    locale: flatpickr.l10ns.ko,
-    allowInput: true,
-    disableMobile: true
-  });
-  openBtn.addEventListener('click', () => fp.open());
+  // 날짜 입력 초기화: 값이 비어 있으면 오늘 날짜를 기본값으로 채운다.
+  // #date 는 화면에 안 보이는 hidden 필드다 - 실제 값 저장소는 그대로이고
+  // (submit 핸들러 등 기존 코드가 이걸 그대로 읽는다), 화면에는 아래 커스텀
+  // 팝오버 달력이 대신 그려진다(status.html/예약현황과 동일 컴포넌트).
+  function fmtDate(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  if (dateEl && !dateEl.value) { dateEl.value = fmtDate(new Date()); }
+
+  // ====== 대한민국 공휴일 (달력에 빨간색으로 표시) - status.html과 동일
+  // 서버 데이터 소스(services/holidays.py) ======
+  const KR_HOLIDAYS = {{ kr_holidays | tojson }};
+  function holidayLabel(iso) { return KR_HOLIDAYS[iso] || null; }
+
+  // ====== 커스텀 팝오버 달력 (status.html 포팅 - 공유 JS 파일이 없는 이
+  // 프로젝트 관례상 복제) ======
+  (function () {
+    const dateBtn = document.getElementById('date-btn');
+    const dateBtnLabel = document.getElementById('date-btn-label');
+    const popover = document.getElementById('cal-popover');
+    const monthLabel = document.getElementById('cal-month-label');
+    const daysEl = document.getElementById('cal-days');
+    const prevBtn = document.getElementById('cal-prev-btn');
+    const nextBtn = document.getElementById('cal-next-btn');
+    const todayBtn = document.getElementById('cal-today-btn');
+    const confirmBtn = document.getElementById('cal-confirm-btn');
+    if (!dateBtn || !popover || !daysEl || !dateEl) return;
+
+    function todayIso() { return fmtDate(new Date()); }
+    let calMonth = (dateEl.value || todayIso()).slice(0, 7);
+
+    function fmtDateLabel(iso) {
+      const p = iso.split('-');
+      const d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+      return Number(p[1]) + '월 ' + Number(p[2]) + '일 (' + ['일', '월', '화', '수', '목', '금', '토'][d.getDay()] + ')';
+    }
+    function shiftMonth(ym, n) {
+      const p = ym.split('-');
+      const d = new Date(Number(p[0]), Number(p[1]) - 1 + n, 1);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    }
+    function buildMonth(ym) {
+      const p = ym.split('-');
+      const y = Number(p[0]), m = Number(p[1]) - 1;
+      const first = new Date(y, m, 1).getDay();
+      const len = new Date(y, m + 1, 0).getDate();
+      const cells = [];
+      for (let i = 0; i < first; i++) cells.push(null);
+      for (let d = 1; d <= len; d++) {
+        cells.push({ day: d, dow: new Date(y, m, d).getDay(), iso: y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0') });
+      }
+      while (cells.length % 7) cells.push(null);
+      return cells;
+    }
+
+    function updateLabel() {
+      if (dateBtnLabel) dateBtnLabel.textContent = dateEl.value ? fmtDateLabel(dateEl.value) : '날짜 선택';
+    }
+
+    function renderCalendar() {
+      const p = calMonth.split('-');
+      if (monthLabel) monthLabel.textContent = p[0] + '년 ' + Number(p[1]) + '월';
+      daysEl.innerHTML = '';
+      const today = todayIso();
+      const selected = dateEl.value;
+      buildMonth(calMonth).forEach(function (c) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'cal-day';
+        if (!c) {
+          btn.disabled = true;
+          daysEl.appendChild(btn);
+          return;
+        }
+        btn.textContent = String(c.day);
+        if (c.dow === 0) btn.classList.add('cal-day-sun');
+        if (c.dow === 6) btn.classList.add('cal-day-sat');
+        if (c.iso < today) btn.classList.add('cal-day-past');
+        const holiday = holidayLabel(c.iso);
+        if (holiday) { btn.classList.add('cal-day-holiday'); btn.title = holiday; }
+        if (c.iso === today) btn.classList.add('cal-day-today');
+        if (c.iso === selected) btn.classList.add('cal-day-selected');
+        btn.addEventListener('click', function () {
+          dateEl.value = c.iso;
+          updateLabel();
+          closeCal();
+        });
+        daysEl.appendChild(btn);
+      });
+    }
+
+    function openCal() {
+      calMonth = (dateEl.value || todayIso()).slice(0, 7);
+      renderCalendar();
+      popover.style.display = '';
+      dateBtn.classList.add('is-open');
+      dateBtn.setAttribute('aria-expanded', 'true');
+    }
+    function closeCal() {
+      popover.style.display = 'none';
+      dateBtn.classList.remove('is-open');
+      dateBtn.setAttribute('aria-expanded', 'false');
+    }
+    function toggleCal() {
+      if (popover.style.display === 'none') openCal(); else closeCal();
+    }
+
+    dateBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleCal(); });
+    if (prevBtn) prevBtn.addEventListener('click', function () { calMonth = shiftMonth(calMonth, -1); renderCalendar(); });
+    if (nextBtn) nextBtn.addEventListener('click', function () { calMonth = shiftMonth(calMonth, 1); renderCalendar(); });
+    if (todayBtn) todayBtn.addEventListener('click', function () {
+      dateEl.value = todayIso();
+      calMonth = dateEl.value.slice(0, 7);
+      updateLabel();
+      renderCalendar();
+    });
+    if (confirmBtn) confirmBtn.addEventListener('click', function () { closeCal(); });
+    popover.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    document.addEventListener('click', function (e) {
+      if (popover.style.display !== 'none' && !popover.contains(e.target) &&
+          e.target !== dateBtn && !dateBtn.contains(e.target)) {
+        closeCal();
+      }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && popover.style.display !== 'none') closeCal();
+    });
+
+    updateLabel();
+    window._calRefreshLabel = updateLabel;
+  })();
+  // ====== 커스텀 팝오버 달력 끝 ======
 
   // 지역 변경 시 항구 목록 채우기
   const citySel = document.getElementById('city');
@@ -530,7 +728,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // "월별 물때"에서 "상세"를 누르면 그 날짜로 날짜 입력도 맞추고 오늘 상세로 전환한다.
   function jumpToDay(dateStr) {
     dateEl.value = dateStr;
-    fp.setDate(dateStr, false);
+    window._calRefreshLabel && window._calRefreshLabel();
     titleEl.textContent = `${currentPortName} (${dateStr})`;
     setTideView('day');
     loadDayView(currentPortId, currentPortName, currentCity, dateStr);

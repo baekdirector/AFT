@@ -4,7 +4,7 @@
 status() 라우트에서 복잡한 로직을 분리하여 관심사를 명확히 합니다.
 """
 from typing import Dict, List, Tuple, Optional
-from forms import REGION_CHOICES
+from forms import get_region_choices
 from services.holidays import kr_holidays_around
 
 
@@ -42,10 +42,15 @@ class StatusPageService:
     
     @staticmethod
     def get_region_names() -> List[str]:
-        """예약현황 화면의 지역 목록을 업무 순서로 반환"""
+        """예약현황 화면의 지역 목록을 업무 순서로 반환. preferred_order에
+        없는 지역(관리자 콘솔 "항구 정보" 탭에서 나중에 새로 추가된 지역)은
+        빠지지 않도록 끝에 이어 붙인다 - 안 그러면 새 지역이 이 화면
+        지역칩에서 통째로 안 보이는 채로 남는다."""
         preferred_order = ['인천', '안산', '화성', '평택', '당진', '서산', '태안', '보령', '군산', '격포', '여수', '고흥']
-        available_regions = {label for value, label in REGION_CHOICES if value}
-        return [region for region in preferred_order if region in available_regions]
+        available_regions = {label for value, label in get_region_choices() if value}
+        ordered = [region for region in preferred_order if region in available_regions]
+        extra = sorted(available_regions - set(preferred_order))
+        return ordered + extra
     
     @staticmethod
     def get_selected_regions(request) -> List[str]:

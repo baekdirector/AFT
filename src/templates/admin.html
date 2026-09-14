@@ -52,6 +52,21 @@
   }
   .admin-logout-form button:hover { border-color: oklch(0.8 0.02 240); }
 
+  /* GNB - 다른 화면(index/status/weather)과 같은 패턴(aux-links + header-nav).
+     "다른 화면 -> 관리자로 들어오는" 링크는 여전히 어디에도 안 둔다(/admin 은
+     URL을 아는 사람만 접근) - 여기 추가하는 건 "관리자 -> 다른 화면으로
+     나가는" 링크뿐이다. */
+  .aux-links { font-size: 12px; font-weight: 600; color: oklch(0.55 0.015 255); display: flex; align-items: center; gap: 6px; flex: none; margin-left: 6px; }
+  .aux-links a { color: oklch(0.46 0.12 248); }
+  .aux-links a:hover { color: oklch(0.38 0.13 248); }
+  .header-nav { display: flex; gap: 4px; padding: 4px; background: oklch(0.94 0.008 250); border-radius: 13px; flex: none; margin-left: 6px; }
+  .header-nav-btn {
+    height: 34px; padding: 0 15px; border-radius: 10px; border: none; font-size: 13px; font-weight: 700;
+    white-space: nowrap; display: flex; align-items: center; color: oklch(0.55 0.015 255); background: transparent; text-decoration: none;
+  }
+  .header-nav-btn:hover { color: oklch(0.46 0.12 248); }
+  .nav-watch-badge { margin-left: 3px; font-weight: 800; color: oklch(0.62 0.19 25); }
+
   .admin-body { max-width: 1320px; margin: 0 auto; padding: clamp(14px, 2.2vw, 24px) clamp(14px, 2.4vw, 28px) 60px; }
 
   .admin-tabs {
@@ -78,6 +93,134 @@
   }
   .admin-panel-head h1 { margin: 0; font-size: clamp(21px, 2.8vw, 27px); font-weight: 800; letter-spacing: -1.1px; line-height: 1.15; }
   .admin-panel-head .sub { margin: 6px 0 0; font-size: 12.5px; font-weight: 560; color: oklch(0.54 0.015 250); }
+  .admin-add-btn {
+    display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 16px; border-radius: 12px; border: none;
+    background: linear-gradient(145deg, oklch(0.5 0.13 248), oklch(0.4 0.11 238)); color: #fff; font-size: 13px; font-weight: 740;
+    cursor: pointer; white-space: nowrap; flex: none; box-shadow: 0 6px 16px oklch(0.45 0.12 248 / 0.28);
+  }
+
+  /* ================= 항구 정보 탭 ================= */
+  .port-region-card { background: #fff; border: 1px solid oklch(0.925 0.008 240); border-radius: 14px; padding: 12px 15px; margin-bottom: 12px; }
+  .port-region-row { display: grid; grid-template-columns: minmax(64px, 74px) 1fr; gap: 12px; align-items: start; }
+  .port-region-label { font-size: 11.5px; font-weight: 740; letter-spacing: 0.2px; color: oklch(0.55 0.015 250); padding-top: 8px; }
+  .port-region-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .port-region-chip {
+    display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 99px; cursor: pointer;
+    font-size: 12.5px; font-weight: 700; white-space: nowrap; flex: none; transition: all 0.15s; border: 1px solid oklch(0.92 0.008 240);
+    background: #fff; color: oklch(0.4 0.02 250);
+  }
+  .port-region-chip.active { border-color: transparent; background: oklch(0.46 0.12 248); color: #fff; box-shadow: 0 3px 10px oklch(0.46 0.12 248 / 0.26); }
+  .port-region-chip-count {
+    font-size: 10.5px; font-weight: 760; padding: 1px 6px; border-radius: 99px; white-space: nowrap;
+    background: oklch(0.955 0.006 240); color: oklch(0.55 0.015 250);
+  }
+  .port-region-chip.active .port-region-chip-count { background: oklch(1 0 0 / 0.22); color: #fff; }
+
+  .port-toolbar {
+    display: flex; align-items: center; gap: 9px; flex-wrap: wrap; padding: 10px 13px; background: #fff;
+    border: 1px solid oklch(0.925 0.008 240); border-radius: 13px; margin-bottom: 12px;
+  }
+  .port-all-btn {
+    display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 10px; cursor: pointer;
+    font-size: 12.5px; font-weight: 680; white-space: nowrap; flex: none; border: 1px solid oklch(0.91 0.008 240); background: #fff; color: oklch(0.44 0.02 250);
+  }
+  .port-all-btn.has-checked { border-color: oklch(0.8 0.06 248); background: oklch(0.97 0.015 248); color: oklch(0.34 0.06 248); }
+  .port-search {
+    display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 10px; background: oklch(0.97 0.005 240);
+    flex: 1 1 200px; min-width: 0;
+  }
+  .port-search input { flex: 1; min-width: 0; border: none; background: transparent; outline: none; font-size: 13px; font-weight: 560; }
+  .port-checked-label { font-size: 12px; font-weight: 620; color: oklch(0.56 0.015 250); white-space: nowrap; }
+  .port-delete-btn {
+    height: 36px; padding: 0 14px; border-radius: 10px; border: none; font-size: 12.5px; font-weight: 720; white-space: nowrap; flex: none;
+    margin-left: auto; background: oklch(0.945 0.006 240); color: oklch(0.72 0.012 250); cursor: default;
+  }
+  .port-delete-btn.enabled { background: oklch(0.55 0.18 25); color: #fff; cursor: pointer; }
+
+  .port-table-card { background: #fff; border: 1px solid oklch(0.925 0.008 240); border-radius: 16px; overflow: hidden; }
+  .port-table-scroll { overflow-x: auto; overflow-y: hidden; }
+  .port-table-inner { min-width: 760px; }
+  .port-header-row {
+    display: grid; grid-template-columns: 34px 66px minmax(0, 1fr) 132px 132px 92px 72px; gap: 10px; padding: 10px 15px;
+    background: oklch(0.978 0.004 240); font-size: 10.5px; font-weight: 740; letter-spacing: 0.2px; color: oklch(0.56 0.015 250);
+  }
+  .port-row {
+    display: grid; grid-template-columns: 34px 66px minmax(0, 1fr) 132px 132px 92px 72px; gap: 10px; align-items: center;
+    padding: 9px 15px; border-top: 1px solid oklch(0.965 0.006 240);
+  }
+  .port-row:nth-child(even) { background: oklch(0.99 0.002 240); }
+  .port-row.checked { background: oklch(0.976 0.014 248); }
+  .port-row-region { font-size: 11.5px; font-weight: 740; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: oklch(0.38 0.02 250); }
+  .port-row input {
+    width: 100%; min-width: 0; height: 34px; padding: 0 11px; border-radius: 9px; border: 1px solid oklch(0.93 0.008 240);
+    background: oklch(0.985 0.003 240); font-size: 13px; font-weight: 700; color: oklch(0.24 0.02 250); outline: none; transition: all 0.15s;
+    font-family: inherit;
+  }
+  .port-row input.port-num { font-variant-numeric: tabular-nums; color: oklch(0.3 0.02 250); }
+  .port-row input:focus { border-color: oklch(0.55 0.12 248); background: #fff; }
+  .port-ships-badge {
+    justify-self: end; font-size: 11.5px; font-weight: 740; padding: 4px 9px; border-radius: 99px; white-space: nowrap;
+    background: oklch(0.955 0.006 240); color: oklch(0.6 0.015 250);
+  }
+  .port-ships-badge.in-use { background: oklch(0.955 0.022 235); color: oklch(0.4 0.1 238); }
+  .port-row-actions { display: flex; align-items: center; gap: 5px; justify-self: end; }
+  .port-save-btn {
+    flex: none; height: 30px; padding: 0 11px; border-radius: 9px; border: 1px solid oklch(0.88 0.05 248); background: oklch(0.97 0.02 248);
+    font-size: 11.5px; font-weight: 740; color: oklch(0.4 0.12 248); cursor: pointer; white-space: nowrap;
+  }
+  .port-del-btn {
+    flex: none; width: 30px; height: 30px; border-radius: 9px; border: 1px solid oklch(0.93 0.02 25); background: #fff;
+    font-size: 12px; color: oklch(0.52 0.17 25); cursor: pointer;
+  }
+  .port-del-btn:hover { background: oklch(0.97 0.02 25); }
+  .port-del-btn:disabled, .port-row .chk:disabled {
+    opacity: 0.35; cursor: not-allowed; pointer-events: none;
+  }
+
+  .port-info-hint {
+    display: flex; align-items: flex-start; gap: 9px; padding: 12px 14px; border-radius: 13px; background: oklch(0.972 0.005 240);
+    border: 1px solid oklch(0.93 0.008 240); margin-top: 12px; font-size: 11.5px; font-weight: 580; line-height: 1.6; color: oklch(0.5 0.015 250);
+  }
+
+  /* "새 항구 추가" 모달 */
+  .port-modal-overlay {
+    position: fixed; inset: 0; z-index: 110; background: oklch(0.2 0.02 250 / 0.46); backdrop-filter: blur(5px);
+    display: flex; align-items: center; justify-content: center; padding: clamp(12px, 3vw, 32px);
+  }
+  /* [hidden] 과 .port-modal-overlay 둘 다 특이도가 같아(속성 선택자 vs 클래스
+     선택자) author 규칙인 위 display:flex 가 UA의 [hidden]{display:none} 을
+     이겨버린다 - !important 로 확실히 눌러줘야 모달이 닫힌 채로 시작하고
+     X/취소 클릭으로도 실제로 닫힌다(Playwright 검증 중 실제로 이 버그로
+     페이지 로드 직후 모달이 계속 떠 있는 걸 확인함). */
+  .port-modal-overlay[hidden] { display: none !important; }
+  .port-modal-box {
+    width: min(460px, 100%); background: #fff; border-radius: 22px; padding: 20px clamp(16px, 3vw, 22px);
+    box-shadow: 0 24px 60px oklch(0.2 0.04 250 / 0.34); animation: popIn 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  @keyframes popIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .port-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+  .port-modal-head h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.7px; }
+  .port-modal-close { flex: none; border: none; background: oklch(0.955 0.006 240); width: 32px; height: 32px; border-radius: 10px; font-size: 13px; color: oklch(0.44 0.02 250); cursor: pointer; }
+  .port-modal-fields { display: grid; gap: 11px; }
+  .port-modal-fields label { display: grid; gap: 5px; }
+  .port-modal-fields .lbl { font-size: 12px; font-weight: 720; color: oklch(0.44 0.02 250); }
+  .port-modal-fields .req { color: oklch(0.58 0.17 25); }
+  .port-modal-fields input {
+    height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid oklch(0.91 0.008 240); background: #fff;
+    font-size: 14px; font-weight: 600; outline: none; font-family: inherit;
+  }
+  .port-modal-fields input:focus { border-color: oklch(0.55 0.12 248); }
+  .port-modal-fields .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .port-modal-error {
+    font-size: 12.5px; font-weight: 660; color: oklch(0.5 0.17 25); background: oklch(0.96 0.03 25); padding: 10px 13px;
+    border-radius: 11px;
+  }
+  .port-modal-actions { display: flex; gap: 8px; margin-top: 18px; }
+  .port-modal-actions button {
+    height: 48px; border-radius: 13px; border: none; font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .port-modal-cancel { flex: 1; border: 1px solid oklch(0.91 0.008 240) !important; background: #fff; color: oklch(0.44 0.02 250); }
+  .port-modal-submit { flex: 2; background: linear-gradient(145deg, oklch(0.5 0.13 248), oklch(0.4 0.11 238)); color: #fff; font-weight: 750; }
 
   .admin-seg { display: flex; gap: 2px; padding: 3px; background: oklch(0.945 0.006 240); border-radius: 10px; flex: none; }
   .admin-seg button {
@@ -260,6 +403,7 @@
     .watch-row { grid-template-columns: auto minmax(0, 1fr); row-gap: 6px; }
     .watch-seat { justify-self: start; grid-column: 2; }
     .watch-link, .watch-release { grid-column: 2; justify-self: start; }
+    .header-nav { display: none; }
   }
 </style>
 
@@ -289,6 +433,14 @@
         <div class="admin-title-sub">admin · 관리자 권한</div>
       </div>
       <div style="flex:1 1 0; min-width:0;"></div>
+      <div class="aux-links">
+        <a href="{{ url_for('views.weather') }}">날씨</a>
+      </div>
+      <nav class="header-nav">
+        <a href="{{ url_for('views.index') }}" class="header-nav-btn">배 목록</a>
+        <a href="{{ url_for('views.status') }}" class="header-nav-btn">예약현황</a>
+        <a href="{{ url_for('views.watches') }}" class="header-nav-btn">알림</a>
+      </nav>
       <span class="admin-pill">ADMIN</span>
       <form class="admin-logout-form" method="post" action="{{ url_for('views.admin_logout') }}">
         <button type="submit">로그아웃</button>
@@ -300,7 +452,10 @@
 
   <div class="admin-body">
     <nav class="admin-tabs">
-      <button type="button" class="admin-tab active" data-tab="access">
+      <button type="button" class="admin-tab active" data-tab="ports">
+        <span>⚓</span><span>항구 정보</span><span class="admin-tab-count">{{ ports|length }}</span>
+      </button>
+      <button type="button" class="admin-tab" data-tab="access">
         <span>📋</span><span>접속 이력</span><span class="admin-tab-count">{{ total_visits }}</span>
       </button>
       <button type="button" class="admin-tab" data-tab="watch">
@@ -308,8 +463,107 @@
       </button>
     </nav>
 
+    <!-- ================= 항구 정보 ================= -->
+    <section id="tab-ports">
+      <div class="admin-panel-head">
+        <div>
+          <h1>항구 정보</h1>
+          <p class="sub">지역을 고르면 항구 목록이 나옵니다 · 항구명 · 위도 · 경도를 직접 수정할 수 있습니다</p>
+        </div>
+        <button type="button" id="port-add-btn" class="admin-add-btn">＋ 새 항구 추가</button>
+      </div>
+
+      <div class="port-region-card">
+        <div class="port-region-row">
+          <div class="port-region-label">지역</div>
+          <div class="port-region-chips" id="port-region-chips"></div>
+        </div>
+      </div>
+
+      <div class="port-toolbar">
+        <button type="button" id="port-all-btn" class="port-all-btn">
+          <span class="chk" id="port-all-chk">✓</span>
+          <span>전체 선택</span>
+        </button>
+        <div class="port-search">
+          <span style="font-size:13px; color:oklch(0.62 0.015 250);">⌕</span>
+          <input type="text" id="port-query" placeholder="항구명 검색" />
+        </div>
+        <div class="port-checked-label" id="port-checked-label">체크해서 한 번에 삭제할 수 있어요</div>
+        <button type="button" id="port-delete-checked" class="port-delete-btn">선택 삭제</button>
+      </div>
+
+      <div class="port-table-card">
+        <div class="port-table-scroll">
+          <div class="port-table-inner">
+            <div class="port-header-row">
+              <span></span><span>지역</span><span>항구명</span><span>위도 (lat)</span><span>경도 (lon)</span><span style="text-align:right;">등록 선박</span><span style="text-align:right;">관리</span>
+            </div>
+            <div id="port-rows">
+              {% for p in ports %}
+                <div class="port-row{{ ' in-use' if p.ship_count > 0 else '' }}" data-port-id="{{ p.id }}" data-region="{{ p.region }}" data-name="{{ p.name }}" data-ships="{{ p.ship_count }}">
+                  <button type="button" class="chk port-chk"{{ ' disabled' if p.ship_count > 0 else '' }}>✓</button>
+                  <span class="port-row-region">{{ p.region }}</span>
+                  <input type="text" class="port-name-input" value="{{ p.name }}" placeholder="항구명" />
+                  <input type="text" class="port-num port-lat-input" value="{{ p.lat }}" placeholder="37.2100" />
+                  <input type="text" class="port-num port-lon-input" value="{{ p.lon }}" placeholder="126.4100" />
+                  <span class="port-ships-badge{{ ' in-use' if p.ship_count > 0 else '' }}">{{ (p.ship_count ~ '척') if p.ship_count > 0 else '없음' }}</span>
+                  <div class="port-row-actions">
+                    <button type="button" class="port-save-btn">저장</button>
+                    <button type="button" class="port-del-btn"{{ ' disabled' if p.ship_count > 0 else '' }} title="{{ '사용 중인 항구는 삭제할 수 없습니다' if p.ship_count > 0 else '삭제' }}">✕</button>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="visit-empty" id="port-empty" {{ 'hidden' if ports else '' }}>등록된 항구가 없습니다</div>
+
+      <div class="port-info-hint">
+        <span style="font-size:13px; line-height:1.4; flex:none;">ℹ️</span>
+        <div>위도·경도는 날씨·물때 조회와 지도보기에 사용됩니다. 위도는 33~39, 경도는 124~132 범위를 권장합니다. 이미 배가 등록된 항구는 삭제할 수 없습니다(먼저 그 배들을 다른 항구로 옮기거나 삭제해 주세요).</div>
+      </div>
+    </section>
+
+    <!-- 새 항구 추가 모달 -->
+    <div class="port-modal-overlay" id="port-modal" hidden>
+      <div class="port-modal-box">
+        <div class="port-modal-head">
+          <h2>새 항구 추가</h2>
+          <button type="button" class="port-modal-close" id="port-modal-close">✕</button>
+        </div>
+        <div class="port-modal-fields">
+          <label>
+            <span class="lbl">지역 <span class="req">*</span></span>
+            <input type="text" id="port-add-region" placeholder="예: 보령" />
+          </label>
+          <label>
+            <span class="lbl">항구명 <span class="req">*</span></span>
+            <input type="text" id="port-add-name" placeholder="예: 대천항" />
+          </label>
+          <div class="two-col">
+            <label>
+              <span class="lbl">위도 <span class="req">*</span></span>
+              <input type="text" id="port-add-lat" placeholder="36.3300" />
+            </label>
+            <label>
+              <span class="lbl">경도 <span class="req">*</span></span>
+              <input type="text" id="port-add-lon" placeholder="126.5000" />
+            </label>
+          </div>
+          <div class="port-modal-error" id="port-add-error" hidden></div>
+        </div>
+        <div class="port-modal-actions">
+          <button type="button" class="port-modal-cancel" id="port-add-cancel">취소</button>
+          <button type="button" class="port-modal-submit" id="port-add-submit">추가하기</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 접속 이력 ================= -->
-    <section id="tab-access">
+    <section id="tab-access" hidden>
       <div class="admin-panel-head">
         <div>
           <h1>접속 이력</h1>
@@ -428,10 +682,272 @@
     btn.addEventListener('click', () => {
       document.querySelectorAll('.admin-tab').forEach(b => b.classList.toggle('active', b === btn));
       const tab = btn.getAttribute('data-tab');
+      document.getElementById('tab-ports').hidden = tab !== 'ports';
       document.getElementById('tab-access').hidden = tab !== 'access';
       document.getElementById('tab-watch').hidden = tab !== 'watch';
     });
   });
+
+  // ---- 항구 정보 탭 ----
+  // 서버가 이미 행을 다 렌더링해 뒀다(port-rows) - 지역칩/검색은 순수 JS로
+  // 숨기고 보여주기만 한다(접속 이력 탭의 PC/모바일 필터와 같은 패턴).
+  // 저장/추가/삭제만 fetch 로 서버를 부르고, 성공하면 전체 새로고침 없이
+  // DOM을 직접 갱신한다.
+  (function () {
+    const rowsWrap = document.getElementById('port-rows');
+    const chipsWrap = document.getElementById('port-region-chips');
+    const queryInput = document.getElementById('port-query');
+    const allBtn = document.getElementById('port-all-btn');
+    const allChk = document.getElementById('port-all-chk');
+    const checkedLabel = document.getElementById('port-checked-label');
+    const deleteBtn = document.getElementById('port-delete-checked');
+    const emptyEl = document.getElementById('port-empty');
+    const tabCountEl = document.querySelector('.admin-tab[data-tab="ports"] .admin-tab-count');
+    if (!rowsWrap) return;
+
+    let activeRegion = '전체';
+    let query = '';
+
+    function rows() { return Array.from(rowsWrap.querySelectorAll('.port-row')); }
+
+    function buildChips() {
+      const regions = [];
+      const counts = {};
+      rows().forEach(r => {
+        const region = r.getAttribute('data-region');
+        if (regions.indexOf(region) === -1) regions.push(region);
+        counts[region] = (counts[region] || 0) + 1;
+      });
+      if (activeRegion !== '전체' && regions.indexOf(activeRegion) === -1) activeRegion = '전체';
+
+      chipsWrap.innerHTML = '';
+      const makeChip = (label, count, isActive) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'port-region-chip' + (isActive ? ' active' : '');
+        btn.innerHTML = escapeHtml(label) + '<span class="port-region-chip-count">' + count + '</span>';
+        btn.addEventListener('click', () => { activeRegion = label; buildChips(); applyFilter(); });
+        return btn;
+      };
+      chipsWrap.appendChild(makeChip('전체', rows().length, activeRegion === '전체'));
+      regions.forEach(r => chipsWrap.appendChild(makeChip(r, counts[r], activeRegion === r)));
+    }
+
+    function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+    function applyFilter() {
+      const q = query.trim().toLowerCase();
+      let visibleCount = 0;
+      rows().forEach(r => {
+        const matchesRegion = activeRegion === '전체' || r.getAttribute('data-region') === activeRegion;
+        const name = (r.querySelector('.port-name-input').value || '').toLowerCase();
+        const matchesQuery = !q || name.includes(q);
+        const show = matchesRegion && matchesQuery;
+        r.style.display = show ? '' : 'none';
+        if (show) visibleCount++;
+      });
+      emptyEl.hidden = rows().length > 0; // "등록된 항구가 없습니다" 는 전체가 0개일 때만 - 필터 결과 0개는 그냥 빈 표로 둔다
+    }
+
+    function checkedRows() { return rows().filter(r => r.querySelector('.port-chk').classList.contains('on')); }
+
+    function updateToolbar() {
+      const checked = checkedRows();
+      checkedLabel.textContent = checked.length ? checked.length + '개 선택됨' : '체크해서 한 번에 삭제할 수 있어요';
+      deleteBtn.classList.toggle('enabled', checked.length > 0);
+      const deletable = rows().filter(r => r.getAttribute('data-ships') === '0');
+      const allChecked = deletable.length > 0 && deletable.every(r => r.querySelector('.port-chk').classList.contains('on'));
+      allBtn.classList.toggle('has-checked', checked.length > 0);
+      allChk.classList.toggle('on', allChecked);
+    }
+
+    function setRowChecked(row, on) {
+      if (row.querySelector('.port-chk').disabled) return;
+      row.querySelector('.port-chk').classList.toggle('on', on);
+      row.classList.toggle('checked', on);
+    }
+
+    rowsWrap.addEventListener('click', e => {
+      const chkBtn = e.target.closest('.port-chk');
+      if (chkBtn) {
+        const row = chkBtn.closest('.port-row');
+        setRowChecked(row, !chkBtn.classList.contains('on'));
+        updateToolbar();
+        return;
+      }
+      const saveBtn = e.target.closest('.port-save-btn');
+      if (saveBtn) { savePort(saveBtn.closest('.port-row')); return; }
+      const delBtn = e.target.closest('.port-del-btn');
+      if (delBtn && !delBtn.disabled) { deletePorts([delBtn.closest('.port-row')]); return; }
+    });
+
+    allBtn.addEventListener('click', () => {
+      const deletable = rows().filter(r => r.style.display !== 'none' && r.getAttribute('data-ships') === '0');
+      const allChecked = deletable.length > 0 && deletable.every(r => r.querySelector('.port-chk').classList.contains('on'));
+      deletable.forEach(r => setRowChecked(r, !allChecked));
+      updateToolbar();
+    });
+
+    queryInput.addEventListener('input', e => { query = e.target.value; applyFilter(); });
+
+    deleteBtn.addEventListener('click', () => {
+      const checked = checkedRows();
+      if (!checked.length) return;
+      deletePorts(checked);
+    });
+
+    function validatePortInputs(name, lat, lon) {
+      if (!name || !name.trim()) return '항구명을 입력해 주세요.';
+      const la = parseFloat(lat), lo = parseFloat(lon);
+      if (isNaN(la) || isNaN(lo)) return '위도 · 경도를 숫자로 입력해 주세요.';
+      if (la < 33 || la > 39) return '위도는 33~39 범위로 입력해 주세요.';
+      if (lo < 124 || lo > 132) return '경도는 124~132 범위로 입력해 주세요.';
+      return null;
+    }
+
+    async function savePort(row) {
+      const portId = row.getAttribute('data-port-id');
+      const name = row.querySelector('.port-name-input').value.trim();
+      const lat = row.querySelector('.port-lat-input').value.trim();
+      const lon = row.querySelector('.port-lon-input').value.trim();
+      const err = validatePortInputs(name, lat, lon);
+      if (err) { showToast(err, { type: 'error' }); return; }
+
+      try {
+        const resp = await fetch('/admin/ports/' + portId, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+          body: JSON.stringify({ name, lat, lon }),
+        });
+        const body = await resp.json();
+        if (!resp.ok) throw new Error(body.error || '저장 중 오류가 발생했습니다.');
+        row.setAttribute('data-name', body.name);
+        row.querySelector('.port-name-input').value = body.name;
+        row.querySelector('.port-lat-input').value = body.lat;
+        row.querySelector('.port-lon-input').value = body.lon;
+        showToast(body.name + ' 항구 정보를 저장했습니다', { type: 'success' });
+      } catch (err) {
+        showToast(err.message || '저장 중 오류가 발생했습니다.', { type: 'error' });
+      }
+    }
+
+    async function deletePorts(targetRows) {
+      const ok = await showConfirm(
+        targetRows.length === 1
+          ? (targetRows[0].getAttribute('data-name') + ' 항구를 삭제할까요?')
+          : targetRows.length + '개 항구를 삭제할까요?',
+        { confirmText: '삭제', danger: true }
+      );
+      if (!ok) return;
+
+      const ids = targetRows.map(r => r.getAttribute('data-port-id'));
+      try {
+        const resp = await fetch('/admin/ports/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+          body: JSON.stringify({ port_ids: ids }),
+        });
+        const body = await resp.json();
+        if (!resp.ok) throw new Error(body.error || '삭제 중 오류가 발생했습니다.');
+
+        const deletedIds = new Set((body.deleted || []).map(d => String(d.id)));
+        targetRows.forEach(r => { if (deletedIds.has(r.getAttribute('data-port-id'))) r.remove(); });
+        buildChips();
+        applyFilter();
+        updateToolbar();
+        if (tabCountEl) tabCountEl.textContent = rows().length;
+
+        const deletedCount = (body.deleted || []).length;
+        const skipped = body.skipped || [];
+        if (deletedCount) showToast(deletedCount + '곳을 삭제했습니다', { type: 'success' });
+        if (skipped.length) {
+          showToast(skipped.map(s => s.name + '(선박 ' + s.ship_count + '척)').join(', ') + ' - 사용 중이라 삭제하지 못했습니다', { type: 'error' });
+        }
+      } catch (err) {
+        showToast(err.message || '삭제 중 오류가 발생했습니다.', { type: 'error' });
+      }
+    }
+
+    // ---- "새 항구 추가" 모달 ----
+    const modal = document.getElementById('port-modal');
+    const addBtn = document.getElementById('port-add-btn');
+    const closeBtn = document.getElementById('port-modal-close');
+    const cancelBtn = document.getElementById('port-add-cancel');
+    const submitBtn = document.getElementById('port-add-submit');
+    const regionInput = document.getElementById('port-add-region');
+    const nameInput = document.getElementById('port-add-name');
+    const latInput = document.getElementById('port-add-lat');
+    const lonInput = document.getElementById('port-add-lon');
+    const errorEl = document.getElementById('port-add-error');
+
+    function openModal() {
+      regionInput.value = activeRegion === '전체' ? '' : activeRegion;
+      nameInput.value = ''; latInput.value = ''; lonInput.value = '';
+      errorEl.hidden = true;
+      modal.hidden = false;
+      setTimeout(() => regionInput.focus(), 30);
+    }
+    function closeModal() { modal.hidden = true; }
+
+    addBtn.addEventListener('click', openModal);
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+
+    function addPortRow(p) {
+      const row = document.createElement('div');
+      row.className = 'port-row';
+      row.setAttribute('data-port-id', p.id);
+      row.setAttribute('data-region', p.region);
+      row.setAttribute('data-name', p.name);
+      row.setAttribute('data-ships', '0');
+      row.innerHTML =
+        '<button type="button" class="chk port-chk">✓</button>' +
+        '<span class="port-row-region">' + escapeHtml(p.region) + '</span>' +
+        '<input type="text" class="port-name-input" value="' + escapeHtml(p.name) + '" placeholder="항구명" />' +
+        '<input type="text" class="port-num port-lat-input" value="' + p.lat + '" placeholder="37.2100" />' +
+        '<input type="text" class="port-num port-lon-input" value="' + p.lon + '" placeholder="126.4100" />' +
+        '<span class="port-ships-badge">없음</span>' +
+        '<div class="port-row-actions">' +
+          '<button type="button" class="port-save-btn">저장</button>' +
+          '<button type="button" class="port-del-btn" title="삭제">✕</button>' +
+        '</div>';
+      rowsWrap.appendChild(row);
+    }
+
+    submitBtn.addEventListener('click', async () => {
+      const region = regionInput.value.trim();
+      const name = nameInput.value.trim();
+      const lat = latInput.value.trim();
+      const lon = lonInput.value.trim();
+      if (!region) { errorEl.textContent = '지역을 입력해 주세요.'; errorEl.hidden = false; return; }
+      const err = validatePortInputs(name, lat, lon);
+      if (err) { errorEl.textContent = err; errorEl.hidden = false; return; }
+
+      try {
+        const resp = await fetch('/admin/ports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+          body: JSON.stringify({ region, name, lat, lon }),
+        });
+        const body = await resp.json();
+        if (!resp.ok) throw new Error(body.error || '추가 중 오류가 발생했습니다.');
+        addPortRow(body);
+        buildChips();
+        applyFilter();
+        if (tabCountEl) tabCountEl.textContent = rows().length;
+        closeModal();
+        showToast(body.name + ' 항구를 추가했습니다', { type: 'success' });
+      } catch (err) {
+        errorEl.textContent = err.message || '추가 중 오류가 발생했습니다.';
+        errorEl.hidden = false;
+      }
+    });
+
+    buildChips();
+    applyFilter();
+    updateToolbar();
+  })();
 
   // ---- 접속 이력 탭: PC/모바일 필터(서버가 이미 렌더링한 행을 숨기기만) ----
   document.querySelectorAll('#access-device-filter button').forEach(btn => {

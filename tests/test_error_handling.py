@@ -42,6 +42,7 @@ def test_postgres_gets_pool_pre_ping_to_survive_cold_connections(monkeypatch):
     import db as db_module
     monkeypatch.setattr(db_module.db, 'create_all', lambda: None)
     monkeypatch.setattr(db_module, 'initialize_shared_boats', lambda: None)
+    monkeypatch.setattr(db_module, 'initialize_ports', lambda: None)
 
     app = create_app({
         'SQLALCHEMY_DATABASE_URI': 'postgresql://user:pass@host/db',

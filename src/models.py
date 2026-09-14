@@ -34,23 +34,28 @@ class Boat(db.Model):
         }
 
 
-class PortCoordinate(db.Model):
-    """config.PORT_COORDINATES(정적 dict)에 없는 새 항구의 위경도를 사용자가
-    배 등록/수정 화면에서 직접 입력하면 여기 저장된다. 조회 시 정적 dict와
-    합쳐서 쓰인다(services.weather_tide_service.PortDataService.
-    get_port_coordinates 참고) - 코드 배포 없이도 새 항구의 날씨/지도 기능을
-    바로 쓸 수 있게 하기 위한 표다. 정적 dict에 이미 있는 항구는 여기 안
-    들어간다(db.upsert_port_coordinate 가 막는다)."""
-    __tablename__ = 'port_coordinates'
+class Port(db.Model):
+    """항구 마스터 표 - 지역·항구명·위경도. 예전엔 config.CITY_PORT_MAPPING/
+    PORT_COORDINATES(정적 dict)에 박혀 있어 항구 하나 지우려 해도 코드를
+    고치고 배포해야 했다(2026-09-14, "돌산나루터" 삭제 요청 때 실제로 겪음 -
+    constants.py + register.html + edit_boat.html 세 곳을 손으로 고쳐야
+    했다). 이제 관리자 콘솔("항구 정보" 탭)에서 코드 배포 없이 추가·수정·
+    삭제한다. 앱 시작 시 db.initialize_ports()가 그 정적 dict를 이 표로
+    1회만 옮겨 담고(AppSetting 플래그), 그 뒤로는 이 표가 유일한 출처다
+    (services.weather_tide_service.PortDataService 가 여기서 읽는다).
+    name은 PORT_COORDINATES가 원래 그랬듯 지역과 무관하게 전역에서
+    유일하다(/api/tide, /api/weather 등이 항구 "이름"만으로 좌표를 찾는다)."""
+    __tablename__ = 'ports'
 
     id = db.Column(db.Integer, primary_key=True)
-    port = db.Column(db.String(100), nullable=False, unique=True)
+    region = db.Column(db.String(50), nullable=False)
+    name = db.Column(db.String(100), nullable=False, unique=True)
     lat = db.Column(db.Float, nullable=False)
     lon = db.Column(db.Float, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
-        return f'<PortCoordinate {self.port} ({self.lat}, {self.lon})>'
+        return f'<Port {self.name} ({self.region})>'
 
 
 class Snapshot(db.Model):

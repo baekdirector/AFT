@@ -144,22 +144,22 @@ class PortDataService:
     
     @staticmethod
     def get_port_coordinates() -> Dict[str, Dict[str, float]]:
-        """항구별 좌표 정보. 정적 PORT_COORDINATES(config/constants.py) +
-        사용자가 등록/수정 화면에서 직접 입력해 PortCoordinate 테이블에 저장한
-        새 항구 좌표를 합쳐서 돌려준다. 정적 dict 값이 우선한다(큐레이션된
-        값을 사용자 입력이 덮어쓰지 않게)."""
-        from config import PORT_COORDINATES
-        from models import PortCoordinate
-        merged = dict(PORT_COORDINATES)
-        for row in PortCoordinate.query.all():
-            merged.setdefault(row.port, {'lat': row.lat, 'lon': row.lon})
-        return merged
-    
+        """항구별 좌표 정보. `models.Port` 표에서 읽는다(예전엔 정적
+        PORT_COORDINATES dict + PortCoordinate 오버레이 테이블을 합쳤지만,
+        이제 그 정적 dict는 db.initialize_ports()가 앱 시작 시 1회 옮겨
+        담는 시드 데이터일 뿐이고 이 표가 유일한 출처다 - 관리자 콘솔
+        "항구 정보" 탭이 여기 직접 쓴다)."""
+        from models import Port
+        return {row.name: {'lat': row.lat, 'lon': row.lon} for row in Port.query.all()}
+
     @staticmethod
     def get_city_port_mapping() -> Dict[str, list]:
-        """지역별 항구 매핑"""
-        from config import CITY_PORT_MAPPING
-        return CITY_PORT_MAPPING
+        """지역별 항구 매핑. `models.Port` 표에서 region별로 묶어 만든다."""
+        from models import Port
+        mapping: Dict[str, list] = {}
+        for row in Port.query.order_by(Port.region, Port.name).all():
+            mapping.setdefault(row.region, []).append(row.name)
+        return mapping
     
     @staticmethod
     def get_bada_port_ids() -> Dict[str, int]:
