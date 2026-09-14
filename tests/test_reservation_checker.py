@@ -228,3 +228,30 @@ def test_check_single_boat_uses_cache_for_repeated_queries(monkeypatch):
     assert first["entries"] == []
     assert second["entries"] == []
     assert len(calls) == 1
+
+
+def test_request_session_is_per_thread_not_globally_shared():
+    """사용자 제보(여수 42척 조회가 16초 -> 54~55초로 느려짐)를 계기로
+    확인한 결과: 워커 스레드 전체가 공유하는 Session 하나는 Render의 0.1
+    CPU 스로틀링 아래서 커넥션 풀 락 경합이 비싸져 오히려 역효과였다(로컬
+    A/B 테스트로는 재현 안 됐지만 이 프로젝트에 이미 있던 "동시성 올리면
+    오히려 느려진다" 실측 패턴과 일치). threading.local() 기반 스레드별
+    Session으로 바꿨다 - 스레드 간 락 경합이 아예 없어지고, 같은 스레드가
+    같은 호스트를 연달아 부르면 여전히 연결을 재사용한다. 이 테스트는 그
+    "스레드마다 독립된 Session" 이라는 계약이 실수로 다시 전역 공유로
+    되돌아가지 않게 지킨다."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def get_session_id():
+        return id(reservation_checker._session_for_thread())
+
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        ids = list(ex.map(lambda _: get_session_id(), range(8)))
+
+    # 워커 스레드 수(4)보다 적은 수의 서로 다른 Session 객체만 있어야
+    # 한다(스레드마다 하나, 매 호출마다 새로 만들면 재사용 이득이 없다).
+    assert 1 <= len(set(ids)) <= 4
+
+    # 같은 스레드 안에서는 항상 같은 Session 객체를 돌려줘야 한다(연결 재사용).
+    same_thread_ids = [get_session_id(), get_session_id(), get_session_id()]
+    assert len(set(same_thread_ids)) == 1

@@ -1,5 +1,5 @@
 from bs4 import BeautifulSoup, Comment
-from threading import Lock
+from threading import Lock, local as thread_local
 from time import time
 from typing import Dict, List
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
@@ -28,31 +28,49 @@ _CACHE_TTL_SECONDS = 300
 _CACHE = {}
 _CACHE_LOCK = Lock()
 
-# 배마다 매번 requests.get()을 새로 부르면 응답 헤더에 Connection: keep-alive
-# 를 실어 보내도 실제로는 매번 새 TCP+TLS 연결을 맺는다(연결 재사용은
-# Session 이 붙잡고 있는 커넥션 풀에서만 일어난다) - 사용자 제보("예약현황
-# 조회가 너무 느리다", 96척 라이브 조회 ≈114초)를 계기로 확인해서 고쳤다.
-# 배들이 몇 안 되는 플랫폼(sunsang24 등)에 몰려 있어 같은 호스트로 가는
-# 요청이 많으므로, 워커 스레드 전체가 공유하는 Session 하나로 바꿔 그 재사용
-# 이익을 실제로 누리게 한다. requests.Session은 문서상 스레드 안전을
-# 보장하진 않지만(세션 상태를 요청 도중 바꾸는 경우), 이 프로젝트처럼
-# 헤더/쿠키를 세션에 두지 않고 매 호출마다 인자로만 넘기는 읽기 전용
-# 사용 패턴에서 여러 스레드가 동시에 .get()을 부르는 것은 requests/urllib3
-# 커뮤니티에서도 흔히 쓰는 안전한 패턴이다(연결 풀 자체는 스레드 안전).
-# 풀 크기는 STATUS_MAX_WORKERS(기본 4, 최대로 올려본 값 24)보다 넉넉하게
-# 잡아 동시 요청이 몰려도 "pool is full" 경고 없이 전부 재사용 후보가 되게 한다.
-_SESSION = requests.Session()
-_ADAPTER = requests.adapters.HTTPAdapter(pool_connections=32, pool_maxsize=32)
-_SESSION.mount('https://', _ADAPTER)
-_SESSION.mount('http://', _ADAPTER)
+# 배마다 매번 requests.get()을 새로 부르면 매번 새 TCP+TLS 연결을 맺는다
+# (연결 재사용은 Session 이 붙잡고 있는 커넥션 풀에서만 일어난다) - 사용자
+# 제보("예약현황 조회가 너무 느리다", 96척 라이브 조회 ≈114초)를 계기로
+# 확인해서 처음엔 워커 스레드 전체가 공유하는 Session 하나로 바꿨었다.
+#
+# 그런데 배포 후 실측(여수 42척)이 오히려 16초 -> 54~55초로 느려졌다.
+# 로컬에서 실제 여수 배 URL 23개(전부 서로 다른 sunsang24 서브도메인이라
+# 연결 재사용 이득 자체가 원래 없었다)로 plain vs Session, html.parser vs
+# lxml 네 조합을 다 재봤지만 로컬에서는 차이가 없었다(3.6~4.3초로 전부 비슷,
+# Session 쪽이 오히려 근소하게 빠르기도 했다) - 코드 자체가 본질적으로 더
+# 느려진 게 아니라는 뜻이다. 유력한 설명은 이 프로젝트에서 이미 실측된
+# 패턴과 같다: Render 는 CPU 0.1개로 제한돼 있어(STATUS_MAX_WORKERS 문서
+# 참고 - 워커를 24로 올렸더니 오히려 느려진 전례가 있다) 스레드 간 잠금
+# 경합이 풀파워 로컬 환경보다 훨씬 비싸다. 여러 스레드가 **같은** Session의
+# 커넥션 풀(내부적으로 락을 쓴다)을 동시에 두드리면, 그 락을 쥔 스레드가
+# 하필 스로틀링으로 멈춰 있는 동안 나머지 스레드가 전부 기다리는 일이
+# 반복될 수 있다 - 우리 상황(요청마다 호스트가 거의 다 다름)에서는 그
+# 재사용 이득도 없이 경합 비용만 지는 셈이었다.
+#
+# 그래서 "전역 공유 Session" 대신 "스레드별 Session"으로 바꿨다 -
+# threading.local() 로 워커 스레드마다 독립된 Session(과 커넥션 풀)을
+# 갖는다. 스레드 간 락 경합은 완전히 없어지고, 그러면서도 같은 스레드가
+# 연달아 같은 호스트를 여러 번 부르는 경우(선단 URL이 겹칠 때)엔 여전히
+# 연결을 재사용한다 - 밑질 게 없는 선택이다.
+_thread_state = thread_local()
+
+
+def _session_for_thread() -> requests.Session:
+    session = getattr(_thread_state, 'session', None)
+    if session is None:
+        session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(pool_connections=8, pool_maxsize=8)
+        session.mount('https://', adapter)
+        session.mount('http://', adapter)
+        _thread_state.session = session
+    return session
 
 
 def _get(url, headers, timeout):
-    """실제 HTTP GET 한 곳(모듈 공유 Session을 통해서만 나간다). 테스트가
-    fixture로 갈아끼울 지점을 이 얇은 함수 하나로 고정해뒀다 - Session을
-    쓰는지, 어떤 어댑터를 붙였는지 같은 내부 구현이 바뀌어도 monkeypatch
-    대상(reservation_checker._get)은 안 바뀐다."""
-    return _SESSION.get(url, headers=headers, timeout=timeout)
+    """실제 HTTP GET 한 곳(스레드별 Session을 통해서만 나간다). 테스트가
+    fixture로 갈아끼울 지점을 이 얇은 함수 하나로 고정해뒀다 - 내부 구현이
+    바뀌어도 monkeypatch 대상(reservation_checker._get)은 안 바뀐다."""
+    return _session_for_thread().get(url, headers=headers, timeout=timeout)
 
 
 def clear_cache() -> None:
