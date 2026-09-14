@@ -8,7 +8,8 @@
       "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/NE2.png",
       "wind_dir": "북동",
       "wind_speed": "4.3 m/s",
-      "wave_height": "1.09 m"
+      "wave_height": "1.09 m",
+      "precipitation": ""
     },
     {
       "time": "03시",
@@ -18,7 +19,8 @@
       "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/NE2.png",
       "wind_dir": "북동",
       "wind_speed": "3.9 m/s",
-      "wave_height": "1.03 m"
+      "wave_height": "1.03 m",
+      "precipitation": ""
     },
     {
       "time": "06시",
@@ -28,7 +30,8 @@
       "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/NE2.png",
       "wind_dir": "북동",
       "wind_speed": "4.0 m/s",
-      "wave_height": "0.97 m"
+      "wave_height": "0.97 m",
+      "precipitation": "2.1 mm"
     },
     {
       "time": "09시",
@@ -38,7 +41,8 @@
       "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/NE2.png",
       "wind_dir": "북동",
       "wind_speed": "4.8 m/s",
-      "wave_height": "0.86 m"
+      "wave_height": "0.86 m",
+      "precipitation": ""
     },
     {
       "time": "12시",
@@ -48,7 +52,8 @@
       "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/E2.png",
       "wind_dir": "동",
       "wind_speed": "3.9 m/s",
-      "wave_height": "0.86 m"
+      "wave_height": "0.86 m",
+      "precipitation": "0.9 mm"
     },
     {
       "time": "15시",
@@ -58,7 +63,8 @@
       "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/NE1.png",
       "wind_dir": "북동",
       "wind_speed": "2.7 m/s",
-      "wave_height": "0.73 m"
+      "wave_height": "0.73 m",
+      "precipitation": "2.3 mm"
     },
     {
       "time": "18시",
@@ -68,7 +74,8 @@
       "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/N1.png",
       "wind_dir": "북",
       "wind_speed": "2.1 m/s",
-      "wave_height": "1.2 m"
+      "wave_height": "1.2 m",
+      "precipitation": "0.8 mm"
     },
     {
       "time": "21시",
@@ -78,7 +85,8 @@
       "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/NE2.png",
       "wind_dir": "북동",
       "wind_speed": "4.5 m/s",
-      "wave_height": "1.19 m"
+      "wave_height": "1.19 m",
+      "precipitation": "0.1 mm"
     },
     {
       "time": "24시",
@@ -88,29 +96,42 @@
       "wind_dir_icon_url": "https://www.badatime.com/img/icon/wind_speed/NE2.png",
       "wind_dir": "북동",
       "wind_speed": "4.2 m/s",
-      "wave_height": "0.99 m"
+      "wave_height": "0.99 m",
+      "precipitation": ""
     }
   ],
   "tide_events": [
     {
       "time": "00:51",
       "label": "만조 00:51\n(246) ▲+51",
-      "type": "high"
+      "type": "high",
+      "mins": 51,
+      "level": 246,
+      "delta": 51
     },
     {
       "time": "07:07",
       "label": "간조 07:07\n(143) ▼-103",
-      "type": "low"
+      "type": "low",
+      "mins": 427,
+      "level": 143,
+      "delta": -103
     },
     {
       "time": "14:32",
       "label": "만조 14:32\n(258) ▲+115",
-      "type": "high"
+      "type": "high",
+      "mins": 872,
+      "level": 258,
+      "delta": 115
     },
     {
       "time": "22:33",
       "label": "간조 22:33\n(203) ▼-55",
-      "type": "low"
+      "type": "low",
+      "mins": 1353,
+      "level": 203,
+      "delta": -55
     }
   ],
   "sun_moon": {

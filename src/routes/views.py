@@ -1009,21 +1009,80 @@ def api_tide():
     data = GraphPageParser(resp.text).parse()
 
     mulddae = None
+    moon_phase = None
     city = request.args.get('city')
-    if city:
+    target_date = None
+    try:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        pass
+    if target_date:
         try:
-            from services.tide.mulddae import get_mulddae
-            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-            mulddae = get_mulddae(target_date, city)
+            from services.tide.mulddae import get_moon_phase
+            moon_phase = get_moon_phase(target_date)
         except Exception as e:
-            current_app.logger.warning('mulddae 계산 실패(%s, %s): %s', date_str, city, e)
+            current_app.logger.warning('달 위상 계산 실패(%s): %s', date_str, e)
+        if city:
+            try:
+                from services.tide.mulddae import get_mulddae
+                mulddae = get_mulddae(target_date, city)
+            except Exception as e:
+                current_app.logger.warning('mulddae 계산 실패(%s, %s): %s', date_str, city, e)
+
+    # 윈디 임베드용 좌표 - 항구 "이름"으로 찾는다(port_id는 바다타임 내부
+    # 번호라 우리 PORT_COORDINATES 키와 다르다). 좌표 없는 항구면 null만
+    # 내려주고 에러로 취급하지 않는다 - 프런트가 윈디 섹션을 조용히 숨긴다.
+    lat = lon = None
+    port_name = request.args.get('port')
+    if port_name:
+        coords = PortDataService.get_port_coordinates().get(port_name)
+        if coords:
+            lat, lon = coords.get('lat'), coords.get('lon')
 
     data['mulddae'] = mulddae
+    data['moon_phase'] = moon_phase
+    data['lat'] = lat
+    data['lon'] = lon
     data['port_id'] = port_id
     data['date'] = date_str
     data['source_url'] = source_url
 
     return success_response(data)
+
+
+@views.route('/api/tide_month')
+def api_tide_month():
+    """바다타임 `/{port_id}/daily` 페이지를 파싱해 오늘부터 30일치 물때
+    요약을 반환한다(DailyPageParser). 날짜 파라미터가 없다 - badatime
+    자체가 "오늘 기준 앞으로 30일" 고정 롤링 윈도우라 우리도 그대로
+    따른다(달력 월 선택 UI는 안 만든다, 실측 확인 - PLAN 참고).
+    """
+    import requests
+    from services.badatime_parser import DailyPageParser
+
+    port_id = request.args.get('port_id', type=int)
+    if not port_id:
+        return validation_error_response('port_id 파라미터가 필요합니다.'), 400
+
+    source_url = f"https://www.badatime.com/{port_id}/daily"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36'
+    }
+
+    try:
+        resp = requests.get(source_url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            return error_response(f'페이지 응답 오류: {resp.status_code}', error_code='HTTP_ERROR'), 502
+    except requests.RequestException as e:
+        return error_response(f'요청 실패: {str(e)}', error_code='REQUEST_FAILED'), 500
+
+    days = DailyPageParser(resp.text).parse()
+
+    return success_response({
+        'port_id': port_id,
+        'source_url': source_url,
+        'days': days,
+    })
 
 @views.route('/map')
 def map_page():

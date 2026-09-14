@@ -62,3 +62,43 @@ def get_mulddae(solar_date: date, city: str) -> str | None:
 
     position = ((lunar_day - 1) % 15) + 1
     return table[position]
+
+
+#: 음력 일(1~29/30) -> 월령 8단계 이모지. Claude Design 목업의 moonGlyph()와
+#: 같은 공식(순수 함수, 입력은 lunar_day 하나뿐)이지만, 목업은 lunar_day를
+#: 가짜 해시 기반 epoch로 근사했다 - 우리는 이미 KoreanLunarCalendar가 주는
+#: 진짜 음력일을 쓴다.
+_MOON_GLYPHS = ['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘']
+_SYNODIC_MONTH = 29.53059  # 삭망월(평균) - moonGlyph 각도 계산에만 쓰는 상수
+
+
+def get_moon_phase(solar_date: date) -> dict:
+    """양력 날짜의 달 모양(이모지)과 위상 이름, 음력 월/일을 돌려준다.
+
+    지역과 무관한 값이라(달은 어디서 보든 같은 위상) get_mulddae와 달리
+    city 인자가 없다. 날씨/물때 위젯의 "물때 히어로" 카드에 쓴다.
+    """
+    calendar = KoreanLunarCalendar()
+    calendar.setSolarDate(solar_date.year, solar_date.month, solar_date.day)
+    lunar_day = calendar.lunarDay
+    lunar_month = calendar.lunarMonth
+
+    glyph = _MOON_GLYPHS[round(((lunar_day - 1) / _SYNODIC_MONTH) * 8) % 8]
+    if lunar_day <= 2 or lunar_day >= 29:
+        name = '삭(그믐)'
+    elif lunar_day < 7:
+        name = '초승달'
+    elif lunar_day < 9:
+        name = '상현달'
+    elif lunar_day < 14:
+        name = '차오름'
+    elif lunar_day < 17:
+        name = '보름달'
+    elif lunar_day < 22:
+        name = '기움'
+    elif lunar_day < 24:
+        name = '하현달'
+    else:
+        name = '그믐달'
+
+    return {'glyph': glyph, 'name': name, 'lunar_month': lunar_month, 'lunar_day': lunar_day}

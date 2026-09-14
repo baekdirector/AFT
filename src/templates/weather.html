@@ -74,7 +74,16 @@
         <p id="result-sub">원본: -</p>
       </div>
       <div class="weather-result-body">
-        <div id="graph-panel" class="graph-panel"></div>
+        <nav class="tide-view-tabs">
+          <button type="button" class="tide-view-tab active" data-view="day">오늘 상세</button>
+          <button type="button" class="tide-view-tab" data-view="week">주간 파고</button>
+          <button type="button" class="tide-view-tab" data-view="month">월별 물때</button>
+        </nav>
+        <div id="tide-view-day" class="tide-view"></div>
+        <div id="tide-view-week" class="tide-view" hidden>
+          <div class="tide-soon-card">🚧 <b>주간 파고</b>는 준비 중입니다. 하루치 파고·바람 예보는 "오늘 상세" 탭에서 바로 확인할 수 있어요.</div>
+        </div>
+        <div id="tide-view-month" class="tide-view" hidden></div>
       </div>
     </div>
 
@@ -214,37 +223,153 @@ input.weather-select { background-image: none; }
 .weather-result-header p a { color: #fff; text-decoration: underline; }
 .weather-result-body { background: #fff; }
 
-/* 날씨/물때 자체 위젯 - status.html 팝업과 동일한 위젯을 페이지 형태로
-   그린다(사용자 요청: iframe cross-origin 제약으로 LNB를 못 지우고 패널
-   크기도 못 바꿔서, services.badatime_parser.GraphPageParser가 뽑은 원시
-   데이터만으로 완전히 새로 그리기로 했다). 색은 바다타임 스크립트가 실제
-   쓰는 값을 그대로 재사용(간조 파랑/만조 빨강/일출·일몰 황토/월출·월몰
-   진황토) - 사용자가 이미 본 화면과 위화감 없게. */
-.tide-widget { padding: 18px 22px; }
+/* 날씨/물때 자체 위젯 - status.html 팝업과 같은 디자인(Claude Design
+   "선박 관리 v2"/"날씨 물때" 프로젝트)을 페이지 형태로 그린다. iframe
+   cross-origin 제약으로 LNB를 못 지우고 패널 크기도 못 바꿔서,
+   services.badatime_parser의 GraphPageParser/DailyPageParser가 뽑은 원시
+   데이터만으로 완전히 새로 그리기로 했다(사용자 요청). 카드/표/윈디 CSS는
+   status.html과 동일(공유 파일이 없는 이 프로젝트 관례상 복제) - 풀페이지
+   전용으로 조위 그래프·월별 표·탭 셸만 여기 추가로 있다. */
+.tide-widget { padding: 4px 0 18px; }
 .popup-error { text-align: center; padding: 40px; color: oklch(0.55 0.18 25); }
-.tide-widget-top { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
-.tide-name { font-size: 21px; font-weight: 800; color: var(--ink); }
-.tide-flow { font-size: 13.5px; font-weight: 650; color: #0e7490; background: oklch(0.95 0.03 200); padding: 5px 13px; border-radius: 999px; }
-.tide-widget-body { display: flex; gap: 26px; flex-wrap: wrap; align-items: flex-start; }
-.tide-timeline { position: relative; flex: 0 0 300px; min-height: 620px; }
-.tide-timeline-bar { position: absolute; left: 50%; top: 8px; bottom: 8px; width: 6px; margin-left: -3px; background: #e5e7eb; border-radius: 3px; }
-.tide-pill {
-  position: absolute; transform: translateY(-50%); max-width: 132px; padding: 6px 10px; border-radius: 10px;
-  color: #fff; font-size: 11.5px; font-weight: 700; line-height: 1.35; box-shadow: 0 2px 6px rgba(0,0,0,.15); white-space: pre-line;
+.tide-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(268px, 1fr)); gap: 11px; margin-bottom: 11px; align-items: start; }
+
+.tide-hero {
+  position: relative; overflow: hidden; border-radius: 18px; padding: 17px 18px; color: #fff;
+  background: linear-gradient(150deg, oklch(0.4 0.1 245), oklch(0.29 0.07 240)); box-shadow: 0 8px 22px oklch(0.4 0.1 245 / 0.22);
 }
-.tide-pill-left { right: calc(50% + 12px); text-align: right; }
-.tide-pill-right { left: calc(50% + 12px); text-align: left; }
-.tide-hourly-list { flex: 1 1 360px; min-width: 280px; display: flex; flex-direction: column; gap: 6px; }
-.tide-hour-row { display: grid; grid-template-columns: 42px 1fr 44px 1fr 56px; align-items: center; gap: 8px; padding: 8px 11px; background: #f9fafb; border-radius: 10px; font-size: 12.5px; }
-.tide-hour-time { font-weight: 700; color: var(--ink); }
-.tide-hour-weather { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.tide-hour-weather img { width: 22px; height: 22px; flex: none; }
-.tide-hour-weather span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tide-hour-temp { font-weight: 650; text-align: center; }
-.tide-hour-wind { display: flex; align-items: center; gap: 5px; color: #475569; min-width: 0; overflow: hidden; }
-.tide-hour-wind img { width: 15px; height: 15px; flex: none; }
-.tide-hour-wind span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tide-hour-wave { color: #475569; text-align: right; white-space: nowrap; }
+.tide-hero-glow {
+  position: absolute; top: -30px; right: -24px; width: 140px; height: 140px; border-radius: 99px;
+  background: radial-gradient(circle, rgba(140,220,235,0.24), rgba(140,220,235,0) 70%);
+}
+.tide-hero-top { position: relative; display: flex; align-items: center; gap: 11px; }
+.tide-hero-moon { width: 40px; height: 40px; flex: none; border-radius: 99px; background: oklch(1 0 0 / 0.14); display: grid; place-items: center; font-size: 20px; line-height: 1; }
+.tide-hero-name-row { display: flex; align-items: baseline; gap: 5px; }
+.tide-hero-name { font-size: 27px; font-weight: 820; letter-spacing: -1.3px; line-height: 1; white-space: nowrap; }
+.tide-hero-label { font-size: 12px; font-weight: 640; opacity: 0.8; white-space: nowrap; }
+.tide-hero-phase { font-size: 11.5px; font-weight: 600; opacity: 0.82; margin-top: 3px; white-space: nowrap; }
+.tide-hero-flow { position: relative; margin-top: 14px; }
+.tide-flow-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.tide-flow-label { flex: none; font-size: 11.5px; font-weight: 640; opacity: 0.8; white-space: nowrap; }
+.tide-flow-grade { flex: none; font-size: 10px; font-weight: 800; letter-spacing: 0.3px; padding: 3px 8px; border-radius: 7px; white-space: nowrap; color: #fff; }
+.tide-flow-pct { font-size: 16px; font-weight: 800; letter-spacing: -0.6px; white-space: nowrap; }
+.tide-flow-track { height: 8px; border-radius: 99px; background: oklch(1 0 0 / 0.16); overflow: hidden; }
+.tide-flow-fill { height: 100%; border-radius: 99px; }
+.tide-flow-hint { font-size: 11px; font-weight: 620; line-height: 1.55; opacity: 0.82; margin-top: 8px; }
+
+.tide-card { border-radius: 18px; padding: 16px 17px; background: #fff; border: 1px solid oklch(0.925 0.008 240); }
+.tide-card-title { font-size: 11.5px; font-weight: 740; letter-spacing: 0.2px; color: oklch(0.55 0.015 250); margin-bottom: 11px; }
+.tide-events { display: flex; flex-direction: column; gap: 6px; }
+.tide-event-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 11px; }
+.tide-event-tag { flex: none; font-size: 10px; font-weight: 780; padding: 4px 8px; border-radius: 7px; white-space: nowrap; color: #fff; }
+.tide-event-time { font-size: 15px; font-weight: 800; letter-spacing: -0.5px; white-space: nowrap; }
+.tide-event-level { font-size: 11.5px; font-weight: 660; color: oklch(0.56 0.015 250); white-space: nowrap; }
+.tide-event-delta { margin-left: auto; flex: none; font-size: 11px; font-weight: 760; white-space: nowrap; }
+
+.tide-sea-row { display: flex; align-items: center; gap: 8px; padding: 9px 11px; border-radius: 12px; margin-bottom: 9px; }
+.tide-sea-icon { font-size: 15px; line-height: 1; flex: none; }
+.tide-sea-label { font-size: 10.5px; font-weight: 680; color: oklch(0.54 0.015 250); white-space: nowrap; }
+.tide-sea-value { font-size: 13px; font-weight: 780; letter-spacing: -0.3px; white-space: nowrap; }
+.tide-sea-badge { margin-left: auto; flex: none; font-size: 10.5px; font-weight: 780; padding: 4px 9px; border-radius: 99px; white-space: nowrap; color: #fff; }
+.tide-sunmoon { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.tide-sunmoon-item { display: flex; align-items: center; gap: 8px; padding: 9px 11px; border-radius: 12px; }
+.tide-sunmoon-icon { font-size: 15px; line-height: 1; flex: none; }
+.tide-sunmoon-label { font-size: 10.5px; font-weight: 680; color: oklch(0.54 0.015 250); white-space: nowrap; }
+.tide-sunmoon-time { font-size: 14px; font-weight: 790; letter-spacing: -0.4px; white-space: nowrap; }
+.tide-table-card { background: #fff; border: 1px solid oklch(0.925 0.008 240); border-radius: 18px; overflow: hidden; margin-bottom: 11px; }
+.tide-table-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; padding: 14px 16px 11px; }
+.tide-table-title { font-size: 13.5px; font-weight: 780; letter-spacing: -0.4px; white-space: nowrap; }
+.tide-table-meta { font-size: 11px; font-weight: 640; color: oklch(0.6 0.015 250); white-space: nowrap; }
+.tide-table-scroll { overflow-x: auto; overflow-y: hidden; }
+.tide-table-inner { min-width: 660px; }
+.tide-table-header-row {
+  display: grid; grid-template-columns: 64px 112px 62px 118px 86px; gap: 10px; padding: 9px 16px;
+  background: oklch(0.978 0.004 240); font-size: 10.5px; font-weight: 740; letter-spacing: 0.2px; color: oklch(0.56 0.015 250);
+}
+.tide-table-header-row.has-rain { grid-template-columns: 64px 112px 62px 118px 86px 84px; }
+.tide-hour-row {
+  display: grid; grid-template-columns: 64px 112px 62px 118px 86px; gap: 10px; align-items: center; padding: 9px 16px;
+  border-top: 1px solid oklch(0.965 0.006 240); font-size: 12.5px;
+}
+.tide-hour-row.has-rain { grid-template-columns: 64px 112px 62px 118px 86px 84px; }
+.tide-hour-row:nth-child(even) { background: oklch(0.99 0.002 240); }
+.tide-hour-time { font-size: 12.5px; font-weight: 740; white-space: nowrap; }
+.tide-hour-weather { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.tide-hour-weather img { width: 20px; height: 20px; flex: none; }
+.tide-hour-weather span { font-size: 11.5px; font-weight: 660; color: oklch(0.46 0.015 250); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tide-hour-temp { font-size: 14px; font-weight: 790; letter-spacing: -0.4px; text-align: right; white-space: nowrap; }
+.tide-hour-wind { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.tide-hour-wind-arrow { flex: none; display: inline-block; font-size: 10px; line-height: 1; }
+.tide-hour-wind-dir { font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+.tide-hour-wind-speed { font-size: 10.5px; font-weight: 740; padding: 2px 7px; border-radius: 99px; white-space: nowrap; color: #fff; }
+.tide-hour-wave { text-align: right; font-size: 12.5px; font-weight: 770; white-space: nowrap; }
+.tide-hour-rain { text-align: right; font-size: 11.5px; font-weight: 660; color: oklch(0.56 0.015 250); white-space: nowrap; }
+
+.tide-windy-card { background: #fff; border: 1px solid oklch(0.925 0.008 240); border-radius: 18px; overflow: hidden; margin-bottom: 11px; }
+.tide-windy-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; padding: 14px 16px 12px; }
+.tide-windy-title { font-size: 13.5px; font-weight: 780; letter-spacing: -0.4px; white-space: nowrap; }
+.tide-windy-meta { font-size: 11px; font-weight: 640; color: oklch(0.6 0.015 250); }
+.tide-windy-tabs { display: flex; gap: 2px; padding: 3px; background: oklch(0.945 0.006 240); border-radius: 10px; flex: none; margin-left: auto; }
+.tide-windy-tab { height: 30px; padding: 0 13px; border-radius: 8px; border: none; font-size: 12px; font-weight: 700; white-space: nowrap; cursor: pointer; background: transparent; color: oklch(0.54 0.015 250); }
+.tide-windy-tab.active { background: #fff; color: oklch(0.26 0.02 250); box-shadow: 0 1px 3px oklch(0.4 0.02 240 / 0.16); }
+.tide-windy-frame-wrap { height: clamp(300px, 46vw, 460px); background: oklch(0.3 0.05 250); }
+.tide-windy-frame-wrap iframe { width: 100%; height: 100%; border: none; display: block; }
+.tide-windy-missing { padding: 30px 15px; text-align: center; color: oklch(0.56 0.015 250); font-size: 12.5px; }
+.tide-windy-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 11px 16px; border-top: 1px solid oklch(0.955 0.006 240); }
+.tide-windy-scale { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.tide-windy-scale-label { font-size: 10.5px; font-weight: 700; color: oklch(0.56 0.015 250); white-space: nowrap; }
+.tide-windy-external { margin-left: auto; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+
+/* 조위 그래프(SVG) - "오늘 상세" 탭 전용. tide-curve.jsx(Claude Design)를
+   React 없이 vanilla JS로 포팅했다 - 보간 공식(코사인 이징)은 그대로. */
+.tide-curve-card { background: #fff; border: 1px solid oklch(0.925 0.008 240); border-radius: 18px; padding: 16px 17px 12px; margin-bottom: 11px; }
+.tide-curve-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 6px; }
+.tide-curve-title { font-size: 13.5px; font-weight: 780; letter-spacing: -0.4px; white-space: nowrap; }
+.tide-curve-meta { font-size: 11.5px; font-weight: 640; color: oklch(0.56 0.015 250); }
+.tide-curve-scroll { overflow-x: auto; overflow-y: hidden; }
+.tide-curve-scroll > svg { min-width: 620px; }
+
+/* 탭 셸 (오늘 상세 / 주간 파고 / 월별 물때) */
+.tide-view-tabs { display: flex; gap: 2px; padding: 3px; background: oklch(0.945 0.006 240); border-radius: 12px; margin: 14px 16px; }
+.tide-view-tab { flex: 1; height: 38px; border-radius: 9px; border: none; background: transparent; color: oklch(0.46 0.02 250); font-size: 13px; font-weight: 720; cursor: pointer; white-space: nowrap; }
+.tide-view-tab.active { background: #fff; color: oklch(0.26 0.02 250); box-shadow: 0 1px 4px oklch(0.4 0.02 250 / 0.16); }
+.tide-view { padding: 0 16px 18px; }
+.tide-soon-card {
+  text-align: center; padding: 48px 20px; background: oklch(0.978 0.006 240); border: 1px dashed oklch(0.86 0.01 240);
+  border-radius: 16px; color: oklch(0.5 0.015 250); font-size: 13.5px; line-height: 1.7;
+}
+
+/* 월별 물때 표 */
+.tide-month-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 11px; }
+.tide-month-stat { border-radius: 15px; padding: 13px 15px; background: #fff; border: 1px solid oklch(0.925 0.008 240); }
+.tide-month-stat .lbl { font-size: 11px; font-weight: 620; color: oklch(0.56 0.015 250); }
+.tide-month-stat .val { display: flex; align-items: baseline; gap: 5px; margin-top: 5px; }
+.tide-month-stat .val .n { font-size: 22px; font-weight: 800; letter-spacing: -1px; }
+.tide-month-stat .val .u { font-size: 11.5px; font-weight: 620; color: oklch(0.6 0.015 250); }
+.tide-month-table-card { background: #fff; border: 1px solid oklch(0.925 0.008 240); border-radius: 18px; overflow: hidden; }
+.tide-month-scroll { overflow-x: auto; overflow-y: hidden; }
+.tide-month-inner { min-width: 900px; }
+.tide-month-header-row {
+  display: grid; grid-template-columns: 90px 48px 68px 150px 150px 150px 78px; gap: 8px; padding: 10px 16px;
+  background: oklch(0.978 0.004 240); font-size: 10.5px; font-weight: 740; letter-spacing: 0.2px; color: oklch(0.56 0.015 250);
+}
+.tide-month-row {
+  display: grid; grid-template-columns: 90px 48px 68px 150px 150px 150px 78px; gap: 8px; align-items: center; padding: 9px 16px;
+  border-top: 1px solid oklch(0.965 0.006 240); font-size: 12px;
+}
+.tide-month-row.is-today { background: oklch(0.97 0.03 245); }
+.tide-month-date .d { font-size: 12.5px; font-weight: 750; white-space: nowrap; }
+.tide-month-date .l { font-size: 10.5px; font-weight: 620; color: oklch(0.62 0.015 250); white-space: nowrap; }
+.tide-month-moon { font-size: 16px; line-height: 1; text-align: center; }
+.tide-month-label { font-size: 11px; font-weight: 780; padding: 3px 8px; border-radius: 7px; white-space: nowrap; color: #fff; justify-self: start; }
+.tide-month-events { font-size: 11px; font-weight: 640; color: oklch(0.44 0.015 250); line-height: 1.5; }
+.tide-month-events b { font-weight: 780; color: var(--ink); }
+.tide-month-sun { font-size: 11.5px; font-weight: 660; color: oklch(0.5 0.015 250); white-space: nowrap; }
+.tide-month-detail-btn {
+  height: 28px; padding: 0 11px; border-radius: 8px; border: 1px solid oklch(0.9 0.01 245); background: oklch(0.965 0.02 245);
+  color: oklch(0.42 0.12 248); font-size: 11px; font-weight: 720; cursor: pointer; white-space: nowrap; justify-self: end;
+}
+.tide-month-detail-btn:hover { background: oklch(0.93 0.04 245); }
 
 /* 바다낚시지수(KHOA). 오늘부터 +5일만 예보한다 - 범위 밖 날짜가 훨씬 흔하므로
    '없음'을 오류가 아니라 담담한 안내로 보인다. */
@@ -282,8 +407,6 @@ input.weather-select { background-image: none; }
   .aux-links { order: 2; }
   .weather-form-grid { flex-direction: column; align-items: stretch; }
   .weather-field { flex: 1 1 auto; }
-  .tide-widget-body { flex-direction: column; }
-  .tide-timeline { flex: none; width: 100%; min-height: 460px; }
 }
 </style>
 
@@ -304,7 +427,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const subEl = document.getElementById('result-sub');
   const dateEl = document.getElementById('date');
   const openBtn = document.getElementById('open-cal');
-  const graphPanel = document.getElementById('graph-panel');
 
   // Flatpickr init: yyyy-mm-dd, Korean weekdays, today default
   const fp = flatpickr(dateEl, {
@@ -339,6 +461,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // 현재 조회 중인 항구 컨텍스트 - "월별 물때"의 "상세" 버튼이 날짜만
+  // 바꿔서 "오늘 상세" 탭을 다시 부를 때 재사용한다(폼을 다시 안 거친다).
+  let currentPortId = null, currentPortName = null, currentCity = null;
+  let monthLoadedForPort = null;
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const portName = portSel.value;
@@ -353,100 +480,468 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const dateStr = dateEl.value; // YYYY-MM-DD
     const city = citySel.value;
+    currentPortId = portId; currentPortName = portName; currentCity = city;
+    monthLoadedForPort = null; // 항구가 바뀌었을 수 있으니 월별 표는 다시 부른다
+
     resultWrap.style.display = 'block';
     titleEl.textContent = `${portName} (${dateStr})`;
     subEl.textContent = '조회 중...';
-    graphPanel.innerHTML = '<div class="popup-error" style="color:var(--ink-soft);">조회 중…</div>';
+    setTideView('day');
 
+    await loadDayView(portId, portName, city, dateStr);
+    loadFishingIndex(portName, dateStr);
+  });
+
+  // ---- 탭 전환 ----
+  function setTideView(view) {
+    document.querySelectorAll('.tide-view-tab').forEach(b => b.classList.toggle('active', b.getAttribute('data-view') === view));
+    document.getElementById('tide-view-day').hidden = view !== 'day';
+    document.getElementById('tide-view-week').hidden = view !== 'week';
+    document.getElementById('tide-view-month').hidden = view !== 'month';
+    if (view === 'month' && currentPortId && monthLoadedForPort !== currentPortId) {
+      loadMonthView(currentPortId);
+    }
+  }
+  document.querySelectorAll('.tide-view-tab').forEach(btn => {
+    btn.addEventListener('click', () => setTideView(btn.getAttribute('data-view')));
+  });
+
+  // ---- "오늘 상세" 탭 ----
+  async function loadDayView(portId, portName, city, dateStr) {
+    const dayEl = document.getElementById('tide-view-day');
+    dayEl.innerHTML = '<div class="popup-error" style="color:var(--ink-soft);">조회 중…</div>';
     try {
-      const qs = new URLSearchParams({ port_id: String(portId), date: dateStr, city: city || '' });
+      const qs = new URLSearchParams({ port_id: String(portId), date: dateStr, city: city || '', port: portName || '' });
       const resp = await fetch('/api/tide?' + qs.toString());
       const body = await resp.json();
       if (!resp.ok || body.status !== 'success') {
-        graphPanel.innerHTML = `<div class="popup-error">${body.error || '날씨/물때 정보를 불러오지 못했습니다.'}</div>`;
+        dayEl.innerHTML = `<div class="popup-error">${body.error || '날씨/물때 정보를 불러오지 못했습니다.'}</div>`;
         subEl.textContent = '조회 실패';
         return;
       }
       subEl.textContent = dateStr;
-      renderTideWidget(body.data, graphPanel);
+      renderTideDay(body.data, dayEl);
     } catch (err) {
-      graphPanel.innerHTML = `<div class="popup-error">에러: ${err.message}</div>`;
+      dayEl.innerHTML = `<div class="popup-error">에러: ${err.message}</div>`;
       subEl.textContent = '조회 실패';
     }
+  }
 
-    loadFishingIndex(portName, dateStr);
-  });
+  // "월별 물때"에서 "상세"를 누르면 그 날짜로 날짜 입력도 맞추고 오늘 상세로 전환한다.
+  function jumpToDay(dateStr) {
+    dateEl.value = dateStr;
+    fp.setDate(dateStr, false);
+    titleEl.textContent = `${currentPortName} (${dateStr})`;
+    setTideView('day');
+    loadDayView(currentPortId, currentPortName, currentCity, dateStr);
+    loadFishingIndex(currentPortName, dateStr);
+  }
 
-  // 바다타임 iframe을 대체하는 자체 위젯 렌더러(status.html의 날씨/물때
-  // 팝업과 동일 - 이 프로젝트는 화면마다 독립된 script 블록이라 복제한다).
-  function renderTideWidget(data, contentEl) {
-    function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
-    function toMinutes(hhmm) {
-      const p = (hhmm || '').split(':');
-      if (p.length !== 2) return null;
-      return Number(p[0]) * 60 + Number(p[1]);
+  // ---- "월별 물때" 탭 ----
+  async function loadMonthView(portId) {
+    const monthEl = document.getElementById('tide-view-month');
+    monthEl.innerHTML = '<div class="popup-error" style="color:var(--ink-soft);">조회 중…</div>';
+    try {
+      const resp = await fetch('/api/tide_month?port_id=' + portId);
+      const body = await resp.json();
+      if (!resp.ok || body.status !== 'success') {
+        monthEl.innerHTML = `<div class="popup-error">${body.error || '월별 물때를 불러오지 못했습니다.'}</div>`;
+        return;
+      }
+      monthLoadedForPort = portId;
+      renderTideMonth(body.data.days || [], monthEl);
+    } catch (err) {
+      monthEl.innerHTML = `<div class="popup-error">에러: ${err.message}</div>`;
     }
-    function topPct(hhmm) {
-      const min = toMinutes(hhmm);
-      return min == null ? null : (min / 1440 * 100).toFixed(2) + '%';
-    }
+  }
 
-    const TIDE_COLOR = { low: '#2C6ED5', high: '#CC3333' };
-    const SUN_COLOR = '#9D7300', MOON_COLOR = '#5D4400';
+  // ---- 공용 렌더 헬퍼 (status.html 팝업과 동일 - 공유 JS 파일이 없는
+  // 이 프로젝트 관례상 화면마다 복제한다) ----
+  function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function tideFlowStyle(pct) {
+    if (pct >= 85) return { grade: '사리', badge: 'oklch(0.58 0.17 27)', bar: 'linear-gradient(90deg, oklch(0.76 0.13 45), oklch(0.72 0.17 27))', hint: '사리 전후 — 조류가 가장 세고 입질 시간대가 짧습니다' };
+    if (pct >= 45) return { grade: '보통', badge: 'oklch(0.54 0.13 158)', bar: 'linear-gradient(90deg, oklch(0.82 0.11 178), oklch(0.76 0.14 155))', hint: '조류 보통 — 무난한 출조 조건' };
+    return { grade: '조금', badge: 'oklch(0.56 0.12 242)', bar: 'linear-gradient(90deg, oklch(0.84 0.07 235), oklch(0.78 0.11 242))', hint: '조금 전후 — 물이 거의 흐르지 않습니다' };
+  }
+  function tideWindColor(v) { return v < 4 ? 'oklch(0.6 0.11 200)' : v < 8 ? 'oklch(0.66 0.14 90)' : v < 12 ? 'oklch(0.68 0.16 55)' : 'oklch(0.55 0.18 25)'; }
+  function tideWaveColor(v) { return v < 0.5 ? 'oklch(0.58 0.13 200)' : v < 1 ? 'oklch(0.62 0.13 168)' : v < 1.5 ? 'oklch(0.7 0.15 68)' : 'oklch(0.55 0.18 25)'; }
+  const TIDE_WIND_DEG = { '북': 180, '북동': 225, '동': 270, '남동': 315, '남': 0, '남서': 45, '서': 90, '북서': 135 };
+  function tideParseFloat(s) { const m = /(-?\d+(\.\d+)?)/.exec(s || ''); return m ? parseFloat(m[1]) : 0; }
+  function tideMoonSunIcon(key) { return { sunrise: '🌅', sunset: '🌇', moonrise: '🌙', moonset: '🌘' }[key]; }
+  function tideMoonSunBg(key) { return { sunrise: 'oklch(0.975 0.025 75)', sunset: 'oklch(0.972 0.028 45)', moonrise: 'oklch(0.972 0.018 275)', moonset: 'oklch(0.97 0.012 255)' }[key]; }
 
-    const leftPills = (data.tide_events || []).map(ev => {
-      const top = topPct(ev.time);
-      if (top == null) return '';
-      return '<div class="tide-pill tide-pill-left" style="top:' + top + ';background:' + TIDE_COLOR[ev.type] + ';">' + esc(ev.label) + '</div>';
+  function buildTideCardsHtml(data) {
+    const flow = data.flow_percent;
+    const fs = flow != null ? tideFlowStyle(flow) : null;
+    const moon = data.moon_phase || {};
+    const tideName = data.mulddae || data.tide_label || '-';
+
+    const heroHtml =
+      '<div class="tide-hero">' +
+        '<div class="tide-hero-glow"></div>' +
+        '<div class="tide-hero-top">' +
+          '<div class="tide-hero-moon">' + esc(moon.glyph || '🌗') + '</div>' +
+          '<div>' +
+            '<div class="tide-hero-name-row"><span class="tide-hero-name">' + esc(tideName) + '</span><span class="tide-hero-label">물때</span></div>' +
+            '<div class="tide-hero-phase">' + esc(moon.name || '') + (moon.lunar_month ? (' · 음력 ' + moon.lunar_month + '.' + moon.lunar_day) : '') + '</div>' +
+          '</div>' +
+        '</div>' +
+        (fs ? (
+          '<div class="tide-hero-flow">' +
+            '<div class="tide-flow-row">' +
+              '<span class="tide-flow-label">물흐름 · 조류세기</span>' +
+              '<span style="display:inline-flex;align-items:center;gap:6px;">' +
+                '<span class="tide-flow-grade" style="background:' + fs.badge + ';">' + fs.grade + '</span>' +
+                '<span class="tide-flow-pct">' + flow + '%</span>' +
+              '</span>' +
+            '</div>' +
+            '<div class="tide-flow-track"><div class="tide-flow-fill" style="width:' + flow + '%;background:' + fs.bar + ';"></div></div>' +
+            '<div class="tide-flow-hint">' + fs.hint + '</div>' +
+          '</div>'
+        ) : '') +
+      '</div>';
+
+    const eventRows = (data.tide_events || []).map(t => {
+      const isLow = t.type === 'low';
+      const tag = isLow ? '간조' : '만조';
+      const tagBg = isLow ? 'oklch(0.48 0.14 250)' : 'oklch(0.5 0.16 25)';
+      const rowBg = isLow ? 'oklch(0.975 0.018 250)' : 'oklch(0.975 0.018 25)';
+      const deltaColor = (t.delta != null && t.delta >= 0) ? 'oklch(0.5 0.16 25)' : 'oklch(0.46 0.14 250)';
+      const deltaText = t.delta != null ? ((t.delta >= 0 ? '▲ +' : '▼ ') + t.delta) : '';
+      return (
+        '<div class="tide-event-row" style="background:' + rowBg + ';">' +
+          '<span class="tide-event-tag" style="background:' + tagBg + ';">' + tag + '</span>' +
+          '<span class="tide-event-time">' + esc(t.time) + '</span>' +
+          (t.level != null ? '<span class="tide-event-level">(' + t.level + ' cm)</span>' : '') +
+          '<span class="tide-event-delta" style="color:' + deltaColor + ';">' + deltaText + '</span>' +
+        '</div>'
+      );
     }).join('');
+    const eventsCardHtml =
+      '<div class="tide-card">' +
+        '<div class="tide-card-title">만조 · 간조</div>' +
+        '<div class="tide-events">' + (eventRows || '<div class="popup-error" style="padding:14px 0;">정보 없음</div>') + '</div>' +
+      '</div>';
+
+    const hourly = data.hourly || [];
+    const maxWave = hourly.reduce((m, h) => Math.max(m, tideParseFloat(h.wave_height)), 0);
+    const maxWind = hourly.reduce((m, h) => Math.max(m, tideParseFloat(h.wind_speed)), 0);
+    const seaBad = maxWave >= 1.5 || maxWind >= 12;
+    const seaWarn = maxWave >= 1 || maxWind >= 8;
+    const seaBadge = seaBad ? '출조 주의' : seaWarn ? '다소 높음' : '양호';
+    const seaBadgeBg = seaBad ? 'oklch(0.55 0.18 25)' : seaWarn ? 'oklch(0.68 0.15 65)' : 'oklch(0.52 0.12 168)';
+    const seaSoft = seaBad ? 'oklch(0.965 0.03 25)' : seaWarn ? 'oklch(0.97 0.03 70)' : 'oklch(0.968 0.026 168)';
 
     const sm = data.sun_moon || {};
-    const rightDefs = [
-      ['sunrise', '일출', SUN_COLOR], ['sunset', '일몰', SUN_COLOR],
-      ['moonrise', '월출', MOON_COLOR], ['moonset', '월몰', MOON_COLOR],
-    ];
-    const rightPills = rightDefs.map(([key, label, color]) => {
+    const sunMoonHtml = ['sunrise', 'sunset', 'moonrise', 'moonset'].map(key => {
+      const label = { sunrise: '일출', sunset: '일몰', moonrise: '월출', moonset: '월몰' }[key];
       const time = sm[key];
-      const top = topPct(time);
-      if (!time || top == null) return '';
-      return '<div class="tide-pill tide-pill-right" style="top:' + top + ';background:' + color + ';">' + esc(label + ' ' + time) + '</div>';
+      if (!time) return '';
+      return (
+        '<div class="tide-sunmoon-item" style="background:' + tideMoonSunBg(key) + ';">' +
+          '<span class="tide-sunmoon-icon">' + tideMoonSunIcon(key) + '</span>' +
+          '<div><div class="tide-sunmoon-label">' + label + '</div><div class="tide-sunmoon-time">' + esc(time) + '</div></div>' +
+        '</div>'
+      );
     }).join('');
 
-    const hourlyRows = (data.hourly || []).map(h => (
-      '<div class="tide-hour-row">' +
-        '<div class="tide-hour-time">' + esc(h.time) + '</div>' +
-        '<div class="tide-hour-weather">' +
-          (h.weather_icon_url ? '<img src="' + esc(h.weather_icon_url) + '" alt="">' : '') +
-          '<span>' + esc(h.weather_text) + '</span>' +
+    const seaCardHtml =
+      '<div class="tide-card">' +
+        '<div class="tide-card-title">해상 · 일출몰</div>' +
+        (hourly.length ? (
+          '<div class="tide-sea-row" style="background:' + seaSoft + ';">' +
+            '<span class="tide-sea-icon">🌊</span>' +
+            '<div><div class="tide-sea-label">최대 파고 · 풍속</div><div class="tide-sea-value">' + maxWave.toFixed(1) + ' m · ' + maxWind.toFixed(1) + ' m/s</div></div>' +
+            '<span class="tide-sea-badge" style="background:' + seaBadgeBg + ';">' + seaBadge + '</span>' +
+          '</div>'
+        ) : '') +
+        '<div class="tide-sunmoon">' + (sunMoonHtml || '<div class="popup-error" style="padding:14px 0;">정보 없음</div>') + '</div>' +
+      '</div>';
+
+    return '<div class="tide-cards">' + heroHtml + eventsCardHtml + seaCardHtml + '</div>';
+  }
+
+  function buildTideHourlyHtml(data, withRain) {
+    const rows = (data.hourly || []).map(h => {
+      const dir = h.wind_dir || '';
+      const deg = TIDE_WIND_DEG[dir] || 0;
+      const windVal = tideParseFloat(h.wind_speed);
+      const waveVal = tideParseFloat(h.wave_height);
+      return (
+        '<div class="tide-hour-row' + (withRain ? ' has-rain' : '') + '">' +
+          '<div class="tide-hour-time">' + esc(h.time) + '</div>' +
+          '<div class="tide-hour-weather">' +
+            (h.weather_icon_url ? '<img src="' + esc(h.weather_icon_url) + '" alt="">' : '') +
+            '<span>' + esc(h.weather_text) + '</span>' +
+          '</div>' +
+          '<div class="tide-hour-temp">' + esc(h.temperature) + '</div>' +
+          '<div class="tide-hour-wind">' +
+            '<span class="tide-hour-wind-arrow" style="color:' + tideWindColor(windVal) + ';transform:rotate(' + deg + 'deg);">➤</span>' +
+            '<span class="tide-hour-wind-dir">' + esc(dir) + '</span>' +
+            '<span class="tide-hour-wind-speed" style="background:' + tideWindColor(windVal) + ';">' + esc(h.wind_speed) + '</span>' +
+          '</div>' +
+          '<div class="tide-hour-wave" style="color:' + tideWaveColor(waveVal) + ';">' + esc(h.wave_height) + '</div>' +
+          (withRain ? ('<div class="tide-hour-rain">' + esc(h.precipitation || '-') + '</div>') : '') +
+        '</div>'
+      );
+    }).join('');
+
+    if (!rows) return '';
+
+    return (
+      '<div class="tide-table-card">' +
+        '<div class="tide-table-head">' +
+          '<span class="tide-table-title">시간별 날씨 · 바람 · 파고</span>' +
+          '<span class="tide-table-meta">풍속 m/s · 파고 m' + (withRain ? ' · 강수량 mm' : '') + '</span>' +
         '</div>' +
-        '<div class="tide-hour-temp">' + esc(h.temperature) + '</div>' +
-        '<div class="tide-hour-wind">' +
-          (h.wind_dir_icon_url ? '<img src="' + esc(h.wind_dir_icon_url) + '" alt="">' : '') +
-          '<span>' + esc(h.wind_dir) + ' ' + esc(h.wind_speed) + '</span>' +
-        '</div>' +
-        '<div class="tide-hour-wave">' + esc(h.wave_height) + '</div>' +
+        '<div class="tide-table-scroll"><div class="tide-table-inner">' +
+          '<div class="tide-table-header-row' + (withRain ? ' has-rain' : '') + '">' +
+            '<span>시각</span><span>날씨</span><span style="text-align:right;">기온</span><span>바람</span><span style="text-align:right;">파고</span>' +
+            (withRain ? '<span style="text-align:right;">강수</span>' : '') +
+          '</div>' +
+          rows +
+        '</div></div>' +
       '</div>'
-    )).join('');
+    );
+  }
 
-    const tideName = data.mulddae || data.tide_label || '';
-    const flowText = (data.flow_percent != null) ? ('물흐름 : ' + data.flow_percent + '%') : '';
+  function tideWindyUrl(lat, lon, layer) {
+    return 'https://embed.windy.com/embed2.html?lat=' + lat + '&lon=' + lon +
+      '&detailLat=' + lat + '&detailLon=' + lon + '&zoom=9&level=surface&overlay=' + layer +
+      '&menu=&message=&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=' +
+      '&metricWind=m%2Fs&metricTemp=%C2%B0C&radarRange=-1';
+  }
 
-    if (!leftPills && !rightPills && !hourlyRows) {
+  // 풀페이지 전용 - externalLink=true면 풍속 범례 + "윈디에서 크게 보기" 외부
+  // 링크를 함께 그린다(팝업은 지도만).
+  function buildTideWindyHtml(data, layer, externalLink) {
+    if (data.lat == null || data.lon == null) {
+      return (
+        '<div class="tide-windy-card">' +
+          '<div class="tide-windy-head"><span class="tide-windy-title">윈디 바람 지도</span></div>' +
+          '<div class="tide-windy-missing">이 항구는 좌표 정보가 없어 윈디 지도를 표시할 수 없습니다.</div>' +
+        '</div>'
+      );
+    }
+    const layers = [['wind', '바람'], ['waves', '파고'], ['rain', '강수']];
+    const tabsHtml = layers.map(([k, label]) =>
+      '<button type="button" class="tide-windy-tab' + (k === layer ? ' active' : '') + '" data-layer="' + k + '">' + label + '</button>'
+    ).join('');
+    const windyUrl = tideWindyUrl(data.lat, data.lon, layer);
+    const scaleHtml = [
+      ['oklch(0.6 0.11 200)', '4 미만'], ['oklch(0.66 0.14 90)', '4~8'],
+      ['oklch(0.68 0.16 55)', '8~12'], ['oklch(0.55 0.18 25)', '12 이상'],
+    ].map(([color, label]) =>
+      '<span class="tide-windy-scale-label"><span style="display:inline-block;width:8px;height:8px;border-radius:99px;background:' + color + ';margin-right:4px;"></span>' + label + '</span>'
+    ).join('');
+    return (
+      '<div class="tide-windy-card" data-lat="' + data.lat + '" data-lon="' + data.lon + '">' +
+        '<div class="tide-windy-head">' +
+          '<span class="tide-windy-title">윈디 바람 지도</span>' +
+          '<div class="tide-windy-tabs">' + tabsHtml + '</div>' +
+        '</div>' +
+        '<div class="tide-windy-frame-wrap"><iframe src="' + windyUrl + '" title="윈디 바람 지도" loading="lazy"></iframe></div>' +
+        (externalLink ? (
+          '<div class="tide-windy-foot">' +
+            '<div class="tide-windy-scale"><span class="tide-windy-scale-label" style="color:oklch(0.5 0.015 250);">풍속(m/s)</span>' + scaleHtml + '</div>' +
+            '<a class="tide-windy-external" href="https://www.windy.com/?' + data.lat + ',' + data.lon + ',9" target="_blank" rel="noopener">윈디에서 크게 보기 ↗</a>' +
+          '</div>'
+        ) : '') +
+      '</div>'
+    );
+  }
+
+  function wireTideWindyTabs(root) {
+    const card = root.querySelector('.tide-windy-card[data-lat]');
+    if (!card) return;
+    card.querySelectorAll('.tide-windy-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        card.querySelectorAll('.tide-windy-tab').forEach(b => b.classList.toggle('active', b === btn));
+        const layer = btn.getAttribute('data-layer');
+        const iframe = card.querySelector('iframe');
+        if (iframe) iframe.src = tideWindyUrl(card.dataset.lat, card.dataset.lon, layer);
+      });
+    });
+  }
+
+  // ---- 조위 그래프(SVG) - tide-curve.jsx(Claude Design)를 vanilla JS로 포팅.
+  // 이 프로젝트는 React를 안 쓰므로 문자열로 SVG 마크업을 직접 만든다. 보간
+  // 공식(코사인 이징)은 그대로 재사용 - 순수 수학이라 가짜 데이터가 아니다. ----
+  function tideTimeToMinutes(hhmm) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec((hhmm || '').trim());
+    if (!m) return null;
+    return Number(m[1]) * 60 + Number(m[2]);
+  }
+
+  function buildTideCurveSvg(data) {
+    const events = (data.tide_events || []).filter(e => e.mins != null && e.level != null).slice().sort((a, b) => a.mins - b.mins);
+    if (!events.length) return '';
+
+    const W = 1000, H = 300, plotTop = 34, plotBot = 246, padX = 8;
+    const extrap = (ev, factor) => {
+      const sign = ev.type === 'high' ? -1 : 1;
+      return ev.level + sign * Math.abs(ev.delta || 0) * factor;
+    };
+    const first = events[0], last = events[events.length - 1];
+    const anchors = [{ t: 0, v: extrap(first, 0.55) }, ...events.map(e => ({ t: e.mins, v: e.level })), { t: 1440, v: extrap(last, 0.5) }];
+
+    const values = anchors.map(a => a.v);
+    const minV = Math.min(...values), maxV = Math.max(...values);
+    const span = (maxV - minV) || 1;
+
+    const x = t => padX + (t / 1440) * (W - 2 * padX);
+    const y = v => plotTop + 92 + (1 - (v - minV) / span) * (plotBot - plotTop - 100);
+
+    const curvePoints = [];
+    for (let t = 0; t <= 1440; t += 20) {
+      let i = 0;
+      while (i < anchors.length - 2 && anchors[i + 1].t < t) i++;
+      const a0 = anchors[i], a1 = anchors[i + 1];
+      const span_t = (a1.t - a0.t) || 1;
+      const r = Math.max(0, Math.min(1, (t - a0.t) / span_t));
+      const e = (1 - Math.cos(r * Math.PI)) / 2;
+      curvePoints.push({ t, v: a0.v + (a1.v - a0.v) * e });
+    }
+
+    const linePath = curvePoints.map((p, i) => (i === 0 ? 'M' : 'L') + x(p.t).toFixed(1) + ',' + y(p.v).toFixed(1)).join(' ');
+    const areaPath = linePath + ' L' + x(1440).toFixed(1) + ',' + plotBot + ' L' + x(0).toFixed(1) + ',' + plotBot + ' Z';
+
+    let nightRects = '';
+    const sm = data.sun_moon || {};
+    const riseMin = tideTimeToMinutes(sm.sunrise), setMin = tideTimeToMinutes(sm.sunset);
+    if (riseMin != null && setMin != null) {
+      nightRects =
+        '<rect x="' + padX + '" y="' + plotTop + '" width="' + (x(riseMin) - padX).toFixed(1) + '" height="' + (plotBot - plotTop) + '" fill="#e4e6e9" opacity="0.55"/>' +
+        '<rect x="' + x(setMin).toFixed(1) + '" y="' + plotTop + '" width="' + (x(1440) - x(setMin)).toFixed(1) + '" height="' + (plotBot - plotTop) + '" fill="#e4e6e9" opacity="0.55"/>';
+    }
+
+    let sunMarkers = '';
+    [[riseMin, '일출', '#e8a013'], [setMin, '일몰', '#e07b12']].forEach(([mins, label, color]) => {
+      if (mins == null) return;
+      const px = x(mins);
+      sunMarkers +=
+        '<line x1="' + px.toFixed(1) + '" y1="' + plotTop + '" x2="' + px.toFixed(1) + '" y2="' + plotBot + '" stroke="' + color + '" stroke-width="1" stroke-dasharray="3,3" opacity="0.7"/>' +
+        '<text x="' + px.toFixed(1) + '" y="' + (plotTop - 8) + '" text-anchor="middle" font-size="11" font-weight="700" fill="' + color + '">' + label + '</text>';
+    });
+
+    let eventMarkers = '';
+    events.forEach(ev => {
+      const px = x(ev.mins), py = y(ev.level);
+      const isLow = ev.type === 'low';
+      const dotColor = isLow ? '#3b82f6' : '#f16a6a';
+      const labelColor = isLow ? '#2563eb' : '#ef4444';
+      const anchor = px < 60 ? 'start' : px > W - 60 ? 'end' : 'middle';
+      const textY = isLow ? py + 42 : py - 30;
+      const deltaText = ev.delta != null ? ((ev.delta >= 0 ? '▲+' : '▼') + ev.delta) : '';
+      eventMarkers +=
+        '<circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="4" fill="' + dotColor + '" stroke="#fff" stroke-width="1.5"/>' +
+        '<g text-anchor="' + anchor + '" font-size="11">' +
+          '<text x="' + px.toFixed(1) + '" y="' + textY + '" font-weight="800" fill="#1f2937">' + esc(ev.time) + '</text>' +
+          '<text x="' + px.toFixed(1) + '" y="' + (textY + 13) + '" font-weight="700" fill="' + labelColor + '">' + esc(deltaText) + '</text>' +
+          '<text x="' + px.toFixed(1) + '" y="' + (textY + 26) + '" font-weight="600" fill="#6b7280">' + ev.level + 'cm</text>' +
+        '</g>';
+    });
+
+    let hourTicks = '';
+    for (let h = 0; h <= 24; h += 2) {
+      const px = x(h * 60);
+      const bold = h === 0 || h === 24;
+      hourTicks +=
+        '<text x="' + px.toFixed(1) + '" y="' + (plotBot + 20) + '" text-anchor="middle" font-size="10" font-weight="' + (bold ? '800' : '600') + '" fill="' + (bold ? '#374151' : '#9ca3af') + '">' + String(h).padStart(2, '0') + '시</text>';
+    }
+
+    const edgeDots = '<circle cx="' + x(0).toFixed(1) + '" cy="' + y(anchors[0].v).toFixed(1) + '" r="3" fill="#9aa3ae"/>' +
+      '<circle cx="' + x(1440).toFixed(1) + '" cy="' + y(anchors[anchors.length - 1].v).toFixed(1) + '" r="3" fill="#9aa3ae"/>';
+
+    return (
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="220" xmlns="http://www.w3.org/2000/svg">' +
+        '<defs><linearGradient id="tideCurveFill" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0%" stop-color="#b9c4d6"/><stop offset="100%" stop-color="#c6cfdd" stop-opacity="0.15"/>' +
+        '</linearGradient></defs>' +
+        nightRects +
+        '<path d="' + areaPath + '" fill="url(#tideCurveFill)"/>' +
+        '<path d="' + linePath + '" fill="none" stroke="#9aa7bd" stroke-width="2"/>' +
+        sunMarkers + eventMarkers + edgeDots + hourTicks +
+      '</svg>'
+    );
+  }
+
+  // ---- "오늘 상세" 탭 렌더 ----
+  function renderTideDay(data, contentEl) {
+    if (!data.hourly?.length && !data.tide_events?.length) {
       contentEl.innerHTML = '<div class="popup-error">날씨/물때 정보를 찾을 수 없습니다.</div>';
       return;
     }
+    const curveSvg = buildTideCurveSvg(data);
+    contentEl.innerHTML =
+      buildTideCardsHtml(data) +
+      (curveSvg ? (
+        '<div class="tide-curve-card">' +
+          '<div class="tide-curve-head"><span class="tide-curve-title">조위 곡선</span><span class="tide-curve-meta">추정 곡선 · 실측치 아님</span></div>' +
+          '<div class="tide-curve-scroll">' + curveSvg + '</div>' +
+        '</div>'
+      ) : '') +
+      buildTideHourlyHtml(data, true) +
+      buildTideWindyHtml(data, 'wind', true);
+    wireTideWindyTabs(contentEl);
+  }
+
+  // ---- "월별 물때" 탭 렌더 ----
+  function renderTideMonth(days, contentEl) {
+    if (!days.length) {
+      contentEl.innerHTML = '<div class="popup-error">월별 물때 정보를 찾을 수 없습니다.</div>';
+      return;
+    }
+    const todayStr = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD (로컬 기준)
+    const flows = days.map(d => d.flow_percent).filter(v => v != null);
+    const sariCount = flows.filter(v => tideFlowStyle(v).grade === '사리').length;
+    const jogeumCount = flows.filter(v => tideFlowStyle(v).grade === '조금').length;
+    const avgFlow = flows.length ? Math.round(flows.reduce((a, b) => a + b, 0) / flows.length) : null;
+
+    const statsHtml =
+      '<div class="tide-month-stats">' +
+        '<div class="tide-month-stat"><div class="lbl">조회 기간</div><div class="val"><span class="n">' + days.length + '</span><span class="u">일</span></div></div>' +
+        '<div class="tide-month-stat"><div class="lbl">사리 일수</div><div class="val"><span class="n">' + sariCount + '</span><span class="u">일</span></div></div>' +
+        '<div class="tide-month-stat"><div class="lbl">조금 일수</div><div class="val"><span class="n">' + jogeumCount + '</span><span class="u">일</span></div></div>' +
+        '<div class="tide-month-stat"><div class="lbl">평균 물흐름</div><div class="val"><span class="n">' + (avgFlow != null ? avgFlow : '-') + '</span><span class="u">%</span></div></div>' +
+      '</div>';
+
+    const rowsHtml = days.map(d => {
+      const dayNum = d.date ? d.date.slice(8, 10) : '-';
+      const fs = d.flow_percent != null ? tideFlowStyle(d.flow_percent) : null;
+      const manjo = (d.tide_events || []).filter(e => e.type === 'high');
+      const ganjo = (d.tide_events || []).filter(e => e.type === 'low');
+      const fmtEvents = evs => evs.length
+        ? evs.map(e => '<b>' + esc(e.time) + '</b> ' + e.level + 'cm ' + (e.delta >= 0 ? '▲+' : '▼') + e.delta).join('<br>')
+        : '-';
+      const sunLine = (d.sunrise || d.sunset) ? ('🌅' + esc(d.sunrise || '-') + ' · 🌇' + esc(d.sunset || '-')) : '';
+      const moonLine = (d.moonrise || d.moonset) ? ('🌙' + esc(d.moonrise || '-') + ' · 🌘' + esc(d.moonset || '-')) : '';
+      return (
+        '<div class="tide-month-row' + (d.date === todayStr ? ' is-today' : '') + '">' +
+          '<div class="tide-month-date"><div class="d">' + dayNum + '일(' + esc(d.weekday) + ')</div><div class="l">음 ' + esc(d.lunar_date) + '</div></div>' +
+          '<div class="tide-month-moon">' + (d.moon_icon_url ? '<img src="' + esc(d.moon_icon_url) + '" alt="" style="width:18px;height:18px;">' : '-') + '</div>' +
+          '<div class="tide-month-label" style="background:' + (fs ? fs.badge : 'oklch(0.75 0.01 250)') + ';">' + esc(d.tide_label || '-') + '</div>' +
+          '<div class="tide-month-events">' + fmtEvents(manjo) + '</div>' +
+          '<div class="tide-month-events">' + fmtEvents(ganjo) + '</div>' +
+          '<div class="tide-month-sun">' + (sunLine || '-') + (moonLine ? ('<br>' + moonLine) : '') + '</div>' +
+          '<button type="button" class="tide-month-detail-btn" data-date="' + esc(d.date || '') + '"' + (d.date ? '' : ' disabled') + '>상세</button>' +
+        '</div>'
+      );
+    }).join('');
 
     contentEl.innerHTML =
-      '<div class="tide-widget">' +
-        '<div class="tide-widget-top">' +
-          (tideName ? '<span class="tide-name">' + esc(tideName) + '</span>' : '') +
-          (flowText ? '<span class="tide-flow">' + esc(flowText) + '</span>' : '') +
-        '</div>' +
-        '<div class="tide-widget-body">' +
-          '<div class="tide-timeline"><div class="tide-timeline-bar"></div>' + leftPills + rightPills + '</div>' +
-          '<div class="tide-hourly-list">' + (hourlyRows || '<div class="popup-error">시간대별 날씨 정보가 없습니다.</div>') + '</div>' +
-        '</div>' +
-      '</div>';
+      statsHtml +
+      '<div class="tide-month-table-card"><div class="tide-month-scroll"><div class="tide-month-inner">' +
+        '<div class="tide-month-header-row"><span>날짜</span><span>월령</span><span>물때</span><span>만조</span><span>간조</span><span>일출몰 · 월출몰</span><span></span></div>' +
+        rowsHtml +
+      '</div></div></div>';
+
+    contentEl.querySelectorAll('.tide-month-detail-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const d = btn.getAttribute('data-date');
+        if (d) jumpToDay(d);
+      });
+    });
   }
 
   // 바다낚시지수(KHOA). 오늘부터 +5일만 예보되므로 대부분은 '범위 밖'이 정상이다.

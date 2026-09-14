@@ -1,0 +1,9 @@
+{
+  "source_url": "https://www.badatime.com/380/daily",
+  "port_id": 380,
+  "port_name": "오이도항",
+  "note": "달력 월 단위가 아니라 요청 시점(2026-09-14) 기준 앞으로 30일 롤링 윈도우",
+  "http_status": 200,
+  "captured_at": "2026-09-14T07:40:00",
+  "bytes": 228289
+}

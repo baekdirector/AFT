@@ -1,0 +1,1316 @@
+[
+  {
+    "date": "2026-09-14",
+    "weekday": "월",
+    "lunar_date": "8.4",
+    "moon_icon_url": "https://www.badatime.com/img/moon/04.png",
+    "tide_label": "10물",
+    "flow_percent": 96,
+    "weather": [
+      {
+        "icon_url": "https://images.badatime.com/weather/3.png",
+        "alt": "구름많음"
+      },
+      {
+        "icon_url": "https://images.badatime.com/weather/1.png",
+        "alt": "맑음"
+      }
+    ],
+    "tide_events": [
+      {
+        "time": "00:35",
+        "type": "low",
+        "mins": 35,
+        "level": 39,
+        "delta": -878
+      },
+      {
+        "time": "06:30",
+        "type": "high",
+        "mins": 390,
+        "level": 886,
+        "delta": 847
+      },
+      {
+        "time": "12:48",
+        "type": "low",
+        "mins": 768,
+        "level": 44,
+        "delta": -842
+      },
+      {
+        "time": "18:49",
+        "type": "high",
+        "mins": 1129,
+        "level": 887,
+        "delta": 843
+      }
+    ],
+    "sunrise": "06:14",
+    "sunset": "18:43",
+    "moonrise": "09:19",
+    "moonset": "20:00"
+  },
+  {
+    "date": "2026-09-15",
+    "weekday": "화",
+    "lunar_date": "8.5",
+    "moon_icon_url": "https://www.badatime.com/img/moon/05.png",
+    "tide_label": "11물",
+    "flow_percent": 88,
+    "weather": [
+      {
+        "icon_url": "https://images.badatime.com/weather/1.png",
+        "alt": "맑음"
+      },
+      {
+        "icon_url": "https://images.badatime.com/weather/1.png",
+        "alt": "맑음"
+      }
+    ],
+    "tide_events": [
+      {
+        "time": "01:07",
+        "type": "low",
+        "mins": 67,
+        "level": 82,
+        "delta": -818
+      },
+      {
+        "time": "06:58",
+        "type": "high",
+        "mins": 418,
+        "level": 849,
+        "delta": 767
+      },
+      {
+        "time": "13:15",
+        "type": "low",
+        "mins": 795,
+        "level": 65,
+        "delta": -784
+      },
+      {
+        "time": "19:20",
+        "type": "high",
+        "mins": 1160,
+        "level": 857,
+        "delta": 792
+      }
+    ],
+    "sunrise": "06:15",
+    "sunset": "18:42",
+    "moonrise": "10:23",
+    "moonset": "20:30"
+  },
+  {
+    "date": "2026-09-16",
+    "weekday": "수",
+    "lunar_date": "8.6",
+    "moon_icon_url": "https://www.badatime.com/img/moon/06.png",
+    "tide_label": "12물",
+    "flow_percent": 77,
+    "weather": [
+      {
+        "icon_url": "https://images.badatime.com/weather/1.png",
+        "alt": "맑음"
+      },
+      {
+        "icon_url": "https://images.badatime.com/weather/1.png",
+        "alt": "맑음"
+      }
+    ],
+    "tide_events": [
+      {
+        "time": "01:37",
+        "type": "low",
+        "mins": 97,
+        "level": 137,
+        "delta": -733
+      },
+      {
+        "time": "07:25",
+        "type": "high",
+        "mins": 445,
+        "level": 803,
+        "delta": 666
+      },
+      {
+        "time": "13:40",
+        "type": "low",
+        "mins": 820,
+        "level": 97,
+        "delta": -706
+      },
+      {
+        "time": "19:50",
+        "type": "high",
+        "mins": 1190,
+        "level": 817,
+        "delta": 720
+      }
+    ],
+    "sunrise": "06:15",
+    "sunset": "18:40",
+    "moonrise": "11:27",
+    "moonset": "21:05"
+  },
+  {
+    "date": "2026-09-17",
+    "weekday": "목",
+    "lunar_date": "8.7",
+    "moon_icon_url": "https://www.badatime.com/img/moon/07.png",
+    "tide_label": "13물",
+    "flow_percent": 64,
+    "weather": [
+      {
+        "icon_url": "https://images.badatime.com/weather/3.png",
+        "alt": "구름많음"
+      }
+    ],
+    "tide_events": [
+      {
+        "time": "02:06",
+        "type": "low",
+        "mins": 126,
+        "level": 200,
+        "delta": -629
+      },
+      {
+        "time": "07:51",
+        "type": "high",
+        "mins": 471,
+        "level": 752,
+        "delta": 552
+      },
+      {
+        "time": "14:06",
+        "type": "low",
+        "mins": 846,
+        "level": 141,
+        "delta": -611
+      },
+      {
+        "time": "20:22",
+        "type": "high",
+        "mins": 1222,
+        "level": 767,
+        "delta": 626
+      }
+    ],
+    "sunrise": "06:16",
+    "sunset": "18:38",
+    "moonrise": "12:28",
+    "moonset": "21:45"
+  },
+  {
+    "date": "2026-09-18",
+    "weekday": "금",
+    "lunar_date": "8.8",
+    "moon_icon_url": "https://www.badatime.com/img/moon/08.png",
+    "tide_label": "조금",
+    "flow_percent": 47,
+    "weather": [
+      {
+        "icon_url": "https://images.badatime.com/weather/5.png",
+        "alt": "흐린후갬"
+      }
+    ],
+    "tide_events": [
+      {
+        "time": "02:35",
+        "type": "low",
+        "mins": 155,
+        "level": 267,
+        "delta": -511
+      },
+      {
+        "time": "08:21",
+        "type": "high",
+        "mins": 501,
+        "level": 690,
+        "delta": 423
+      },
+      {
+        "time": "14:35",
+        "type": "low",
+        "mins": 875,
+        "level": 198,
+        "delta": -492
+      },
+      {
+        "time": "20:59",
+        "type": "high",
+        "mins": 1259,
+        "level": 709,
+        "delta": 511
+      }
+    ],
+    "sunrise": "06:17",
+    "sunset": "18:37",
+    "moonrise": "13:26",
+    "moonset": "22:32"
+  },
+  {
+    "date": "2026-09-19",
+    "weekday": "토",
+    "lunar_date": "8.9",
+    "moon_icon_url": "https://www.badatime.com/img/moon/09.png",
+    "tide_label": "무시",
+    "flow_percent": 29,
+    "weather": [
+      {
+        "icon_url": "https://images.badatime.com/weather/3.png",
+        "alt": "구름많음"
+      }
+    ],
+    "tide_events": [
+      {
+        "time": "03:10",
+        "type": "low",
+        "mins": 190,
+        "level": 338,
+        "delta": -381
+      },
+      {
+        "time": "08:57",
+        "type": "high",
+        "mins": 537,
+        "level": 623,
+        "delta": 285
+      },
+      {
+        "time": "15:12",
+        "type": "low",
+        "mins": 912,
+        "level": 264,
+        "delta": -359
+      },
+      {
+        "time": "21:52",
+        "type": "high",
+        "mins": 1312,
+        "level": 650,
+        "delta": 386
+      }
+    ],
+    "sunrise": "06:18",
+    "sunset": "18:35",
+    "moonrise": "14:18",
+    "moonset": "23:26"
+  },
+  {
+    "date": "2026-09-20",
+    "weekday": "일",
+    "lunar_date": "8.10",
+    "moon_icon_url": "https://www.badatime.com/img/moon/10.png",
+    "tide_label": "1물",
+    "flow_percent": 14,
+    "weather": [
+      {
+        "icon_url": "https://images.badatime.com/weather/3.png",
+        "alt": "구름많음"
+      }
+    ],
+    "tide_events": [
+      {
+        "time": "04:07",
+        "type": "low",
+        "mins": 247,
+        "level": 403,
+        "delta": -255
+      },
+      {
+        "time": "09:56",
+        "type": "high",
+        "mins": 596,
+        "level": 558,
+        "delta": 155
+      },
+      {
+        "time": "16:15",
+        "type": "low",
+        "mins": 975,
+        "level": 327,
+        "delta": -231
+      },
+      {
+        "time": "23:30",
+        "type": "high",
+        "mins": 1410,
+        "level": 610,
+        "delta": 283
+      }
+    ],
+    "sunrise": "06:19",
+    "sunset": "18:34",
+    "moonrise": "15:03",
+    "moonset": "----"
+  },
+  {
+    "date": "2026-09-21",
+    "weekday": "월",
+    "lunar_date": "8.11",
+    "moon_icon_url": "https://www.badatime.com/img/moon/11.png",
+    "tide_label": "2물",
+    "flow_percent": 0,
+    "weather": [
+      {
+        "icon_url": "https://images.badatime.com/weather/3.png",
+        "alt": "구름많음"
+      }
+    ],
+    "tide_events": [
+      {
+        "time": "06:48",
+        "type": "low",
+        "mins": 408,
+        "level": 423,
+        "delta": -195
+      },
+      {
+        "time": "12:12",
+        "type": "high",
+        "mins": 732,
+        "level": 528,
+        "delta": 105
+      },
+      {
+        "time": "18:24",
+        "type": "low",
+        "mins": 1104,
+        "level": 349,
+        "delta": -179
+      }
+    ],
+    "sunrise": "06:20",
+    "sunset": "18:32",
+    "moonrise": "15:43",
+    "moonset": "00:23"
+  },
+  {
+    "date": "2026-09-22",
+    "weekday": "화",
+    "lunar_date": "8.12",
+    "moon_icon_url": "https://www.badatime.com/img/moon/12.png",
+    "tide_label": "3물",
+    "flow_percent": 21,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "01:29",
+        "type": "high",
+        "mins": 89,
+        "level": 630,
+        "delta": 280
+      },
+      {
+        "time": "08:25",
+        "type": "low",
+        "mins": 505,
+        "level": 368,
+        "delta": -262
+      },
+      {
+        "time": "13:58",
+        "type": "high",
+        "mins": 838,
+        "level": 575,
+        "delta": 207
+      },
+      {
+        "time": "20:00",
+        "type": "low",
+        "mins": 1200,
+        "level": 302,
+        "delta": -273
+      }
+    ],
+    "sunrise": "06:20",
+    "sunset": "18:31",
+    "moonrise": "16:15",
+    "moonset": "01:25"
+  },
+  {
+    "date": "2026-09-23",
+    "weekday": "수",
+    "lunar_date": "8.13",
+    "moon_icon_url": "https://www.badatime.com/img/moon/13.png",
+    "tide_label": "4물",
+    "flow_percent": 39,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "02:35",
+        "type": "high",
+        "mins": 155,
+        "level": 685,
+        "delta": 383
+      },
+      {
+        "time": "09:09",
+        "type": "low",
+        "mins": 549,
+        "level": 300,
+        "delta": -385
+      },
+      {
+        "time": "14:53",
+        "type": "high",
+        "mins": 893,
+        "level": 648,
+        "delta": 348
+      },
+      {
+        "time": "20:57",
+        "type": "low",
+        "mins": 1257,
+        "level": 234,
+        "delta": -414
+      }
+    ],
+    "sunrise": "06:21",
+    "sunset": "18:29",
+    "moonrise": "16:44",
+    "moonset": "02:27"
+  },
+  {
+    "date": "2026-09-24",
+    "weekday": "목",
+    "lunar_date": "8.14",
+    "moon_icon_url": "https://www.badatime.com/img/moon/14.png",
+    "tide_label": "5물",
+    "flow_percent": 57,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "03:16",
+        "type": "high",
+        "mins": 196,
+        "level": 744,
+        "delta": 511
+      },
+      {
+        "time": "09:43",
+        "type": "low",
+        "mins": 583,
+        "level": 232,
+        "delta": -512
+      },
+      {
+        "time": "15:32",
+        "type": "high",
+        "mins": 932,
+        "level": 722,
+        "delta": 490
+      },
+      {
+        "time": "21:41",
+        "type": "low",
+        "mins": 1301,
+        "level": 166,
+        "delta": -556
+      }
+    ],
+    "sunrise": "06:22",
+    "sunset": "18:28",
+    "moonrise": "17:11",
+    "moonset": "03:31"
+  },
+  {
+    "date": "2026-09-25",
+    "weekday": "금",
+    "lunar_date": "8.15",
+    "moon_icon_url": "https://www.badatime.com/img/moon/15.png",
+    "tide_label": "6물",
+    "flow_percent": 73,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "03:50",
+        "type": "high",
+        "mins": 230,
+        "level": 798,
+        "delta": 635
+      },
+      {
+        "time": "10:14",
+        "type": "low",
+        "mins": 614,
+        "level": 167,
+        "delta": -631
+      },
+      {
+        "time": "16:07",
+        "type": "high",
+        "mins": 967,
+        "level": 790,
+        "delta": 623
+      },
+      {
+        "time": "22:21",
+        "type": "low",
+        "mins": 1341,
+        "level": 108,
+        "delta": -682
+      }
+    ],
+    "sunrise": "06:23",
+    "sunset": "18:26",
+    "moonrise": "17:36",
+    "moonset": "04:34"
+  },
+  {
+    "date": "2026-09-26",
+    "weekday": "토",
+    "lunar_date": "8.16",
+    "moon_icon_url": "https://www.badatime.com/img/moon/16.png",
+    "tide_label": "7물",
+    "flow_percent": 85,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "04:23",
+        "type": "high",
+        "mins": 263,
+        "level": 840,
+        "delta": 736
+      },
+      {
+        "time": "10:46",
+        "type": "low",
+        "mins": 646,
+        "level": 112,
+        "delta": -728
+      },
+      {
+        "time": "16:42",
+        "type": "high",
+        "mins": 1002,
+        "level": 844,
+        "delta": 732
+      },
+      {
+        "time": "22:59",
+        "type": "low",
+        "mins": 1379,
+        "level": 67,
+        "delta": -777
+      }
+    ],
+    "sunrise": "06:24",
+    "sunset": "18:25",
+    "moonrise": "18:00",
+    "moonset": "05:39"
+  },
+  {
+    "date": "2026-09-27",
+    "weekday": "일",
+    "lunar_date": "8.17",
+    "moon_icon_url": "https://www.badatime.com/img/moon/17.png",
+    "tide_label": "8물",
+    "flow_percent": 94,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "04:57",
+        "type": "high",
+        "mins": 297,
+        "level": 865,
+        "delta": 803
+      },
+      {
+        "time": "11:19",
+        "type": "low",
+        "mins": 679,
+        "level": 67,
+        "delta": -798
+      },
+      {
+        "time": "17:17",
+        "type": "high",
+        "mins": 1037,
+        "level": 882,
+        "delta": 815
+      },
+      {
+        "time": "23:37",
+        "type": "low",
+        "mins": 1417,
+        "level": 47,
+        "delta": -835
+      }
+    ],
+    "sunrise": "06:25",
+    "sunset": "18:23",
+    "moonrise": "18:25",
+    "moonset": "06:45"
+  },
+  {
+    "date": "2026-09-28",
+    "weekday": "월",
+    "lunar_date": "8.18",
+    "moon_icon_url": "https://www.badatime.com/img/moon/18.png",
+    "tide_label": "9물",
+    "flow_percent": 98,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "05:30",
+        "type": "high",
+        "mins": 330,
+        "level": 874,
+        "delta": 832
+      },
+      {
+        "time": "11:52",
+        "type": "low",
+        "mins": 712,
+        "level": 37,
+        "delta": -837
+      },
+      {
+        "time": "17:52",
+        "type": "high",
+        "mins": 1072,
+        "level": 901,
+        "delta": 864
+      }
+    ],
+    "sunrise": "06:25",
+    "sunset": "18:21",
+    "moonrise": "18:54",
+    "moonset": "07:53"
+  },
+  {
+    "date": "2026-09-29",
+    "weekday": "화",
+    "lunar_date": "8.19",
+    "moon_icon_url": "https://www.badatime.com/img/moon/19.png",
+    "tide_label": "10물",
+    "flow_percent": 100,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "00:15",
+        "type": "low",
+        "mins": 15,
+        "level": 50,
+        "delta": -864
+      },
+      {
+        "time": "06:04",
+        "type": "high",
+        "mins": 364,
+        "level": 864,
+        "delta": 814
+      },
+      {
+        "time": "12:25",
+        "type": "low",
+        "mins": 745,
+        "level": 25,
+        "delta": -839
+      },
+      {
+        "time": "18:28",
+        "type": "high",
+        "mins": 1108,
+        "level": 901,
+        "delta": 876
+      }
+    ],
+    "sunrise": "06:26",
+    "sunset": "18:20",
+    "moonrise": "19:27",
+    "moonset": "09:05"
+  },
+  {
+    "date": "2026-09-30",
+    "weekday": "수",
+    "lunar_date": "8.20",
+    "moon_icon_url": "https://www.badatime.com/img/moon/20.png",
+    "tide_label": "11물",
+    "flow_percent": 96,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "00:52",
+        "type": "low",
+        "mins": 52,
+        "level": 75,
+        "delta": -839
+      },
+      {
+        "time": "06:38",
+        "type": "high",
+        "mins": 398,
+        "level": 838,
+        "delta": 763
+      },
+      {
+        "time": "12:59",
+        "type": "low",
+        "mins": 779,
+        "level": 33,
+        "delta": -805
+      },
+      {
+        "time": "19:06",
+        "type": "high",
+        "mins": 1146,
+        "level": 882,
+        "delta": 849
+      }
+    ],
+    "sunrise": "06:27",
+    "sunset": "18:18",
+    "moonrise": "20:07",
+    "moonset": "10:18"
+  },
+  {
+    "date": "2026-10-01",
+    "weekday": "목",
+    "lunar_date": "8.21",
+    "moon_icon_url": "https://www.badatime.com/img/moon/21.png",
+    "tide_label": "12물",
+    "flow_percent": 87,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "01:29",
+        "type": "low",
+        "mins": 89,
+        "level": 120,
+        "delta": -775
+      },
+      {
+        "time": "07:13",
+        "type": "high",
+        "mins": 433,
+        "level": 798,
+        "delta": 678
+      },
+      {
+        "time": "13:33",
+        "type": "low",
+        "mins": 813,
+        "level": 61,
+        "delta": -737
+      },
+      {
+        "time": "19:45",
+        "type": "high",
+        "mins": 1185,
+        "level": 846,
+        "delta": 785
+      }
+    ],
+    "sunrise": "06:28",
+    "sunset": "18:17",
+    "moonrise": "20:56",
+    "moonset": "11:32"
+  },
+  {
+    "date": "2026-10-02",
+    "weekday": "금",
+    "lunar_date": "8.22",
+    "moon_icon_url": "https://www.badatime.com/img/moon/22.png",
+    "tide_label": "13물",
+    "flow_percent": 72,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "02:08",
+        "type": "low",
+        "mins": 128,
+        "level": 181,
+        "delta": -677
+      },
+      {
+        "time": "07:49",
+        "type": "high",
+        "mins": 469,
+        "level": 744,
+        "delta": 563
+      },
+      {
+        "time": "14:10",
+        "type": "low",
+        "mins": 850,
+        "level": 109,
+        "delta": -635
+      },
+      {
+        "time": "20:29",
+        "type": "high",
+        "mins": 1229,
+        "level": 794,
+        "delta": 685
+      }
+    ],
+    "sunrise": "06:29",
+    "sunset": "18:15",
+    "moonrise": "21:55",
+    "moonset": "12:41"
+  },
+  {
+    "date": "2026-10-03",
+    "weekday": "토",
+    "lunar_date": "8.23",
+    "moon_icon_url": "https://www.badatime.com/img/moon/23.png",
+    "tide_label": "조금",
+    "flow_percent": 54,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "02:53",
+        "type": "low",
+        "mins": 173,
+        "level": 251,
+        "delta": -554
+      },
+      {
+        "time": "08:33",
+        "type": "high",
+        "mins": 513,
+        "level": 680,
+        "delta": 429
+      },
+      {
+        "time": "14:55",
+        "type": "low",
+        "mins": 895,
+        "level": 172,
+        "delta": -508
+      },
+      {
+        "time": "21:26",
+        "type": "high",
+        "mins": 1286,
+        "level": 733,
+        "delta": 561
+      }
+    ],
+    "sunrise": "06:30",
+    "sunset": "18:14",
+    "moonrise": "23:02",
+    "moonset": "13:42"
+  },
+  {
+    "date": "2026-10-04",
+    "weekday": "일",
+    "lunar_date": "8.24",
+    "moon_icon_url": "https://www.badatime.com/img/moon/24.png",
+    "tide_label": "무시",
+    "flow_percent": 38,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "03:54",
+        "type": "low",
+        "mins": 234,
+        "level": 319,
+        "delta": -424
+      },
+      {
+        "time": "09:34",
+        "type": "high",
+        "mins": 574,
+        "level": 613,
+        "delta": 294
+      },
+      {
+        "time": "16:00",
+        "type": "low",
+        "mins": 960,
+        "level": 241,
+        "delta": -372
+      },
+      {
+        "time": "22:53",
+        "type": "high",
+        "mins": 1373,
+        "level": 685,
+        "delta": 444
+      }
+    ],
+    "sunrise": "06:31",
+    "sunset": "18:13",
+    "moonrise": "----",
+    "moonset": "14:33"
+  },
+  {
+    "date": "2026-10-05",
+    "weekday": "월",
+    "lunar_date": "8.25",
+    "moon_icon_url": "https://www.badatime.com/img/moon/25.png",
+    "tide_label": "1물",
+    "flow_percent": 33,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "05:37",
+        "type": "low",
+        "mins": 337,
+        "level": 353,
+        "delta": -341
+      },
+      {
+        "time": "11:22",
+        "type": "high",
+        "mins": 682,
+        "level": 574,
+        "delta": 221
+      },
+      {
+        "time": "17:48",
+        "type": "low",
+        "mins": 1068,
+        "level": 275,
+        "delta": -299
+      }
+    ],
+    "sunrise": "06:32",
+    "sunset": "18:11",
+    "moonrise": "00:14",
+    "moonset": "15:15"
+  },
+  {
+    "date": "2026-10-06",
+    "weekday": "화",
+    "lunar_date": "8.26",
+    "moon_icon_url": "https://www.badatime.com/img/moon/26.png",
+    "tide_label": "2물",
+    "flow_percent": 39,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "00:45",
+        "type": "high",
+        "mins": 45,
+        "level": 689,
+        "delta": 414
+      },
+      {
+        "time": "07:26",
+        "type": "low",
+        "mins": 446,
+        "level": 312,
+        "delta": -377
+      },
+      {
+        "time": "13:20",
+        "type": "high",
+        "mins": 800,
+        "level": 614,
+        "delta": 302
+      },
+      {
+        "time": "19:32",
+        "type": "low",
+        "mins": 1172,
+        "level": 238,
+        "delta": -376
+      }
+    ],
+    "sunrise": "06:32",
+    "sunset": "18:10",
+    "moonrise": "01:27",
+    "moonset": "15:49"
+  },
+  {
+    "date": "2026-10-07",
+    "weekday": "수",
+    "lunar_date": "8.27",
+    "moon_icon_url": "https://www.badatime.com/img/moon/27.png",
+    "tide_label": "3물",
+    "flow_percent": 56,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "02:07",
+        "type": "high",
+        "mins": 127,
+        "level": 741,
+        "delta": 504
+      },
+      {
+        "time": "08:35",
+        "type": "low",
+        "mins": 515,
+        "level": 233,
+        "delta": -508
+      },
+      {
+        "time": "14:33",
+        "type": "high",
+        "mins": 873,
+        "level": 700,
+        "delta": 467
+      },
+      {
+        "time": "20:42",
+        "type": "low",
+        "mins": 1242,
+        "level": 169,
+        "delta": -531
+      }
+    ],
+    "sunrise": "06:33",
+    "sunset": "18:08",
+    "moonrise": "02:38",
+    "moonset": "16:18"
+  },
+  {
+    "date": "2026-10-08",
+    "weekday": "목",
+    "lunar_date": "8.28",
+    "moon_icon_url": "https://www.badatime.com/img/moon/28.png",
+    "tide_label": "4물",
+    "flow_percent": 73,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "03:02",
+        "type": "high",
+        "mins": 182,
+        "level": 800,
+        "delta": 633
+      },
+      {
+        "time": "09:23",
+        "type": "low",
+        "mins": 563,
+        "level": 155,
+        "delta": -645
+      },
+      {
+        "time": "15:23",
+        "type": "high",
+        "mins": 923,
+        "level": 783,
+        "delta": 628
+      },
+      {
+        "time": "21:35",
+        "type": "low",
+        "mins": 1295,
+        "level": 106,
+        "delta": -677
+      }
+    ],
+    "sunrise": "06:34",
+    "sunset": "18:07",
+    "moonrise": "03:47",
+    "moonset": "16:44"
+  },
+  {
+    "date": "2026-10-09",
+    "weekday": "금",
+    "lunar_date": "8.29",
+    "moon_icon_url": "https://www.badatime.com/img/moon/29.png",
+    "tide_label": "5물",
+    "flow_percent": 86,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "03:45",
+        "type": "high",
+        "mins": 225,
+        "level": 844,
+        "delta": 742
+      },
+      {
+        "time": "10:04",
+        "type": "low",
+        "mins": 604,
+        "level": 93,
+        "delta": -751
+      },
+      {
+        "time": "16:05",
+        "type": "high",
+        "mins": 965,
+        "level": 848,
+        "delta": 755
+      },
+      {
+        "time": "22:20",
+        "type": "low",
+        "mins": 1340,
+        "level": 64,
+        "delta": -784
+      }
+    ],
+    "sunrise": "06:35",
+    "sunset": "18:05",
+    "moonrise": "04:53",
+    "moonset": "17:09"
+  },
+  {
+    "date": "2026-10-10",
+    "weekday": "토",
+    "lunar_date": "8.30",
+    "moon_icon_url": "https://www.badatime.com/img/moon/30.png",
+    "tide_label": "6물",
+    "flow_percent": 94,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "04:22",
+        "type": "high",
+        "mins": 262,
+        "level": 866,
+        "delta": 807
+      },
+      {
+        "time": "10:40",
+        "type": "low",
+        "mins": 640,
+        "level": 52,
+        "delta": -814
+      },
+      {
+        "time": "16:42",
+        "type": "high",
+        "mins": 1002,
+        "level": 886,
+        "delta": 834
+      },
+      {
+        "time": "23:00",
+        "type": "low",
+        "mins": 1380,
+        "level": 47,
+        "delta": -839
+      }
+    ],
+    "sunrise": "06:36",
+    "sunset": "18:04",
+    "moonrise": "05:58",
+    "moonset": "17:34"
+  },
+  {
+    "date": "2026-10-11",
+    "weekday": "일",
+    "lunar_date": "9.1",
+    "moon_icon_url": "https://www.badatime.com/img/moon/01.png",
+    "tide_label": "7물",
+    "flow_percent": 98,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "04:57",
+        "type": "high",
+        "mins": 297,
+        "level": 867,
+        "delta": 825
+      },
+      {
+        "time": "11:14",
+        "type": "low",
+        "mins": 674,
+        "level": 32,
+        "delta": -835
+      },
+      {
+        "time": "17:18",
+        "type": "high",
+        "mins": 1038,
+        "level": 900,
+        "delta": 868
+      },
+      {
+        "time": "23:37",
+        "type": "low",
+        "mins": 1417,
+        "level": 55,
+        "delta": -845
+      }
+    ],
+    "sunrise": "06:37",
+    "sunset": "18:02",
+    "moonrise": "07:03",
+    "moonset": "18:00"
+  },
+  {
+    "date": "2026-10-12",
+    "weekday": "월",
+    "lunar_date": "9.2",
+    "moon_icon_url": "https://www.badatime.com/img/moon/02.png",
+    "tide_label": "8물",
+    "flow_percent": 98,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "05:29",
+        "type": "high",
+        "mins": 329,
+        "level": 852,
+        "delta": 802
+      },
+      {
+        "time": "11:45",
+        "type": "low",
+        "mins": 705,
+        "level": 30,
+        "delta": -822
+      },
+      {
+        "time": "17:50",
+        "type": "high",
+        "mins": 1070,
+        "level": 895,
+        "delta": 865
+      }
+    ],
+    "sunrise": "06:38",
+    "sunset": "18:01",
+    "moonrise": "08:07",
+    "moonset": "18:29"
+  },
+  {
+    "date": "2026-10-13",
+    "weekday": "화",
+    "lunar_date": "9.3",
+    "moon_icon_url": "https://www.badatime.com/img/moon/03.png",
+    "tide_label": "9물",
+    "flow_percent": 94,
+    "weather": [],
+    "tide_events": [
+      {
+        "time": "00:10",
+        "type": "low",
+        "mins": 10,
+        "level": 80,
+        "delta": -828
+      },
+      {
+        "time": "05:58",
+        "type": "high",
+        "mins": 358,
+        "level": 827,
+        "delta": 747
+      },
+      {
+        "time": "12:13",
+        "type": "low",
+        "mins": 733,
+        "level": 41,
+        "delta": -786
+      },
+      {
+        "time": "18:21",
+        "type": "high",
+        "mins": 1101,
+        "level": 875,
+        "delta": 834
+      }
+    ],
+    "sunrise": "06:39",
+    "sunset": "18:00",
+    "moonrise": "09:12",
+    "moonset": "19:02"
+  }
+]
