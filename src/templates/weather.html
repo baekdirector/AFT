@@ -685,6 +685,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // 즉시 응답시키기 위해 여기로 옮겼다(위 스크립트 상단 주석 참고).
   const submitBtn = document.getElementById('tide-submit-btn');
   const loadNote = document.getElementById('weather-load-note');
+  // 지역 select 정렬 순서 - index.html(홈 화면)의 regionOrder/지역칩과 동일한
+  // 업무 순서(북→남 대략적인 지리 순서)다. 글자순(가나다) 정렬이 아니라 이
+  // 순서로 맞춰달라는 사용자 요청. 이 목록에 없는 지역(관리자 콘솔에서 나중에
+  // 새로 추가된 지역)은 뒤에 이어 붙인다 - status_service.py의
+  // get_region_names()와 같은 원칙(새 지역이 통째로 안 보이면 안 됨).
+  const REGION_ORDER = ['인천', '안산', '화성', '평택', '당진', '서산', '태안', '보령', '군산', '격포', '여수', '고흥'];
+  function sortedRegions(cityPorts) {
+    const all = Object.keys(cityPorts);
+    const known = REGION_ORDER.filter(r => all.includes(r));
+    const extra = all.filter(r => !REGION_ORDER.includes(r)).sort();
+    return known.concat(extra);
+  }
   async function loadPageData() {
     try {
       const resp = await fetch('/api/weather_page_data');
@@ -696,7 +708,7 @@ document.addEventListener('DOMContentLoaded', () => {
       Object.assign(KR_HOLIDAYS, body.data.kr_holidays || {});
 
       citySel.innerHTML = '<option value="">지역 선택</option>';
-      Object.keys(CITY_PORTS).forEach(city => {
+      sortedRegions(CITY_PORTS).forEach(city => {
         const opt = document.createElement('option');
         opt.value = city;
         opt.textContent = city;
