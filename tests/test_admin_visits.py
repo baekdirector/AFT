@@ -225,9 +225,13 @@ def test_admin_table_shows_full_datetime_in_kst_not_utc(client, app, monkeypatch
         'username': 'admin', 'password': 'correct-horse',
     })
 
-    html = client.get('/admin').get_data(as_text=True)
-    assert '2026-09-11 04:30:00' in html, 'UTC 19:30 은 KST(UTC+9)로 다음날 04:30 이어야 한다'
-    assert '2026-09-10 19:30' not in html, 'UTC 그대로 보이면 안 된다'
+    # /admin 자체는 이제 뼈대만 즉시 내려주고(사용자 지적: "로그인 후 화면
+    # 이동이 안 되고 계속 기다리다 넘어간다" - IP 위치 조회가 외부 API를
+    # 동기 호출해 느렸다), 방문 기록은 /admin/dashboard_data 가 담당한다.
+    body = client.get('/admin/dashboard_data').get_json()
+    times = [r['time'] for g in body['data']['groups'] for r in g['rows']]
+    assert '2026-09-11 04:30:00' in times, 'UTC 19:30 은 KST(UTC+9)로 다음날 04:30 이어야 한다'
+    assert '2026-09-10 19:30:00' not in times, 'UTC 그대로 보이면 안 된다'
 
 
 # ---- 보관 기간(1주일) ----
@@ -322,14 +326,18 @@ def test_admin_hides_hosting_ips_by_default_and_shows_count(client, app, monkeyp
         'username': 'admin', 'password': 'correct-horse',
     })
 
-    html = client.get('/admin').get_data(as_text=True)
-    assert '183.99.218.103' in html
-    assert '34.83.150.217' not in html, '클라우드/봇 IP는 기본적으로 숨겨져야 한다'
-    assert '클라우드/봇으로 추정되는 접속 1건을 숨겼습니다' in html
+    # bots=show 토글도 이제 /admin/dashboard_data 가 처리한다(/admin 자체는
+    # 뼈대만 즉시 내려주고 방문 기록 계산을 안 한다 - 위 설명 참고).
+    body = client.get('/admin/dashboard_data').get_json()['data']
+    ips = [r['ip'] for g in body['groups'] for r in g['rows']]
+    assert '183.99.218.103' in ips
+    assert '34.83.150.217' not in ips, '클라우드/봇 IP는 기본적으로 숨겨져야 한다'
+    assert body['hidden_bot_count'] == 1
 
-    shown = client.get('/admin?bots=show').get_data(as_text=True)
-    assert '34.83.150.217' in shown, '?bots=show 를 주면 다시 보여야 한다'
-    assert '☁️ 클라우드/봇' in shown
+    shown = client.get('/admin/dashboard_data?bots=show').get_json()['data']
+    shown_ips = [r['ip'] for g in shown['groups'] for r in g['rows']]
+    assert '34.83.150.217' in shown_ips, '?bots=show 를 주면 다시 보여야 한다'
+    assert any(r['is_hosting'] for g in shown['groups'] for r in g['rows'])
 
 
 def test_purge_old_visit_logs_boundary_at_seven_days(app):

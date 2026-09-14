@@ -14,7 +14,7 @@
       </a>
       <div class="header-spacer"></div>
       <div class="aux-links">
-        <a href="{{ url_for('views.weather') }}">날씨</a>
+        <a href="{{ url_for('views.weather') }}">🌊 날씨</a>
       </div>
       <nav class="header-nav">
         <a href="{{ url_for('views.index') }}" class="header-nav-btn">배 목록</a>
@@ -36,11 +36,13 @@
       <form id="tide-form" class="weather-form-grid">
         <div class="weather-field">
           <label class="weather-field-label" for="city">지역 선택</label>
-          <select id="city" class="weather-select" required>
-            <option value="">지역 선택</option>
-            {% for city in city_port_mapping.keys() %}
-              <option value="{{ city }}">{{ city }}</option>
-            {% endfor %}
+          <!-- 항구 목록은 이제 DB(Port 표)에서 온다 - /weather 자체는 아무 조회도
+               안 하고 즉시 이 뼈대만 내려주고(사용자 지적: "날씨 버튼 누르면 바로
+               이동 안 되고 홈 화면에서 기다렸다 갑자기 넘어간다"), 목록은 아래
+               스크립트가 /api/weather_page_data 로 따로 불러와 채운다. 그동안은
+               "불러오는 중"으로 비활성 표시. -->
+          <select id="city" class="weather-select" required disabled>
+            <option value="">불러오는 중…</option>
           </select>
         </div>
         <div class="weather-field">
@@ -86,10 +88,10 @@
           <input type="hidden" id="date" />
         </div>
         <div class="weather-field weather-field-btn">
-          <button type="submit" class="btn-search">🔍 조회</button>
+          <button type="submit" id="tide-submit-btn" class="btn-search" disabled>🔍 조회</button>
         </div>
       </form>
-      <p class="weather-note">※ 바다타임 정보를 그대로 가져와 보여줍니다. 항구를 선택하면 자동으로 조회 ID를 매핑합니다.</p>
+      <p class="weather-note is-loading" id="weather-load-note"><span class="weather-load-spinner"></span> 항구 목록을 불러오는 중…</p>
     </div>
 
     <div id="tide-result" class="weather-result" style="display:none;">
@@ -175,9 +177,17 @@
 .brand-title { font-size: 15px; font-weight: 750; letter-spacing: -0.4px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .brand-sub { font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .header-spacer { flex: 1 1 0; min-width: 0; }
-.aux-links { font-size: 12px; font-weight: 600; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; flex: none; }
-.aux-links a { color: var(--accent); }
-.aux-links a:hover { color: var(--accent-2); }
+/* 날씨 GNB 버튼 - 예전엔 밋밋한 텍스트 링크였는데, header-nav(배 목록/예약현황/
+   알림) 필 버튼과 룩앤필이 안 맞는다는 지적을 받아 같은 언어(둥근 필, 아이콘)로
+   맞췄다. 모바일에서는 header-nav 전체가 숨는데(날씨로 가는 하단 탭이 없어서)
+   이 링크만 유일한 경로라 위치(.aux-links)는 그대로 두고 스타일만 바꾼다. */
+.aux-links { display: flex; align-items: center; gap: 6px; flex: none; }
+.aux-links a {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px;
+  border-radius: 10px; font-size: 13px; font-weight: 700; white-space: nowrap;
+  background: oklch(0.95 0.03 245); color: oklch(0.4 0.13 245); transition: all 0.15s;
+}
+.aux-links a:hover { background: oklch(0.91 0.05 245); color: oklch(0.34 0.14 245); }
 .header-nav { display: flex; gap: 4px; padding: 4px; background: oklch(0.94 0.008 250); border-radius: 13px; flex: none; }
 .header-nav-btn {
   height: 34px; padding: 0 15px; border-radius: 10px; border: none; font-size: 13px; font-weight: 700;
@@ -217,7 +227,13 @@ input.weather-select { background-image: none; }
   font-size: 14px; font-weight: 750; box-shadow: 0 8px 20px oklch(0.55 0.14 245 / 0.3); white-space: nowrap;
 }
 .btn-search:hover { filter: brightness(1.04); }
-.weather-note { margin: 12px 0 0; font-size: 12px; color: var(--ink-softer); }
+.weather-note { margin: 12px 0 0; font-size: 12px; color: var(--ink-softer); display: flex; align-items: center; gap: 7px; }
+.weather-load-spinner {
+  display: none; width: 13px; height: 13px; flex: none; border-radius: 99px;
+  border: 2px solid oklch(0.85 0.01 250); border-top-color: var(--accent); animation: weatherSpin 0.7s linear infinite;
+}
+#weather-load-note.is-loading .weather-load-spinner { display: inline-block; }
+@keyframes weatherSpin { to { transform: rotate(360deg); } }
 
 /* 날짜: 팝오버 커스텀 달력 - status.html(예약현황)과 동일 컴포넌트를
    그대로 포팅했다(공유 CSS 파일이 없는 이 프로젝트 관례상 복제). */
@@ -491,9 +507,15 @@ input.weather-select { background-image: none; }
 </style>
 
 <script>
-// 템플릿 데이터
-const CITY_PORTS = {{ city_port_mapping | tojson | safe }};
-const BADA_PORT_IDS = {{ bada_port_ids | tojson | safe }};
+// 템플릿 데이터 - /weather 라우트 자체는 이제 아무 DB 조회도 안 하고 뼈대만
+// 즉시 내려준다(사용자 지적: "날씨 버튼 누르면 바로 페이지 이동이 안 되고
+// 홈 화면에서 기다리다 갑자기 넘어간다" - 서버가 항구 목록/공휴일을 계산해
+// 응답을 만드는 동안 브라우저가 이전 페이지에 멈춰 있던 것). 실제 데이터는
+// 아래 loadPageData()가 페이지가 뜬 뒤 /api/weather_page_data로 따로
+// 불러온다 - 그 사이엔 지역 선택/조회 버튼이 비활성 + 스피너로 표시된다.
+let CITY_PORTS = {};
+let BADA_PORT_IDS = {};
+const KR_HOLIDAYS = {};
 
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('tide-form');
@@ -512,8 +534,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (dateEl && !dateEl.value) { dateEl.value = fmtDate(new Date()); }
 
   // ====== 대한민국 공휴일 (달력에 빨간색으로 표시) - status.html과 동일
-  // 서버 데이터 소스(services/holidays.py) ======
-  const KR_HOLIDAYS = {{ kr_holidays | tojson }};
+  // 서버 데이터 소스(services/holidays.py). loadPageData()가 채워 넣는다 -
+  // 그 전에 달력을 열면 공휴일 표시 없이 뜨고, 채워진 뒤 다시 열면 보인다. ======
   function holidayLabel(iso) { return KR_HOLIDAYS[iso] || null; }
 
   // ====== 커스텀 팝오버 달력 (status.html 포팅 - 공유 JS 파일이 없는 이
@@ -658,6 +680,38 @@ document.addEventListener('DOMContentLoaded', () => {
       portSel.appendChild(opt);
     }
   });
+
+  // 항구 목록/바다타임 ID/공휴일을 비동기로 불러온다 - /weather 라우트를
+  // 즉시 응답시키기 위해 여기로 옮겼다(위 스크립트 상단 주석 참고).
+  const submitBtn = document.getElementById('tide-submit-btn');
+  const loadNote = document.getElementById('weather-load-note');
+  async function loadPageData() {
+    try {
+      const resp = await fetch('/api/weather_page_data');
+      const body = await resp.json();
+      if (!resp.ok || body.status !== 'success') throw new Error(body.error || '항구 목록을 불러오지 못했습니다.');
+
+      CITY_PORTS = body.data.city_port_mapping || {};
+      BADA_PORT_IDS = body.data.bada_port_ids || {};
+      Object.assign(KR_HOLIDAYS, body.data.kr_holidays || {});
+
+      citySel.innerHTML = '<option value="">지역 선택</option>';
+      Object.keys(CITY_PORTS).forEach(city => {
+        const opt = document.createElement('option');
+        opt.value = city;
+        opt.textContent = city;
+        citySel.appendChild(opt);
+      });
+      citySel.disabled = false;
+      submitBtn.disabled = false;
+      loadNote.classList.remove('is-loading');
+      loadNote.textContent = '※ 바다타임 정보를 그대로 가져와 보여줍니다. 항구를 선택하면 자동으로 조회 ID를 매핑합니다.';
+    } catch (err) {
+      loadNote.classList.remove('is-loading');
+      loadNote.textContent = '⚠️ ' + (err.message || '항구 목록을 불러오지 못했습니다. 새로고침 해주세요.');
+    }
+  }
+  loadPageData();
 
   // 현재 조회 중인 항구 컨텍스트 - "월별 물때"의 "상세" 버튼이 날짜만
   // 바꿔서 "오늘 상세" 탭을 다시 부를 때 재사용한다(폼을 다시 안 거친다).

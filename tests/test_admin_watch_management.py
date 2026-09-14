@@ -24,6 +24,17 @@ def _login(client, monkeypatch):
     })
 
 
+def _dashboard_data(client, **params):
+    """/admin 자체는 이제 뼈대만 즉시 내려주고(사용자 지적: "로그인 후 화면
+    이동이 안 되고 계속 기다리다 넘어간다" - IP 위치 조회가 외부 API를 동기
+    호출해 느렸다), 기기/감시/접속 이력 데이터는 /admin/dashboard_data 를
+    따로 불러와야 나온다. 이 헬퍼가 그 JSON의 data 부분을 돌려준다."""
+    rv = client.get('/admin/dashboard_data', query_string=params)
+    body = rv.get_json()
+    assert rv.status_code == 200, body
+    return body['data']
+
+
 def _seed_watch(app, ip='1.2.3.4', device_type='mobile', user_agent='UA',
                 boat_name='테스트선단', ship_name='테스트호', target_date='2026-12-25'):
     with app.app_context():
@@ -169,13 +180,12 @@ def test_admin_page_renders_device_watch_summary(client, app, monkeypatch):
     _login(client, monkeypatch)
     _seed_watch(app, ip='5.5.5.5', device_type='pc', ship_name='요약테스트배')
 
-    rv = client.get('/admin')
-    html = rv.get_data(as_text=True)
-    assert '알림 등록' in html
-    # devices|tojson 은 한글을 \uXXXX 로 이스케이프하므로 이스케이프된
-    # 형태로 확인한다(원문 그대로는 안 보임 - Jinja tojson 의 정상 동작).
-    import json
-    assert json.dumps('요약테스트배').strip('"') in html
+    shell_html = client.get('/admin').get_data(as_text=True)
+    assert '알림 등록' in shell_html  # 뼈대는 즉시 뜬다(데이터 없이도 탭 이름은 보임)
+
+    data = _dashboard_data(client)
+    ship_names = [w['ship_name'] for d in data['devices'] for w in d['watches']]
+    assert '요약테스트배' in ship_names
 
 
 # ---- ip/device_type 이 없는 과거 구독자 - 접속 이력으로 추정 보완 ----
@@ -218,39 +228,39 @@ def test_legacy_subscriber_without_ip_is_backfilled_from_recent_visit_log(client
     _login(client, monkeypatch)
     _seed_legacy_subscriber_and_visit(app, visit_minutes_before=10)
 
-    html = client.get('/admin').get_data(as_text=True)
-    assert '"ip": "203.0.113.5"' in html
-    assert '"device_type": "mobile"' in html
-    assert '"ip_estimated": true' in html
-    import json
-    assert json.dumps('수원 (경기도)').strip('"') in html  # place 도 같이 채워졌는지
+    devices = _dashboard_data(client)['devices']
+    assert len(devices) == 1
+    assert devices[0]['ip'] == '203.0.113.5'
+    assert devices[0]['device_type'] == 'mobile'
+    assert devices[0]['ip_estimated'] is True
+    assert devices[0]['place'] == '수원 (경기도)'
 
 
 def test_legacy_subscriber_backfill_ignores_visit_older_than_one_hour(client, app, monkeypatch):
     _login(client, monkeypatch)
     _seed_legacy_subscriber_and_visit(app, visit_minutes_before=90)  # 1시간 초과
 
-    html = client.get('/admin').get_data(as_text=True)
-    assert '"ip_estimated": true' not in html
-    assert '"ip": null' in html
+    devices = _dashboard_data(client)['devices']
+    assert devices[0]['ip_estimated'] is False
+    assert devices[0]['ip'] is None
 
 
 def test_legacy_subscriber_backfill_ignores_hosting_bot_visits(client, app, monkeypatch):
     _login(client, monkeypatch)
     _seed_legacy_subscriber_and_visit(app, visit_minutes_before=5, is_hosting=True)
 
-    html = client.get('/admin').get_data(as_text=True)
-    assert '"ip_estimated": true' not in html
-    assert '"ip": null' in html
+    devices = _dashboard_data(client)['devices']
+    assert devices[0]['ip_estimated'] is False
+    assert devices[0]['ip'] is None
 
 
 def test_subscriber_with_its_own_ip_is_never_overwritten_by_backfill(client, app, monkeypatch):
     _login(client, monkeypatch)
     _seed_watch(app, ip='9.9.9.9', device_type='pc', ship_name='자기IP있음')
 
-    html = client.get('/admin').get_data(as_text=True)
-    assert '"ip": "9.9.9.9"' in html
-    assert '"ip_estimated": true' not in html
+    devices = _dashboard_data(client)['devices']
+    assert devices[0]['ip'] == '9.9.9.9'
+    assert devices[0]['ip_estimated'] is False
 
 
 # ---- 기기 별명(Subscriber.label) ----
@@ -342,6 +352,5 @@ def test_admin_page_shows_saved_label_in_devices_json(client, app, monkeypatch):
         from services.watch_service import admin_set_device_label
         admin_set_device_label(sub_id, '백감독')
 
-    html = client.get('/admin').get_data(as_text=True)
-    import json
-    assert json.dumps('백감독').strip('"') in html
+    devices = _dashboard_data(client)['devices']
+    assert devices[0]['label'] == '백감독'

@@ -628,15 +628,30 @@ def api_status_cached():
 
 @views.route('/weather')
 def weather():
-    """날씨 정보 조회 페이지"""
+    """날씨 정보 조회 페이지 - DB/계산 없이 뼈대만 즉시 내려준다.
+
+    예전엔 여기서 항구 목록(Port 표 조회) + 공휴일 계산을 다 하고 나서야
+    응답했는데, 이 화면으로 들어오는 링크(GNB "날씨")를 눌렀을 때 그 계산이
+    끝날 때까지 브라우저가 이전 화면에 멈춰 있다가 갑자기 넘어가는 것처럼
+    보인다는 지적을 받았다. 그 데이터는 이제 /api/weather_page_data 를
+    페이지가 뜬 뒤 프런트가 따로 불러온다(로딩 스피너와 함께) - 이동 자체는
+    즉시 일어난다."""
+    return render_template('weather.html')
+
+
+@views.route('/api/weather_page_data')
+def api_weather_page_data():
+    """weather.html이 페이지가 뜬 직후 비동기로 불러오는 항구 목록/바다타임
+    ID/공휴일 데이터. /weather 라우트를 즉시 응답시키려고 분리했다(위 주석
+    참고)."""
     from services.holidays import kr_holidays_around
-    return render_template('weather.html',
-                         city_port_mapping=PortDataService.get_city_port_mapping(),
-                         port_coordinates=PortDataService.get_port_coordinates(),
-                         bada_port_ids=BADA_PORT_IDS,
-                         # 날짜 팝오버 달력에 공휴일을 빨간색으로 표시하기 위한 데이터 -
-                         # status.html(예약현황)의 같은 컴포넌트와 데이터 소스를 통일한다.
-                         kr_holidays=kr_holidays_around())
+    return success_response({
+        'city_port_mapping': PortDataService.get_city_port_mapping(),
+        'bada_port_ids': BADA_PORT_IDS,
+        # 날짜 팝오버 달력에 공휴일을 빨간색으로 표시하기 위한 데이터 -
+        # status.html(예약현황)의 같은 컴포넌트와 데이터 소스를 통일한다.
+        'kr_holidays': kr_holidays_around(),
+    })
 
 
 @views.route('/api/weather', methods=['GET'])
@@ -1467,7 +1482,14 @@ def offline_page():
 @views.route('/admin', methods=['GET', 'POST'])
 def admin_page():
     """URL을 아는 사람만(로그인 후) 볼 수 있는 접속 이력 표. GNB 어디에도
-    링크를 두지 않는다(사용자 요구: "URL 입력을 통해서만 접근 가능")."""
+    링크를 두지 않는다(사용자 요구: "URL 입력을 통해서만 접근 가능").
+
+    로그인 후 뼈대(탭 구조)만 즉시 내려준다 - 실제 데이터(접속 이력/알림
+    등록/항구 정보)는 무겁다(아래 admin_dashboard_data_route 참고: IP
+    위치 조회가 외부 API(ip-api.com)를 동기 호출한다). 예전엔 그 계산이
+    끝나야 응답이 나가서, 로그인 버튼을 누른 뒤 화면이 한참 멈춰 있다가
+    갑자기 넘어가는 것처럼 보인다는 지적을 받았다. 이제 프런트가 이 뼈대를
+    받은 즉시 스피너를 보여주고 /admin/dashboard_data 를 따로 불러온다."""
     form = AdminLoginForm()
     if form.validate_on_submit():
         if _admin_login_ok(form.username.data, form.password.data):
@@ -1479,9 +1501,26 @@ def admin_page():
     if not session.get('admin_authed'):
         return render_template('admin.html', authed=False, form=form)
 
-    from models import IpLocation, VisitLog
+    from services.snapshot_repository import VISIT_LOG_RETENTION_DAYS
+    return render_template('admin.html', authed=True, form=form,
+                           retention_days=VISIT_LOG_RETENTION_DAYS)
+
+
+@views.route('/admin/dashboard_data')
+def admin_dashboard_data_route():
+    """admin.html이 로그인 직후(또는 새로고침 시) 비동기로 불러오는 실제
+    데이터 - 접속 이력/알림 등록/항구 정보 세 탭 전부 한 번에 묶어서
+    돌려준다(탭마다 따로 부르면 그만큼 왕복이 늘어난다). 세션 인증만
+    확인한다 - 읽기 전용 GET 이라 _admin_action_guard() 의 CSRF 검사는
+    필요 없다(다른 /api/* 가 로그인 없이 공개된 것과 같은 이유)."""
+    if not session.get('admin_authed'):
+        return jsonify({'error': '로그인이 필요합니다.'}), 403
+
+    from models import IpLocation, VisitLog, Port, Boat
     from services.ip_location import format_location, resolve_missing
     from services.snapshot_repository import VISIT_LOG_RETENTION_DAYS
+    from sqlalchemy import func
+    from db import db
 
     cutoff = datetime.utcnow() - timedelta(days=VISIT_LOG_RETENTION_DAYS)
     logs = (VisitLog.query.filter(VisitLog.visited_at >= cutoff)
@@ -1586,24 +1625,27 @@ def admin_page():
 
     total_visits = sum(len(g['rows']) for g in groups)
 
-    from models import Port, Boat
-    ports = []
-    for p in Port.query.order_by(Port.region, Port.name).all():
-        ship_count = Boat.query.filter_by(port=p.name).count()
-        ports.append({
-            'id': p.id, 'region': p.region, 'name': p.name,
-            'lat': p.lat, 'lon': p.lon, 'ship_count': ship_count,
-        })
+    # 항구별 등록 선박 수 - 항구마다 따로 COUNT 쿼리를 날리면(N+1) 항구가
+    # 30개만 넘어도 왕복이 그만큼 쌓인다. GROUP BY 하나로 한 번에 가져온다.
+    ship_counts = dict(db.session.query(Boat.port, func.count(Boat.id)).group_by(Boat.port).all())
+    ports = [
+        {'id': p.id, 'region': p.region, 'name': p.name, 'lat': p.lat, 'lon': p.lon,
+         'ship_count': ship_counts.get(p.name, 0)}
+        for p in Port.query.order_by(Port.region, Port.name).all()
+    ]
 
-    return render_template('admin.html', authed=True, groups=groups, form=form,
-                           retention_days=VISIT_LOG_RETENTION_DAYS,
-                           show_bots=show_bots, hidden_bot_count=hidden_bot_count,
-                           total_visits=total_visits,
-                           devices=devices, device_count=len(devices),
-                           total_watches=total_watches, open_watches=open_watches,
-                           watch_date_count=len(watch_dates),
-                           device_type_counts=device_type_counts,
-                           ports=ports)
+    return success_response({
+        'groups': groups,
+        'retention_days': VISIT_LOG_RETENTION_DAYS,
+        'show_bots': show_bots,
+        'hidden_bot_count': hidden_bot_count,
+        'total_visits': total_visits,
+        'devices': devices, 'device_count': len(devices),
+        'total_watches': total_watches, 'open_watches': open_watches,
+        'watch_date_count': len(watch_dates),
+        'device_type_counts': device_type_counts,
+        'ports': ports,
+    })
 
 
 @views.route('/admin/logout', methods=['POST'])

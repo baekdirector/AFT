@@ -14,7 +14,7 @@
       </a>
       <div class="header-spacer"></div>
       <div class="aux-links">
-        <a href="{{ url_for('views.weather') }}">날씨</a>
+        <a href="{{ url_for('views.weather') }}">🌊 날씨</a>
       </div>
       <nav class="header-nav">
         <a href="{{ url_for('views.index') }}" class="header-nav-btn">배 목록</a>
@@ -157,9 +157,16 @@
 .brand-title { font-size: 15px; font-weight: 750; letter-spacing: -0.4px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .brand-sub { font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .header-spacer { flex: 1 1 0; min-width: 0; }
-.aux-links { font-size: 12px; font-weight: 600; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; flex: none; }
-.aux-links a { color: var(--ink-soft); }
-.aux-links a:hover { color: var(--accent); }
+/* 날씨 GNB 버튼 - header-nav(배 목록/예약현황/알림) 필 버튼과 같은 룩앤필로
+   맞췄다(예전엔 밋밋한 텍스트 링크). 모바일에서 header-nav 전체가 숨어도
+   날씨로 가는 하단 탭이 없어 이 링크만 유일한 경로라 위치는 그대로 둔다. */
+.aux-links { display: flex; align-items: center; gap: 6px; flex: none; }
+.aux-links a {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px;
+  border-radius: 10px; font-size: 13px; font-weight: 700; white-space: nowrap;
+  background: oklch(0.95 0.03 245); color: oklch(0.4 0.13 245); transition: all 0.15s;
+}
+.aux-links a:hover { background: oklch(0.91 0.05 245); color: oklch(0.34 0.14 245); }
 .header-nav { display: flex; gap: 4px; padding: 4px; background: oklch(0.94 0.008 250); border-radius: 13px; flex: none; }
 .header-nav-btn {
   height: 34px; padding: 0 15px; border-radius: 10px; border: none; font-size: 13px; font-weight: 700;

@@ -56,9 +56,13 @@
      "다른 화면 -> 관리자로 들어오는" 링크는 여전히 어디에도 안 둔다(/admin 은
      URL을 아는 사람만 접근) - 여기 추가하는 건 "관리자 -> 다른 화면으로
      나가는" 링크뿐이다. */
-  .aux-links { font-size: 12px; font-weight: 600; color: oklch(0.55 0.015 255); display: flex; align-items: center; gap: 6px; flex: none; margin-left: 6px; }
-  .aux-links a { color: oklch(0.46 0.12 248); }
-  .aux-links a:hover { color: oklch(0.38 0.13 248); }
+  .aux-links { display: flex; align-items: center; gap: 6px; flex: none; margin-left: 6px; }
+  .aux-links a {
+    display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px;
+    border-radius: 10px; font-size: 13px; font-weight: 700; white-space: nowrap;
+    background: oklch(0.95 0.03 248); color: oklch(0.4 0.13 248); transition: all 0.15s;
+  }
+  .aux-links a:hover { background: oklch(0.91 0.05 248); color: oklch(0.34 0.14 248); }
   .header-nav { display: flex; gap: 4px; padding: 4px; background: oklch(0.94 0.008 250); border-radius: 13px; flex: none; margin-left: 6px; }
   .header-nav-btn {
     height: 34px; padding: 0 15px; border-radius: 10px; border: none; font-size: 13px; font-weight: 700;
@@ -265,6 +269,22 @@
     background: #fff; border: 1px dashed oklch(0.88 0.01 240); border-radius: 18px;
   }
 
+  /* 각 탭 데이터 로딩 중 표시 - /admin 은 이제 뼈대만 즉시 내려주고 실제
+     내용은 /admin/dashboard_data 를 따로 불러온다(사용자 지적: "로그인 후
+     화면 이동이 안 되고 계속 기다리다 넘어간다" - IP 위치 조회가 외부
+     API를 동기 호출해 느렸다). 그 사이 각 탭 자리에 이 스피너가 대신 보인다. */
+  .admin-loading-note {
+    display: flex; align-items: center; justify-content: center; gap: 9px; padding: 56px 20px;
+    color: oklch(0.56 0.015 250); font-size: 13.5px; background: #fff;
+    border: 1px dashed oklch(0.88 0.01 240); border-radius: 18px;
+  }
+  .admin-spinner {
+    width: 15px; height: 15px; flex: none; border-radius: 99px;
+    border: 2px solid oklch(0.85 0.01 250); border-top-color: oklch(0.46 0.12 248);
+    animation: adminSpin 0.7s linear infinite;
+  }
+  @keyframes adminSpin { to { transform: rotate(360deg); } }
+
   /* ================= 알림 등록 탭 ================= */
   .watch-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
   .watch-stat-hero {
@@ -434,7 +454,7 @@
       </div>
       <div style="flex:1 1 0; min-width:0;"></div>
       <div class="aux-links">
-        <a href="{{ url_for('views.weather') }}">날씨</a>
+        <a href="{{ url_for('views.weather') }}">🌊 날씨</a>
       </div>
       <nav class="header-nav">
         <a href="{{ url_for('views.index') }}" class="header-nav-btn">배 목록</a>
@@ -453,13 +473,13 @@
   <div class="admin-body">
     <nav class="admin-tabs">
       <button type="button" class="admin-tab active" data-tab="ports">
-        <span>⚓</span><span>항구 정보</span><span class="admin-tab-count">{{ ports|length }}</span>
+        <span>⚓</span><span>항구 정보</span><span class="admin-tab-count" id="ports-tab-count">…</span>
       </button>
       <button type="button" class="admin-tab" data-tab="access">
-        <span>📋</span><span>접속 이력</span><span class="admin-tab-count">{{ total_visits }}</span>
+        <span>📋</span><span>접속 이력</span><span class="admin-tab-count" id="access-tab-count">…</span>
       </button>
       <button type="button" class="admin-tab" data-tab="watch">
-        <span>🔔</span><span>알림 등록</span><span class="admin-tab-count" id="stat-tab-count">{{ total_watches }}</span>
+        <span>🔔</span><span>알림 등록</span><span class="admin-tab-count" id="stat-tab-count">…</span>
       </button>
     </nav>
 
@@ -500,26 +520,13 @@
               <span></span><span>지역</span><span>항구명</span><span>위도 (lat)</span><span>경도 (lon)</span><span style="text-align:right;">등록 선박</span><span style="text-align:right;">관리</span>
             </div>
             <div id="port-rows">
-              {% for p in ports %}
-                <div class="port-row{{ ' in-use' if p.ship_count > 0 else '' }}" data-port-id="{{ p.id }}" data-region="{{ p.region }}" data-name="{{ p.name }}" data-ships="{{ p.ship_count }}">
-                  <button type="button" class="chk port-chk"{{ ' disabled' if p.ship_count > 0 else '' }}>✓</button>
-                  <span class="port-row-region">{{ p.region }}</span>
-                  <input type="text" class="port-name-input" value="{{ p.name }}" placeholder="항구명" />
-                  <input type="text" class="port-num port-lat-input" value="{{ p.lat }}" placeholder="37.2100" />
-                  <input type="text" class="port-num port-lon-input" value="{{ p.lon }}" placeholder="126.4100" />
-                  <span class="port-ships-badge{{ ' in-use' if p.ship_count > 0 else '' }}">{{ (p.ship_count ~ '척') if p.ship_count > 0 else '없음' }}</span>
-                  <div class="port-row-actions">
-                    <button type="button" class="port-save-btn">저장</button>
-                    <button type="button" class="port-del-btn"{{ ' disabled' if p.ship_count > 0 else '' }} title="{{ '사용 중인 항구는 삭제할 수 없습니다' if p.ship_count > 0 else '삭제' }}">✕</button>
-                  </div>
-                </div>
-              {% endfor %}
+              <div class="admin-loading-note"><span class="admin-spinner"></span> 불러오는 중…</div>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="visit-empty" id="port-empty" {{ 'hidden' if ports else '' }}>등록된 항구가 없습니다</div>
+      <div class="visit-empty" id="port-empty" hidden>등록된 항구가 없습니다</div>
 
       <div class="port-info-hint">
         <span style="font-size:13px; line-height:1.4; flex:none;">ℹ️</span>
@@ -576,49 +583,11 @@
         </div>
       </div>
 
-      {% if hidden_bot_count %}
-        <div class="bot-filter-note">
-          ☁️ 클라우드/봇으로 추정되는 접속 {{ hidden_bot_count }}건을 숨겼습니다
-          <a href="{{ url_for('views.admin_page', bots='show') }}">모두 보기</a>
-        </div>
-      {% elif show_bots %}
-        <div class="bot-filter-note">
-          클라우드/봇 추정 접속도 함께 표시 중입니다(☁️ 표시)
-          <a href="{{ url_for('views.admin_page') }}">다시 숨기기</a>
-        </div>
-      {% endif %}
+      <div id="access-bot-note"></div>
 
-      {% if not groups %}
-        <div class="visit-empty">아직 기록된 접속이 없습니다.</div>
-      {% endif %}
-
-      {% for g in groups %}
-        <div class="visit-day">
-          <div class="visit-day-head">
-            <span class="d">{{ g.day }}</span><span class="c">{{ g.rows|length }}건</span><span class="line"></span>
-          </div>
-          <div class="visit-card">
-            <table class="visit-table">
-              <thead><tr><th>일시</th><th>기기</th><th>위치</th><th>페이지</th><th>IP</th></tr></thead>
-              <tbody>
-                {% for r in g.rows %}
-                  <tr data-device="{{ r.device_type }}">
-                    <td>{{ r.time }}</td>
-                    <td><span class="visit-device">{{ '📱' if r.device_type == 'mobile' else ('🖥' if r.device_type == 'pc' else '❓') }} {{ r.device }}</span></td>
-                    <td>{{ r.location }}{% if r.is_hosting %}<span class="bot-badge">☁️ 클라우드/봇</span>{% endif %}</td>
-                    <td>
-                      {% if r.path == '/watches' %}<span class="visit-page-badge watches">{{ r.path }}</span>
-                      {% elif r.path == '/status' %}<span class="visit-page-badge status">{{ r.path }}</span>
-                      {% else %}<span class="visit-page-badge">{{ r.path }}</span>{% endif %}
-                    </td>
-                    <td>{{ r.ip }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      {% endfor %}
+      <div id="access-groups">
+        <div class="admin-loading-note"><span class="admin-spinner"></span> 불러오는 중…</div>
+      </div>
     </section>
 
     <!-- ================= 알림 등록 ================= -->
@@ -638,19 +607,19 @@
       <div class="watch-stats">
         <div class="watch-stat-hero">
           <div class="lbl">등록 기기</div>
-          <div class="watch-stat-val"><span class="n" id="stat-device-count">{{ device_count }}</span><span class="u">대</span></div>
+          <div class="watch-stat-val"><span class="n" id="stat-device-count">…</span><span class="u">대</span></div>
         </div>
         <div class="watch-stat">
           <div class="lbl">등록 알림</div>
-          <div class="watch-stat-val"><span class="n" id="stat-total-watches">{{ total_watches }}</span><span class="u">건</span></div>
+          <div class="watch-stat-val"><span class="n" id="stat-total-watches">…</span><span class="u">건</span></div>
         </div>
         <div class="watch-stat">
           <div class="lbl">자리 있음</div>
-          <div class="watch-stat-val"><span class="n" id="stat-open-watches" style="color:oklch(0.48 0.12 158);">{{ open_watches }}</span><span class="u">건</span></div>
+          <div class="watch-stat-val"><span class="n" id="stat-open-watches" style="color:oklch(0.48 0.12 158);">…</span><span class="u">건</span></div>
         </div>
         <div class="watch-stat">
           <div class="lbl">감시 날짜</div>
-          <div class="watch-stat-val"><span class="n" id="stat-watch-dates">{{ watch_date_count }}</span><span class="u">일</span></div>
+          <div class="watch-stat-val"><span class="n" id="stat-watch-dates">…</span><span class="u">일</span></div>
         </div>
       </div>
 
@@ -664,7 +633,9 @@
         <button type="button" class="watch-release-btn" id="watch-release-checked">선택 해제</button>
       </div>
 
-      <div id="admin-devices"></div>
+      <div id="admin-devices">
+        <div class="admin-loading-note"><span class="admin-spinner"></span> 불러오는 중…</div>
+      </div>
       <div class="admin-empty" id="admin-devices-empty" hidden>조건에 맞는 기기가 없습니다</div>
     </section>
   </div>
@@ -674,7 +645,11 @@
 {% if authed %}
 <script>
 (function () {
-  const DEVICES_RAW = {{ devices|tojson }};
+  // 항구 정보/접속 이력/알림 등록 세 탭 데이터는 전부 /admin/dashboard_data 가
+  // 비동기로 내려준다(로그인 직후 이 뼈대는 즉시 뜨고, 실제 데이터는 아래
+  // loadDashboardData()가 페이지가 뜬 뒤 따로 불러온다 - 그 전까진 각 탭이
+  // 로딩 스피너를 보여준다). DEVICES_RAW는 그 응답이 올 때까지의 빈 초기값.
+  const DEVICES_RAW = [];
   const csrfToken = document.getElementById('csrf_token').value;
 
   // ---- 탭 전환 ----
@@ -689,11 +664,11 @@
   });
 
   // ---- 항구 정보 탭 ----
-  // 서버가 이미 행을 다 렌더링해 뒀다(port-rows) - 지역칩/검색은 순수 JS로
-  // 숨기고 보여주기만 한다(접속 이력 탭의 PC/모바일 필터와 같은 패턴).
-  // 저장/추가/삭제만 fetch 로 서버를 부르고, 성공하면 전체 새로고침 없이
-  // DOM을 직접 갱신한다.
-  (function () {
+  // renderPortsTab(ports)를 호출하면 #port-rows를 통째로 다시 그린다(로딩
+  // 스피너를 실제 데이터로 교체) - 지역칩/검색은 순수 JS로 숨기고 보여주기만
+  // 한다(접속 이력 탭의 PC/모바일 필터와 같은 패턴). 저장/추가/삭제만 fetch로
+  // 서버를 부르고, 성공하면 전체 새로고침 없이 DOM을 직접 갱신한다.
+  const renderPortsTab = (function () {
     const rowsWrap = document.getElementById('port-rows');
     const chipsWrap = document.getElementById('port-region-chips');
     const queryInput = document.getElementById('port-query');
@@ -734,6 +709,35 @@
     }
 
     function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+    function escapeAttr(s) { return escapeHtml(s).replace(/"/g, '&quot;'); }
+
+    // 행 하나의 마크업 - 초기 로딩(renderRows)과 "새 항구 추가"(addPortRow)
+    // 양쪽이 공유한다(디자인은 한 곳에만 있어야 한다).
+    function portRowHtml(p) {
+      const inUse = p.ship_count > 0;
+      return (
+        '<div class="port-row' + (inUse ? ' in-use' : '') + '" data-port-id="' + p.id + '" data-region="' + escapeAttr(p.region) + '" data-name="' + escapeAttr(p.name) + '" data-ships="' + p.ship_count + '">' +
+          '<button type="button" class="chk port-chk"' + (inUse ? ' disabled' : '') + '>✓</button>' +
+          '<span class="port-row-region">' + escapeHtml(p.region) + '</span>' +
+          '<input type="text" class="port-name-input" value="' + escapeAttr(p.name) + '" placeholder="항구명" />' +
+          '<input type="text" class="port-num port-lat-input" value="' + p.lat + '" placeholder="37.2100" />' +
+          '<input type="text" class="port-num port-lon-input" value="' + p.lon + '" placeholder="126.4100" />' +
+          '<span class="port-ships-badge' + (inUse ? ' in-use' : '') + '">' + (inUse ? p.ship_count + '척' : '없음') + '</span>' +
+          '<div class="port-row-actions">' +
+            '<button type="button" class="port-save-btn">저장</button>' +
+            '<button type="button" class="port-del-btn"' + (inUse ? ' disabled' : '') + ' title="' + (inUse ? '사용 중인 항구는 삭제할 수 없습니다' : '삭제') + '">✕</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }
+
+    function renderRows(ports) {
+      rowsWrap.innerHTML = ports.map(portRowHtml).join('');
+      buildChips();
+      applyFilter();
+      updateToolbar();
+      if (tabCountEl) tabCountEl.textContent = ports.length;
+    }
 
     function applyFilter() {
       const q = query.trim().toLowerCase();
@@ -895,24 +899,7 @@
     modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 
     function addPortRow(p) {
-      const row = document.createElement('div');
-      row.className = 'port-row';
-      row.setAttribute('data-port-id', p.id);
-      row.setAttribute('data-region', p.region);
-      row.setAttribute('data-name', p.name);
-      row.setAttribute('data-ships', '0');
-      row.innerHTML =
-        '<button type="button" class="chk port-chk">✓</button>' +
-        '<span class="port-row-region">' + escapeHtml(p.region) + '</span>' +
-        '<input type="text" class="port-name-input" value="' + escapeHtml(p.name) + '" placeholder="항구명" />' +
-        '<input type="text" class="port-num port-lat-input" value="' + p.lat + '" placeholder="37.2100" />' +
-        '<input type="text" class="port-num port-lon-input" value="' + p.lon + '" placeholder="126.4100" />' +
-        '<span class="port-ships-badge">없음</span>' +
-        '<div class="port-row-actions">' +
-          '<button type="button" class="port-save-btn">저장</button>' +
-          '<button type="button" class="port-del-btn" title="삭제">✕</button>' +
-        '</div>';
-      rowsWrap.appendChild(row);
+      rowsWrap.insertAdjacentHTML('beforeend', portRowHtml(Object.assign({}, p, { ship_count: 0 })));
     }
 
     submitBtn.addEventListener('click', async () => {
@@ -944,12 +931,10 @@
       }
     });
 
-    buildChips();
-    applyFilter();
-    updateToolbar();
+    return renderRows;
   })();
 
-  // ---- 접속 이력 탭: PC/모바일 필터(서버가 이미 렌더링한 행을 숨기기만) ----
+  // ---- 접속 이력 탭: PC/모바일 필터(데이터가 채워진 뒤 렌더링한 행을 숨기기만) ----
   document.querySelectorAll('#access-device-filter button').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#access-device-filter button').forEach(b => b.classList.toggle('active', b === btn));
@@ -1339,7 +1324,90 @@
     releaseIds(ids, '선택한 알림 ' + ids.length + '건을 해제할까요?');
   });
 
+  // ---- 접속 이력 탭 렌더 (dashboard_data 응답으로 그린다) ----
+  function renderAccessTab(data) {
+    const noteEl = document.getElementById('access-bot-note');
+    if (data.hidden_bot_count) {
+      noteEl.innerHTML =
+        '<div class="bot-filter-note">☁️ 클라우드/봇으로 추정되는 접속 ' + data.hidden_bot_count + '건을 숨겼습니다' +
+          '<a href="#" id="access-show-bots">모두 보기</a></div>';
+      document.getElementById('access-show-bots').addEventListener('click', e => { e.preventDefault(); loadDashboardData({ bots: 'show' }); });
+    } else if (data.show_bots) {
+      noteEl.innerHTML =
+        '<div class="bot-filter-note">클라우드/봇 추정 접속도 함께 표시 중입니다(☁️ 표시)' +
+          '<a href="#" id="access-hide-bots">다시 숨기기</a></div>';
+      document.getElementById('access-hide-bots').addEventListener('click', e => { e.preventDefault(); loadDashboardData({}); });
+    } else {
+      noteEl.innerHTML = '';
+    }
+
+    const groupsEl = document.getElementById('access-groups');
+    if (!data.groups.length) {
+      groupsEl.innerHTML = '<div class="visit-empty">아직 기록된 접속이 없습니다.</div>';
+    } else {
+      groupsEl.innerHTML = data.groups.map(g => {
+        const rowsHtml = g.rows.map(r => {
+          const icon = r.device_type === 'mobile' ? '📱' : (r.device_type === 'pc' ? '🖥' : '❓');
+          const pageClass = r.path === '/watches' ? ' watches' : (r.path === '/status' ? ' status' : '');
+          return (
+            '<tr data-device="' + esc(r.device_type) + '">' +
+              '<td>' + esc(r.time) + '</td>' +
+              '<td><span class="visit-device">' + icon + ' ' + esc(r.device) + '</span></td>' +
+              '<td>' + esc(r.location) + (r.is_hosting ? '<span class="bot-badge">☁️ 클라우드/봇</span>' : '') + '</td>' +
+              '<td><span class="visit-page-badge' + pageClass + '">' + esc(r.path) + '</span></td>' +
+              '<td>' + esc(r.ip) + '</td>' +
+            '</tr>'
+          );
+        }).join('');
+        return (
+          '<div class="visit-day">' +
+            '<div class="visit-day-head"><span class="d">' + esc(g.day) + '</span><span class="c">' + g.rows.length + '건</span><span class="line"></span></div>' +
+            '<div class="visit-card"><table class="visit-table">' +
+              '<thead><tr><th>일시</th><th>기기</th><th>위치</th><th>페이지</th><th>IP</th></tr></thead>' +
+              '<tbody>' + rowsHtml + '</tbody>' +
+            '</table></div>' +
+          '</div>'
+        );
+      }).join('');
+    }
+
+    // PC/모바일 필터가 이미 선택돼 있었으면(봇 표시 토글로 재조회한 경우
+    // 등) 새로 그린 행에도 그대로 다시 적용한다.
+    const activeBtn = document.querySelector('#access-device-filter button.active');
+    const dev = activeBtn ? activeBtn.getAttribute('data-device') : 'all';
+    document.querySelectorAll('#tab-access tr[data-device]').forEach(tr => {
+      tr.style.display = (dev === 'all' || tr.getAttribute('data-device') === dev) ? '' : 'none';
+    });
+    document.querySelectorAll('#tab-access .visit-day').forEach(day => {
+      const anyVisible = Array.from(day.querySelectorAll('tr[data-device]')).some(tr => tr.style.display !== 'none');
+      day.style.display = anyVisible ? '' : 'none';
+    });
+
+    document.getElementById('access-tab-count').textContent = data.total_visits;
+  }
+
+  // ---- 데이터 로딩 오케스트레이터 ----
+  // 로그인/새로고침 직후 이 뼈대는 이미 떠 있고(스피너만 보이는 상태), 여기서
+  // 세 탭 데이터를 한 번에 불러와 각자의 렌더 함수로 채운다.
+  async function loadDashboardData(extraParams) {
+    const params = new URLSearchParams(extraParams || {});
+    try {
+      const resp = await fetch('/admin/dashboard_data' + (params.toString() ? '?' + params.toString() : ''));
+      const body = await resp.json();
+      if (!resp.ok || body.status !== 'success') throw new Error(body.error || '데이터를 불러오지 못했습니다.');
+      const data = body.data;
+
+      renderPortsTab(data.ports);
+      renderAccessTab(data);
+      state.devices = data.devices;
+      render();
+    } catch (err) {
+      showToast(err.message || '데이터를 불러오지 못했습니다.', { type: 'error' });
+    }
+  }
+
   render();
+  loadDashboardData();
 })();
 </script>
 {% endif %}
