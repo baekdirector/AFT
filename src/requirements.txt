@@ -4,6 +4,7 @@ Flask-WTF
 python-dotenv
 requests
 beautifulsoup4
+lxml
 pytest
 openpyxl
 Pillow

@@ -65,7 +65,7 @@ class FixtureResponse:
 def parse_fixture(name, monkeypatch):
     """fixture 를 기존 파서에 먹이고 정규화된 결과를 돌려준다."""
     html, meta = load(name)
-    monkeypatch.setattr(reservation_checker.requests, 'get',
+    monkeypatch.setattr(reservation_checker, '_get',
                         lambda *a, **kw: FixtureResponse(html))
     reservation_checker.clear_cache()   # 캐시가 fixture 간에 새지 않게
 

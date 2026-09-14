@@ -28,6 +28,32 @@ _CACHE_TTL_SECONDS = 300
 _CACHE = {}
 _CACHE_LOCK = Lock()
 
+# 배마다 매번 requests.get()을 새로 부르면 응답 헤더에 Connection: keep-alive
+# 를 실어 보내도 실제로는 매번 새 TCP+TLS 연결을 맺는다(연결 재사용은
+# Session 이 붙잡고 있는 커넥션 풀에서만 일어난다) - 사용자 제보("예약현황
+# 조회가 너무 느리다", 96척 라이브 조회 ≈114초)를 계기로 확인해서 고쳤다.
+# 배들이 몇 안 되는 플랫폼(sunsang24 등)에 몰려 있어 같은 호스트로 가는
+# 요청이 많으므로, 워커 스레드 전체가 공유하는 Session 하나로 바꿔 그 재사용
+# 이익을 실제로 누리게 한다. requests.Session은 문서상 스레드 안전을
+# 보장하진 않지만(세션 상태를 요청 도중 바꾸는 경우), 이 프로젝트처럼
+# 헤더/쿠키를 세션에 두지 않고 매 호출마다 인자로만 넘기는 읽기 전용
+# 사용 패턴에서 여러 스레드가 동시에 .get()을 부르는 것은 requests/urllib3
+# 커뮤니티에서도 흔히 쓰는 안전한 패턴이다(연결 풀 자체는 스레드 안전).
+# 풀 크기는 STATUS_MAX_WORKERS(기본 4, 최대로 올려본 값 24)보다 넉넉하게
+# 잡아 동시 요청이 몰려도 "pool is full" 경고 없이 전부 재사용 후보가 되게 한다.
+_SESSION = requests.Session()
+_ADAPTER = requests.adapters.HTTPAdapter(pool_connections=32, pool_maxsize=32)
+_SESSION.mount('https://', _ADAPTER)
+_SESSION.mount('http://', _ADAPTER)
+
+
+def _get(url, headers, timeout):
+    """실제 HTTP GET 한 곳(모듈 공유 Session을 통해서만 나간다). 테스트가
+    fixture로 갈아끼울 지점을 이 얇은 함수 하나로 고정해뒀다 - Session을
+    쓰는지, 어떤 어댑터를 붙였는지 같은 내부 구현이 바뀌어도 monkeypatch
+    대상(reservation_checker._get)은 안 바뀐다."""
+    return _SESSION.get(url, headers=headers, timeout=timeout)
+
 
 def clear_cache() -> None:
     with _CACHE_LOCK:
@@ -399,7 +425,7 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
 
     # 1차 시도: 정상 헤더 (짧은 타임아웃으로 빠르게 실패 처리)
     try:
-        resp = requests.get(final_url, headers=_headers_for(final_url), timeout=REQUEST_TIMEOUT_SECONDS)
+        resp = _get(final_url, headers=_headers_for(final_url), timeout=REQUEST_TIMEOUT_SECONDS)
     except requests.RequestException as e:
         result = {"used_url": display_url, "display_date": display_date, "entries": [], "error": f"http_error:{e}"}
         return _store_cached_result(cache_key, result)
@@ -407,14 +433,14 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
     # 403이면 UA/Referer 바꿔 재시도 + http 스킴 폴백
     if resp.status_code == 403:
         try:
-            resp = requests.get(final_url, headers=_headers_for(final_url, alt=True), timeout=REQUEST_TIMEOUT_SECONDS)
+            resp = _get(final_url, headers=_headers_for(final_url, alt=True), timeout=REQUEST_TIMEOUT_SECONDS)
         except requests.RequestException:
             resp = None
 
         if (resp is None) or (resp.status_code == 403 and final_url.startswith("https://")):
             try:
                 http_url = "http://" + final_url[len("https://"):]
-                resp = requests.get(http_url, headers=_headers_for(http_url, alt=True), timeout=REQUEST_TIMEOUT_SECONDS)
+                resp = _get(http_url, headers=_headers_for(http_url, alt=True), timeout=REQUEST_TIMEOUT_SECONDS)
                 final_url = http_url  # 실제 사용 URL 갱신
                 display_url = boat_url if '/simple_day' in final_url else final_url
             except requests.RequestException:
@@ -430,7 +456,13 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
         }
         return _store_cached_result(cache_key, result)
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+    # lxml은 순수 파이썬인 html.parser보다 훨씬 빠르다(C 확장) - 96척 라이브
+    # 조회가 114초 걸린다는 사용자 제보를 계기로 프로파일링해보니 파싱 자체도
+    # 무시 못 할 CPU 비중이었다(예전에 워커를 24로 올렸더니 오히려 느려진
+    # 것도 파싱이 GIL을 오래 잡아 스레드끼리 경합했기 때문일 가능성이 있다).
+    # 추출 로직(select/find 호출부)은 전혀 안 바꿨다 - 파서 백엔드만 교체했고,
+    # 기존 fixture 골든 테스트로 동일 결과를 그대로 검증한다.
+    soup = BeautifulSoup(resp.text, "lxml")
 
     # 판단 기준: target의 호스트가 sunsang24.com 이거나 path에 schedule_fleet가 있으면 기존 패턴 사용
     parsed_target = urlparse(final_url)

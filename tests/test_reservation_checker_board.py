@@ -32,7 +32,7 @@ def test_board_pattern_parses_teammansu_row(monkeypatch):
     def fake_get(*args, **kwargs):
         return DummyResponse(html)
 
-    monkeypatch.setattr(reservation_checker.requests, "get", fake_get)
+    monkeypatch.setattr(reservation_checker, "_get", fake_get)
 
     result = reservation_checker.check_single_boat(
         "https://teammansu.kr/index.php?mid=bk",
@@ -98,7 +98,7 @@ def test_board_pattern_reads_embedded_notice_fish(monkeypatch):
     def fake_get(*args, **kwargs):
         return DummyResponse(html)
 
-    monkeypatch.setattr(reservation_checker.requests, "get", fake_get)
+    monkeypatch.setattr(reservation_checker, "_get", fake_get)
 
     result = reservation_checker.check_single_boat(
         "https://teammansu.kr/index.php?mid=bk",

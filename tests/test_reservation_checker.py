@@ -40,7 +40,7 @@ def test_schedule_fleet_hanchi_falls_back_from_day_block(monkeypatch):
     def fake_get(*args, **kwargs):
         return DummyResponse(html)
 
-    monkeypatch.setattr(reservation_checker.requests, "get", fake_get)
+    monkeypatch.setattr(reservation_checker, "_get", fake_get)
 
     result = reservation_checker.check_single_boat(
         "https://hl.sunsang24.com/ship/schedule_fleet/202607",
@@ -72,7 +72,7 @@ def test_schedule_fleet_accepts_capacity_suffix_for_known_fleet_names(monkeypatc
     def fake_get(*args, **kwargs):
         return DummyResponse(html)
 
-    monkeypatch.setattr(reservation_checker.requests, "get", fake_get)
+    monkeypatch.setattr(reservation_checker, "_get", fake_get)
 
     result = reservation_checker.check_single_boat(
         "https://redhunter.sunsang24.com/ship/schedule_fleet",
@@ -104,7 +104,7 @@ def test_schedule_fleet_detects_bad_weather_status(monkeypatch):
     def fake_get(*args, **kwargs):
         return DummyResponse(html)
 
-    monkeypatch.setattr(reservation_checker.requests, "get", fake_get)
+    monkeypatch.setattr(reservation_checker, "_get", fake_get)
 
     result = reservation_checker.check_single_boat(
         "https://chf.sunsang24.com/ship/schedule_fleet/202607",
@@ -161,7 +161,7 @@ def test_schedule_fleet_simple_day_fragment_only_keeps_the_registered_ship(monke
       {_ship_unit_html("또다른낚시배호", "예약마감", "END")}
     </table>
     """
-    monkeypatch.setattr(reservation_checker.requests, "get",
+    monkeypatch.setattr(reservation_checker, "_get",
                         lambda *a, **kw: DummyResponse(html))
     reservation_checker.clear_cache()
 
@@ -180,7 +180,7 @@ def test_schedule_fleet_simple_source_url_points_to_calendar_page_not_ajax_fragm
       {_ship_unit_html("24마린낚시", "출조공지", "NOTICE")}
     </table>
     """
-    monkeypatch.setattr(reservation_checker.requests, "get",
+    monkeypatch.setattr(reservation_checker, "_get",
                         lambda *a, **kw: DummyResponse(html))
     reservation_checker.clear_cache()
 
@@ -200,7 +200,7 @@ def test_schedule_fleet_simple_without_known_ship_name_yields_no_entries(monkeyp
       {_ship_unit_html("24마린낚시", "출조공지", "NOTICE")}
     </table>
     """
-    monkeypatch.setattr(reservation_checker.requests, "get",
+    monkeypatch.setattr(reservation_checker, "_get",
                         lambda *a, **kw: DummyResponse(html))
     reservation_checker.clear_cache()
 
@@ -219,7 +219,7 @@ def test_check_single_boat_uses_cache_for_repeated_queries(monkeypatch):
         calls.append((args, kwargs))
         return DummyResponse(html)
 
-    monkeypatch.setattr(reservation_checker.requests, "get", fake_get)
+    monkeypatch.setattr(reservation_checker, "_get", fake_get)
     reservation_checker.clear_cache()
 
     first = reservation_checker.check_single_boat("https://example.com/boat", 2026, 7, 11)

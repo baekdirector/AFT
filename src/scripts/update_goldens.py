@@ -41,8 +41,8 @@ def parse(name: str) -> dict:
     html = io.open(FIXTURE_ROOT / f'{name}.html', encoding='utf-8').read()
     meta = json.loads(io.open(FIXTURE_ROOT / f'{name}.meta.json', encoding='utf-8').read())
 
-    original_get = reservation_checker.requests.get
-    reservation_checker.requests.get = lambda *a, **kw: FixtureResponse(html)
+    original_get = reservation_checker._get
+    reservation_checker._get = lambda *a, **kw: FixtureResponse(html)
     reservation_checker.clear_cache()
     try:
         year, month, day = (int(p) for p in meta['target_date'].split('-'))
@@ -50,7 +50,7 @@ def parse(name: str) -> dict:
             meta['source_url'], year, month, day,
             known_ship_name=meta.get('known_ship_name'))
     finally:
-        reservation_checker.requests.get = original_get
+        reservation_checker._get = original_get
 
     return {
         'entries': [
