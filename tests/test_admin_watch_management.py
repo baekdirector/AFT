@@ -27,9 +27,11 @@ def _login(client, monkeypatch):
 def _dashboard_data(client, **params):
     """/admin 자체는 이제 뼈대만 즉시 내려주고(사용자 지적: "로그인 후 화면
     이동이 안 되고 계속 기다리다 넘어간다" - IP 위치 조회가 외부 API를 동기
-    호출해 느렸다), 기기/감시/접속 이력 데이터는 /admin/dashboard_data 를
-    따로 불러와야 나온다. 이 헬퍼가 그 JSON의 data 부분을 돌려준다."""
-    rv = client.get('/admin/dashboard_data', query_string=params)
+    호출해 느렸다), 기기/감시 데이터는 "알림 등록" 탭을 열 때만 부르는
+    /admin/data/watch 가 따로 담당한다(사용자 재지적: "접속 이력 탭을
+    눌렀을 때 불러오게 해달라" - 탭별로 완전히 분리했다). 이 헬퍼가 그
+    JSON의 data 부분을 돌려준다."""
+    rv = client.get('/admin/data/watch', query_string=params)
     body = rv.get_json()
     assert rv.status_code == 200, body
     return body['data']

@@ -270,9 +270,11 @@
   }
 
   /* 각 탭 데이터 로딩 중 표시 - /admin 은 이제 뼈대만 즉시 내려주고 실제
-     내용은 /admin/dashboard_data 를 따로 불러온다(사용자 지적: "로그인 후
-     화면 이동이 안 되고 계속 기다리다 넘어간다" - IP 위치 조회가 외부
-     API를 동기 호출해 느렸다). 그 사이 각 탭 자리에 이 스피너가 대신 보인다. */
+     내용은 탭마다 따로 /admin/data/{ports,access,watch} 를 불러온다(그
+     탭을 열 때만 - 로그인 직후 화면이 계속 멈춰 있다가 넘어간다는 지적과,
+     이어서 기본 탭이 다른 무거운 탭 때문에 덩달아 느렸다는 재지적을 받아
+     탭별로 나눴다 - IP 위치 조회가 외부 API를 동기 호출해 느렸다). 그 사이
+     각 탭 자리에 이 스피너가 대신 보인다. */
   .admin-loading-note {
     display: flex; align-items: center; justify-content: center; gap: 9px; padding: 56px 20px;
     color: oklch(0.56 0.015 250); font-size: 13.5px; background: #fff;
@@ -645,12 +647,16 @@
 {% if authed %}
 <script>
 (function () {
-  // 항구 정보/접속 이력/알림 등록 세 탭 데이터는 전부 /admin/dashboard_data 가
-  // 비동기로 내려준다(로그인 직후 이 뼈대는 즉시 뜨고, 실제 데이터는 아래
-  // loadDashboardData()가 페이지가 뜬 뒤 따로 불러온다 - 그 전까진 각 탭이
-  // 로딩 스피너를 보여준다). DEVICES_RAW는 그 응답이 올 때까지의 빈 초기값.
+  // 항구 정보/접속 이력/알림 등록 세 탭은 각자 데이터가 따로 논다(/admin/data/
+  // ports, /admin/data/access, /admin/data/watch) - 탭을 처음 열 때만 그
+  // 탭의 데이터를 불러온다. 접속 이력·알림 등록 쪽은 IP 위치를 외부 API로
+  // 동기 조회해서 느린데(사용자 지적: "admin 첫 화면(항구 정보)이 접속
+  // 이력 때문에 느린 것 같다, 접속 이력 탭을 눌렀을 때만 불러오게 해달라"),
+  // 기본 활성 탭인 항구 정보는 그거랑 완전히 무관한 순수 DB 조회라 로그인
+  // 직후 이것만 먼저 불러오고 나머지 두 탭은 클릭 시점에 불러온다.
   const DEVICES_RAW = [];
   const csrfToken = document.getElementById('csrf_token').value;
+  const loadedTabs = new Set(); // 이미 한 번 불러온 탭은 탭 전환만으로 다시 안 부른다
 
   // ---- 탭 전환 ----
   document.querySelectorAll('.admin-tab').forEach(btn => {
@@ -660,6 +666,7 @@
       document.getElementById('tab-ports').hidden = tab !== 'ports';
       document.getElementById('tab-access').hidden = tab !== 'access';
       document.getElementById('tab-watch').hidden = tab !== 'watch';
+      loadTabData(tab);
     });
   });
 
@@ -1324,19 +1331,19 @@
     releaseIds(ids, '선택한 알림 ' + ids.length + '건을 해제할까요?');
   });
 
-  // ---- 접속 이력 탭 렌더 (dashboard_data 응답으로 그린다) ----
+  // ---- 접속 이력 탭 렌더 (/admin/data/access 응답으로 그린다) ----
   function renderAccessTab(data) {
     const noteEl = document.getElementById('access-bot-note');
     if (data.hidden_bot_count) {
       noteEl.innerHTML =
         '<div class="bot-filter-note">☁️ 클라우드/봇으로 추정되는 접속 ' + data.hidden_bot_count + '건을 숨겼습니다' +
           '<a href="#" id="access-show-bots">모두 보기</a></div>';
-      document.getElementById('access-show-bots').addEventListener('click', e => { e.preventDefault(); loadDashboardData({ bots: 'show' }); });
+      document.getElementById('access-show-bots').addEventListener('click', e => { e.preventDefault(); loadAccessTab({ bots: 'show' }); });
     } else if (data.show_bots) {
       noteEl.innerHTML =
         '<div class="bot-filter-note">클라우드/봇 추정 접속도 함께 표시 중입니다(☁️ 표시)' +
           '<a href="#" id="access-hide-bots">다시 숨기기</a></div>';
-      document.getElementById('access-hide-bots').addEventListener('click', e => { e.preventDefault(); loadDashboardData({}); });
+      document.getElementById('access-hide-bots').addEventListener('click', e => { e.preventDefault(); loadAccessTab({}); });
     } else {
       noteEl.innerHTML = '';
     }
@@ -1386,28 +1393,56 @@
     document.getElementById('access-tab-count').textContent = data.total_visits;
   }
 
-  // ---- 데이터 로딩 오케스트레이터 ----
-  // 로그인/새로고침 직후 이 뼈대는 이미 떠 있고(스피너만 보이는 상태), 여기서
-  // 세 탭 데이터를 한 번에 불러와 각자의 렌더 함수로 채운다.
-  async function loadDashboardData(extraParams) {
-    const params = new URLSearchParams(extraParams || {});
+  // ---- 탭별 데이터 로딩 ----
+  // 세 탭이 각자 다른 엔드포인트를 쓴다(위 설명 참고) - loadTabData()가 탭을
+  // 처음 열 때만 해당 로더를 부르고, loadedTabs 로 같은 탭을 다시 클릭해도
+  // 재조회하지 않는다(봇 표시 토글처럼 일부러 새로 부르는 경우는 아래
+  // loadAccessTab 을 loadTabData 를 거치지 않고 직접 부른다).
+  async function loadPortsTab() {
     try {
-      const resp = await fetch('/admin/dashboard_data' + (params.toString() ? '?' + params.toString() : ''));
+      const resp = await fetch('/admin/data/ports');
       const body = await resp.json();
-      if (!resp.ok || body.status !== 'success') throw new Error(body.error || '데이터를 불러오지 못했습니다.');
-      const data = body.data;
-
-      renderPortsTab(data.ports);
-      renderAccessTab(data);
-      state.devices = data.devices;
-      render();
+      if (!resp.ok || body.status !== 'success') throw new Error(body.error || '항구 정보를 불러오지 못했습니다.');
+      renderPortsTab(body.data.ports);
     } catch (err) {
-      showToast(err.message || '데이터를 불러오지 못했습니다.', { type: 'error' });
+      showToast(err.message || '항구 정보를 불러오지 못했습니다.', { type: 'error' });
     }
   }
 
+  async function loadAccessTab(extraParams) {
+    const params = new URLSearchParams(extraParams || {});
+    try {
+      const resp = await fetch('/admin/data/access' + (params.toString() ? '?' + params.toString() : ''));
+      const body = await resp.json();
+      if (!resp.ok || body.status !== 'success') throw new Error(body.error || '접속 이력을 불러오지 못했습니다.');
+      renderAccessTab(body.data);
+    } catch (err) {
+      showToast(err.message || '접속 이력을 불러오지 못했습니다.', { type: 'error' });
+    }
+  }
+
+  async function loadWatchTab() {
+    try {
+      const resp = await fetch('/admin/data/watch');
+      const body = await resp.json();
+      if (!resp.ok || body.status !== 'success') throw new Error(body.error || '알림 등록 정보를 불러오지 못했습니다.');
+      state.devices = body.data.devices;
+      render();
+    } catch (err) {
+      showToast(err.message || '알림 등록 정보를 불러오지 못했습니다.', { type: 'error' });
+    }
+  }
+
+  function loadTabData(tab) {
+    if (loadedTabs.has(tab)) return;
+    loadedTabs.add(tab);
+    if (tab === 'ports') loadPortsTab();
+    else if (tab === 'access') loadAccessTab();
+    else if (tab === 'watch') loadWatchTab();
+  }
+
   render();
-  loadDashboardData();
+  loadTabData('ports'); // 기본 활성 탭 - 로그인 직후 이것만 바로 불러온다
 })();
 </script>
 {% endif %}

@@ -1485,11 +1485,15 @@ def admin_page():
     링크를 두지 않는다(사용자 요구: "URL 입력을 통해서만 접근 가능").
 
     로그인 후 뼈대(탭 구조)만 즉시 내려준다 - 실제 데이터(접속 이력/알림
-    등록/항구 정보)는 무겁다(아래 admin_dashboard_data_route 참고: IP
-    위치 조회가 외부 API(ip-api.com)를 동기 호출한다). 예전엔 그 계산이
-    끝나야 응답이 나가서, 로그인 버튼을 누른 뒤 화면이 한참 멈춰 있다가
-    갑자기 넘어가는 것처럼 보인다는 지적을 받았다. 이제 프런트가 이 뼈대를
-    받은 즉시 스피너를 보여주고 /admin/dashboard_data 를 따로 불러온다."""
+    등록/항구 정보)는 무겁다(아래 admin_data_access_route/admin_data_watch_route
+    참고: IP 위치 조회가 외부 API(ip-api.com)를 동기 호출한다). 예전엔 그
+    계산이 끝나야 응답이 나가서, 로그인 버튼을 누른 뒤 화면이 한참 멈춰
+    있다가 갑자기 넘어가는 것처럼 보인다는 지적을 받았다. 이제 프런트가 이
+    뼈대를 받은 즉시 탭별로 스피너를 보여주고 /admin/data/{ports,access,watch}
+    를 탭을 열 때마다(기본 활성 탭인 ports 는 로그인 직후 바로) 따로
+    불러온다 - 접속 이력/알림 등록처럼 느린 탭은 실제로 그 탭을 열기 전까진
+    아예 요청하지 않는다(사용자 재지적: "항구 정보 화면이 접속 이력 때문에
+    느린 것 같다, 탭을 눌렀을 때 불러오게 해달라")."""
     form = AdminLoginForm()
     if form.validate_on_submit():
         if _admin_login_ok(form.username.data, form.password.data):
@@ -1506,21 +1510,21 @@ def admin_page():
                            retention_days=VISIT_LOG_RETENTION_DAYS)
 
 
-@views.route('/admin/dashboard_data')
-def admin_dashboard_data_route():
-    """admin.html이 로그인 직후(또는 새로고침 시) 비동기로 불러오는 실제
-    데이터 - 접속 이력/알림 등록/항구 정보 세 탭 전부 한 번에 묶어서
-    돌려준다(탭마다 따로 부르면 그만큼 왕복이 늘어난다). 세션 인증만
-    확인한다 - 읽기 전용 GET 이라 _admin_action_guard() 의 CSRF 검사는
-    필요 없다(다른 /api/* 가 로그인 없이 공개된 것과 같은 이유)."""
+def _admin_data_guard():
     if not session.get('admin_authed'):
         return jsonify({'error': '로그인이 필요합니다.'}), 403
+    return None
 
-    from models import IpLocation, VisitLog, Port, Boat
-    from services.ip_location import format_location, resolve_missing
+
+def _admin_recent_visit_logs():
+    """최근(보관 기간 내) 방문 기록 + IP 위치 캐시. "접속 이력" 탭과 "알림
+    등록" 탭(기기 IP 추정 백필)이 둘 다 이 원시 데이터가 필요해서 공용으로
+    뺐다 - resolve_missing()은 이미 캐시에 있는 IP는 외부 API를 다시 안
+    부르므로(services.ip_location 참고), 두 탭을 연달아 열어도 실제 외부
+    호출은 처음 여는 탭에서 한 번만 일어난다."""
+    from models import IpLocation, VisitLog
+    from services.ip_location import resolve_missing
     from services.snapshot_repository import VISIT_LOG_RETENTION_DAYS
-    from sqlalchemy import func
-    from db import db
 
     cutoff = datetime.utcnow() - timedelta(days=VISIT_LOG_RETENTION_DAYS)
     logs = (VisitLog.query.filter(VisitLog.visited_at >= cutoff)
@@ -1533,6 +1537,48 @@ def admin_dashboard_data_route():
 
     ips = {row.ip for row in logs if row.ip}
     locations = {row.ip: row for row in IpLocation.query.filter(IpLocation.ip.in_(ips)).all()} if ips else {}
+    return logs, locations
+
+
+@views.route('/admin/data/ports')
+def admin_data_ports_route():
+    """관리자 콘솔 "항구 정보" 탭(기본 활성 탭) 전용 데이터. 접속 이력/기기
+    IP 조회(외부 API 동기 호출이라 느리다)와 완전히 무관한 순수 DB 조회라
+    로그인 직후 이것만 먼저 불러온다 - 사용자 지적: "admin 첫 화면(항구
+    정보)이 접속 이력 때문에 느린 것 같다, 접속 이력 탭을 눌렀을 때만
+    불러오게 해달라"에 따라 세 탭을 각각 별도 엔드포인트로 쪼갰다."""
+    guard = _admin_data_guard()
+    if guard:
+        return guard
+
+    from models import Port, Boat
+    from sqlalchemy import func
+    from db import db
+
+    # 항구별 등록 선박 수 - 항구마다 따로 COUNT 쿼리를 날리면(N+1) 항구가
+    # 30개만 넘어도 왕복이 그만큼 쌓인다. GROUP BY 하나로 한 번에 가져온다.
+    ship_counts = dict(db.session.query(Boat.port, func.count(Boat.id)).group_by(Boat.port).all())
+    ports = [
+        {'id': p.id, 'region': p.region, 'name': p.name, 'lat': p.lat, 'lon': p.lon,
+         'ship_count': ship_counts.get(p.name, 0)}
+        for p in Port.query.order_by(Port.region, Port.name).all()
+    ]
+    return success_response({'ports': ports})
+
+
+@views.route('/admin/data/access')
+def admin_data_access_route():
+    """관리자 콘솔 "접속 이력" 탭 전용 데이터 - 그 탭을 처음 열 때만 부른다
+    (위 admin_data_ports_route 설명 참고). 방문 IP 위치를 외부 API로 동기
+    조회하는 진짜 느린 부분이 여기 있다."""
+    guard = _admin_data_guard()
+    if guard:
+        return guard
+
+    from services.ip_location import format_location
+    from services.snapshot_repository import VISIT_LOG_RETENTION_DAYS
+
+    logs, locations = _admin_recent_visit_logs()
 
     # ip-api 의 hosting 필드(AWS/GCP/Azure 등 클라우드·호스팅 대역 여부) 기준으로
     # 봇/모니터링으로 추정되는 접속을 기본으로 숨긴다(사용자 요구 - "The Dalles
@@ -1571,8 +1617,34 @@ def admin_dashboard_data_route():
             'is_hosting': is_hosting,
         })
 
+    total_visits = sum(len(g['rows']) for g in groups)
+
+    return success_response({
+        'groups': groups,
+        'retention_days': VISIT_LOG_RETENTION_DAYS,
+        'show_bots': show_bots,
+        'hidden_bot_count': hidden_bot_count,
+        'total_visits': total_visits,
+    })
+
+
+@views.route('/admin/data/watch')
+def admin_data_watch_route():
+    """관리자 콘솔 "알림 등록" 탭 전용 데이터 - 그 탭을 처음 열 때만 부른다
+    (위 admin_data_ports_route 설명 참고). 기기(구독자) IP 위치 조회 +
+    IP/기기 추정 백필용 최근 방문 기록 조회, 둘 다 외부 API를 동기로 탈
+    수 있어 느리다."""
+    guard = _admin_data_guard()
+    if guard:
+        return guard
+
+    from models import IpLocation
+    from services.ip_location import format_location, resolve_missing
     from services.watch_service import admin_list_devices
 
+    logs, locations = _admin_recent_visit_logs()
+
+    DEVICE_LABELS = {'pc': 'PC', 'mobile': '모바일', 'tablet': '태블릿', 'unknown': '알 수 없음'}
     devices = admin_list_devices()
 
     # ip/device_type 컬럼이 생기기 전에 만들어진 구독자는 계속 NULL로 남는다
@@ -1623,28 +1695,11 @@ def admin_dashboard_data_route():
     for d in devices:
         device_type_counts[d['device_type'] or 'unknown'] = device_type_counts.get(d['device_type'] or 'unknown', 0) + 1
 
-    total_visits = sum(len(g['rows']) for g in groups)
-
-    # 항구별 등록 선박 수 - 항구마다 따로 COUNT 쿼리를 날리면(N+1) 항구가
-    # 30개만 넘어도 왕복이 그만큼 쌓인다. GROUP BY 하나로 한 번에 가져온다.
-    ship_counts = dict(db.session.query(Boat.port, func.count(Boat.id)).group_by(Boat.port).all())
-    ports = [
-        {'id': p.id, 'region': p.region, 'name': p.name, 'lat': p.lat, 'lon': p.lon,
-         'ship_count': ship_counts.get(p.name, 0)}
-        for p in Port.query.order_by(Port.region, Port.name).all()
-    ]
-
     return success_response({
-        'groups': groups,
-        'retention_days': VISIT_LOG_RETENTION_DAYS,
-        'show_bots': show_bots,
-        'hidden_bot_count': hidden_bot_count,
-        'total_visits': total_visits,
         'devices': devices, 'device_count': len(devices),
         'total_watches': total_watches, 'open_watches': open_watches,
         'watch_date_count': len(watch_dates),
         'device_type_counts': device_type_counts,
-        'ports': ports,
     })
 
 

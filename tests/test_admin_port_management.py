@@ -200,20 +200,23 @@ def test_delete_ports_route_reports_skipped_in_use_ports(client, app, monkeypatc
     assert body['skipped'][0]['name'] == '야미도항'
 
 
-def test_dashboard_data_route_requires_admin_login(client):
-    """관리자 콘솔의 실제 데이터(/admin/dashboard_data)는 /admin 뼈대와
-    분리돼 있다(로그인 후 화면 이동이 느리다는 지적을 받아 무거운 계산을
-    여기로 옮겼다) - 이 라우트도 세션 인증 없인 막혀야 한다."""
-    rv = client.get('/admin/dashboard_data')
-    assert rv.status_code == 403
+def test_dashboard_data_routes_require_admin_login(client):
+    """관리자 콘솔의 실제 데이터는 /admin 뼈대와 분리돼 탭마다 별도
+    엔드포인트를 쓴다(로그인 후 화면 이동이 느리다는 지적을 받아 무거운
+    계산을 여기로 옮겼고, 이어서 "항구 정보 탭이 접속 이력 때문에 느리다"는
+    재지적을 받아 탭별로 다시 쪼갰다) - 셋 다 세션 인증 없인 막혀야 한다."""
+    assert client.get('/admin/data/ports').status_code == 403
+    assert client.get('/admin/data/access').status_code == 403
+    assert client.get('/admin/data/watch').status_code == 403
 
 
 def test_admin_page_shell_renders_without_touching_port_or_boat_data(client, monkeypatch):
     """/admin(로그인 후)은 이제 탭 뼈대만 내려주고 항구/배 데이터를 전혀
-    조회하지 않는다 - 실제 데이터는 /admin/dashboard_data 가 따로 담당한다.
-    뼈대 자체가 빠르다는 것을 "항구 정보 관련 숫자가 아직 없다"로 간접
-    확인한다(항구가 31개 시딩돼 있어도 뼈대엔 그 개수가 안 박혀 있어야
-    한다 - 있었다면 여전히 서버가 그 시점에 Port 표를 읽었다는 뜻)."""
+    조회하지 않는다 - 실제 데이터는 /admin/data/ports(기본 활성 탭이라 그
+    탭만 로그인 직후 바로 호출됨)가 따로 담당한다. 뼈대 자체가 빠르다는
+    것을 "항구 정보 관련 숫자가 아직 없다"로 간접 확인한다(항구가 31개
+    시딩돼 있어도 뼈대엔 그 개수가 안 박혀 있어야 한다 - 있었다면 여전히
+    서버가 그 시점에 Port 표를 읽었다는 뜻)."""
     _login(client, monkeypatch)
     shell_html = client.get('/admin').get_data(as_text=True)
     assert '항구 정보' in shell_html
@@ -230,7 +233,7 @@ def test_admin_page_lists_ports_with_ship_counts(client, app, monkeypatch):
     shell_html = client.get('/admin').get_data(as_text=True)
     assert '항구 정보' in shell_html  # 뼈대는 즉시 뜬다(탭 이름은 데이터 없이도 보임)
 
-    rv = client.get('/admin/dashboard_data')
+    rv = client.get('/admin/data/ports')
     body = rv.get_json()
     assert rv.status_code == 200
     ports_by_name = {p['name']: p for p in body['data']['ports']}
