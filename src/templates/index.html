@@ -144,6 +144,7 @@
                   </div>
                   <h3 class="ship-name">{{ b.name }}</h3>
                   <p class="ship-note">{{ b.note if b.note else '등록된 비고 없음' }}</p>
+                  <button type="button" class="ship-note-toggle" hidden>더보기</button>
                   <div class="ship-card-actions">
                     <a href="{{ b.url }}" target="_blank" class="ship-link">예약 페이지 →</a>
                     <button type="button" class="ship-edit-btn">수정</button>
@@ -485,9 +486,18 @@
 .ship-registered-date { font-size: 10.5px; font-weight: 600; color: var(--ink-softer); white-space: nowrap; }
 .ship-name { margin: 0 0 6px; font-size: 17px; font-weight: 760; letter-spacing: -0.5px; line-height: 1.25; color: var(--ink); }
 .ship-note {
-  margin: 0 0 10px; font-size: 12.5px; line-height: 1.5; color: var(--ink-soft);
+  margin: 0 0 4px; font-size: 12.5px; line-height: 1.5; color: var(--ink-soft);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
+.ship-note.is-expanded { -webkit-line-clamp: unset; overflow: visible; }
+/* 비고가 2줄을 넘길 때만 보이는 펼치기 - 모바일은 hover가 없어 title
+   툴팁을 못 쓴다("모바일에서는 어떻게 봐야되니 볼 수가 없어" 피드백).
+   탭으로 펼치고 접을 수 있게 별도 버튼을 둔다. */
+.ship-note-toggle {
+  display: block; margin: 0 0 10px; padding: 0; border: none; background: none;
+  font-size: 11.5px; font-weight: 700; color: oklch(0.5 0.13 245); cursor: pointer;
+}
+.ship-note-toggle:hover { text-decoration: underline; }
 .ship-card-actions { display: flex; gap: 7px; }
 .ship-link {
   display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 9px;
@@ -856,6 +866,7 @@ function renderShips(ships) {
                         </div>
                         <h3 class="ship-name">${ship.name}</h3>
                         <p class="ship-note">${ship.note || '등록된 비고 없음'}</p>
+                        <button type="button" class="ship-note-toggle" hidden>더보기</button>
                         <div class="ship-card-actions">
                             <a href="${ship.url}" target="_blank" class="ship-link">예약 페이지 →</a>
                             <button type="button" class="ship-edit-btn">수정</button>
@@ -869,6 +880,7 @@ function renderShips(ships) {
     // 체크박스 / 카드별 수정버튼 이벤트 재설정
     initializeCheckboxEvents();
     initializeShipEditButtons();
+    initializeShipNoteToggles();
 }
 
 // 필터 옵션(지역 chip / 항구 select) 업데이트
@@ -1024,6 +1036,32 @@ function initializeShipEditButtons() {
 
             window.openEditModal(boatId, region, port, name, url, note, key);
         });
+    });
+}
+
+// 비고가 2줄을 넘겨 잘린 카드에만 "더보기" 버튼을 보여주고, 눌러서
+// 펼치고/접을 수 있게 한다. 모바일은 hover가 안 되니 title 툴팁으로는
+// 잘린 비고를 볼 방법이 없다는 실제 피드백("모바일에서는 어떻게 봐야되니
+// 볼 수가 없어")에 따른 것 - status.html의 결과 카드 비고는 hover 툴팁으로
+// 충분하지만(데스크톱 위주 화면), 여긴 배 목록이라 모바일 비중이 크다.
+function initializeShipNoteToggles() {
+    document.querySelectorAll('.ship-note').forEach(note => {
+        const toggle = note.nextElementSibling;
+        if (!toggle || !toggle.classList.contains('ship-note-toggle')) return;
+
+        note.classList.remove('is-expanded');
+        toggle.hidden = true;
+        toggle.textContent = '더보기';
+
+        // 2줄로 잘려서 실제로 넘치는 경우에만 버튼을 보여준다 - 짧은
+        // 비고까지 "더보기"가 붙으면 오히려 혼란스럽다.
+        if (note.scrollHeight > note.clientHeight + 1) {
+            toggle.hidden = false;
+            toggle.onclick = function() {
+                const expanded = note.classList.toggle('is-expanded');
+                toggle.textContent = expanded ? '접기' : '더보기';
+            };
+        }
     });
 }
 
