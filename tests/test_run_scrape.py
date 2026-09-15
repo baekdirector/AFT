@@ -410,6 +410,35 @@ def test_collection_failure_still_logs_an_attempted_check(scene, monkeypatch, se
         assert row.changed is False
 
 
+# --- 반복 알림(자리 열림 뒤 30분 간격 최대 2회) ------------------------------
+
+def test_seat_stays_open_gets_two_reminders_then_stops(scene, monkeypatch, sent):
+    """사용자 요청: 자리남 최초 알림 뒤에도 자리가 계속 있으면 다음 두 번의
+    수집 주기(30분 간격)에 반복 알림이 나가고, 그 다음부터는 조용해진다."""
+    app, boat_ids = scene
+    open_responses = {
+        'https://b0.example/x': {'entries': [entry('1호', 'open', 3)]},
+        'https://b1.example/x': {'entries': [entry('2호', 'full', 0)]},
+    }
+    patch_fetch(monkeypatch, {
+        'https://b0.example/x': {'entries': [entry('1호', 'full', 0)]},
+        'https://b1.example/x': {'entries': [entry('2호', 'full', 0)]},
+    })
+    run_scrape.run(delay=0)                       # 1회차: 최초 저장, 전환 없음
+
+    patch_fetch(monkeypatch, open_responses)
+    first = run_scrape.run(delay=0)                # 2회차: 자리남 - 최초 알림
+    second = run_scrape.run(delay=0)                # 3회차: 여전히 열림 - 반복 1
+    third = run_scrape.run(delay=0)                 # 4회차: 여전히 열림 - 반복 2
+    fourth = run_scrape.run(delay=0)                # 5회차: 여전히 열림 - 더 없음
+
+    assert first['sent'] == 1 and first['reminders_sent'] == 0
+    assert second['sent'] == 0 and second['reminders_sent'] == 1
+    assert third['sent'] == 0 and third['reminders_sent'] == 1
+    assert fourth['sent'] == 0 and fourth['reminders_sent'] == 0
+    assert len(sent) == 3, '최초 1 + 반복 2 = 총 3건이어야 한다'
+
+
 def test_purge_removes_only_logs_older_than_retention(app):
     """2일 지난 체크 기록만 정리하고, 최근 것은 남긴다."""
     from datetime import datetime, timedelta

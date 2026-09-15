@@ -104,6 +104,39 @@ def build_payload(transition, boat_name: str) -> dict:
     }
 
 
+def build_reminder_payload(observation, boat_name: str) -> dict:
+    """자리가 계속 열려 있을 때 보내는 반복 알림(사용자 요청 - 최초 알림 뒤
+    30분 간격으로 최대 2번 더). Transition 이 아니라 지금 관측(Observation)
+    하나를 그대로 문구로 바꾼다 - 반복 알림은 '무엇이 무엇으로 바뀌었나'가
+    아니라 '아직 있다'는 확인이라 전과 후 상태가 필요 없다.
+    """
+    ship = observation.ship_name
+    date_label = _format_date_kor(observation.target_date)
+    seats = observation.available
+    fleet = boat_name if boat_name and boat_name != ship else None
+
+    if seats and seats <= 2:
+        title = f'{ship} · 아직 마지막 {seats}석'
+    elif seats:
+        title = f'{ship} · 아직 {seats}석 있음'
+    else:
+        title = f'{ship} · 아직 자리 있음'
+    body = ' · '.join(filter(None, [date_label, fleet]))
+    body += '\n서두르지 않으면 마감될 수 있어요'
+    actions = [{'action': 'open', 'title': '예약 페이지 열기'}, _MUTE_ACTION]
+
+    return {
+        'title': title,
+        'body': body,
+        'url': observation.source_url or '/status',
+        'tag': f'{observation.boat_id}-{observation.target_date}-{observation.ship_name}',
+        'boatId': observation.boat_id,
+        'shipName': observation.ship_name,
+        'targetDate': observation.target_date,
+        'actions': actions,
+    }
+
+
 def send(subscription_info: dict, payload: dict, timeout: int = 10) -> tuple[str, str]:
     """푸시 하나를 보낸다. (결과, 상세) 를 돌려준다.
 

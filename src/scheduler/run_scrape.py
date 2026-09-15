@@ -60,7 +60,11 @@ class CollectionFailed(Exception):
 
 
 def collect_one(boat, target_date: str, dry_run: bool):
-    """배 한 척, 날짜 하나를 수집하고 전환 목록을 돌려준다.
+    """배 한 척, 날짜 하나를 수집하고 (전환 목록, 관측 목록)을 돌려준다.
+
+    관측 목록까지 같이 돌려주는 이유: run_pipeline() 이 "이번 회차에 새
+    전환은 없었지만 지금도 자리가 열려 있는" 감시 대상을 찾아 반복 알림
+    (dispatch_reminders)을 보내려면 전환뿐 아니라 현재 상태 전체가 필요하다.
 
     실패는 격리한다. 한 척이 터져도 나머지 수집은 계속돼야 한다.
     """
@@ -98,7 +102,7 @@ def collect_one(boat, target_date: str, dry_run: bool):
     observations = entries_to_observations(boat.id, target_date, entries)
     if dry_run:
         logger.info('  [dry-run] %s %s: 관측 %d건', boat.name, target_date, len(observations))
-        return []
+        return [], observations
 
     transitions = apply_observations(boat.id, target_date, observations)
     try:
@@ -107,7 +111,7 @@ def collect_one(boat, target_date: str, dry_run: bool):
         # 체크 기록 로그는 부가 정보다. 이게 실패했다고 이미 성공한 수집·
         # 스냅샷 저장까지 실패로 되돌리면 안 된다.
         logger.exception('  체크 기록 로그 저장 실패 %s %s', boat.name, target_date)
-    return transitions
+    return transitions, observations
 
 
 def run_pipeline(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
@@ -123,13 +127,13 @@ def run_pipeline(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
     """
     from models import Boat
     from services.notify import webpush
-    from services.notify.dispatcher import dispatch_all
+    from services.notify.dispatcher import dispatch_all, dispatch_reminders
     from services.snapshot_repository import purge_old_check_logs, purge_old_visit_logs
     from services.watch_service import active_watch_targets, purge_past_watches
 
     summary = {'targets': 0, 'collected': 0, 'failed': 0,
-               'transitions': 0, 'sent': 0, 'expired_watches': 0, 'purged_check_logs': 0,
-               'purged_visit_logs': 0}
+               'transitions': 0, 'sent': 0, 'reminders_sent': 0, 'expired_watches': 0,
+               'purged_check_logs': 0, 'purged_visit_logs': 0}
 
     today = datetime.date.today().isoformat()
     summary['expired_watches'] = purge_past_watches(today)
@@ -164,6 +168,7 @@ def run_pipeline(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
     logger.info('수집 대상 %d건 (감시 등록된 배·날짜만)', len(targets))
 
     all_transitions = []
+    all_observations = []
     boat_names = {}
 
     for index, (boat_id, target_date) in enumerate(targets, 1):
@@ -176,7 +181,7 @@ def run_pipeline(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
 
         logger.info('[%d/%d] %s %s', index, len(targets), boat.name, target_date)
         try:
-            transitions = collect_one(boat, target_date, dry_run)
+            transitions, observations = collect_one(boat, target_date, dry_run)
             summary['collected'] += 1
         except CollectionFailed:
             # 이미 위에서 이유를 로그에 남겼다. 스택트레이스는 소음이다.
@@ -192,17 +197,33 @@ def run_pipeline(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
                         transition.ship_name,
                         transition.previous_status, transition.current_status)
         all_transitions.extend(transitions)
+        all_observations.extend(observations)
 
         if index < len(targets) and delay > 0:
             time.sleep(delay)
 
-    if all_transitions and not dry_run:
+    if dry_run:
+        logger.info('[dry-run] 발송 생략')
+        return summary
+
+    if all_transitions:
         result = dispatch_all(all_transitions, boat_names)
         summary['transitions'] = result['transitions']
         summary['sent'] = result['sent']
         logger.info('발송 결과: %s', result)
     else:
         logger.info('알릴 변화 없음')
+
+    # 이번 회차에 새로 전환된 (배,날짜,선박)은 방금 위에서 최초 알림을
+    # 받았으니 반복 알림 대상에서 뺀다 - 안 그러면 같은 회차에 최초 알림과
+    # 반복 알림이 동시에 나간다.
+    transitioned_keys = {(t.boat_id, t.target_date, t.ship_name) for t in all_transitions}
+    still_open = [obs for obs in all_observations if obs.key not in transitioned_keys]
+    if still_open:
+        reminder_result = dispatch_reminders(still_open, boat_names)
+        summary['reminders_sent'] = reminder_result['sent']
+        if reminder_result['sent']:
+            logger.info('반복 알림 결과: %s', reminder_result)
 
     return summary
 

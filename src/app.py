@@ -82,6 +82,33 @@ def _ensure_subscriber_device_columns(app):
         app.logger.exception('subscribers 기기정보 컬럼 보정 실패')
 
 
+def _ensure_notification_reminder_columns(app):
+    """위 세 함수와 같은 이유(Alembic 없이 가볍게 유지) - notifications 테이블에
+    반복 알림("자리 열림 뒤에도 계속 열려 있으면 30분 간격으로 최대 2번 더
+    알린다", 사용자 요청)을 판단하는 데 쓰는 kind/reminder_index 컬럼을
+    보탠다. kind 는 nullable(과거 행은 NULL로 남아도 무방 - 반복 알림 판정
+    대상에서 그냥 빠질 뿐이다), reminder_index 는 기본값 0이라 기존 행도
+    바로 "최초 알림"으로 해석된다."""
+    from sqlalchemy import inspect, text
+    try:
+        inspector = inspect(db.engine)
+        if 'notifications' not in inspector.get_table_names():
+            return
+        existing_columns = {col['name'] for col in inspector.get_columns('notifications')}
+        missing = [c for c in ('kind', 'reminder_index') if c not in existing_columns]
+        if not missing:
+            return
+        with db.engine.begin() as conn:
+            if 'kind' in missing:
+                conn.execute(text('ALTER TABLE notifications ADD COLUMN kind VARCHAR(32)'))
+            if 'reminder_index' in missing:
+                conn.execute(text(
+                    'ALTER TABLE notifications ADD COLUMN reminder_index INTEGER DEFAULT 0 NOT NULL'))
+        app.logger.info('notifications 테이블에 %s 컬럼을 추가했다', missing)
+    except Exception:
+        app.logger.exception('notifications 반복알림 컬럼 보정 실패')
+
+
 def create_app(test_config=None):
     app = Flask(__name__, static_folder='../img', static_url_path='/img')
     os.makedirs(app.instance_path, exist_ok=True)
@@ -170,6 +197,7 @@ def create_app(test_config=None):
         _ensure_ip_location_hosting_column(app)
         _ensure_snapshot_shiptime_columns(app)
         _ensure_subscriber_device_columns(app)
+        _ensure_notification_reminder_columns(app)
         from db import initialize_shared_boats, initialize_ports
         initialize_shared_boats()
         initialize_ports()

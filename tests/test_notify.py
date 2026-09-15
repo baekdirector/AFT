@@ -6,7 +6,7 @@
 """
 import pytest
 
-from db import add_boat_instance
+from db import add_boat_instance, db
 from models import Notification, Subscriber, Watch
 from services.notify import dispatcher, webpush
 from services.snapshot import Observation, compare
@@ -207,3 +207,193 @@ def test_payload_falls_back_to_status_text_when_no_seat_count(app, target):
                         status='maintenance', display_status='점검일'))
         payload = webpush.build_payload(t, '레드헌터')
         assert '점검일' in payload['body']
+
+
+# --- 발송 실패 격리(dispatch_all) --------------------------------------------
+
+def test_dispatch_all_isolates_a_failing_transition(app, target, monkeypatch):
+    """전환 하나가 dispatch() 안에서 예외를 던져도 나머지 전환은 계속 나가야
+    한다. 실측: 이 격리가 없던 시절 배치 중간의 예외 하나가 그 뒤 전환
+    전부(백호호 포함)를 무음으로 삼켰다."""
+    boat_id, _ = target
+    with app.app_context():
+        other = add_boat_instance(name='딴배', url='https://x.example/y',
+                                  city='인천', port='남항(인천항)', note='', is_shared=False)
+        sub2 = upsert_subscriber('https://push.example/ccc', 'k3', 'a3', '친구2')
+        add_watch(sub2, other.id, '딴배호', DATE)
+
+        broken = seat_open_transition(boat_id)          # 이게 먼저 터진다
+        healthy = compare(
+            Observation(boat_id=other.id, target_date=DATE, ship_name='딴배호',
+                        status='full', available=0),
+            Observation(boat_id=other.id, target_date=DATE, ship_name='딴배호',
+                        status='open', available=2, display_status='남은자리 2명'))
+
+        calls = []
+
+        def fake_send(subscription_info, payload, timeout=10):
+            calls.append(subscription_info['endpoint'])
+            return webpush.SENT, ''
+
+        monkeypatch.setattr(webpush, 'send', fake_send)
+
+        import services.watch_service as watch_service_module
+        original_watches_for = watch_service_module.watches_for
+
+        def blow_up_for_broken(boat_id_arg, target_date_arg, ship_name_arg):
+            if boat_id_arg == boat_id:
+                raise RuntimeError('디비 순간 장애')
+            return original_watches_for(boat_id_arg, target_date_arg, ship_name_arg)
+
+        monkeypatch.setattr('services.notify.dispatcher.watches_for', blow_up_for_broken)
+
+        summary = dispatcher.dispatch_all([broken, healthy])
+
+        assert summary['transitions'] == 2
+        assert summary['sent'] == 1, '터진 전환 하나 빼고는 정상 발송돼야 한다'
+        assert calls == ['https://push.example/ccc']
+
+
+# --- 반복 알림(dispatch_reminders) -------------------------------------------
+
+def open_observation(boat_id, available=3):
+    return Observation(boat_id=boat_id, target_date=DATE, ship_name=SHIP,
+                       status='open', available=available,
+                       display_status=f'남은자리 {available}명',
+                       source_url='https://redhunter.example/x')
+
+
+def test_reminder_fires_after_the_initial_seat_open_notification(app, target, sent_ok):
+    """최초 자리남 알림 뒤, 그 자리가 여전히 열려 있으면 반복 알림이 나간다."""
+    boat_id, _ = target
+    with app.app_context():
+        dispatcher.dispatch(seat_open_transition(boat_id))   # 최초 알림
+        sent_ok.clear()
+
+        result = dispatcher.dispatch_reminders([open_observation(boat_id)])
+
+        assert result['sent'] == 1
+        assert len(sent_ok) == 1
+        _, payload = sent_ok[0]
+        assert '아직' in payload['title']
+
+        record = Notification.query.order_by(Notification.id.desc()).first()
+        assert record.kind == 'REMINDER' and record.reminder_index == 1
+
+
+def test_reminder_stops_after_two_repeats(app, target, sent_ok):
+    """"30분 간격 2번 더"라는 사용자 요청대로 반복은 정확히 2회에서 멈춘다."""
+    boat_id, _ = target
+    with app.app_context():
+        dispatcher.dispatch(seat_open_transition(boat_id))          # 최초
+        dispatcher.dispatch_reminders([open_observation(boat_id)])  # 반복 1
+        dispatcher.dispatch_reminders([open_observation(boat_id)])  # 반복 2
+        sent_ok.clear()
+
+        third = dispatcher.dispatch_reminders([open_observation(boat_id)])
+
+        assert third['sent'] == 0, '2회를 넘는 반복은 나가면 안 된다'
+        assert sent_ok == []
+        assert (Notification.query.filter_by(kind='REMINDER').count() == 2)
+
+
+def test_reminder_is_not_sent_without_a_prior_notification(app, target, sent_ok):
+    """이 배를 한 번도 알린 적이 없으면(최초 알림도 없었으면) 반복 알림도
+    없다 - 반복은 어디까지나 최초 알림의 연장이다."""
+    boat_id, _ = target
+    with app.app_context():
+        result = dispatcher.dispatch_reminders([open_observation(boat_id)])
+
+        assert result['sent'] == 0
+        assert sent_ok == []
+
+
+def test_reminder_is_not_sent_once_the_seat_closed(app, target, sent_ok):
+    """마지막으로 보낸 알림이 마감(SEAT_GONE)이면, 그 뒤 다시 열린 자리는
+    새 전환(SEAT_OPEN)으로만 알려야지 반복 알림 경로로는 안 나가야 한다."""
+    boat_id, _ = target
+    with app.app_context():
+        dispatcher.dispatch(seat_open_transition(boat_id))
+        closed = compare(
+            Observation(boat_id=boat_id, target_date=DATE, ship_name=SHIP,
+                        status='open', available=3),
+            Observation(boat_id=boat_id, target_date=DATE, ship_name=SHIP,
+                        status='full', available=0))
+        dispatcher.dispatch(closed)
+        sent_ok.clear()
+
+        result = dispatcher.dispatch_reminders([open_observation(boat_id)])
+
+        assert result['sent'] == 0
+        assert sent_ok == []
+
+
+def test_reminder_skips_ships_nobody_is_watching(app, sent_ok):
+    """감시자가 없는 배는 최초 알림이 있을 수 없으니 반복 알림도 없다."""
+    with app.app_context():
+        boat = add_boat_instance(name='안봄호', url='https://x.example/z',
+                                 city='인천', port='남항(인천항)', note='', is_shared=False)
+        result = dispatcher.dispatch_reminders([open_observation(boat.id)])
+        assert result['sent'] == 0
+        assert sent_ok == []
+
+
+def test_ensure_notification_reminder_columns_backfills_missing_columns(app, target, sent_ok):
+    """db.create_all()은 이미 배포된 notifications 테이블에 새 컬럼(kind,
+    reminder_index)을 얹어주지 않는다 - 앱 시작 시 idempotent ALTER TABLE로
+    보정한다(_ensure_snapshot_shiptime_columns 등과 같은 패턴)."""
+    from sqlalchemy import text
+
+    from src.app import _ensure_notification_reminder_columns
+
+    boat_id, _ = target
+    with app.app_context():
+        dispatcher.dispatch(seat_open_transition(boat_id))
+        db.session.execute(text('ALTER TABLE notifications DROP COLUMN kind'))
+        db.session.execute(text('ALTER TABLE notifications DROP COLUMN reminder_index'))
+        db.session.commit()
+
+        _ensure_notification_reminder_columns(app)
+
+        record = Notification.query.one()
+        assert record.kind is None, '컬럼 보정 후 기존 행은 지워지지 않고 NULL로 남아야 한다'
+        assert record.reminder_index == 0, '기본값 0이라 기존 행도 곧바로 최초 알림으로 해석된다'
+
+
+def test_ensure_notification_reminder_columns_is_noop_when_already_present(app, target, sent_ok):
+    """이미 컬럼이 있으면(정상 배포 상태) 기존 데이터를 건드리지 않는다."""
+    from src.app import _ensure_notification_reminder_columns
+
+    boat_id, _ = target
+    with app.app_context():
+        dispatcher.dispatch(seat_open_transition(boat_id))
+
+        _ensure_notification_reminder_columns(app)
+
+        record = Notification.query.one()
+        assert record.kind == 'SEAT_OPEN' and record.reminder_index == 0
+
+
+def test_one_reminder_failure_does_not_stop_the_others(app, target, monkeypatch, sent_ok):
+    """반복 알림도 한 사람 실패가 나머지를 막으면 안 된다(실패 격리)."""
+    boat_id, _ = target
+    with app.app_context():
+        friend = upsert_subscriber('https://push.example/bbb', 'k2', 'a2', '친구')
+        add_watch(friend, boat_id, SHIP, DATE)
+
+        dispatcher.dispatch(seat_open_transition(boat_id))   # sent_ok 로 성공 처리됨
+
+        seen = []
+
+        def half_broken(subscription_info, payload, timeout=10):
+            seen.append(subscription_info['endpoint'])
+            if subscription_info['endpoint'].endswith('aaa'):
+                raise RuntimeError('네트워크 순간 장애')
+            return webpush.SENT, ''
+
+        monkeypatch.setattr(webpush, 'send', half_broken)
+
+        result = dispatcher.dispatch_reminders([open_observation(boat_id)])
+
+        assert len(seen) == 2
+        assert result['sent'] == 1

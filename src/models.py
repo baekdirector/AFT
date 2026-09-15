@@ -222,6 +222,16 @@ class Notification(db.Model):
     dedup_key 는 Transition.dedup_key 를 문자열로 굳힌 것이다. 같은 전환에
     대해 이미 보낸 기록이 있으면 다시 보내지 않는다. 상태가 원복했다가 다시
     열리면 키가 달라지므로 재발송된다(PLAN.md 6).
+
+    kind/reminder_index 는 "자리 열림 뒤 반복 알림"(사용자 요청 - 최초 알림
+    이후에도 자리가 계속 있으면 30분 간격으로 최대 2번 더 알린다) 을 위해
+    추가됐다. kind 는 Transition.kind 를 그대로 옮긴 값('SEAT_OPEN' 등)이고
+    반복 알림 자체는 'REMINDER' 다. dispatcher.dispatch_reminders() 가 한
+    Watch 의 "가장 최근에 성공 발송한" Notification 을 보고 - 그게 SEAT_OPEN
+    이거나 reminder_index 가 상한 미만인 REMINDER 면 다음 반복을 보낸다.
+    기존 컬럼이 아니라 여기 새로 얹은 컬럼이라 운영 DB에는 app.py 의
+    _ensure_notification_reminder_columns() 가 idempotent ALTER TABLE 로
+    보정한다(Alembic 없는 이 프로젝트의 기존 관례).
     """
     __tablename__ = 'notifications'
     __table_args__ = (
@@ -237,6 +247,13 @@ class Notification(db.Model):
     sent_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     result = db.Column(db.String(32), nullable=False, default='pending')  # sent/failed/expired
     detail = db.Column(db.Text, nullable=True)
+
+    #: 'SEAT_OPEN'/'SEAT_GONE'/'STATUS_CHANGE'(Transition.kind 그대로) 또는
+    #: 'REMINDER'(자리 유지 중 반복 알림). 과거 행은 NULL - 반복 알림 판정
+    #: 대상에서 그냥 제외될 뿐 다른 로직에 영향 없다.
+    kind = db.Column(db.String(32), nullable=True)
+    #: 0 = 최초(전환) 알림. 1, 2 = 그 뒤 반복 알림 순번.
+    reminder_index = db.Column(db.Integer, nullable=False, default=0)
 
     watch = db.relationship('Watch',
                             backref=db.backref('notifications', lazy='dynamic',
