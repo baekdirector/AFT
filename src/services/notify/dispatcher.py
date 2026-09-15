@@ -97,6 +97,16 @@ def dispatch_all(transitions, boat_names: dict | None = None) -> dict:
     남는데 실제 푸시는 하나도 안 나가는, 겉보기엔 알 수 없는 무음 실패가
     생겼다(실측: 2026-09-14 백호호 18:30 자리남 전환 - 다음 수집 때는 상태가
     이미 '열림'이라 같은 전환이 다시 안 잡혀 영영 재시도가 안 됐다).
+
+    db.session.rollback() 을 반드시 같이 해야 한다 - 이 격리를 처음 넣었을
+    때 이걸 빠뜨렸었다(dispatch_reminders 의 같은 except 블록에는 있었는데
+    여기만 없었다). SQLAlchemy 세션은 flush/commit 중 예외가 나면 그 뒤로
+    rollback 전까지 어떤 쿼리도 거부하는 "오염된" 상태가 된다 - rollback
+    없이 continue만 하면, 이 전환 하나의 실패가 배치의 그 뒤 모든 전환의
+    dispatch() 호출을 전부 예외로 연쇄 실패시킨다(그것도 이 try/except가
+    조용히 삼켜버려서 겉보기엔 "격리가 잘 되는 것처럼" 보인다) - 실측:
+    2026-09-15 19:30 레드히어로 자리남 전환이 체크 기록 로그엔 "변경"으로
+    남았는데도 그 뒤 반복 알림까지 포함해 푸시가 전혀 안 갔다.
     """
     boat_names = boat_names or {}
     summary = {'transitions': 0, 'sent': 0, 'failed': 0,
@@ -109,6 +119,7 @@ def dispatch_all(transitions, boat_names: dict | None = None) -> dict:
                                      transition.ship_name))
             records = dispatch(transition, boat_names.get(transition.boat_id))
         except Exception:
+            db.session.rollback()
             logger.exception('전환 발송 실패(격리) boat=%s date=%s ship=%s kind=%s',
                              transition.boat_id, transition.target_date,
                              transition.ship_name, transition.kind)

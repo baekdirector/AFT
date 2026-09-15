@@ -68,6 +68,7 @@ def collect_one(boat, target_date: str, dry_run: bool):
 
     실패는 격리한다. 한 척이 터져도 나머지 수집은 계속돼야 한다.
     """
+    from db import db
     from models import Boat  # noqa: F401  (관계 로딩용)
     from services.reservation_checker import check_single_boat
     from services.snapshot import entries_to_observations
@@ -85,7 +86,11 @@ def collect_one(boat, target_date: str, dry_run: bool):
             record_check_log(boat.id, target_date, observations=None)
         except Exception:
             # 체크 기록 로그는 부가 정보다. 이게 실패했다고 실제 실패 처리
-            # (CollectionFailed)까지 막으면 안 된다.
+            # (CollectionFailed)까지 막으면 안 된다. rollback을 꼭 같이 해야
+            # 한다 - 안 하면 이 배의 실패가 세션을 오염시켜 다음 배들의
+            # DB 작업까지 연쇄로 조용히 실패한다(services/notify/dispatcher.py
+            # dispatch_all에서 실제로 겪은 것과 같은 종류의 버그).
+            db.session.rollback()
             logger.exception('  체크 기록 로그 저장 실패(실패 케이스) %s %s', boat.name, target_date)
         raise CollectionFailed(str(info['error']))
 
@@ -109,7 +114,11 @@ def collect_one(boat, target_date: str, dry_run: bool):
         record_check_log(boat.id, target_date, observations, transitions)
     except Exception:
         # 체크 기록 로그는 부가 정보다. 이게 실패했다고 이미 성공한 수집·
-        # 스냅샷 저장까지 실패로 되돌리면 안 된다.
+        # 스냅샷 저장까지 실패로 되돌리면 안 된다. apply_observations는
+        # 이미 커밋됐으니 여기서 rollback해도 그 결과는 안 지워진다 - 이
+        # 예외로 오염된 세션만 걷어낸다(위 record_check_log 실패 케이스와
+        # 같은 이유).
+        db.session.rollback()
         logger.exception('  체크 기록 로그 저장 실패 %s %s', boat.name, target_date)
     return transitions, observations
 
@@ -125,6 +134,7 @@ def run_pipeline(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
     드롭되는 것이다. 같은 배들이 Render 에서는 6/6 이 8.9초에 붙는다.
     그래서 긁는 일은 Render 가 하고 Actions 는 방아쇠만 당긴다.
     """
+    from db import db
     from models import Boat
     from services.notify import webpush
     from services.notify.dispatcher import dispatch_all, dispatch_reminders
@@ -146,6 +156,10 @@ def run_pipeline(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
             logger.info('체크 기록 로그 %d건 정리(2일 초과)', summary['purged_check_logs'])
     except Exception:
         # 정리 실패가 수집·알림을 막으면 안 된다. 다음 실행에서 다시 시도된다.
+        # rollback을 안 하면 이 실패 하나가 세션을 오염시켜 이 실행의 모든
+        # 배 수집·알림까지 연쇄로 조용히 실패한다 - 이 함수 맨 앞에서 나는
+        # 예외라 그 피해 범위가 가장 크다.
+        db.session.rollback()
         logger.exception('체크 기록 로그 정리 실패')
 
     try:
@@ -153,6 +167,7 @@ def run_pipeline(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
         if summary['purged_visit_logs']:
             logger.info('접속 이력 %d건 정리(90일 초과)', summary['purged_visit_logs'])
     except Exception:
+        db.session.rollback()
         logger.exception('접속 이력 정리 실패')
 
     targets = active_watch_targets()
@@ -185,9 +200,16 @@ def run_pipeline(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
             summary['collected'] += 1
         except CollectionFailed:
             # 이미 위에서 이유를 로그에 남겼다. 스택트레이스는 소음이다.
+            # CollectionFailed를 던지기 전에 collect_one이 이미 rollback
+            # 했으므로(그 함수 안 except 블록 참고) 여기서 또 할 필요는 없다.
             summary['failed'] += 1
             continue
         except Exception as exc:   # 실패 격리
+            # collect_one 안에서 예상 못 한 예외가 났을 수 있다 - 세션이
+            # 오염된 채로 다음 배로 넘어가면 그 배부터는 apply_observations/
+            # record_check_log가 전부 조용히 실패한다(dispatcher.dispatch_all
+            # 에서 실제로 겪은 것과 같은 버그 패턴).
+            db.session.rollback()
             summary['failed'] += 1
             logger.exception('  예외 %s %s: %s', boat.name, target_date, exc)
             continue

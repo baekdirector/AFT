@@ -218,6 +218,44 @@ def test_one_boat_raising_does_not_stop_the_rest(scene, monkeypatch, sent):
         assert Snapshot.query.count() == 1
 
 
+def test_one_boat_db_failure_does_not_poison_the_rest(scene, monkeypatch, sent):
+    """실측 버그(2026-09-15 레드히어로): 위 격리 테스트는 순수 파이썬 예외로만
+    실패를 흉내 냈는데, 그건 SQLAlchemy 세션 자체를 오염시키지 않아 다음 배가
+    문제없이 처리됐다. 진짜 DB 오류(제약 위반)로 세션이 오염되면 얘기가
+    다르다 - rollback 없이 다음 배로 넘어가면 그 배의 저장·알림까지 전부
+    조용히 실패한다. 이게 실제로 겪은 것과 같은 종류의 버그다: 체크 기록
+    로그엔 남는데 푸시는 하나도 안 갔다."""
+    app, boat_ids = scene
+    patch_fetch(monkeypatch, {
+        'https://b0.example/x': {'entries': [entry('1호', 'full', 0)]},
+        'https://b1.example/x': {'entries': [entry('2호', 'full', 0)]},
+    })
+    run_scrape.run(delay=0)   # 1회차: 베이스라인(둘 다 마감, 비교 대상 확보)
+
+    import scheduler.run_scrape as rs
+    original = rs.collect_one
+
+    def flaky(boat, target_date, dry_run):
+        if boat.name == '배0호':
+            # watch_id 는 nullable=False - 실제 제약 조건 위반으로 세션을
+            # 진짜로 오염시킨다(순수 RuntimeError 와 다르게).
+            db.session.add(Notification(watch_id=None, dedup_key='x', channel='webpush', result='sent'))
+            db.session.flush()
+        return original(boat, target_date, dry_run)
+
+    monkeypatch.setattr(rs, 'collect_one', flaky)
+    patch_fetch(monkeypatch, {
+        'https://b0.example/x': {'entries': [entry('1호', 'full', 0)]},
+        'https://b1.example/x': {'entries': [entry('2호', 'open', 3)]},   # 2호는 이번에 진짜 자리남 전환
+    })
+
+    summary = run_scrape.run(delay=0)
+
+    assert summary['failed'] == 1
+    assert summary['sent'] == 1, 'DB 오류로 세션이 오염돼도 뒤이은 배(2호)는 정상 알림이 가야 한다'
+    assert len(sent) == 1
+
+
 # --- 대상 선정 --------------------------------------------------------------
 
 def test_only_watched_targets_are_collected(app, monkeypatch, sent):

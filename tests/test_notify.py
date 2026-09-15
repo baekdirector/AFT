@@ -254,6 +254,54 @@ def test_dispatch_all_isolates_a_failing_transition(app, target, monkeypatch):
         assert calls == ['https://push.example/ccc']
 
 
+def test_dispatch_all_rolls_back_session_after_a_db_failure(app, target, sent_ok, monkeypatch):
+    """실측 버그(2026-09-15 레드히어로): 위 격리 테스트는 순수 파이썬
+    예외(RuntimeError)로만 실패를 흉내 냈는데, 그 경우엔 SQLAlchemy 세션
+    자체는 멀쩡해서 다음 전환이 문제없이 발송됐다. 그런데 실패 격리를
+    처음 넣었을 때 db.session.rollback() 을 빠뜨렸었다 - DB 쪽 예외
+    (제약 조건 위반 등 db.session.flush/commit 이 실제로 실패하는 경우)가
+    한 번 나면 SQLAlchemy 세션이 rollback 전까지 그 뒤 모든 쿼리를 거부하는
+    상태가 되고, 이 상태에서 rollback 없이 다음 전환으로 넘어가면 그
+    전환의 발송까지 연쇄로 조용히 실패한다 - 체크 기록 로그엔 "변경"으로
+    남는데 푸시는 하나도 안 나가는, 겉보기엔 원인을 알 수 없는 무음
+    실패다. 이 테스트는 진짜 DB 제약 위반(NOT NULL)으로 세션을 오염시켜
+    이 정확한 실패 모드를 재현한다."""
+    boat_id, _ = target
+    with app.app_context():
+        other = add_boat_instance(name='딴배', url='https://x.example/y',
+                                  city='인천', port='남항(인천항)', note='', is_shared=False)
+        sub2 = upsert_subscriber('https://push.example/ccc', 'k3', 'a3', '친구2')
+        add_watch(sub2, other.id, '딴배호', DATE)
+
+        broken = seat_open_transition(boat_id)          # 이게 먼저 진짜 DB 오류로 터진다
+        healthy = compare(
+            Observation(boat_id=other.id, target_date=DATE, ship_name='딴배호',
+                        status='full', available=0),
+            Observation(boat_id=other.id, target_date=DATE, ship_name='딴배호',
+                        status='open', available=2, display_status='남은자리 2명'))
+
+        original_dispatch = dispatcher.dispatch
+
+        def dispatch_with_a_real_db_failure_for_broken(transition, boat_name=None):
+            if transition.boat_id == boat_id:
+                # watch_id 는 nullable=False - 실제 제약 조건 위반으로
+                # flush 를 실패시켜 세션을 진짜로 오염시킨다.
+                db.session.add(Notification(watch_id=None, dedup_key='x', channel='webpush', result='sent'))
+                db.session.flush()
+                return []
+            return original_dispatch(transition, boat_name)
+
+        monkeypatch.setattr(dispatcher, 'dispatch', dispatch_with_a_real_db_failure_for_broken)
+
+        summary = dispatcher.dispatch_all([broken, healthy])
+
+        assert summary['sent'] == 1, (
+            'rollback 없이 세션이 오염되면 이 두 번째(정상) 전환의 발송까지 '
+            '조용히 실패한다 - rollback 이 빠지면 이 assert 가 실패해야 한다'
+        )
+        assert len(sent_ok) == 1
+
+
 # --- 반복 알림(dispatch_reminders) -------------------------------------------
 
 def open_observation(boat_id, available=3):
