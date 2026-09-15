@@ -233,6 +233,22 @@
   }
   .admin-seg button.active { background: #fff; color: oklch(0.26 0.02 250); box-shadow: 0 1px 3px oklch(0.4 0.02 240 / 0.16); }
 
+  /* 탭을 처음 열 때만 자동으로 불러오고(loadedTabs) 재클릭은 캐시를 그대로
+     보여준다 - IP 위치 조회 같은 느린 외부 호출을 클릭마다 다시 타지 않기
+     위해서다(예전 "admin 첫 화면이 느리다" 문제의 원인과 같은 구조). 대신
+     최신 데이터를 보고 싶을 때 누르는 명시적 새로고침 버튼을 뒤쪽 두 탭에
+     둔다 - 눌렀을 때 반드시 로딩 표시가 보인다. */
+  .admin-panel-actions { display: flex; align-items: center; gap: 8px; }
+  .admin-refresh-btn {
+    height: 30px; padding: 0 13px; border-radius: 8px; border: 1px solid oklch(0.9 0.008 240); font-size: 12px; font-weight: 700;
+    white-space: nowrap; flex: none; cursor: pointer; transition: all 0.15s; background: #fff; color: oklch(0.44 0.02 250);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .admin-refresh-btn:hover { border-color: oklch(0.46 0.12 248); color: oklch(0.42 0.12 248); }
+  .admin-refresh-btn:disabled { opacity: 0.55; cursor: default; }
+  .admin-refresh-btn .spin { display: inline-block; }
+  .admin-refresh-btn.is-loading .spin { animation: adminSpin 0.7s linear infinite; }
+
   .bot-filter-note {
     display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 13px;
     background: oklch(0.975 0.02 85); border: 1px solid oklch(0.9 0.04 85); margin-bottom: 14px;
@@ -578,10 +594,15 @@
           <h1>접속 이력</h1>
           <p class="sub">최근 {{ retention_days }}일(한국시간) · 최대 1000건</p>
         </div>
-        <div class="admin-seg" id="access-device-filter">
-          <button type="button" class="active" data-device="all">전체</button>
-          <button type="button" data-device="pc">PC</button>
-          <button type="button" data-device="mobile">모바일</button>
+        <div class="admin-panel-actions">
+          <button type="button" class="admin-refresh-btn" id="access-refresh-btn" title="최신 접속 이력을 다시 불러옵니다">
+            <span class="spin">⟳</span> 새로고침
+          </button>
+          <div class="admin-seg" id="access-device-filter">
+            <button type="button" class="active" data-device="all">전체</button>
+            <button type="button" data-device="pc">PC</button>
+            <button type="button" data-device="mobile">모바일</button>
+          </div>
         </div>
       </div>
 
@@ -599,10 +620,15 @@
           <h1>알림 등록</h1>
           <p class="sub">접속 이력으로 구분한 기기별 빈자리 알림 · 관리자가 직접 해제할 수 있습니다</p>
         </div>
-        <div class="admin-seg" id="watch-device-filter">
-          <button type="button" class="active" data-device="all">전체</button>
-          <button type="button" data-device="pc">PC</button>
-          <button type="button" data-device="mobile">모바일</button>
+        <div class="admin-panel-actions">
+          <button type="button" class="admin-refresh-btn" id="watch-refresh-btn" title="최신 알림 등록 현황을 다시 불러옵니다">
+            <span class="spin">⟳</span> 새로고침
+          </button>
+          <div class="admin-seg" id="watch-device-filter">
+            <button type="button" class="active" data-device="all">전체</button>
+            <button type="button" data-device="pc">PC</button>
+            <button type="button" data-device="mobile">모바일</button>
+          </div>
         </div>
       </div>
 
@@ -1409,19 +1435,33 @@
     }
   }
 
+  // loadTabData()를 거치지 않고 이 함수들을 직접 부르면(새로고침 버튼,
+  // 봇 표시 토글) loadedTabs 캐시와 무관하게 매번 스피너와 함께 새로 불러온다.
+  const TAB_SPINNER_HTML = '<div class="admin-loading-note"><span class="admin-spinner"></span> 불러오는 중…</div>';
+  let accessParams = {};   // 새로고침 시에도 봇 표시 여부 등 현재 필터를 유지하려고 기억해둔다
+
   async function loadAccessTab(extraParams) {
-    const params = new URLSearchParams(extraParams || {});
+    accessParams = extraParams || {};
+    const btn = document.getElementById('access-refresh-btn');
+    document.getElementById('access-groups').innerHTML = TAB_SPINNER_HTML;
+    if (btn) { btn.disabled = true; btn.classList.add('is-loading'); }
     try {
+      const params = new URLSearchParams(accessParams);
       const resp = await fetch('/admin/data/access' + (params.toString() ? '?' + params.toString() : ''));
       const body = await resp.json();
       if (!resp.ok || body.status !== 'success') throw new Error(body.error || '접속 이력을 불러오지 못했습니다.');
       renderAccessTab(body.data);
     } catch (err) {
       showToast(err.message || '접속 이력을 불러오지 못했습니다.', { type: 'error' });
+    } finally {
+      if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
     }
   }
 
   async function loadWatchTab() {
+    const btn = document.getElementById('watch-refresh-btn');
+    document.getElementById('admin-devices').innerHTML = TAB_SPINNER_HTML;
+    if (btn) { btn.disabled = true; btn.classList.add('is-loading'); }
     try {
       const resp = await fetch('/admin/data/watch');
       const body = await resp.json();
@@ -1430,6 +1470,8 @@
       render();
     } catch (err) {
       showToast(err.message || '알림 등록 정보를 불러오지 못했습니다.', { type: 'error' });
+    } finally {
+      if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
     }
   }
 
@@ -1440,6 +1482,15 @@
     else if (tab === 'access') loadAccessTab();
     else if (tab === 'watch') loadWatchTab();
   }
+
+  // ---- 새로고침 버튼(접속 이력/알림 등록) ----
+  // 탭 첫 클릭 이후로는 loadedTabs 캐시가 재조회를 막는다(느린 IP 위치
+  // 조회를 클릭마다 다시 타지 않기 위해서 - 예전 "admin 첫 화면이 느리다"
+  // 수정과 같은 이유). 대신 "지금 누르면 항상 최신으로 다시 불러온다"는
+  // 별도 버튼을 둔다 - loadTabData를 거치지 않고 로더를 직접 불러 캐시를
+  // 우회하고, 스피너도 매번 확실히 보여준다.
+  document.getElementById('access-refresh-btn').addEventListener('click', () => loadAccessTab(accessParams));
+  document.getElementById('watch-refresh-btn').addEventListener('click', () => loadWatchTab());
 
   render();
   loadTabData('ports'); // 기본 활성 탭 - 로그인 직후 이것만 바로 불러온다
