@@ -1,0 +1,1231 @@
+from bs4 import BeautifulSoup, Comment
+from threading import Lock, local as thread_local
+from time import time
+from typing import Dict, List
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+from config import FISH_KEYWORDS, VALID_SHIP_NAMES
+import os
+import requests
+import re
+import datetime
+import json
+
+# 연결·읽기 타임아웃. (connect, read) 로 나눠 준다.
+#
+# 원격지에서 한국 공유호스팅에 붙으면 TCP 연결만으로 3초를 넘기는 일이 흔하다.
+# 실측(2026-09, GitHub Actions 러너): 감시 6척 중 5척이 connect timeout=3 으로
+# 실패했다(명성호·신명호·금강7호·만수피싱·칸피싱). 같은 배들이 한국에서는
+# 0.5초에 붙는다. 즉 사이트 문제가 아니라 거리 문제다.
+#
+# 환경에 따라 다르게 줄 수 있게 환경변수로 뺀다. 웹 요청 경로는 사용자를
+# 기다리게 하므로 짧게, 스케줄러는 시간 여유가 있으므로 길게 준다
+# (Render 환경변수로 올려 준다 - 스크래핑은 처음부터 Render 프로세스 안에서
+# 돈다, PLAN.md D9/D21).
+REQUEST_CONNECT_TIMEOUT = float(os.environ.get('SCRAPE_CONNECT_TIMEOUT', 5))
+REQUEST_READ_TIMEOUT = float(os.environ.get('SCRAPE_READ_TIMEOUT', 10))
+REQUEST_TIMEOUT_SECONDS = (REQUEST_CONNECT_TIMEOUT, REQUEST_READ_TIMEOUT)
+_CACHE_TTL_SECONDS = 300
+_CACHE = {}
+_CACHE_LOCK = Lock()
+
+# 배마다 매번 requests.get()을 새로 부르면 매번 새 TCP+TLS 연결을 맺는다
+# (연결 재사용은 Session 이 붙잡고 있는 커넥션 풀에서만 일어난다) - 사용자
+# 제보("예약현황 조회가 너무 느리다", 96척 라이브 조회 ≈114초)를 계기로
+# 확인해서 처음엔 워커 스레드 전체가 공유하는 Session 하나로 바꿨었다.
+#
+# 그런데 배포 후 실측(여수 42척)이 오히려 16초 -> 54~55초로 느려졌다.
+# 로컬에서 실제 여수 배 URL 23개(전부 서로 다른 sunsang24 서브도메인이라
+# 연결 재사용 이득 자체가 원래 없었다)로 plain vs Session, html.parser vs
+# lxml 네 조합을 다 재봤지만 로컬에서는 차이가 없었다(3.6~4.3초로 전부 비슷,
+# Session 쪽이 오히려 근소하게 빠르기도 했다) - 코드 자체가 본질적으로 더
+# 느려진 게 아니라는 뜻이다. 유력한 설명은 이 프로젝트에서 이미 실측된
+# 패턴과 같다: Render 는 CPU 0.1개로 제한돼 있어(STATUS_MAX_WORKERS 문서
+# 참고 - 워커를 24로 올렸더니 오히려 느려진 전례가 있다) 스레드 간 잠금
+# 경합이 풀파워 로컬 환경보다 훨씬 비싸다. 여러 스레드가 **같은** Session의
+# 커넥션 풀(내부적으로 락을 쓴다)을 동시에 두드리면, 그 락을 쥔 스레드가
+# 하필 스로틀링으로 멈춰 있는 동안 나머지 스레드가 전부 기다리는 일이
+# 반복될 수 있다 - 우리 상황(요청마다 호스트가 거의 다 다름)에서는 그
+# 재사용 이득도 없이 경합 비용만 지는 셈이었다.
+#
+# 그래서 "전역 공유 Session" 대신 "스레드별 Session"으로 바꿨다 -
+# threading.local() 로 워커 스레드마다 독립된 Session(과 커넥션 풀)을
+# 갖는다. 스레드 간 락 경합은 완전히 없어지고, 그러면서도 같은 스레드가
+# 연달아 같은 호스트를 여러 번 부르는 경우(선단 URL이 겹칠 때)엔 여전히
+# 연결을 재사용한다 - 밑질 게 없는 선택이다.
+_thread_state = thread_local()
+
+
+def _session_for_thread() -> requests.Session:
+    session = getattr(_thread_state, 'session', None)
+    if session is None:
+        session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(pool_connections=8, pool_maxsize=8)
+        session.mount('https://', adapter)
+        session.mount('http://', adapter)
+        _thread_state.session = session
+    return session
+
+
+def _get(url, headers, timeout):
+    """실제 HTTP GET 한 곳(스레드별 Session을 통해서만 나간다). 테스트가
+    fixture로 갈아끼울 지점을 이 얇은 함수 하나로 고정해뒀다 - 내부 구현이
+    바뀌어도 monkeypatch 대상(reservation_checker._get)은 안 바뀐다."""
+    return _session_for_thread().get(url, headers=headers, timeout=timeout)
+
+
+def clear_cache() -> None:
+    with _CACHE_LOCK:
+        _CACHE.clear()
+
+
+def _get_cached_result(cache_key: tuple) -> Dict | None:
+    now = time()
+    with _CACHE_LOCK:
+        cached = _CACHE.get(cache_key)
+        if not cached:
+            return None
+        if cached["expires_at"] <= now:
+            _CACHE.pop(cache_key, None)
+            return None
+        return cached["result"]
+
+
+def _store_cached_result(cache_key: tuple, result: Dict) -> Dict:
+    with _CACHE_LOCK:
+        _CACHE[cache_key] = {
+            "result": result,
+            "expires_at": time() + _CACHE_TTL_SECONDS,
+        }
+    return result
+
+
+def _norm(text: str) -> str:
+    """간단 정규화: 공백/특수문자 제거하여 키워드 포함 여부를 관대하게 검사"""
+    if not text:
+        return ''
+    # \u00a0 등 non-breaking space 포함 다양한 공백/구분자 제거
+    return re.sub(r"[\s\u00a0/&(),·\-]+", "", str(text))
+
+def _extract_known_fish(text: str) -> str | None:
+    if not text:
+        return None
+
+    normalized_text = _norm(text)
+    found = []
+    for keyword in FISH_KEYWORDS:
+        if _norm(keyword) in normalized_text and keyword not in found:
+            found.append(keyword)
+    return ', '.join(found) if found else None
+
+def _sanitize_fish_text(text: str) -> str | None:
+    if not text:
+        return None
+
+    cleaned = str(text).strip()
+    cleaned = re.sub(r'[\u200b\u200c\u200d\ufeff]+', '', cleaned).strip()
+    cleaned = re.sub(r'(낚시\s*종류|낚시종류|어종)\s*[:：-]?\s*', '', cleaned, flags=re.I).strip()
+    cleaned = re.sub(r'^[★☆◆■▶▷●\[\(<\s]+', '', cleaned).strip()
+    cleaned = re.sub(r'[★☆◆■▶▷●\]\)>\s]+$', '', cleaned).strip()
+
+    for sep in ['[', ' 탐사', ' 출조', ' 이벤트', ' 예약', ' 조황']:
+        if sep in cleaned:
+            cleaned = cleaned.split(sep)[0].strip()
+
+    if not cleaned:
+        return None
+
+    cleaned = cleaned.strip()
+    if not cleaned:
+        return None
+
+    return _extract_known_fish(cleaned) or cleaned
+
+def _clean_notice_fish_text(text: str) -> str | None:
+    if not text:
+        return None
+
+    cleaned = str(text).strip()
+    cleaned = re.sub(r'[\u200b\u200c\u200d\ufeff]+', '', cleaned).strip()
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    cleaned = re.sub(r'^[\-–—★☆◆■▶▷●\[\(<\s]+', '', cleaned).strip()
+    cleaned = re.sub(r'[\-–—★☆◆■▶▷●\]\)>\s]+$', '', cleaned).strip()
+    cleaned = re.sub(r'(낚시\s*종류|낚시종류|어종)\s*[:：-]?\s*', '', cleaned, flags=re.I).strip()
+
+    if not cleaned:
+        return None
+
+    if _extract_known_fish(cleaned):
+        return cleaned
+    return None
+
+def _extract_fish_from_notice_area(node) -> str | None:
+    """
+    선박 행 안에 중첩된 공지 테이블에서 어종 문구를 추출한다.
+    일부 사이트는 별도 공지 tr이 아니라 선박의 안내 td 안에 <img alt="공지">를 넣는다.
+    """
+    if not node or not getattr(node, 'select', None):
+        return None
+
+    notice_imgs = node.find_all('img', alt='공지')
+    for img in notice_imgs:
+        notice_row = img.find_parent('tr')
+        if not notice_row:
+            continue
+        notice_tds = notice_row.find_all('td')
+        text_nodes = notice_tds[1:] if len(notice_tds) > 1 else [notice_row]
+        for text_node in text_nodes:
+            text = text_node.get_text("\n", strip=True)
+            for line in text.splitlines():
+                fish = _clean_notice_fish_text(line)
+                if fish:
+                    return fish
+
+    return None
+
+def _extract_fish_from_special_marker(text: str) -> str | None:
+    """
+    특수문자(★/◆/☆/●)로 감싼 어종 전체를 추출
+    예: "★봄 쭈꾸미 ★[8만원]" → "봄 쭈꾸미"
+    예: "◆봄 왕쭈꾸미 전문 출조 ◆[8만원]" → "봄 왕쭈꾸미 전문 출조"
+    예: "●갑오징어전문출조●" → "갑오징어전문출조" (나폴리/뉴해덕 계열 사이트)
+    """
+    if not text:
+        return None
+
+    # ★...★ / ◆...◆ / ☆...☆ / ●...● 패턴 추출 (탐욕적이지 않게)
+    pattern = r'(★|◆|☆|●)\s*([^★◆☆●\[]*?)\s*(★|◆|☆|●)'
+    match = re.search(pattern, text)
+    
+    if not match:
+        return None
+    
+    fish = match.group(2).strip()
+    
+    # "[" 이후는 제거 (가격 정보)
+    if '[' in fish:
+        fish = fish.split('[')[0].strip()
+    
+    # " 탐사[" 패턴 제거
+    if ' 탐사[' in fish:
+        fish = fish.split(' 탐사[')[0].strip()
+    
+    return fish if fish else None
+
+def _clean_ship_name(name: str) -> str:
+    """배 이름에서 불필요한 문구 제거"""
+    if not name:
+        return name
+    # "예약하기"/"대기하기" 문구 제거
+    name = name.replace('예약하기', '').replace('대기하기', '').strip()
+    # 선상24 선단 페이지는 "레드헌터(22인승)"처럼 정원 표기가 붙어 내려온다.
+    name = re.sub(r'\(\s*\d+\s*인승\s*\)', '', name).strip()
+    return name
+
+#: 배가 아닌 것이 확실한 행. 낚시점·안내 행이 배로 섞여 들어오는 것을 막는다.
+_NON_SHIP_PATTERNS = re.compile(
+    r'(낚시마트|낚시점|낚시프라자|피싱마트|조황안내|출조안내|공지사항|이벤트)')
+
+
+def _is_valid_ship_name(name: str, extra_valid_names: set | None = None,
+                        has_ship_signals: bool = False) -> bool:
+    """이 행을 배로 볼 것인가.
+
+    원래는 이름만 보고 판단했다. "'호'가 들어있거나 하드코딩 목록에 있어야 배"
+    라는 규칙이었는데, 이름이 '호'로 끝나지 않는 선단이 통째로 사라졌다.
+    실측(2026-10-03 팀에프호): 같은 페이지에 '팀에프원', '팀에프투' 가 각각
+    정원 20명·예약마감으로 버젓이 실려 있는데 파서는 0척을 냈다.
+    fixture: tests/fixtures/sunsang24/팀에프호_20261003.html
+
+    그래서 판단 근거를 이름에서 구조로 옮겼다. 실제 배 행에는 정원(.number)이나
+    예약 상태(.shipping_status)가 붙어 있고, 낚시점 안내 행에는 둘 다 없다.
+    (같은 fixture 의 '동양낚시마트' 행이 그렇다.)
+
+    has_ship_signals 를 주지 않는 호출부에서는 예전 이름 규칙이 그대로 쓰인다.
+    """
+    if not name:
+        return False
+    name = _clean_ship_name(name)
+
+    # 이름만으로 배가 아님이 분명하면 구조 신호가 있어도 제외한다
+    if _NON_SHIP_PATTERNS.search(name):
+        return False
+
+    # 정원/예약상태를 달고 있으면 이름 모양과 무관하게 배로 본다
+    if has_ship_signals:
+        return True
+
+    # "~호"를 포함하면 배로 인정
+    if '호' in name:
+        return True
+    # 예외 목록에 있으면 배로 인정
+    if name in VALID_SHIP_NAMES:
+        return True
+    # 실제 DB에 등록된 배 이름이면 인정 (신규 등록 배가 필터에 걸리지 않도록)
+    if extra_valid_names and name in extra_valid_names:
+        return True
+    return False
+
+
+def _interpret_boat_status_text(raw_status_text: str) -> tuple[str, int | None]:
+    """상태 이미지 alt 텍스트나 상태 칸 텍스트 하나를 (status_type, available)
+    로 해석한다. "일반 게시판 패턴"의 admin-right div(있는 사이트)와 admin-
+    right 래퍼 없이 상태 칸에 <img alt="..."> 만 있는 사이트(실측: 뉴해덕호)
+    둘 다 같은 규칙을 써야 해서 뽑아냈다 - 신호를 어디서 읽었든(admin-right
+    div 안 img, 상태 칸에 바로 있는 img, 모바일 div 패턴) 해석은 하나로
+    통일한다."""
+    if re.search(r'점검일', raw_status_text):
+        return "maintenance", 0
+    m = (re.search(r'남은\s*자리\s*[:：]?\s*(\d+)', raw_status_text)
+         or re.search(r'남은자리\s*(\d+)', raw_status_text)
+         or re.search(r'(\d+)\s*명', raw_status_text))
+    if m:
+        try:
+            return "open", int(m.group(1))
+        except Exception:
+            return "unknown", None
+    if re.search(r'예약완료|예약\s*완료', raw_status_text):
+        return "reserved", 0
+    if re.search(r'매진|마감|예약마감', raw_status_text):
+        return "full", 0
+    if re.search(r'입금대기', raw_status_text):
+        return "pending", None
+    return "unknown", None
+
+
+def _parse_mobile_reservation_boat_v3(soup: BeautifulSoup, date8: str) -> list[dict]:
+    """모바일 전용 reservation_boat_v3 템플릿(실측: 태풍투어낚시,
+    manaru.com/m/) - <tr> 자체가 없고 대신
+    `div.ship_name > <h2>배이름</h2>` + `p.ship_num > <img alt="...">(상태)
+    + <a onclick="...date=YYYYMMDD...">`(예약 팝업 날짜) 구조다. 한 페이지에
+    여러 날짜(주간 리스트)가 섞여 나오고 감싸는 날짜별 컨테이너 자체가 없어서,
+    각 상태 버튼의 onclick 안 date= 값으로 원하는 날짜만 걸러낸다."""
+    entries: list[dict] = []
+    seen_wraps = set()
+    for a in soup.select('p.ship_num a[onclick]'):
+        onclick = a.get('onclick') or ''
+        if f'date={date8}' not in onclick:
+            continue
+        img = a.find_previous_sibling('img')
+        if not img or not img.has_attr('alt'):
+            continue
+        wrap = a.find_parent(class_='ship_name')
+        if wrap is None or id(wrap) in seen_wraps:
+            continue
+        seen_wraps.add(id(wrap))
+
+        name_el = wrap.find('h2')
+        ship_name = name_el.get_text(strip=True) if name_el else None
+        if not ship_name:
+            continue
+
+        raw_status_text = img['alt'].strip()
+        status_type, available = _interpret_boat_status_text(raw_status_text)
+        if not _is_valid_ship_name(ship_name, has_ship_signals=(status_type != "unknown")):
+            continue
+        ship_name = _clean_ship_name(ship_name)
+
+        # 어종: 같은 배 블록의 공지 영역에서 시도(데스크톱 사이트처럼
+        # <img alt="공지">가 아니라 색 있는 div 라벨을 쓰므로 일반 키워드
+        # 매칭으로 폴백한다).
+        ship_fish = None
+        notice_area = wrap.select_one('.ship_notice')
+        if notice_area:
+            ship_fish = (_extract_fish_from_notice_area(notice_area)
+                        or _extract_known_fish(notice_area.get_text(" ", strip=True)))
+
+        display_status = "-"
+        if status_type == "maintenance":
+            display_status = "점검일"
+        elif status_type in ("reserved", "full"):
+            display_status = "예약마감"
+        elif status_type == "open" and available is not None:
+            display_status = f"남은자리 {available}명"
+        elif status_type == "pending":
+            display_status = "입금대기"
+        else:
+            display_status = raw_status_text or "알 수 없음"
+
+        entries.append({
+            "ship_name": ship_name,
+            "status": status_type,
+            "available": available,
+            "raw_status_text": raw_status_text,
+            "display_status": display_status,
+            "row_html": str(wrap),
+            "fish": ship_fish,
+        })
+    return entries
+
+
+def build_query_url(base_url: str, year: int, month: int, day: int) -> str:
+    """
+    URL 패턴에 따라 적절한 쿼리 파라미터를 구성합니다.
+    sunsang24.com 도메인(또는 기존에 schedule_fleet이 포함된 경우)은
+    /ship/schedule_fleet/YYYYMM 형태로 처리합니다.
+    그 외 도메인은 기존처럼 쿼리 파라미터를 추가합니다.
+
+    "schedule_fleet_simple" 경로(실측: 24마린낚시)는 다른 패턴이다 - 월 페이지
+    (/ship/schedule_fleet_simple)는 달력 화면일 뿐 배별 상태가 없고, 날짜를
+    클릭하면 JS가 /ship/schedule_fleet/YYYYMMDD/0/simple_day 를 따로 불러서
+    채운다. 그래서 이 경로는 월이 아니라 일 단위로 그 조각을 직접 요청한다.
+    (주의: 이 조각은 그 배만이 아니라 그날 플랫폼 전체 배 목록을 돌려준다 -
+    known_ship_name 으로 걸러내는 처리가 check_single_boat 쪽에 있다.)
+    """
+    parsed = urlparse(base_url)
+    path = parsed.path or ""
+    netloc = (parsed.netloc or "").lower()
+    query = parse_qs(parsed.query or "")
+
+    # sunsang24 도메인 또는 기존 schedule_fleet 경로는 schedule_fleet 처리
+    if 'sunsang24.com' in netloc or 'schedule_fleet' in path:
+        scheme = parsed.scheme or "https"
+        if 'schedule_fleet_simple' in path:
+            new_path = f"/ship/schedule_fleet/{year:04d}{month:02d}{day:02d}/0/simple_day"
+        else:
+            new_path = f"/ship/schedule_fleet/{year:04d}{month:02d}"
+        return urlunparse((scheme, parsed.netloc, new_path, "", "", ""))
+
+    # 일반 게시판 패턴 (예: index.php?mid=bk) — 기존 쿼리 유지 후 날짜 파라미터 추가
+    query.update({
+        'year': [f"{year:04d}"],
+        'month': [f"{month:02d}"],
+        'day': [f"{day:02d}"],
+        'mode': ['list'],
+        'won': ['1'],
+        'PA_N_UID': ['0'],
+        'sel': ['day']
+    })
+    query_string = urlencode({k: v[0] for k, v in query.items()})
+    scheme = parsed.scheme or "https"
+    return urlunparse((scheme, parsed.netloc, parsed.path, "", query_string, ""))
+
+def _headers_for(url: str, alt: bool = False) -> dict:
+    p = urlparse(url)
+    scheme = p.scheme or "https"
+    referer = f"{scheme}://{p.netloc}/"
+    if not alt:
+        ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36"
+    else:
+        ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0"
+    return {
+        "User-Agent": ua,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": referer,
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+        "Connection": "keep-alive",
+    }
+
+def _weekday_kor(year: int, month: int, day: int) -> str:
+    return "월화수목금토일"[datetime.date(year, month, day).weekday()]
+
+def _parse_tide_from_text(text: str) -> str | None:
+    m = re.search(r'(\d+)\s*물', text)
+    return f"{m.group(1)}물" if m else None
+
+def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enabled: bool = False, known_ship_name: str | None = None) -> Dict:
+    """공개 진입점. 캐시를 먼저 보고, 미스면 로컬로 직접 긁거나(기본) 원격
+    스크래핑 워커(SCRAPE_WORKER_URL, Cloud Run Tokyo)에 위임한다.
+
+    두 경로 모두 결과 모양은 동일하다(_check_single_boat_locally 가 그
+    모양을 정의한다) - worker/app.py 도 같은 함수를 그대로 불러 쓰므로
+    로컬/원격 어느 쪽으로 실제 fetch+parse 가 일어났는지는 호출부(여기)
+    바깥에서는 알 수 없고, 알 필요도 없다.
+
+    SCRAPE_WORKER_URL 이 비어 있으면(기본값) 오늘까지의 동작과 완전히
+    같다 - 이 환경변수 하나가 롤백 스위치다.
+    """
+    cache_key = (str(boat_url or ""), int(year), int(month), int(day))
+    cached_result = _get_cached_result(cache_key)
+    if cached_result is not None:
+        return cached_result
+
+    worker_url = os.environ.get('SCRAPE_WORKER_URL')
+    if worker_url:
+        result = _fetch_from_worker(worker_url, boat_url, year, month, day, known_ship_name)
+    else:
+        result = _check_single_boat_locally(boat_url, year, month, day, debug_enabled, known_ship_name)
+    return _store_cached_result(cache_key, result)
+
+
+def _post_to_worker(url, json_payload, headers, timeout):
+    """스크래핑 워커를 부르는 단 한 곳. 테스트가 여기 하나만 monkeypatch로
+    갈아끼우게 해서(reservation_checker._get 을 이 파일 전역 교체
+    지점으로 쓰는 것과 같은 이유) 내부 구현이 바뀌어도 테스트가 실제
+    네트워크로 새지 않는다."""
+    return requests.post(url, json=json_payload, headers=headers, timeout=timeout)
+
+
+def _fetch_from_worker(worker_url: str, boat_url: str, year: int, month: int, day: int,
+                       known_ship_name: str | None) -> Dict:
+    """배 한 척을 원격 스크래핑 워커에 대신 긁어오게 시킨다.
+
+    타임아웃을 로컬 REQUEST_TIMEOUT_SECONDS 보다 넉넉히 주는 이유: 워커
+    내부에서 403을 만나면 대체 헤더 재시도 -> http 폴백까지 순차로 최대
+    3번 fetch 할 수 있어(check_single_boat 문서 참고) 그 셋을 합친
+    시간보다 길어야 한다.
+
+    실패(연결 실패·타임아웃·비정상 응답)는 예외를 던지지 않고 로컬
+    fetch가 이미 쓰는 것과 같은 모양의 실패 dict를 돌려준다 - 그래야
+    호출부(routes/views.py의 info.get('error'), scheduler/run_scrape.py의
+    CollectionFailed)가 로컬 실패와 워커 실패를 구분할 필요 없이 그대로
+    처리한다.
+    """
+    weekday = _weekday_kor(year, month, day)
+    display_date = f"{year:04d}-{month:02d}-{day:02d}({weekday})"
+    token = os.environ.get('SCRAPE_WORKER_TOKEN')
+    headers = {'X-Worker-Token': token} if token else {}
+    try:
+        resp = _post_to_worker(
+            worker_url.rstrip('/') + '/check',
+            {'boat_url': boat_url, 'year': year, 'month': month, 'day': day,
+             'known_ship_name': known_ship_name},
+            headers, (5, 60))
+        resp.raise_for_status()
+        return resp.json()
+    except (requests.RequestException, ValueError) as e:
+        return {"used_url": boat_url, "display_date": display_date, "entries": [],
+                "error": f"worker_error:{e}"}
+
+
+def _check_single_boat_locally(boat_url: str, year: int, month: int, day: int, debug_enabled: bool = False, known_ship_name: str | None = None) -> Dict:
+    """실제로 fetch+parse 하는 부분(캐시는 호출부가 담당). check_single_boat()
+    의 로컬 경로와 worker/app.py 양쪽에서 이 함수를 그대로 쓴다 - 파싱
+    로직은 이 함수 안에만 있고 두 호출부 중 어디도 이 로직을 복제하지
+    않는다."""
+    final_url = build_query_url(boat_url, year, month, day)
+
+    # "간편 일정"(schedule_fleet_simple) 패턴은 fetch 대상이
+    # /simple_day 조각(AJAX 응답, 스타일 없음)이라 사용자에게 보여줄 링크로는
+    # 부적절하다 - "예약 페이지" 링크는 원래 등록한 달력 페이지를 쓴다.
+    display_url = boat_url if '/simple_day' in final_url else final_url
+
+    # 요일/표시 날짜(물때는 응답 후 보강)
+    weekday = _weekday_kor(year, month, day)
+    display_date = f"{year:04d}-{month:02d}-{day:02d}({weekday})"
+
+    # 1차 시도: 정상 헤더 (짧은 타임아웃으로 빠르게 실패 처리)
+    try:
+        resp = _get(final_url, headers=_headers_for(final_url), timeout=REQUEST_TIMEOUT_SECONDS)
+    except requests.RequestException as e:
+        result = {"used_url": display_url, "display_date": display_date, "entries": [], "error": f"http_error:{e}"}
+        return result
+
+    # 403이면 UA/Referer 바꿔 재시도 + http 스킴 폴백
+    if resp.status_code == 403:
+        try:
+            resp = _get(final_url, headers=_headers_for(final_url, alt=True), timeout=REQUEST_TIMEOUT_SECONDS)
+        except requests.RequestException:
+            resp = None
+
+        if (resp is None) or (resp.status_code == 403 and final_url.startswith("https://")):
+            try:
+                http_url = "http://" + final_url[len("https://"):]
+                resp = _get(http_url, headers=_headers_for(http_url, alt=True), timeout=REQUEST_TIMEOUT_SECONDS)
+                final_url = http_url  # 실제 사용 URL 갱신
+                display_url = boat_url if '/simple_day' in final_url else final_url
+            except requests.RequestException:
+                pass
+
+    # 여전히 200이 아니면 예외를 던지지 않고 빈 결과 반환 (500 방지)
+    if resp is None or resp.status_code != 200:
+        result = {
+            "used_url": display_url,
+            "display_date": display_date,
+            "entries": [],
+            "error": f"http_status:{getattr(resp, 'status_code', 'unknown')}"
+        }
+        return result
+
+    # lxml은 순수 파이썬인 html.parser보다 훨씬 빠르다(C 확장) - 96척 라이브
+    # 조회가 114초 걸린다는 사용자 제보를 계기로 프로파일링해보니 파싱 자체도
+    # 무시 못 할 CPU 비중이었다(예전에 워커를 24로 올렸더니 오히려 느려진
+    # 것도 파싱이 GIL을 오래 잡아 스레드끼리 경합했기 때문일 가능성이 있다).
+    # 추출 로직(select/find 호출부)은 전혀 안 바꿨다 - 파서 백엔드만 교체했고,
+    # 기존 fixture 골든 테스트로 동일 결과를 그대로 검증한다.
+    soup = BeautifulSoup(resp.text, "lxml")
+
+    # 판단 기준: target의 호스트가 sunsang24.com 이거나 path에 schedule_fleet가 있으면 기존 패턴 사용
+    parsed_target = urlparse(final_url)
+    target_netloc = (parsed_target.netloc or "").lower()
+    use_schedule_pattern = ('sunsang24.com' in target_netloc) or ('schedule_fleet' in parsed_target.path)
+
+    # simple_day 조각은 이 배만이 아니라 그날 플랫폼 전체 배 목록을 돌려준다
+    # (실측: 24마린낚시=ship_no 1630 요청인데 응답에 다른 배 15척이 같이 왔다).
+    # 그대로 두면 남의 배 상태가 이 배 이름으로 저장되므로, 아래 배별 루프에서
+    # known_ship_name과 정확히 일치하는 행만 남긴다(구조 신호만으로 인정하는
+    # 기존 관대한 판정을 이 패턴에서는 쓰지 않는다).
+    is_platform_wide_listing = '/simple_day' in parsed_target.path
+
+    if use_schedule_pattern:
+        date_id = f"d{year:04d}-{month:02d}-{day:02d}"
+        day_block = soup.find(id=date_id) or soup.select_one('.shipsinfo_daywarp.weekday')
+
+        if not day_block:
+            # try comment-based search
+            for comment in soup.find_all(string=lambda t: isinstance(t, Comment)):
+                if "날자별 선단 소속 선박 리스트" in str(comment):
+                    nxt = comment
+                    for _ in range(8):
+                        nxt = nxt.next_sibling
+                        if not nxt:
+                            break
+                        if getattr(nxt, 'select', None):
+                            found = nxt.select_one(f".shipsinfo_daywarp#{date_id}, .shipsinfo_daywarp.weekday, .shipsinfo_daywarp")
+                            if found:
+                                day_block = found
+                                break
+
+        if not day_block:
+            result = {"matched": False, "date_id": date_id, "source_url": display_url, "entries": [], "tide": None}
+            return result
+
+        # extract tide info from .date_info2
+        tide = None
+        date_info2_el = day_block.select_one('.date_info2')
+        if date_info2_el:
+            tide = date_info2_el.get_text(separator=' ', strip=True)
+
+        # 어종 추출: div#fish 또는 .fish 우선, 없으면 '낚시종류' 라벨 주변에서 시도
+        fish = None
+        fish_el = day_block.select_one('div#fish') or day_block.select_one('.fish') or soup.select_one('div#fish')
+        if fish_el:
+            fish = _sanitize_fish_text(fish_el.get_text(" ", strip=True))
+        else:
+            label_text = day_block.find(string=re.compile(r'낚시종류'))
+            if label_text:
+                parent = label_text.parent
+                if parent and parent.name == 'td':
+                    sib = parent.find_next_sibling('td')
+                    if sib:
+                        fish = _sanitize_fish_text(sib.get_text(" ", strip=True))
+                else:
+                    nxt = label_text.find_next()
+                    if nxt and getattr(nxt, 'get_text', None):
+                        fish = _sanitize_fish_text(nxt.get_text(" ", strip=True))
+
+        # debug: schedule_fleet 패턴에서 추출된 어종 확인
+        if debug_enabled:
+            try:
+                print(json.dumps({"DEBUG_FISH_SCHEDULE": fish, "date": display_date, "url": final_url}, ensure_ascii=False))
+            except Exception:
+                print("DEBUG_FISH_SCHEDULE:", fish, display_date, final_url)
+
+        entries = []
+        ship_tables = day_block.select('table.ship_unit, table[class*="ship_unit_"], table.ship_unit_ship_no_918, .ships_warp table')
+        if not ship_tables:
+            ship_tables = [t for t in day_block.find_all('table') if t.select_one('.title') or t.select_one('.ship_info')]
+
+        for t in ship_tables:
+            # find title
+            title_el = t.select_one('.ship_info .title') or t.select_one('.title')
+            ship_name = title_el.get_text(strip=True) if title_el else None
+
+            # ship_info2 status
+            status_el = t.select_one('.ship_info2 .shipping_status') or t.select_one('.ship_info2') or None
+            status_text = status_el.get_text(separator=' ', strip=True) if status_el else ""
+            status_code = status_el.get('data-status_code') if status_el and status_el.has_attr('data-status_code') else None
+
+            # remaining seats
+            avail = None
+            num_el = t.select_one('span.number.blink_me.n_blue.f_20') or t.select_one('.ship_info2 .number') or t.select_one('.number')
+            if num_el:
+                mnum = re.search(r'(\d+)', num_el.get_text())
+                if mnum:
+                    avail = int(mnum.group(1))
+
+            if re.search(r'점검일', status_text):
+                status = 'maintenance'
+                avail = 0
+                display_status = "점검일"
+            elif status_code == 'END' or re.search(r'(예약마감|매진|마감)', status_text):
+                status = 'full'
+                # 마감이면 잔여석은 0이다. 예전에는 avail 이 None 일 때만 0으로
+                # 채웠는데, .number 는 잔여석이 아니라 정원이라 마감된 배가
+                # '20자리 남음'으로 저장됐다(실측: 팀에프원 full/20).
+                # 화면은 두 렌더 경로 모두 마감이면 0으로 덮어쓰고 있어 가려져
+                # 있었지만, DB(snapshots)에는 그대로 들어가 알림 판단을 망친다.
+                avail = 0
+                display_status = "예약마감"
+            elif re.search(r'예약\s*완료', status_text):
+                status = 'reserved'
+                avail = 0
+                display_status = "예약완료"
+            elif avail is not None and avail > 0:
+                status = 'open'
+                display_status = f"남은자리 {avail}명"
+            elif re.search(r'출항취소|취소|cancel', status_text, re.I):
+                status = 'cancelled'
+                display_status = '출항취소'
+            elif re.search(r'기상악화|기상 악화|weather.*bad|bad.*weather', status_text, re.I):
+                status = 'cancelled'
+                display_status = '기상악화'
+            else:
+                status = 'unknown'
+                display_status = status_text or "알 수 없음"
+
+            # --- changed: 배별 어종(fish) 추출 ---
+            ship_fish = None
+            # 1) 선박 테이블 내부에서 어종 셀렉터 우선 탐색
+            ship_fish_el = (
+                t.select_one('.ship_info .fish') or
+                t.select_one('.ship_info2 .fish') or
+                t.select_one('.fish') or
+                t.select_one('div.fish') or
+                t.select_one('span.fish') or
+                t.select_one('.ship_kinds') or
+                t.select_one('.ship_kind') or
+                t.select_one('.tags') or
+                t.select_one('.tag_area')
+            )
+            if ship_fish_el:
+                ship_fish_text = ship_fish_el.get_text(" ", strip=True)
+                # 라벨 제거 (낚시종류:, 어종: 등)
+                ship_fish = _sanitize_fish_text(ship_fish_text)
+            
+            # 2) 라벨 기반 탐색 (테이블 내 "낚시종류" 또는 "어종" 라벨)
+            if not ship_fish:
+                lbl = t.find(string=re.compile(r'(낚시\s*종류|어종)', re.I))
+                if lbl:
+                    p = getattr(lbl, 'parent', None)
+                    if p and getattr(p, 'name', None) == 'td':
+                        sib = p.find_next_sibling('td')
+                        if sib:
+                            txt = sib.get_text(" ", strip=True)
+                            ship_fish = _sanitize_fish_text(txt)
+                    if not ship_fish:
+                        nxt = lbl.find_next()
+                        if nxt and getattr(nxt, 'get_text', None):
+                            txt = nxt.get_text(" ", strip=True)
+                            ship_fish = _sanitize_fish_text(txt)
+            
+            # 3) 페이지 전체(day_block) 어종을 최종 폴백
+            if not ship_fish:
+                ship_fish = fish
+            # ---------------------------------------
+
+            # --- 배별 운항시간(shiptime) 추출: 선사가 등록한 경우에만 존재
+            # (실측: 팀에프호 fixture 93척 중 62척=약 67%) ---
+            ship_shiptime_from = None
+            ship_shiptime_to = None
+            shiptime_el = t.select_one('.shiptime .detail')
+            if shiptime_el:
+                shiptime_text = re.sub(r'\s+', ' ', shiptime_el.get_text(' ', strip=True)).strip()
+                m = re.match(r'^(\d{1,2}:\d{2})\s*~\s*(\d{1,2}:\d{2})$', shiptime_text)
+                if m:
+                    ship_shiptime_from, ship_shiptime_to = m.group(1), m.group(2)
+            # ---------------------------------------
+
+            # debug: 파싱된 항목 콘솔 출력
+            if debug_enabled:
+                try:
+                    print(json.dumps({
+                        "DEBUG_SCHEDULE_ENTRY": {
+                            "ship_name": ship_name,
+                            "status": status,
+                            "available": avail,
+                            "display_status": display_status,
+                            "raw_status_text": status_text,
+                            "fish": ship_fish,  # 배별 어종
+                            "query_date": display_date,
+                            "row_html_len": len(str(t))
+                        }
+                    }, ensure_ascii=False))
+                except Exception:
+                    print("DEBUG_SCHEDULE_ENTRY:", ship_name, status, avail, display_status, ship_fish)
+            
+            # 배 이름 정리 (예약하기 등 제거)
+            ship_name = _clean_ship_name(ship_name)
+
+            if is_platform_wide_listing:
+                # 이 페이지엔 남의 배도 같이 실려 있다 - 구조 신호로 관대하게
+                # 인정하면 안 되고 등록된 이름과 정확히 일치해야만 이 배로 본다.
+                if not known_ship_name or ship_name != known_ship_name:
+                    continue
+            else:
+                # 이 행이 배인지 검증. 이름 모양보다 구조 신호(정원/예약상태)를
+                # 우선한다. 이름이 '호'로 끝나지 않는 선단(팀에프원/팀에프투 등)
+                # 이 통째로 사라지던 문제를 막는다.
+                has_ship_signals = bool(num_el or status_text)
+                if not _is_valid_ship_name(ship_name,
+                                           {known_ship_name} if known_ship_name else None,
+                                           has_ship_signals=has_ship_signals):
+                    continue
+
+            entries.append({
+                "ship_name": ship_name,
+                "status": status,
+                "available": avail,
+                "raw_status_text": status_text,
+                "display_status": display_status,
+                "row_html": str(t),
+                "query_date": display_date,
+                "fish": ship_fish,  # 배별 어종
+                "shiptime_from": ship_shiptime_from,  # 배별 운항시간(있는 배만)
+                "shiptime_to": ship_shiptime_to
+            })
+
+        result = {"matched": True, "entries": entries, "date_id": date_id, "source_url": display_url, "tide": tide}
+        return result
+
+        # 일반 게시판 패턴
+    else:
+        if debug_enabled:
+            print("DEBUG: 일반 게시판 패턴 시작")
+        tide = None
+        # new-div-YYYYMMDD 컨테이너에서 선박별 행을 추출
+        entries = []
+        date8 = f"{int(year):04d}{int(month):02d}{int(day):02d}"
+
+        # 대표 컨테이너 찾기
+        container = soup.select_one(f"div#new-div-{date8}") or soup.select_one(f"div.new-divs, .new-divs")
+        if debug_enabled:
+            print(f"DEBUG_CONTAINER: date8={date8}, container_found={container is not None}")
+            if container:
+                print(f"DEBUG_CONTAINER_ID: {container.get('id', 'no-id')}, class: {container.get('class', [])}")
+
+        # 물때 정보 추출 (jeil-panel tr의 data-str 속성에서)
+        if container:
+            jeil_panel_tr = container.select_one('tr.jeil-panel')
+            if jeil_panel_tr and jeil_panel_tr.has_attr('data-str'):
+                data_str = jeil_panel_tr['data-str']
+                m = re.search(r'(\d+)\s*물', data_str)
+                if m:
+                    tide = f"{m.group(1)}물"
+
+        # 일반 게시판에서도 어종 추출 시도
+        fish = None
+        if container:
+            # 1순위: div#fish 또는 .fish 클래스
+            fish_el = container.select_one('div#fish') or container.select_one('.fish') or soup.select_one('div#fish')
+            if fish_el:
+                fish = _sanitize_fish_text(fish_el.get_text(" ", strip=True))
+            
+            # 2순위: ★어종★ 패턴 추출 (야무진 사이트 패턴)
+            if not fish:
+                all_text = container.get_text(" ", strip=True)
+                # ★...★ 패턴 매칭 (완벽한 매칭, 비탐욕적)
+                star_matches = re.findall(r'★\s*([^★]+?)\s*★', all_text)
+                if star_matches:
+                    # 첫 번째 ★...★ 패턴을 어종으로 간주
+                    fish_candidate = star_matches[0].strip()
+                    # 불필요한 정보 제거 (금액, 예선 등)
+                    # "[" 이후는 제거 (금액 정보)
+                    if '[' in fish_candidate:
+                        fish_candidate = fish_candidate.split('[')[0].strip()
+                    # " 탐사" 이후는 제거
+                    if ' 탐사' in fish_candidate:
+                        fish_candidate = fish_candidate.split(' 탐사')[0].strip()
+                    if fish_candidate:
+                        fish = fish_candidate
+            
+            # 3순위: 낚시종류 이미지 또는 텍스트 라벨
+            if not fish:
+                # 야무진 사이트: 이미지 아이콘 사용
+                label_img = container.find('img', alt='낚시종류')
+                if label_img:
+                    # 이미지의 부모 td 찾기
+                    label_td = label_img.find_parent('td')
+                    if label_td:
+                        fish_td = label_td.find_next_sibling('td')
+                        if fish_td:
+                            fish = fish_td.get_text(" ", strip=True)
+                else:
+                    # 텍스트 라벨로 "낚시종류" 찾기
+                    label_tag = container.find(lambda tag: tag.name == 'div' and tag.string and tag.string.strip() == '낚시종류')
+                    if label_tag:
+                        label_td = label_tag.find_parent('td')
+                        if label_td:
+                            fish_td = label_td.find_next_sibling('td')
+                            if fish_td:
+                                fish = fish_td.get_text(" ", strip=True)
+
+        # 컨테이너 내 tr을 우선 사용한다. 컨테이너 자체가 없는 사이트(실측:
+        # 나폴리호 - div#new-div-{date8} 래퍼 없이 상태 이미지가 바로
+        # div[id^="admin-right-{date8}-"] 안에 있다)는 그 id에 날짜가
+        # 박혀 있으므로, 그 조상 tr만 모아 정확히 그 날짜의 배 행만 잡는다
+        # (페이지 전체 tr 폴백보다 훨씬 정확 - 뒤 이름 검증에서 다른 날짜
+        # 행이 섞여 들어오는 것도 막는다).
+        rows = []
+        if container:
+            rows = container.select("tr") or []
+        if not rows:
+            admin_right_divs = soup.select(f'div[id^="admin-right-{date8}-"]')
+            seen_tr_ids = set()
+            for admin_div in admin_right_divs:
+                tr = admin_div.find_parent('tr')
+                if tr is not None and id(tr) not in seen_tr_ids:
+                    seen_tr_ids.add(id(tr))
+                    rows.append(tr)
+        if not rows:
+            rows = soup.select("tr")
+
+        if debug_enabled:
+            print(f"DEBUG_ROWS: container_rows={(len(container.select('tr')) if container else 0)}, total_rows={len(rows)}")
+        
+        exclude_keywords = {"공지사항", "입금대기", "선박명", "공지", "오늘:"}
+        current_fish = fish  # 페이지 레벨 어종으로 시작
+
+        for tr in rows:
+            tds = tr.find_all("td")
+            if debug_enabled:
+                print(f"DEBUG_TR: tds_count={len(tds)}, tr_text='{tr.get_text(strip=True)[:50]}...'")
+            if not tds:
+                continue
+
+            # --- 공지 행에서 어종 추출 ---
+            is_notice = False
+            # <img alt="공지">
+            img = tds[0].find('img', alt='공지')
+            if img:
+                is_notice = True
+            # <div>공지</div>
+            div = tds[0].find('div')
+            if div and '공지' in div.get_text(strip=True):
+                is_notice = True
+            if is_notice and len(tds) >= 2:
+                # 공지 행의 어종 정보 추출 (단, 안내문 스타일은 무시)
+                notice_area_fish = _extract_fish_from_notice_area(tr)
+                if notice_area_fish:
+                    current_fish = notice_area_fish
+                    continue
+
+                # 1) td 내 모든 텍스트 노드에서 어종 키워드 추출
+                all_texts = []
+                # 모든 텍스트 노드 수집 (중첩 태그 포함)
+                for elem in tds[1].descendants:
+                    if elem.name is None:
+                        txt = str(elem).strip()
+                        if txt:
+                            all_texts.append(txt)
+                found_fish = []
+                for txt in all_texts:
+                    extracted = _extract_known_fish(txt)
+                    if extracted:
+                        for fish_name in extracted.split(', '):
+                            if fish_name not in found_fish:
+                                found_fish.append(fish_name)
+                if found_fish:
+                    current_fish = ', '.join(found_fish)
+                    continue
+                # 2) 전체 텍스트에서 키워드 추출 (백업)
+                notice_fish = tds[1].get_text(" ", strip=True)
+                notice_fish = notice_fish.replace('\n', ' ').replace('\r', ' ')
+                notice_fish = ' '.join(notice_fish.split())
+                extracted_notice_fish = _extract_known_fish(notice_fish)
+                if extracted_notice_fish:
+                    current_fish = extracted_notice_fish
+                elif notice_fish and len(notice_fish) <= 20 and not re.match(r'^[0-9a-zA-Z\(\)\[\]#]', notice_fish) and notice_fish.count('.') < 2:
+                    current_fish = _sanitize_fish_text(notice_fish)
+                continue
+
+            # 어종 정보 행인지 확인 (td가 2개이고 첫번째에 '낚시종류' 포함)
+            first_td_text = tds[0].get_text(" ", strip=True)
+            if '낚시종류' in first_td_text and len(tds) >= 2:
+                current_fish = _sanitize_fish_text(tds[1].get_text(" ", strip=True).strip())
+                # 어종 정보 행은 보트가 아니므로 건너뜀
+                continue
+
+            # 보트 행이 아니면 건너뜀 (td 갯수 등)
+            if len(tds) < 3:
+                continue
+
+            # 1번째 td에서 선박명 추출
+            ship_name = tds[0].get_text(" ", strip=True)
+
+            if debug_enabled:
+                print(f"DEBUG_SHIP_ROW: ship_name='{ship_name}', tds_count={len(tds)}")
+                for i, td in enumerate(tds):
+                    print(f"  TD[{i}]: '{td.get_text(strip=True)}'")
+
+            # 불필요한 행(헤더/공지 등) 제거
+            if not ship_name:
+                continue
+            lowered = ship_name.replace(" ", "")
+            skip = False
+            for kw in exclude_keywords:
+                if kw in ship_name or kw in lowered:
+                    skip = True
+                    break
+            if skip:
+                continue
+
+            # 배별 어종 추출 시도 (TD[1]에서 특수문자 기반)
+            ship_fish = None
+            if len(tds) >= 2:
+                ship_fish = _extract_fish_from_notice_area(tds[1])
+                td1_text = tds[1].get_text(strip=True)
+                if debug_enabled:
+                    print(f"DEBUG_TD1_TEXT: '{td1_text}'")
+                if not ship_fish:
+                    ship_fish = _extract_fish_from_special_marker(td1_text)
+                if debug_enabled:
+                    print(f"DEBUG_EXTRACTED_FISH: '{ship_fish}'")
+            
+            # 배별 어종이 없으면 페이지 레벨 어종 사용
+            if not ship_fish:
+                ship_fish = current_fish
+
+            # 3번째 td (또는 admin-right div)가 실제 상태/잔여 정보를 가지고 있는 경우 추출
+            admin_div = None
+            if len(tds) >= 3:
+                admin_div = tds[2].select_one('div[id^="admin-right-"]')
+            if not admin_div:
+                admin_div = tr.select_one('div[id^="admin-right-"]')
+
+            raw_status_text = ""
+            available = None
+            status_type = "unknown"
+
+            # 상태 이미지를 admin-right 래퍼 안에서 먼저 찾고, 없으면 상태 칸에
+            # 바로 있는 <img alt="..."> 도 시도한다(실측: 뉴해덕호는 admin-right
+            # 래퍼가 없고 tds[2]에 <img alt="예약완료"> 만 있다 - 예전엔 이 경우
+            # tds[1](공지/입금자 정보 칸, 완전히 다른 칸)의 텍스트로 잘못 추측했다).
+            status_img = None
+            if admin_div:
+                status_img = admin_div.find("img")
+            elif len(tds) >= 3:
+                status_img = tds[-1].find("img", alt=True)
+
+            if status_img and status_img.has_attr("alt"):
+                raw_status_text = status_img["alt"].strip()
+                status_type, available = _interpret_boat_status_text(raw_status_text)
+            elif admin_div:
+                raw_status_text = admin_div.get_text(" ", strip=True)
+                status_type, available = _interpret_boat_status_text(raw_status_text)
+            else:
+                # 상태 이미지를 아예 못 찾았을 때만 기존처럼 tds[1] 텍스트로 추측한다.
+                second_text = tds[1].get_text(" ", strip=True)
+                raw_status_text = second_text
+                if re.search(r'입금대기', second_text):
+                    status_type = "pending"
+                elif re.search(r'예약\s*완료', raw_status_text):
+                    status_type = "reserved"
+                    available = 0
+                else:
+                    status_type = "unknown"
+
+            display_status = "-"
+            if status_type == "maintenance":
+                display_status = "점검일"
+            elif status_type == "reserved":
+                display_status = "예약마감"
+            elif status_type == "open" and available is not None:
+                display_status = f"남은자리 {available}명"
+            elif status_type == "full":
+                display_status = "예약마감"
+            elif status_type == "pending":
+                display_status = "입금대기"
+            else:
+                display_status = raw_status_text or "알 수 없음"
+
+            # debug: 출력하여 파싱 결과 확인
+            if debug_enabled:
+                try:
+                    print(json.dumps({
+                        "DEBUG_BOARD_ENTRY": {
+                            "ship_name": ship_name,
+                            "status": status_type,
+                            "available": available,
+                            "display_status": display_status,
+                            "raw_status_text": raw_status_text,
+                            "fish": ship_fish,
+                            "row_html_len": len(str(tr))
+                        }
+                    }, ensure_ascii=False))
+                except Exception:
+                    print("DEBUG_BOARD_ENTRY:", ship_name, status_type, available, display_status, ship_fish)
+
+            # 유효한 배 이름인지 검증. 상태를 실제로 읽어냈으면(예약완료/남은자리
+            # 등) 구조 신호가 있는 것이므로 이름이 "호"로 안 끝나도 배로 인정한다
+            # (실측: 나폴리(신조선)/나폴리2/뉴나폴리 등 - sunsang24 분기의
+            # 팀에프원/팀에프투 수정과 같은 이유).
+            if not _is_valid_ship_name(ship_name, {known_ship_name} if known_ship_name else None,
+                                       has_ship_signals=(status_type != "unknown")):
+                continue
+
+            # 배 이름 정리 (예약하기 등 제거)
+            ship_name = _clean_ship_name(ship_name)
+
+            entries.append({
+                "ship_name": ship_name,
+                "status": status_type,
+                "available": available,
+                "raw_status_text": raw_status_text,
+                "display_status": display_status,
+                "row_html": str(tr),
+                "fish": ship_fish
+            })
+
+        # 폴백 1.5: tr 기반 추출이 0건이면 모바일 div 패턴(실측: 태풍투어낚시)을
+        # 시도한다. 이 사이트는 <tr> 자체가 없어서 위 로직이 원천적으로 못 잡는다.
+        if not entries:
+            entries = _parse_mobile_reservation_boat_v3(soup, date8)
+
+        # 폴백 2: 위 방식으로 entries가 비면 admin-right 블록을 직접 스캔
+        if not entries:
+            # 모든 공지 tr을 수집하여 어종 매핑 구축
+            notice_fish_map = {}
+            all_trs = soup.select('tr')
+            for idx, tr_item in enumerate(all_trs):
+                tds2 = tr_item.find_all('td')
+                if len(tds2) < 2:
+                    continue
+                left = tds2[0]
+                is_notice2 = False
+                if left.find('img', alt='공지'):
+                    is_notice2 = True
+                dv = left.find('div')
+                if dv and '공지' in dv.get_text(strip=True):
+                    is_notice2 = True
+                if is_notice2:
+                    notice_area_fish = _extract_fish_from_notice_area(tr_item)
+                    if notice_area_fish:
+                        for j in range(idx+1, len(all_trs)):
+                            notice_fish_map[id(all_trs[j])] = notice_area_fish
+                        continue
+
+                    # 오른쪽 td 전체 텍스트에서 키워드
+                    texts = []
+                    for elem in tds2[1].descendants:
+                        if elem.name is None:
+                            t = str(elem).strip()
+                            if t:
+                                texts.append(t)
+                    found = []
+                    for t in texts:
+                        extracted = _extract_known_fish(t)
+                        if extracted:
+                            for fish_name in extracted.split(', '):
+                                if fish_name not in found:
+                                    found.append(fish_name)
+                    if found:
+                        # 이 공지 tr 이후의 모든 tr에 어종 적용 (다음 공지가 나오기 전까지)
+                        fish_val = ', '.join(found)
+                        for j in range(idx+1, len(all_trs)):
+                            notice_fish_map[id(all_trs[j])] = fish_val
+            
+            def _fish_from_notice_before(node):
+                return notice_fish_map.get(id(node), None)
+
+            for adm in soup.select('div[id^="admin-right-"]'):
+                tr = adm.find_parent('tr')
+                if not tr:
+                    continue
+                tds3 = tr.find_all('td')
+                ship_name = ''
+                local_fish = None
+                
+                # 1) 현재 tr의 첫 td에서 선박명 추출
+                if tds3:
+                    ship_name = tds3[0].get_text(' ', strip=True)
+                if len(tds3) >= 2:
+                    local_fish = _extract_fish_from_notice_area(tds3[1])
+                # 문서 전체 tr 스캔 (테이블 경계 무시)
+                all_trs_to_scan = soup.find_all('tr')
+                idx_current = -1
+                for i, t_item in enumerate(all_trs_to_scan):
+                    if t_item is tr:
+                        idx_current = i
+                        break
+                
+                if not local_fish:
+                    # 현재 tr 이후의 tr들에서 공지 행 탐색
+                    for j in range(idx_current + 1, len(all_trs_to_scan)):
+                        prev_tr = all_trs_to_scan[j]
+                        prev_tds = prev_tr.find_all('td')
+                        if len(prev_tds) >= 2:
+                            left = prev_tds[0]
+                            is_n = False
+                            if left.find('img', alt='공지'):
+                                is_n = True
+                            dv = left.find('div')
+                            if dv and '공지' in dv.get_text(strip=True):
+                                is_n = True
+                            if is_n:
+                                texts = []
+                                for elem in prev_tds[1].descendants:
+                                    if elem.name is None:
+                                        t = str(elem).strip()
+                                        if t:
+                                            texts.append(t)
+                                found = []
+                                for t in texts:
+                                    nt = _norm(t)
+                                    for w in FISH_KEYWORDS:
+                                        if _norm(w) in nt and w not in found:
+                                            found.append(w)
+                                if found:
+                                    local_fish = ', '.join(found)
+                                    break
+                            # 선박명이 없으면 이전 tr에서 선박명도 추출
+                            if not ship_name and prev_tds[0]:
+                                ship_name = prev_tds[0].get_text(' ', strip=True)
+
+                if not ship_name:
+                    continue
+
+                # 상태/잔여 계산
+                raw_status_text = ''
+                img = adm.find('img')
+                if img and img.has_attr('alt'):
+                    raw_status_text = img['alt'].strip()
+                else:
+                    raw_status_text = adm.get_text(' ', strip=True)
+
+                available = None
+                status_type = 'unknown'
+                if re.search(r'점검일', raw_status_text):
+                    status_type = 'maintenance'
+                    available = 0
+                else:
+                    m = re.search(r'남은\s*자리\s*[:：]?\s*(\d+)', raw_status_text) or \
+                        re.search(r'남은자리\s*(\d+)', raw_status_text) or \
+                        re.search(r'(\d+)\s*명', raw_status_text)
+                    if m:
+                        try:
+                            available = int(m.group(1))
+                            status_type = 'open'
+                        except Exception:
+                            available = None
+                            status_type = 'unknown'
+                    elif re.search(r'예약완료|예약 완료', raw_status_text):
+                        status_type = 'reserved'
+                        available = 0
+                    elif re.search(r'매진|마감|예약마감', raw_status_text):
+                        status_type = 'full'
+                        available = 0
+
+                # 배 이름 정리 (예약하기 등 제거)
+                ship_name = _clean_ship_name(ship_name)
+
+                # 유효한 배 이름인지 검증
+                if not _is_valid_ship_name(ship_name, {known_ship_name} if known_ship_name else None):
+                    continue
+
+                fish_local = local_fish or _fish_from_notice_before(tr) or fish or None
+                entries.append({
+                    'ship_name': ship_name,
+                    'status': status_type,
+                    'available': available,
+                    'raw_status_text': raw_status_text,
+                    'display_status': '-',
+                    'row_html': str(tr),
+                    'fish': fish_local
+                })
+
+        # matched True로 반환하되 entries가 비어있을 수 있음
+        result = {
+            "matched": True,
+            "entries": entries,
+            "source_url": display_url,
+            "raw_html": resp.text[:1000],  # 디버깅용 요약
+            "tide": tide
+        }
+        return result
+
+# 예시: 조회 함수에서 지역 필터링 적용
+def filter_entries_by_region(entries, selected_regions):
+    # selected_regions: ["인천", "안산", ...]
+    return [e for e in entries if e.get("city") in selected_regions]

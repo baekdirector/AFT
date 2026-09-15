@@ -1,18 +1,25 @@
-# 예약 스크래핑 워커 이미지. 빌드 컨텍스트는 리포 루트여야 한다
-# (Cloud Build 트리거 설정: Dockerfile 경로 worker/Dockerfile, 컨텍스트
-# 리포 루트) - 그래야 src/services/reservation_checker.py 와 src/config/
-# 를 그대로 복사해 넣을 수 있다. 파싱 로직 원본은 하나뿐이고(worker/app.py
-# 주석 참고) 이 이미지는 그 원본을 복사해서 실행할 뿐이다.
+# 예약 스크래핑 워커 이미지.
+#
+# 빌드 컨텍스트는 이 폴더(worker/) 자체다 - Cloud Run의 "GitHub 연결 +
+# Dockerfile" 방식(간편 설정 화면)은 Dockerfile이 있는 디렉터리를 그대로
+# 빌드 컨텍스트로 쓰고, 리포 루트를 따로 지정하는 옵션이 없다(실측:
+# 최초 시도 때 src/services/... 를 COPY하려다 "file not found in build
+# context" 로 실패했다 - 그때 로그의 빌드 컨텍스트 크기가 7KB로,
+# worker/ 폴더 내용물 크기와 일치했다). 그래서 이 폴더가 자급자족하도록
+# services/reservation_checker.py 와 config/ 를 이 폴더 안에 실제로
+# 복사해 두었다(원본은 src/services/reservation_checker.py, src/config/
+# 그대로다 - 둘이 어긋나지 않는지는 tests/test_worker_source_in_sync.py
+# 가 pytest로 매번 검사한다).
 FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY worker/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY src/services/reservation_checker.py ./services/reservation_checker.py
-COPY src/config/ ./config/
-COPY worker/app.py .
+COPY services/ ./services/
+COPY config/ ./config/
+COPY app.py .
 
 ENV PORT=8080
 

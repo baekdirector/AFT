@@ -9,10 +9,13 @@ Render 는 이 서비스를 "배 한 척, 날짜 하나를 대신 긁어와줘" 
 거리 문제이지 코드 문제가 아니었다. Tokyo 리전은 그 사이트들과 물리적으로
 훨씬 가깝다.
 
-실제 fetch+parse 로직은 이 파일에 없다. src/services/reservation_checker.py
-의 _check_single_boat_locally() 를 그대로 불러 쓴다(Dockerfile 이 빌드 시
-그 파일과 src/config/ 를 이 이미지 안으로 복사해 넣는다) - 파싱 로직의
-원본은 하나뿐이고, 이 서비스는 그 원본을 실행하는 자리만 옮긴 것이다.
+실제 fetch+parse 로직은 이 파일에 없다. services/reservation_checker.py
+의 _check_single_boat_locally() 를 그대로 불러 쓴다. 그 파일은
+src/services/reservation_checker.py 의 사본이다(Cloud Run의 "Dockerfile"
+배포 방식이 Dockerfile이 있는 폴더 자체를 빌드 컨텍스트로 써서, 리포
+루트 밖의 src/ 를 COPY할 수 없었다 - worker/Dockerfile 주석 참고) -
+원본이 바뀌면 이 사본도 같이 바꿔야 하고, 둘이 어긋나지 않았는지는
+tests/test_worker_source_in_sync.py 가 매 pytest 실행마다 검사한다.
 """
 import hmac
 import os
