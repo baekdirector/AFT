@@ -82,6 +82,26 @@ def test_stream_emits_start_every_boat_and_end(app, client, monkeypatch):
     assert len([l for l in lines if l.get('registered_name')]) == 71
 
 
+def test_stream_carries_the_registered_note(app, client, monkeypatch):
+    """배 등록 시 입력한 비고가 라이브 조회 결과에도 실려야 한다 - 예전엔
+    이 필드 자체가 응답에 없어서 /status 카드에 비고가 전혀 안 보였다."""
+    from db import db
+    from models import Boat
+
+    with app.app_context():
+        Boat.query.delete()
+        db.session.commit()
+        add_boat_instance(name='어비스호', url='https://abyss.example/x',
+                          city='인천', port='남항(인천항)', note='격주 토요일만 출항', is_shared=False)
+
+    _fake_check(monkeypatch)
+
+    lines = _post(client)
+    result = next(l for l in lines if l.get('registered_name'))
+
+    assert result['note'] == '격주 토요일만 출항'
+
+
 def test_stream_carries_operating_hours_when_present(app, client, monkeypatch):
     """운항시간(shiptime_from/to)이 파서 entry에 있으면 스트림 결과 줄까지
     그대로 실려야 한다 - 예전엔 이 필드 자체를 읽지도 옮기지도 않았다."""

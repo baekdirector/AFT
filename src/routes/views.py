@@ -501,6 +501,7 @@ def api_status():
                             'shiptime_from': None, 'shiptime_to': None}]
             return {'boat_id': boat.id,
                     'registered_name': boat_name, 'city': boat.city, 'port': boat.port,
+                    'note': boat.note or '',
                     'query_date': f'{year:04d}-{month:02d}-{day:02d}', 'tide': info.get('tide'),
                     'mulddae': get_mulddae(date(year, month, day), boat.city),
                     'entries': entries, 'elapsed_seconds': elapsed_seconds}
@@ -508,7 +509,8 @@ def api_status():
             elapsed_seconds = round(perf_counter() - boat_started_at, 2)
             return {'boat_id': getattr(boat, 'id', None),
                     'registered_name': boat_name, 'city': getattr(boat, 'city', ''),
-                    'port': getattr(boat, 'port', ''), 'query_date': f'{year:04d}-{month:02d}-{day:02d}',
+                    'port': getattr(boat, 'port', ''), 'note': getattr(boat, 'note', None) or '',
+                    'query_date': f'{year:04d}-{month:02d}-{day:02d}',
                     'tide': None, 'mulddae': get_mulddae(date(year, month, day), getattr(boat, 'city', '')),
                     'entries': [{'ship_name': boat_name, 'status': 'unknown',
                     'available': None, 'raw_status_text': f'조회 오류: {exc}',
@@ -629,6 +631,7 @@ def api_status_cached():
             'registered_name': boat.name,
             'city': boat.city,
             'port': boat.port,
+            'note': boat.note or '',
             'mulddae': get_mulddae(target_date, boat.city),
             'ship_name': snap.ship_name,
             'status': snap.status,

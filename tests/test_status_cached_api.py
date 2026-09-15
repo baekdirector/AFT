@@ -22,7 +22,7 @@ def seeded(app):
         Boat.query.delete()
         db.session.commit()
         incheon = add_boat_instance(name='인천배', url='https://a.example/x',
-                                    city='인천', port='남항(인천항)', note='', is_shared=False)
+                                    city='인천', port='남항(인천항)', note='격주 토요일만 출항', is_shared=False)
         yeosu = add_boat_instance(name='여수배', url='https://b.example/x',
                                   city='여수', port='국동항', note='', is_shared=False)
         add_boat_instance(name='조회안된배', url='https://c.example/x',
@@ -56,6 +56,16 @@ def test_returns_cached_rows(client, seeded):
     assert len(body['rows']) == 3
     assert body['boat_count'] == 2, '스냅샷이 있는 배만 센다'
     assert body['total_boats'] == 3, '등록된 배 전체 수도 알려준다'
+
+
+def test_rows_carry_the_registered_note(client, seeded):
+    """등록 시 입력한 비고가 /status 결과 카드에도 내려가야 한다 - 예전엔
+    이 필드 자체가 빠져 있어 사용자가 입력한 비고가 카드에 전혀 안 보였다."""
+    resp, body = get(client, date=DATE)
+
+    rows_by_ship = {row['ship_name']: row for row in body['rows']}
+    assert rows_by_ship['1호']['note'] == '격주 토요일만 출항'
+    assert rows_by_ship['3호']['note'] == '', '비고가 없는 배는 빈 문자열이어야 한다'
 
 
 def test_rows_carry_everything_the_table_needs(client, seeded):
