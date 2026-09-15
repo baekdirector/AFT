@@ -322,6 +322,16 @@
   font-size: 11.5px; font-weight: 660; color: oklch(0.5 0.02 250); cursor: pointer; white-space: nowrap;
 }
 .watch-row-remove:hover { border-color: oklch(0.8 0.02 240); }
+.watch-row-remove:disabled, .watch-delete-btn:disabled.is-loading { cursor: default; opacity: 0.75; }
+/* 해제 버튼을 눌렀을 때 눈에 보이는 변화가 전혀 없다가(네트워크 왕복
+   동안) 갑자기 사라지던 문제 - 누르는 즉시 스피너+"해제 중…"으로 바꿔
+   진행 중임을 보여준다. currentColor를 써서 흰 배경(행별 해제)과
+   빨간 배경(일괄 삭제) 버튼 둘 다 텍스트 색에 맞춰 자연스럽게 보인다. */
+.btn-inline-spinner {
+  display: inline-block; width: 11px; height: 11px; margin-right: 5px; vertical-align: -1px;
+  border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%;
+  opacity: 0.7; animation: spin 0.7s linear infinite;
+}
 /* 모바일: 5칸 그리드 구조는 그대로 두고(체크 기록 로그 테이블과 같은
    방식) 폭/여백만 줄여서 가로 스크롤 없이 들어오게 한다. */
 @media (max-width: 480px) {
@@ -623,12 +633,33 @@ document.addEventListener('DOMContentLoaded', function () {
     // endpoint 가 비어있거나 네트워크가 잠깐 끊기면 예전엔 아무 말 없이
     // 조용히 아무 일도 안 했다 - 눌러도 카드가 그대로 남아있는데 이유를 알
     // 방법이 없었다. sendTest() 처럼 실패를 눈에 보이게 알린다.
-    async function removeMany(items) {
+    // 실측 버그: 해제 버튼을 눌러도 네트워크 왕복(DELETE + 목록 재조회) 동안
+    // 화면에 아무 변화가 없다가 갑자기 사라져서 "눌렸는지" 알 수 없었다.
+    // 누르는 즉시 그 버튼(들)에 스피너+"해제 중…"을 보여준다. 성공하면
+    // renderAll()이 버튼을 통째로 다시 그리므로 따로 복구할 필요가 없고,
+    // 완전히 실패(네트워크 자체가 끊김)했을 때만 원래 상태로 되돌린다.
+    function setButtonLoading(btn) {
+      if (!btn) return;
+      btn.disabled = true;
+      if (btn.dataset.originalText == null) btn.dataset.originalText = btn.textContent;
+      btn.innerHTML = '<span class="btn-inline-spinner"></span>해제 중…';
+    }
+    function clearButtonLoading(btn) {
+      if (!btn) return;
+      btn.disabled = false;
+      if (btn.dataset.originalText != null) {
+        btn.textContent = btn.dataset.originalText;
+        delete btn.dataset.originalText;
+      }
+    }
+
+    async function removeMany(items, buttons) {
       if (!items.length) return;
       if (!endpoint) {
         showToast('알림 구독 정보를 찾지 못했습니다. "알림 켜기"를 다시 눌러주세요.', { type: 'error' });
         return;
       }
+      (buttons || []).forEach(setButtonLoading);
       try {
         const results = await Promise.all(items.map(w => fetch('/api/watches', {
           method: 'DELETE',
@@ -654,11 +685,12 @@ document.addEventListener('DOMContentLoaded', function () {
       } catch (e) {
         console.warn('알림 해제 실패', e);
         showToast('알림 해제 중 오류가 발생했습니다. 네트워크 상태를 확인하고 다시 시도해주세요.', { type: 'error' });
+        (buttons || []).forEach(clearButtonLoading);
       }
     }
 
-    async function remove(w) {
-      await removeMany([w]);
+    async function remove(w, btn) {
+      await removeMany([w], [btn]);
     }
 
     // 체크박스 선택 상태(감시 key = boat_id+ship_name+target_date 조합)
@@ -830,7 +862,7 @@ document.addEventListener('DOMContentLoaded', function () {
           removeBtn.type = 'button';
           removeBtn.className = 'watch-row-remove';
           removeBtn.textContent = '해제';
-          removeBtn.addEventListener('click', () => remove(w));
+          removeBtn.addEventListener('click', () => remove(w, removeBtn));
           row.appendChild(removeBtn);
 
           table.appendChild(row);
@@ -997,7 +1029,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!items.length) return;
     const ok = await showConfirm(`선택한 ${items.length}건의 알림을 해제하시겠습니까?`, { confirmText: '해제', danger: true });
     if (!ok) return;
-    Watch.removeMany(items);
+    Watch.removeMany(items, [this]);
   });
 
   Watch.restore();
