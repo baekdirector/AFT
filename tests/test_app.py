@@ -94,7 +94,11 @@ def test_api_status_returns_every_registered_boat(app, monkeypatch):
     results = [l for l in lines if l.get('type') not in ('start', 'end')]
     assert len(results) == 62
     # 종료 마커가 있어야 프론트가 '완주'와 '중간에 잘림'을 구분할 수 있다
-    assert lines[-1] == {'type': 'end', 'total': 62, 'completed': 62, 'missing': []}
+    end = lines[-1]
+    assert end['type'] == 'end'
+    assert end['total'] == 62
+    assert end['completed'] == 62
+    assert end['missing'] == []
 
 
 def test_api_status_filters_multiple_regions_and_boats(app, monkeypatch):

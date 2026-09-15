@@ -71,7 +71,8 @@ def test_stream_emits_start_every_boat_and_end(app, client, monkeypatch):
 
     lines = _post(client)
 
-    assert lines[0] == {'type': 'start', 'total': 71}
+    assert lines[0]['type'] == 'start'
+    assert lines[0]['total'] == 71
     end = lines[-1]
     assert end['type'] == 'end', "종료 마커가 없으면 프론트가 잘림을 감지할 수 없다"
     assert end['completed'] == 71

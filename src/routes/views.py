@@ -14,6 +14,7 @@ from services.api_response import success_response, error_response, validation_e
 from services.status_service import StatusPageService
 from services.weather_tide_service import PortDataService
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from time import perf_counter
 import re
 import json
 import requests
@@ -471,9 +472,16 @@ def api_status():
             current_app.logger.warning('스냅샷 저장 실패(조회 결과는 정상): %s', exc)
 
     def process_boat(boat):
+        # 사용자 제보(여수 23척 조회가 55초) 진단용 - 배마다 실제로 얼마나
+        # 걸렸는지를 응답에 그대로 실어 보낸다. 로컬에서는 세션/파서 조합을
+        # 뭘 써도 3~4초로 차이가 없었는데 Render에서만 유독 느려서, 짐작으로
+        # 더 고치는 대신 실측값을 직접 봐야 한다(한국 사이트까지 거리가
+        # 진짜 원인인지, 특정 배 몇 척이 타임아웃까지 다 채우는지 등).
+        boat_started_at = perf_counter()
         boat_name = getattr(boat, 'name', None) or 'unknown'
         try:
             info = check_single_boat(boat.url, year, month, day, debug_enabled=debug_enabled, known_ship_name=boat_name)
+            elapsed_seconds = round(perf_counter() - boat_started_at, 2)
             source_url = info.get('source_url') or boat.url
             entries = [{
                 'ship_name': entry.get('ship_name'),
@@ -495,8 +503,9 @@ def api_status():
                     'registered_name': boat_name, 'city': boat.city, 'port': boat.port,
                     'query_date': f'{year:04d}-{month:02d}-{day:02d}', 'tide': info.get('tide'),
                     'mulddae': get_mulddae(date(year, month, day), boat.city),
-                    'entries': entries}
+                    'entries': entries, 'elapsed_seconds': elapsed_seconds}
         except Exception as exc:
+            elapsed_seconds = round(perf_counter() - boat_started_at, 2)
             return {'boat_id': getattr(boat, 'id', None),
                     'registered_name': boat_name, 'city': getattr(boat, 'city', ''),
                     'port': getattr(boat, 'port', ''), 'query_date': f'{year:04d}-{month:02d}-{day:02d}',
@@ -504,7 +513,8 @@ def api_status():
                     'entries': [{'ship_name': boat_name, 'status': 'unknown',
                     'available': None, 'raw_status_text': f'조회 오류: {exc}',
                     'source_url': boat.url, 'url_path': boat.url, 'fish': None,
-                    'shiptime_from': None, 'shiptime_to': None}]}
+                    'shiptime_from': None, 'shiptime_to': None}],
+                    'elapsed_seconds': elapsed_seconds}
 
     def stream_results():
         configured_workers = current_app.config.get('STATUS_MAX_WORKERS', 4)
@@ -513,8 +523,9 @@ def api_status():
         except (TypeError, ValueError):
             max_workers = 4
         max_workers = min(max_workers, len(boats)) if boats else 1
+        batch_started_at = perf_counter()
 
-        yield json.dumps({'type': 'start', 'total': len(boats)}, ensure_ascii=False) + '\n'
+        yield json.dumps({'type': 'start', 'total': len(boats), 'max_workers': max_workers}, ensure_ascii=False) + '\n'
         completed = 0
         succeeded = set()
         collected = []
@@ -541,7 +552,8 @@ def api_status():
         # 완주와 잘림을 구분하고, 못 받은 배만 재조회할 수 있다.
         missing = [b.name for b in boats if b.name not in succeeded]
         yield json.dumps({'type': 'end', 'total': len(boats),
-                          'completed': completed, 'missing': missing},
+                          'completed': completed, 'missing': missing,
+                          'batch_elapsed_seconds': round(perf_counter() - batch_started_at, 2)},
                          ensure_ascii=False) + '\n'
 
     return Response(
