@@ -1543,6 +1543,21 @@ def _admin_data_guard():
     return None
 
 
+def _no_store(payload: dict):
+    """이 응답을 브라우저가 캐시하지 못하게 한다.
+
+    실측 버그: 관리자 콘솔 "새로고침" 버튼(admin.html)이 fetch()를 다시
+    불러도, 시크릿 창이 아닌 일반 창에서는 브라우저가 같은 URL의 예전
+    응답을 그대로 재사용해 어제 데이터만 계속 보였다(사용자가 시크릿
+    창과 비교해서 직접 확인함). 프런트에서 fetch(..., {cache:'no-store'})
+    로 고쳤지만, 이 세 엔드포인트 자체도 캐시 가능한 응답으로 보이면
+    안 되므로(다른 호출부나 중간 프록시까지 안전하게) 서버 쪽에서도
+    명시적으로 막는다."""
+    resp = jsonify(payload)
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
 def _admin_recent_visit_logs():
     """최근(보관 기간 내) 방문 기록 + IP 위치 캐시. "접속 이력" 탭과 "알림
     등록" 탭(기기 IP 추정 백필)이 둘 다 이 원시 데이터가 필요해서 공용으로
@@ -1590,7 +1605,7 @@ def admin_data_ports_route():
          'ship_count': ship_counts.get(p.name, 0)}
         for p in Port.query.order_by(Port.region, Port.name).all()
     ]
-    return success_response({'ports': ports})
+    return _no_store(success_response({'ports': ports}))
 
 
 @views.route('/admin/data/access')
@@ -1646,13 +1661,13 @@ def admin_data_access_route():
 
     total_visits = sum(len(g['rows']) for g in groups)
 
-    return success_response({
+    return _no_store(success_response({
         'groups': groups,
         'retention_days': VISIT_LOG_RETENTION_DAYS,
         'show_bots': show_bots,
         'hidden_bot_count': hidden_bot_count,
         'total_visits': total_visits,
-    })
+    }))
 
 
 @views.route('/admin/data/watch')
@@ -1722,12 +1737,12 @@ def admin_data_watch_route():
     for d in devices:
         device_type_counts[d['device_type'] or 'unknown'] = device_type_counts.get(d['device_type'] or 'unknown', 0) + 1
 
-    return success_response({
+    return _no_store(success_response({
         'devices': devices, 'device_count': len(devices),
         'total_watches': total_watches, 'open_watches': open_watches,
         'watch_date_count': len(watch_dates),
         'device_type_counts': device_type_counts,
-    })
+    }))
 
 
 @views.route('/admin/logout', methods=['POST'])

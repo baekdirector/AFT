@@ -235,6 +235,23 @@ def test_admin_table_shows_full_datetime_in_kst_not_utc(client, app, monkeypatch
     assert '2026-09-10 19:30:00' not in times, 'UTC 그대로 보이면 안 된다'
 
 
+def test_admin_data_access_route_is_never_cached(app, client, monkeypatch):
+    """실측 버그: 일반 크롬 창(캐시 있음)에서는 관리자 콘솔의 "새로고침"
+    버튼을 눌러도 브라우저가 이전 응답을 그대로 재사용해 최신 접속 이력이
+    안 보였다(시크릿 창은 캐시가 없어 정상 동작 - 사용자가 직접 비교해서
+    확인함). 프런트 fetch(cache:'no-store')만으로는 서버가 캐시 가능한
+    응답을 준다는 사실 자체는 안 바뀌므로, 서버도 명시적으로 막는다."""
+    monkeypatch.setenv('ADMIN_USERNAME', 'admin')
+    monkeypatch.setenv('ADMIN_PASSWORD', 'correct-horse')
+    client.post('/admin', data={
+        'csrf_token': _csrf_token(client, '/admin'),
+        'username': 'admin', 'password': 'correct-horse',
+    })
+
+    resp = client.get('/admin/data/access')
+    assert resp.headers.get('Cache-Control') == 'no-store'
+
+
 # ---- 보관 기간(1주일) ----
 
 def test_visit_log_retention_is_seven_days():

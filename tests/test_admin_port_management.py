@@ -239,3 +239,7 @@ def test_admin_page_lists_ports_with_ship_counts(client, app, monkeypatch):
     ports_by_name = {p['name']: p for p in body['data']['ports']}
     assert '연안부두' in ports_by_name
     assert ports_by_name['연안부두']['ship_count'] == 1
+    # 실측 버그(다른 admin/data 엔드포인트에서 겪음): 일반 크롬 창은 브라우저가
+    # 이전 응답을 캐시해서 "새로고침"을 눌러도 최신 데이터가 안 보였다.
+    # 세 탭 엔드포인트 전부 같은 방식으로 막는다.
+    assert rv.headers.get('Cache-Control') == 'no-store'

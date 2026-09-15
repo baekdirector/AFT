@@ -59,6 +59,15 @@ def _seed_watch(app, ip='1.2.3.4', device_type='mobile', user_agent='UA',
         return sub.id, watch.id
 
 
+def test_admin_data_watch_route_is_never_cached(client, monkeypatch):
+    """실측 버그(다른 admin/data 엔드포인트에서 겪음): 일반 크롬 창은 브라우저가
+    이전 응답을 캐시해서 "새로고침"을 눌러도 최신 데이터가 안 보였다.
+    세 탭 엔드포인트 전부 같은 방식으로 막는다."""
+    _login(client, monkeypatch)
+    rv = client.get('/admin/data/watch')
+    assert rv.headers.get('Cache-Control') == 'no-store'
+
+
 # ---- services.watch_service.admin_list_devices ----
 
 def test_admin_list_devices_groups_by_subscriber_not_ip(app):

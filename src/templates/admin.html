@@ -1426,7 +1426,7 @@
   // loadAccessTab 을 loadTabData 를 거치지 않고 직접 부른다).
   async function loadPortsTab() {
     try {
-      const resp = await fetch('/admin/data/ports');
+      const resp = await fetch('/admin/data/ports', { cache: 'no-store' });
       const body = await resp.json();
       if (!resp.ok || body.status !== 'success') throw new Error(body.error || '항구 정보를 불러오지 못했습니다.');
       renderPortsTab(body.data.ports);
@@ -1437,6 +1437,13 @@
 
   // loadTabData()를 거치지 않고 이 함수들을 직접 부르면(새로고침 버튼,
   // 봇 표시 토글) loadedTabs 캐시와 무관하게 매번 스피너와 함께 새로 불러온다.
+  //
+  // 세 fetch 모두 { cache: 'no-store' } 를 준다 - 실측 버그: 일반 크롬
+  // 창(캐시 있음)에서는 새로고침 버튼을 눌러도 브라우저가 같은 URL의
+  // GET 응답을 그대로 재사용해 계속 어제 데이터만 보였다(시크릿 창은
+  // 캐시가 없어 매번 정상 조회됨 - 사용자가 직접 비교해서 알려줬다).
+  // fetch() 는 옵션을 안 주면 일반 페이지 이동처럼 브라우저 HTTP 캐시를
+  // 그대로 탄다.
   const TAB_SPINNER_HTML = '<div class="admin-loading-note"><span class="admin-spinner"></span> 불러오는 중…</div>';
   let accessParams = {};   // 새로고침 시에도 봇 표시 여부 등 현재 필터를 유지하려고 기억해둔다
 
@@ -1447,7 +1454,8 @@
     if (btn) { btn.disabled = true; btn.classList.add('is-loading'); }
     try {
       const params = new URLSearchParams(accessParams);
-      const resp = await fetch('/admin/data/access' + (params.toString() ? '?' + params.toString() : ''));
+      const resp = await fetch('/admin/data/access' + (params.toString() ? '?' + params.toString() : ''),
+                               { cache: 'no-store' });
       const body = await resp.json();
       if (!resp.ok || body.status !== 'success') throw new Error(body.error || '접속 이력을 불러오지 못했습니다.');
       renderAccessTab(body.data);
@@ -1463,7 +1471,7 @@
     document.getElementById('admin-devices').innerHTML = TAB_SPINNER_HTML;
     if (btn) { btn.disabled = true; btn.classList.add('is-loading'); }
     try {
-      const resp = await fetch('/admin/data/watch');
+      const resp = await fetch('/admin/data/watch', { cache: 'no-store' });
       const body = await resp.json();
       if (!resp.ok || body.status !== 'success') throw new Error(body.error || '알림 등록 정보를 불러오지 못했습니다.');
       state.devices = body.data.devices;
