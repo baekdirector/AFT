@@ -159,3 +159,37 @@ def test_max_workers_config_is_respected(app, client, monkeypatch):
     app.config['STATUS_MAX_WORKERS'] = 12
     _post(client)
     assert seen['max_workers'] == 12
+
+
+def test_max_workers_can_be_overridden_per_request(app, client, monkeypatch):
+    """사용자 요청("8보다 높일 수 있는 최적의 워커 수를 찾고 싶다")에 따라
+    추가한 진단용 오버라이드 - 요청 파라미터 max_workers가 있으면 그 요청
+    하나만 다른 동시성으로 돈다(STATUS_MAX_WORKERS 설정 자체는 안 바뀐다).
+    코드를 고쳐 배포하는 사이클 없이 실측 스윕을 하기 위함이다."""
+    _seed(app, 40)
+    _fake_check(monkeypatch)
+
+    import routes.views as views
+    seen = {}
+    real_pool = views.ThreadPoolExecutor
+
+    class SpyPool(real_pool):
+        def __init__(self, max_workers=None, **kw):
+            seen['max_workers'] = max_workers
+            super().__init__(max_workers=max_workers, **kw)
+
+    monkeypatch.setattr(views, 'ThreadPoolExecutor', SpyPool)
+    app.config['STATUS_MAX_WORKERS'] = 4
+
+    _post(client, max_workers='16')
+    assert seen['max_workers'] == 16
+    # 설정값 자체는 그대로여야 한다(이 요청에만 적용, 전역 상태 아님)
+    assert app.config['STATUS_MAX_WORKERS'] == 4
+
+    # 남용 방지 상한(32) - 그보다 큰 값을 보내도 32로 눌린다
+    _post(client, max_workers='999')
+    assert seen['max_workers'] == 32
+
+    # 잘못된 값은 조용히 무시하고 기존 설정값(4)을 쓴다
+    _post(client, max_workers='not-a-number')
+    assert seen['max_workers'] == 4

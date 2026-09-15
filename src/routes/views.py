@@ -518,6 +518,18 @@ def api_status():
 
     def stream_results():
         configured_workers = current_app.config.get('STATUS_MAX_WORKERS', 4)
+        # 요청마다 워커 수를 바꿔볼 수 있는 진단용 오버라이드 - 사용자 요청:
+        # "8보다 높일 수 있는 최적의 워커 수를 찾고 싶다"에 따라, 코드를
+        # 고쳐 배포하는 사이클 없이 실측 스윕을 하기 위해 넣었다. 기본
+        # 설정값(STATUS_MAX_WORKERS)은 그대로 두고 이 요청 하나에만
+        # 적용되며, 남용을 막기 위해 32로 상한을 둔다. 값이 없거나
+        # 잘못됐으면 조용히 기존 설정값을 그대로 쓴다.
+        workers_override = data.get('max_workers')
+        if workers_override:
+            try:
+                configured_workers = min(int(workers_override), 32)
+            except (TypeError, ValueError):
+                pass
         try:
             max_workers = max(1, int(configured_workers))
         except (TypeError, ValueError):
