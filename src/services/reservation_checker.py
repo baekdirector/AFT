@@ -425,11 +425,75 @@ def _parse_tide_from_text(text: str) -> str | None:
     return f"{m.group(1)}물" if m else None
 
 def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enabled: bool = False, known_ship_name: str | None = None) -> Dict:
+    """공개 진입점. 캐시를 먼저 보고, 미스면 로컬로 직접 긁거나(기본) 원격
+    스크래핑 워커(SCRAPE_WORKER_URL, Cloud Run Tokyo)에 위임한다.
+
+    두 경로 모두 결과 모양은 동일하다(_check_single_boat_locally 가 그
+    모양을 정의한다) - worker/app.py 도 같은 함수를 그대로 불러 쓰므로
+    로컬/원격 어느 쪽으로 실제 fetch+parse 가 일어났는지는 호출부(여기)
+    바깥에서는 알 수 없고, 알 필요도 없다.
+
+    SCRAPE_WORKER_URL 이 비어 있으면(기본값) 오늘까지의 동작과 완전히
+    같다 - 이 환경변수 하나가 롤백 스위치다.
+    """
     cache_key = (str(boat_url or ""), int(year), int(month), int(day))
     cached_result = _get_cached_result(cache_key)
     if cached_result is not None:
         return cached_result
 
+    worker_url = os.environ.get('SCRAPE_WORKER_URL')
+    if worker_url:
+        result = _fetch_from_worker(worker_url, boat_url, year, month, day, known_ship_name)
+    else:
+        result = _check_single_boat_locally(boat_url, year, month, day, debug_enabled, known_ship_name)
+    return _store_cached_result(cache_key, result)
+
+
+def _post_to_worker(url, json_payload, headers, timeout):
+    """스크래핑 워커를 부르는 단 한 곳. 테스트가 여기 하나만 monkeypatch로
+    갈아끼우게 해서(reservation_checker._get 을 이 파일 전역 교체
+    지점으로 쓰는 것과 같은 이유) 내부 구현이 바뀌어도 테스트가 실제
+    네트워크로 새지 않는다."""
+    return requests.post(url, json=json_payload, headers=headers, timeout=timeout)
+
+
+def _fetch_from_worker(worker_url: str, boat_url: str, year: int, month: int, day: int,
+                       known_ship_name: str | None) -> Dict:
+    """배 한 척을 원격 스크래핑 워커에 대신 긁어오게 시킨다.
+
+    타임아웃을 로컬 REQUEST_TIMEOUT_SECONDS 보다 넉넉히 주는 이유: 워커
+    내부에서 403을 만나면 대체 헤더 재시도 -> http 폴백까지 순차로 최대
+    3번 fetch 할 수 있어(check_single_boat 문서 참고) 그 셋을 합친
+    시간보다 길어야 한다.
+
+    실패(연결 실패·타임아웃·비정상 응답)는 예외를 던지지 않고 로컬
+    fetch가 이미 쓰는 것과 같은 모양의 실패 dict를 돌려준다 - 그래야
+    호출부(routes/views.py의 info.get('error'), scheduler/run_scrape.py의
+    CollectionFailed)가 로컬 실패와 워커 실패를 구분할 필요 없이 그대로
+    처리한다.
+    """
+    weekday = _weekday_kor(year, month, day)
+    display_date = f"{year:04d}-{month:02d}-{day:02d}({weekday})"
+    token = os.environ.get('SCRAPE_WORKER_TOKEN')
+    headers = {'X-Worker-Token': token} if token else {}
+    try:
+        resp = _post_to_worker(
+            worker_url.rstrip('/') + '/check',
+            {'boat_url': boat_url, 'year': year, 'month': month, 'day': day,
+             'known_ship_name': known_ship_name},
+            headers, (5, 60))
+        resp.raise_for_status()
+        return resp.json()
+    except (requests.RequestException, ValueError) as e:
+        return {"used_url": boat_url, "display_date": display_date, "entries": [],
+                "error": f"worker_error:{e}"}
+
+
+def _check_single_boat_locally(boat_url: str, year: int, month: int, day: int, debug_enabled: bool = False, known_ship_name: str | None = None) -> Dict:
+    """실제로 fetch+parse 하는 부분(캐시는 호출부가 담당). check_single_boat()
+    의 로컬 경로와 worker/app.py 양쪽에서 이 함수를 그대로 쓴다 - 파싱
+    로직은 이 함수 안에만 있고 두 호출부 중 어디도 이 로직을 복제하지
+    않는다."""
     final_url = build_query_url(boat_url, year, month, day)
 
     # "간편 일정"(schedule_fleet_simple) 패턴은 fetch 대상이
@@ -446,7 +510,7 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
         resp = _get(final_url, headers=_headers_for(final_url), timeout=REQUEST_TIMEOUT_SECONDS)
     except requests.RequestException as e:
         result = {"used_url": display_url, "display_date": display_date, "entries": [], "error": f"http_error:{e}"}
-        return _store_cached_result(cache_key, result)
+        return result
 
     # 403이면 UA/Referer 바꿔 재시도 + http 스킴 폴백
     if resp.status_code == 403:
@@ -472,7 +536,7 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
             "entries": [],
             "error": f"http_status:{getattr(resp, 'status_code', 'unknown')}"
         }
-        return _store_cached_result(cache_key, result)
+        return result
 
     # lxml은 순수 파이썬인 html.parser보다 훨씬 빠르다(C 확장) - 96척 라이브
     # 조회가 114초 걸린다는 사용자 제보를 계기로 프로파일링해보니 파싱 자체도
@@ -515,7 +579,7 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
 
         if not day_block:
             result = {"matched": False, "date_id": date_id, "source_url": display_url, "entries": [], "tide": None}
-            return _store_cached_result(cache_key, result)
+            return result
 
         # extract tide info from .date_info2
         tide = None
@@ -703,7 +767,7 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
             })
 
         result = {"matched": True, "entries": entries, "date_id": date_id, "source_url": display_url, "tide": tide}
-        return _store_cached_result(cache_key, result)
+        return result
 
         # 일반 게시판 패턴
     else:
@@ -1159,7 +1223,7 @@ def check_single_boat(boat_url: str, year: int, month: int, day: int, debug_enab
             "raw_html": resp.text[:1000],  # 디버깅용 요약
             "tide": tide
         }
-        return _store_cached_result(cache_key, result)
+        return result
 
 # 예시: 조회 함수에서 지역 필터링 적용
 def filter_entries_by_region(entries, selected_regions):

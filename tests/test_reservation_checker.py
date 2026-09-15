@@ -255,3 +255,106 @@ def test_request_session_is_per_thread_not_globally_shared():
     # 같은 스레드 안에서는 항상 같은 Session 객체를 돌려줘야 한다(연결 재사용).
     same_thread_ids = [get_session_id(), get_session_id(), get_session_id()]
     assert len(set(same_thread_ids)) == 1
+
+
+# --- 스크래핑 워커 위임(SCRAPE_WORKER_URL) --------------------------------
+#
+# Google Cloud Run(Tokyo) 워커로 fetch 를 위임하는 경로. 이 환경변수가
+# 비어 있으면(테스트 기본 상태) 지금까지의 모든 테스트가 그대로 증명하는
+# 로컬 fetch 경로를 그대로 쓴다 - 여기서는 "설정돼 있을 때"만 검증한다.
+
+def test_check_single_boat_uses_worker_when_configured(monkeypatch):
+    """SCRAPE_WORKER_URL 이 설정되면 로컬 fetch(_check_single_boat_locally)
+    대신 워커에 위임해야 한다. 로컬 함수가 불리면 곧바로 실패하게 만들어
+    "위임했다고 착각했는데 사실 로컬로 샜다" 를 못 잡는 테스트가 되지
+    않게 한다."""
+    monkeypatch.setenv('SCRAPE_WORKER_URL', 'https://worker.example')
+    monkeypatch.setattr(reservation_checker, '_check_single_boat_locally',
+                        lambda *a, **kw: (_ for _ in ()).throw(AssertionError('로컬로 새면 안 된다')))
+
+    calls = []
+
+    def fake_post(url, json_payload, headers, timeout):
+        calls.append((url, json_payload, headers, timeout))
+        return DummyJsonResponse({'entries': [{'ship_name': '테스트호', 'status': 'open', 'available': 3}]})
+
+    monkeypatch.setattr(reservation_checker, '_post_to_worker', fake_post)
+
+    result = reservation_checker.check_single_boat('https://boat.example/x', 2026, 10, 20,
+                                                    known_ship_name='테스트호')
+
+    assert result['entries'][0]['ship_name'] == '테스트호'
+    assert len(calls) == 1
+    url, payload, headers, timeout = calls[0]
+    assert url == 'https://worker.example/check'
+    assert payload == {'boat_url': 'https://boat.example/x', 'year': 2026, 'month': 10,
+                       'day': 20, 'known_ship_name': '테스트호'}
+
+
+def test_check_single_boat_sends_worker_token_header(monkeypatch):
+    """SCRAPE_WORKER_TOKEN 이 있으면 X-Worker-Token 헤더로 실어 보낸다
+    (/api/scrape/run 의 SCRAPE_TOKEN/X-Scrape-Token 패턴과 동일)."""
+    monkeypatch.setenv('SCRAPE_WORKER_URL', 'https://worker.example')
+    monkeypatch.setenv('SCRAPE_WORKER_TOKEN', 'secret-token')
+
+    seen_headers = {}
+
+    def fake_post(url, json_payload, headers, timeout):
+        seen_headers.update(headers)
+        return DummyJsonResponse({'entries': []})
+
+    monkeypatch.setattr(reservation_checker, '_post_to_worker', fake_post)
+
+    reservation_checker.check_single_boat('https://boat.example/x', 2026, 10, 21)
+
+    assert seen_headers.get('X-Worker-Token') == 'secret-token'
+
+
+def test_worker_failure_is_isolated_not_raised(monkeypatch):
+    """워커 호출이 실패(연결 실패 등)해도 예외를 던지지 않고, 로컬 fetch가
+    이미 쓰는 것과 같은 모양(error 키)의 결과를 돌려줘야 한다 - 호출부
+    (routes/views.py, scheduler/run_scrape.py)가 이 모양을 이미 실패로
+    처리하므로 별도 분기가 필요 없다."""
+    monkeypatch.setenv('SCRAPE_WORKER_URL', 'https://worker.example')
+
+    def fake_post(url, json_payload, headers, timeout):
+        raise reservation_checker.requests.ConnectionError('연결 실패')
+
+    monkeypatch.setattr(reservation_checker, '_post_to_worker', fake_post)
+
+    result = reservation_checker.check_single_boat('https://boat.example/x', 2026, 10, 22)
+
+    assert result['entries'] == []
+    assert 'worker_error' in result['error']
+
+
+def test_worker_result_is_cached_like_a_local_result(monkeypatch):
+    """워커 경로도 기존 5분 캐시를 그대로 타야 한다 - 같은 (배,날짜)를
+    두 번 물으면 워커는 한 번만 불려야 한다."""
+    reservation_checker.clear_cache()
+    monkeypatch.setenv('SCRAPE_WORKER_URL', 'https://worker.example')
+
+    calls = []
+
+    def fake_post(url, json_payload, headers, timeout):
+        calls.append(1)
+        return DummyJsonResponse({'entries': []})
+
+    monkeypatch.setattr(reservation_checker, '_post_to_worker', fake_post)
+
+    reservation_checker.check_single_boat('https://boat.example/cache', 2026, 10, 23)
+    reservation_checker.check_single_boat('https://boat.example/cache', 2026, 10, 23)
+
+    assert len(calls) == 1
+    reservation_checker.clear_cache()
+
+
+class DummyJsonResponse:
+    def __init__(self, payload):
+        self._payload = payload
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._payload
