@@ -1053,9 +1053,15 @@ function initializeShipNoteToggles() {
         toggle.hidden = true;
         toggle.textContent = '더보기';
 
-        // 2줄로 잘려서 실제로 넘치는 경우에만 버튼을 보여준다 - 짧은
-        // 비고까지 "더보기"가 붙으면 오히려 혼란스럽다.
-        if (note.scrollHeight > note.clientHeight + 1) {
+        // 실측 버그: scrollHeight를 line-clamp가 적용된 clientHeight와
+        // 비교했더니 비고가 없는(짧은 placeholder) 카드까지 전부 "더보기"가
+        // 떴다 - -webkit-box/line-clamp 조합에서 clientHeight가 브라우저마다
+        // 정확히 안 맞는 경우가 있었다. 대신 실제 줄 높이(line-height)를
+        // 읽어 "2줄 분량"을 직접 계산하고, 그보다 실제 내용(scrollHeight)이
+        // 길 때만 버튼을 보여준다 - 2줄로 잘려서 진짜로 넘치는 경우에만.
+        const lineHeight = parseFloat(getComputedStyle(note).lineHeight) || 18;
+        const twoLineHeight = lineHeight * 2 + 1;
+        if (note.scrollHeight > twoLineHeight) {
             toggle.hidden = false;
             toggle.onclick = function() {
                 const expanded = note.classList.toggle('is-expanded');

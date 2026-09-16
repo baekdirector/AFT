@@ -3067,12 +3067,20 @@ document.addEventListener('DOMContentLoaded', function(){
     tbody.appendChild(frag);
 
     // 비고 "더보기" - 실제로 tbody에 붙어 레이아웃이 계산된 뒤에만
-    // scrollHeight/clientHeight 비교가 정확하다(붙기 전 DocumentFragment
-    // 안에서는 항상 0으로 읽힌다).
+    // scrollHeight 측정이 정확하다(붙기 전 DocumentFragment 안에서는
+    // 항상 0으로 읽힌다).
+    //
+    // 실측 버그: scrollHeight를 line-clamp가 적용된 clientHeight와
+    // 비교했더니 비고가 없는 카드까지 전부 "더보기"가 떴다 -
+    // -webkit-box/line-clamp 조합에서 clientHeight가 브라우저마다 정확히
+    // 안 맞는 경우가 있었다. 대신 실제 줄 높이(line-height)로 "2줄 분량"을
+    // 직접 계산해 비교한다 - 2줄로 잘려서 진짜로 넘치는 경우에만 뜬다.
     tbody.querySelectorAll('.result-card-note').forEach(note => {
       const toggle = note.nextElementSibling;
       if (!toggle || !toggle.classList.contains('result-card-note-toggle')) return;
-      if (note.scrollHeight > note.clientHeight + 1) {
+      const lineHeight = parseFloat(getComputedStyle(note).lineHeight) || 17;
+      const twoLineHeight = lineHeight * 2 + 1;
+      if (note.scrollHeight > twoLineHeight) {
         toggle.hidden = false;
         toggle.addEventListener('click', () => {
           const expanded = note.classList.toggle('is-expanded');
