@@ -407,25 +407,24 @@
   .date-group-head .release-date { flex: none; border: none; background: transparent; font-size: 11.5px; font-weight: 700; color: oklch(0.54 0.015 250); cursor: pointer; white-space: nowrap; }
   .date-group-head .release-date:hover { color: oklch(0.5 0.17 25); }
   .date-group-body { background: #fff; border: 1px solid oklch(0.93 0.008 240); border-radius: 12px; overflow: hidden; }
-  /* 실측 피드백: 예전엔 5열 그리드(체크/이름/상태 · 자리뱃지 · 예약 ·
-     해제)라 모바일에서 컬럼이 2개로 줄면서 자리뱃지·예약·해제가 각자
-     제 줄을 차지해 배 한 척이 4줄까지 늘어졌다. 그리드를 버리고 항상
-     "1줄(이름+상태) + 1줄(자리/예약/해제)"인 2줄짜리 flex로 고정해
-     화면 폭과 무관하게 선사 카드 높이가 일정하게 짧다. 자리 뱃지도
-     상태 뱃지와 같은 글자를 또 보여주던 것(예: "알 수 없음"이 두 번)을
-     없애고, 실제 잔여석 숫자가 있을 때만("남은자리 N"/"잔여 N") 보여준다. */
+  /* 실측 피드백: 2줄(이름+상태 / 자리+예약+해제)로 고쳤더니 "예약/해제를
+     굳이 아래로 내릴 필요 없다, 한 줄로 달라"는 재지적을 받았다. 배 한
+     척 = flex 한 줄로 고정한다 - 이름은 min-width:0 + ellipsis로 좁아지면
+     알아서 줄임표 처리되고(줄바꿈되지 않는다), 상태/자리 뱃지·예약·해제
+     버튼은 flex:none이라 항상 오른쪽에 제 크기 그대로 붙는다. 선사명은
+     칸을 새로 안 만들고 배 이름에 title 툴팁으로만 남겼다(공간 우선).
+     자리 뱃지는 상태 뱃지와 같은 글자를 또 보여주던 중복(예: "알 수
+     없음"이 두 번)을 없애고, 실제 잔여석 숫자가 있을 때만 보여준다. */
   .watch-row { padding: 9px 13px; border-top: 1px solid oklch(0.965 0.006 240); }
   .watch-row:first-child { border-top: none; }
   .watch-row.checked { background: oklch(0.976 0.014 248); }
-  .watch-row-top { display: flex; align-items: center; gap: 8px; }
-  .watch-row-bottom { display: flex; align-items: center; gap: 8px; margin-top: 7px; margin-left: 28px; }
-  .watch-boat { font-size: 13px; font-weight: 740; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .watch-row-line { display: flex; align-items: center; gap: 7px; }
+  .watch-boat { min-width: 0; flex: 1 1 auto; font-size: 13px; font-weight: 740; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .watch-status { flex: none; font-size: 10px; font-weight: 740; padding: 2px 7px; border-radius: 6px; white-space: nowrap; color: #fff; }
   .watch-status.tone-open { background: oklch(0.5 0.13 158); }
   .watch-status.tone-soon { background: oklch(0.66 0.15 68); }
   .watch-status.tone-off { background: oklch(0.48 0.015 250); }
   .watch-status.tone-none { background: oklch(0.68 0.012 250); }
-  .watch-meta { flex: none; font-size: 11px; font-weight: 580; color: oklch(0.58 0.015 250); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 30%; margin-left: auto; }
   .watch-seat { flex: none; font-size: 11px; font-weight: 740; padding: 4px 9px; border-radius: 99px; white-space: nowrap; background: oklch(0.955 0.006 240); color: oklch(0.52 0.015 250); }
   .watch-seat.tone-open, .watch-seat.tone-soon { color: #fff; }
   .watch-seat.tone-open { background: oklch(0.5 0.13 158); }
@@ -471,7 +470,6 @@
   @media (max-width: 768px) {
     .visit-table { min-width: 480px; }
     .device-row { padding: 12px; }
-    .watch-meta { display: none; }
     .header-nav { display: none; }
   }
 </style>
@@ -1372,11 +1370,13 @@
             const r = document.createElement('div');
             r.className = 'watch-row' + (on ? ' checked' : '');
 
-            // 1줄: 체크 + 이름 + 상태 뱃지. 배 이름은 남는 공간을 채우고
-            // 선사명(watch-meta)은 오른쪽 끝에 붙인다(모바일에선 숨김 -
-            // 카드를 짧게 유지하는 게 우선이라 배 이름만으로 충분하다).
-            const top = document.createElement('div');
-            top.className = 'watch-row-top';
+            // 체크 + 이름 + 상태 뱃지 + (자리 뱃지) + 예약 + 해제, 전부
+            // 한 줄(flex). 이름만 min-width:0 + ellipsis로 좁아지고 나머지는
+            // flex:none이라 항상 제자리에 보인다 - "예약/해제를 굳이
+            // 아래로 내릴 필요 없다, 한 줄로 달라"는 재지적 반영. 선사명은
+            // 칸을 새로 안 만들고 이름에 title 툴팁으로만 남긴다.
+            const line = document.createElement('div');
+            line.className = 'watch-row-line';
             const wChk = document.createElement('button');
             wChk.type = 'button';
             wChk.className = 'chk' + (on ? ' on' : '');
@@ -1385,42 +1385,44 @@
               if (on) state.checked.delete(w.id); else state.checked.add(w.id);
               render();
             });
-            top.appendChild(wChk);
-            top.innerHTML +=
-              '<span class="watch-boat">' + esc(w.ship_name) + '</span>' +
-              '<span class="watch-status tone-' + s.tone + '">' + esc(s.text) + '</span>' +
-              '<span class="watch-meta">' + esc(w.boat_name || '') + '</span>';
-            r.appendChild(top);
+            line.appendChild(wChk);
 
-            // 2줄: 자리 뱃지(있을 때만) + 예약 + 해제 - 항상 이 한 줄에
-            // 같이 둔다(실측 피드백: "선사 이름과 예약 해제를 같은
-            // 라인으로 해서 카드 크기를 줄여줘"). 자리 뱃지는 실제
-            // 잔여석 숫자가 있을 때만 보여준다 - 없으면 위 상태 뱃지와
-            // 같은 글자("알 수 없음"/"예약마감" 등)를 또 보여주는
-            // 중복이었다.
-            const bottom = document.createElement('div');
-            bottom.className = 'watch-row-bottom';
+            const nameEl = document.createElement('span');
+            nameEl.className = 'watch-boat';
+            nameEl.textContent = w.ship_name;
+            if (w.boat_name) nameEl.title = w.boat_name;
+            line.appendChild(nameEl);
+
+            const statusEl = document.createElement('span');
+            statusEl.className = 'watch-status tone-' + s.tone;
+            statusEl.textContent = s.text;
+            line.appendChild(statusEl);
+
+            // 자리 뱃지는 실제 잔여석 숫자가 있을 때만 보여준다 - 없으면
+            // 위 상태 뱃지와 같은 글자("알 수 없음"/"예약마감" 등)를 또
+            // 보여주는 중복이었다.
             if (s.tone === 'open' || s.tone === 'soon') {
               const seat = document.createElement('span');
               seat.className = 'watch-seat tone-' + s.tone;
               seat.textContent = (s.tone === 'open' ? '남은자리 ' : '잔여 ') + (w.available ?? '');
-              bottom.appendChild(seat);
+              line.appendChild(seat);
             }
+
             const link = document.createElement('a');
             link.className = 'watch-link';
             link.href = w.url || '#';
             link.target = '_blank';
             link.rel = 'noopener';
             link.textContent = '예약 →';
-            bottom.appendChild(link);
+            line.appendChild(link);
 
             const relOne = document.createElement('button');
             relOne.type = 'button';
             relOne.className = 'watch-release';
             relOne.textContent = '해제';
             relOne.addEventListener('click', () => releaseIds([w.id], null, esc(w.ship_name) + ' 알림을 해제했습니다'));
-            bottom.appendChild(relOne);
-            r.appendChild(bottom);
+            line.appendChild(relOne);
+            r.appendChild(line);
 
             gBody.appendChild(r);
           });
