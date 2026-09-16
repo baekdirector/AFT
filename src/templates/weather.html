@@ -102,13 +102,9 @@
       <div class="weather-result-body">
         <nav class="tide-view-tabs">
           <button type="button" class="tide-view-tab active" data-view="day">오늘 상세</button>
-          <button type="button" class="tide-view-tab" data-view="week">주간 파고</button>
           <button type="button" class="tide-view-tab" data-view="month">월별 물때</button>
         </nav>
         <div id="tide-view-day" class="tide-view"></div>
-        <div id="tide-view-week" class="tide-view" hidden>
-          <div class="tide-soon-card">🚧 <b>주간 파고</b>는 준비 중입니다. 하루치 파고·바람 예보는 "오늘 상세" 탭에서 바로 확인할 수 있어요.</div>
-        </div>
         <div id="tide-view-month" class="tide-view" hidden></div>
       </div>
     </div>
@@ -425,15 +421,11 @@ input.weather-select { background-image: none; }
 .tide-curve-scroll { overflow-x: auto; overflow-y: hidden; }
 .tide-curve-scroll > svg { min-width: 620px; }
 
-/* 탭 셸 (오늘 상세 / 주간 파고 / 월별 물때) */
+/* 탭 셸 (오늘 상세 / 월별 물때) */
 .tide-view-tabs { display: flex; gap: 2px; padding: 3px; background: oklch(0.945 0.006 240); border-radius: 12px; margin: 14px 16px; }
 .tide-view-tab { flex: 1; height: 38px; border-radius: 9px; border: none; background: transparent; color: oklch(0.46 0.02 250); font-size: 13px; font-weight: 720; cursor: pointer; white-space: nowrap; }
 .tide-view-tab.active { background: #fff; color: oklch(0.26 0.02 250); box-shadow: 0 1px 4px oklch(0.4 0.02 250 / 0.16); }
 .tide-view { padding: 0 16px 18px; }
-.tide-soon-card {
-  text-align: center; padding: 48px 20px; background: oklch(0.978 0.006 240); border: 1px dashed oklch(0.86 0.01 240);
-  border-radius: 16px; color: oklch(0.5 0.015 250); font-size: 13.5px; line-height: 1.7;
-}
 
 /* 월별 물때 표 */
 .tide-month-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 11px; }
@@ -442,30 +434,44 @@ input.weather-select { background-image: none; }
 .tide-month-stat .val { display: flex; align-items: baseline; gap: 5px; margin-top: 5px; }
 .tide-month-stat .val .n { font-size: 22px; font-weight: 800; letter-spacing: -1px; }
 .tide-month-stat .val .u { font-size: 11.5px; font-weight: 620; color: oklch(0.6 0.015 250); }
+/* 실측 피드백: 예전엔 컬럼 7개(날짜/월령/물때/만조/간조/일출몰·월출몰/상세)를
+   900px 고정폭 그리드에 넣고 가로 스크롤로 봤는데, 모바일에서 오른쪽 컬럼이
+   화면 밖으로 잘려 안 보였다("바다타임" 같은 다른 앱처럼 가로 스크롤 없이
+   한 화면에 다 보이게 해달라는 요청). 만조/간조를 시간순 하나로 합치고,
+   일출몰/월출몰은 빼서(그 정보는 "오늘 상세" 탭에 이미 있다) 4열 고정
+   그리드 하나로 폭에 상관없이 줄바꿈되게 다시 짰다.*/
 .tide-month-table-card { background: #fff; border: 1px solid oklch(0.925 0.008 240); border-radius: 18px; overflow: hidden; }
-.tide-month-scroll { overflow-x: auto; overflow-y: hidden; }
-.tide-month-inner { min-width: 900px; }
-.tide-month-header-row {
-  display: grid; grid-template-columns: 90px 48px 68px 150px 150px 150px 78px; gap: 8px; padding: 10px 16px;
-  background: oklch(0.978 0.004 240); font-size: 10.5px; font-weight: 740; letter-spacing: 0.2px; color: oklch(0.56 0.015 250);
-}
 .tide-month-row {
-  display: grid; grid-template-columns: 90px 48px 68px 150px 150px 150px 78px; gap: 8px; align-items: center; padding: 9px 16px;
-  border-top: 1px solid oklch(0.965 0.006 240); font-size: 12px;
+  display: grid; grid-template-columns: 50px 46px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+  padding: 9px 12px; border-top: 1px solid oklch(0.965 0.006 240); font-size: 11px;
 }
+.tide-month-row:first-child { border-top: none; }
 .tide-month-row.is-today { background: oklch(0.97 0.03 245); }
-.tide-month-date .d { font-size: 12.5px; font-weight: 750; white-space: nowrap; }
-.tide-month-date .l { font-size: 10.5px; font-weight: 620; color: oklch(0.62 0.015 250); white-space: nowrap; }
-.tide-month-moon { font-size: 16px; line-height: 1; text-align: center; }
-.tide-month-label { font-size: 11px; font-weight: 780; padding: 3px 8px; border-radius: 7px; white-space: nowrap; color: #fff; justify-self: start; }
-.tide-month-events { font-size: 11px; font-weight: 640; color: oklch(0.44 0.015 250); line-height: 1.5; }
-.tide-month-events b { font-weight: 780; color: var(--ink); }
-.tide-month-sun { font-size: 11.5px; font-weight: 660; color: oklch(0.5 0.015 250); white-space: nowrap; }
+.tide-month-date { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.tide-month-date img { width: 15px; height: 15px; flex: none; }
+.tide-month-date .d { font-size: 11.5px; font-weight: 760; white-space: nowrap; }
+.tide-month-date .l { font-size: 9px; font-weight: 620; color: oklch(0.62 0.015 250); white-space: nowrap; }
+.tide-month-flow { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.tide-month-label { font-size: 9.5px; font-weight: 780; padding: 2px 6px; border-radius: 6px; white-space: nowrap; color: #fff; }
+/* 고저차(사리/조금 물흐름 %)를 막대로 - 다른 앱의 퍼센트 바와 같은 역할 */
+.tide-month-flowbar { width: 38px; height: 4px; border-radius: 99px; background: oklch(0.93 0.01 250); overflow: hidden; }
+.tide-month-flowbar > i { display: block; height: 100%; }
+/* 만조·간조를 시간순으로 합쳐 2열로 - 하루 4번(만조 2 + 간조 2)이 보통이라
+   2x2로 딱 맞는다. 높이 차(고저차)는 delta 화살표로 그대로 보여준다. */
+.tide-month-events { display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); gap: 3px 8px; }
+.tide-month-event { font-size: 10.5px; font-weight: 620; color: oklch(0.44 0.015 250); white-space: nowrap; }
+.tide-month-event b { font-weight: 780; color: var(--ink); }
+.tide-month-event .delta { font-weight: 700; }
+.tide-month-event .delta.up { color: oklch(0.5 0.16 25); }
+.tide-month-event .delta.down { color: oklch(0.5 0.14 235); }
 .tide-month-detail-btn {
-  height: 28px; padding: 0 11px; border-radius: 8px; border: 1px solid oklch(0.9 0.01 245); background: oklch(0.965 0.02 245);
-  color: oklch(0.42 0.12 248); font-size: 11px; font-weight: 720; cursor: pointer; white-space: nowrap; justify-self: end;
+  height: 26px; padding: 0 9px; border-radius: 8px; border: 1px solid oklch(0.9 0.01 245); background: oklch(0.965 0.02 245);
+  color: oklch(0.42 0.12 248); font-size: 10.5px; font-weight: 720; cursor: pointer; white-space: nowrap;
 }
 .tide-month-detail-btn:hover { background: oklch(0.93 0.04 245); }
+@media (max-width: 380px) {
+  .tide-month-row { grid-template-columns: 44px 40px minmax(0, 1fr) auto; padding: 8px 10px; gap: 6px; }
+}
 
 /* 바다낚시지수(KHOA). 오늘부터 +5일만 예보한다 - 범위 밖 날짜가 훨씬 흔하므로
    '없음'을 오류가 아니라 담담한 안내로 보인다. */
@@ -760,7 +766,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function setTideView(view) {
     document.querySelectorAll('.tide-view-tab').forEach(b => b.classList.toggle('active', b.getAttribute('data-view') === view));
     document.getElementById('tide-view-day').hidden = view !== 'day';
-    document.getElementById('tide-view-week').hidden = view !== 'week';
     document.getElementById('tide-view-month').hidden = view !== 'month';
     if (view === 'month' && currentPortId && monthLoadedForPort !== currentPortId) {
       loadMonthView(currentPortId);
@@ -1173,21 +1178,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const rowsHtml = days.map(d => {
       const dayNum = d.date ? d.date.slice(8, 10) : '-';
       const fs = d.flow_percent != null ? tideFlowStyle(d.flow_percent) : null;
-      const manjo = (d.tide_events || []).filter(e => e.type === 'high');
-      const ganjo = (d.tide_events || []).filter(e => e.type === 'low');
-      const fmtEvents = evs => evs.length
-        ? evs.map(e => '<b>' + esc(e.time) + '</b> ' + e.level + 'cm ' + (e.delta >= 0 ? '▲+' : '▼') + e.delta).join('<br>')
-        : '-';
-      const sunLine = (d.sunrise || d.sunset) ? ('🌅' + esc(d.sunrise || '-') + ' · 🌇' + esc(d.sunset || '-')) : '';
-      const moonLine = (d.moonrise || d.moonset) ? ('🌙' + esc(d.moonrise || '-') + ' · 🌘' + esc(d.moonset || '-')) : '';
+      // 만조/간조를 따로 두 컬럼에 늘어놓지 않고 시간순으로 합친다 - 하루
+      // 흐름을 그대로 따라가면서 보게 하고, 좁은 화면에서 컬럼을 하나
+      // 줄여준다. 높이 차(고저차)는 delta 화살표(▲상승/▼하강)로 보여준다.
+      const events = (d.tide_events || []).slice().sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+      const eventsHtml = events.length
+        ? events.map(e => {
+            const up = e.delta >= 0;
+            return '<div class="tide-month-event"><b>' + esc(e.time) + '</b> ' + e.level + 'cm '
+              + '<span class="delta ' + (up ? 'up' : 'down') + '">' + (up ? '▲+' : '▼') + e.delta + '</span></div>';
+          }).join('')
+        : '<div class="tide-month-event">-</div>';
       return (
         '<div class="tide-month-row' + (d.date === todayStr ? ' is-today' : '') + '">' +
-          '<div class="tide-month-date"><div class="d">' + dayNum + '일(' + esc(d.weekday) + ')</div><div class="l">음 ' + esc(d.lunar_date) + '</div></div>' +
-          '<div class="tide-month-moon">' + (d.moon_icon_url ? '<img src="' + esc(d.moon_icon_url) + '" alt="" style="width:18px;height:18px;">' : '-') + '</div>' +
-          '<div class="tide-month-label" style="background:' + (fs ? fs.badge : 'oklch(0.75 0.01 250)') + ';">' + esc(d.tide_label || '-') + '</div>' +
-          '<div class="tide-month-events">' + fmtEvents(manjo) + '</div>' +
-          '<div class="tide-month-events">' + fmtEvents(ganjo) + '</div>' +
-          '<div class="tide-month-sun">' + (sunLine || '-') + (moonLine ? ('<br>' + moonLine) : '') + '</div>' +
+          '<div class="tide-month-date">' +
+            (d.moon_icon_url ? '<img src="' + esc(d.moon_icon_url) + '" alt="">' : '') +
+            '<div><div class="d">' + dayNum + '일(' + esc(d.weekday) + ')</div><div class="l">음 ' + esc(d.lunar_date) + '</div></div>' +
+          '</div>' +
+          '<div class="tide-month-flow">' +
+            '<div class="tide-month-label" style="background:' + (fs ? fs.badge : 'oklch(0.75 0.01 250)') + ';">' + esc(d.tide_label || '-') + '</div>' +
+            (d.flow_percent != null
+              ? '<div class="tide-month-flowbar"><i style="width:' + d.flow_percent + '%;background:' + (fs ? fs.badge : 'oklch(0.75 0.01 250)') + ';"></i></div>'
+              : '') +
+          '</div>' +
+          '<div class="tide-month-events">' + eventsHtml + '</div>' +
           '<button type="button" class="tide-month-detail-btn" data-date="' + esc(d.date || '') + '"' + (d.date ? '' : ' disabled') + '>상세</button>' +
         '</div>'
       );
@@ -1195,10 +1209,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     contentEl.innerHTML =
       statsHtml +
-      '<div class="tide-month-table-card"><div class="tide-month-scroll"><div class="tide-month-inner">' +
-        '<div class="tide-month-header-row"><span>날짜</span><span>월령</span><span>물때</span><span>만조</span><span>간조</span><span>일출몰 · 월출몰</span><span></span></div>' +
-        rowsHtml +
-      '</div></div></div>';
+      '<div class="tide-month-table-card">' + rowsHtml + '</div>';
 
     contentEl.querySelectorAll('.tide-month-detail-btn').forEach(btn => {
       btn.addEventListener('click', () => {
