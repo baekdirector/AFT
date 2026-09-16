@@ -372,30 +372,28 @@ input.weather-select { background-image: none; }
 .tide-table-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; padding: 14px 16px 11px; }
 .tide-table-title { font-size: 13.5px; font-weight: 780; letter-spacing: -0.4px; white-space: nowrap; }
 .tide-table-meta { font-size: 11px; font-weight: 640; color: oklch(0.6 0.015 250); white-space: nowrap; }
-.tide-table-scroll { overflow-x: auto; overflow-y: hidden; }
-.tide-table-inner { min-width: 660px; }
+/* 실측 피드백: 파고·강수 컬럼까지 있으면 6컬럼(660px 고정폭)이라 모바일에서
+   가로 스크롤이 생겼다 - "오늘 상세에도 파고·강수는 없어도 된다"는 요청대로
+   시각/날씨/기온/바람 4개만 남기고, 고정폭 대신 유동폭(fr)으로 바꿔 어떤
+   화면 너비에서도 스크롤 없이 들어오게 했다. */
 .tide-table-header-row {
-  display: grid; grid-template-columns: 64px 112px 62px 118px 86px; gap: 10px; padding: 9px 16px;
+  display: grid; grid-template-columns: 46px minmax(0, 1.2fr) 42px minmax(0, 1fr); gap: 6px; padding: 9px 14px;
   background: oklch(0.978 0.004 240); font-size: 10.5px; font-weight: 740; letter-spacing: 0.2px; color: oklch(0.56 0.015 250);
 }
-.tide-table-header-row.has-rain { grid-template-columns: 64px 112px 62px 118px 86px 84px; }
 .tide-hour-row {
-  display: grid; grid-template-columns: 64px 112px 62px 118px 86px; gap: 10px; align-items: center; padding: 9px 16px;
+  display: grid; grid-template-columns: 46px minmax(0, 1.2fr) 42px minmax(0, 1fr); gap: 6px; align-items: center; padding: 9px 14px;
   border-top: 1px solid oklch(0.965 0.006 240); font-size: 12.5px;
 }
-.tide-hour-row.has-rain { grid-template-columns: 64px 112px 62px 118px 86px 84px; }
 .tide-hour-row:nth-child(even) { background: oklch(0.99 0.002 240); }
-.tide-hour-time { font-size: 12.5px; font-weight: 740; white-space: nowrap; }
-.tide-hour-weather { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
-.tide-hour-weather img { width: 20px; height: 20px; flex: none; }
-.tide-hour-weather span { font-size: 11.5px; font-weight: 660; color: oklch(0.46 0.015 250); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tide-hour-temp { font-size: 14px; font-weight: 790; letter-spacing: -0.4px; text-align: right; white-space: nowrap; }
-.tide-hour-wind { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.tide-hour-time { font-size: 11.5px; font-weight: 740; white-space: nowrap; }
+.tide-hour-weather { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.tide-hour-weather img { width: 18px; height: 18px; flex: none; }
+.tide-hour-weather span { font-size: 11px; font-weight: 660; color: oklch(0.46 0.015 250); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tide-hour-temp { font-size: 13px; font-weight: 790; letter-spacing: -0.4px; text-align: right; white-space: nowrap; }
+.tide-hour-wind { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
 .tide-hour-wind-arrow { flex: none; display: inline-block; font-size: 10px; line-height: 1; }
-.tide-hour-wind-dir { font-size: 11.5px; font-weight: 700; white-space: nowrap; }
-.tide-hour-wind-speed { font-size: 10.5px; font-weight: 740; padding: 2px 7px; border-radius: 99px; white-space: nowrap; color: #fff; }
-.tide-hour-wave { text-align: right; font-size: 12.5px; font-weight: 770; white-space: nowrap; }
-.tide-hour-rain { text-align: right; font-size: 11.5px; font-weight: 660; color: oklch(0.56 0.015 250); white-space: nowrap; }
+.tide-hour-wind-dir { font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.tide-hour-wind-speed { font-size: 10px; font-weight: 740; padding: 2px 6px; border-radius: 99px; white-space: nowrap; color: #fff; }
 
 .tide-windy-card { background: #fff; border: 1px solid oklch(0.925 0.008 240); border-radius: 18px; overflow: hidden; margin-bottom: 11px; }
 .tide-windy-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; padding: 14px 16px 12px; }
@@ -427,51 +425,46 @@ input.weather-select { background-image: none; }
 .tide-view-tab.active { background: #fff; color: oklch(0.26 0.02 250); box-shadow: 0 1px 4px oklch(0.4 0.02 250 / 0.16); }
 .tide-view { padding: 0 16px 18px; }
 
-/* 월별 물때 표 */
-.tide-month-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 11px; }
-.tide-month-stat { border-radius: 15px; padding: 13px 15px; background: #fff; border: 1px solid oklch(0.925 0.008 240); }
-.tide-month-stat .lbl { font-size: 11px; font-weight: 620; color: oklch(0.56 0.015 250); }
-.tide-month-stat .val { display: flex; align-items: baseline; gap: 5px; margin-top: 5px; }
-.tide-month-stat .val .n { font-size: 22px; font-weight: 800; letter-spacing: -1px; }
-.tide-month-stat .val .u { font-size: 11.5px; font-weight: 620; color: oklch(0.6 0.015 250); }
-/* 실측 피드백: 예전엔 컬럼 7개(날짜/월령/물때/만조/간조/일출몰·월출몰/상세)를
-   900px 고정폭 그리드에 넣고 가로 스크롤로 봤는데, 모바일에서 오른쪽 컬럼이
-   화면 밖으로 잘려 안 보였다("바다타임" 같은 다른 앱처럼 가로 스크롤 없이
-   한 화면에 다 보이게 해달라는 요청). 만조/간조를 시간순 하나로 합치고,
-   일출몰/월출몰은 빼서(그 정보는 "오늘 상세" 탭에 이미 있다) 4열 고정
-   그리드 하나로 폭에 상관없이 줄바꿈되게 다시 짰다.*/
+/* 월별 물때 표.
+   실측 피드백 반영:
+   1. 요약 통계 카드(조회기간/사리일수/조금일수/평균물흐름)는 "불필요" -
+      완전히 뺐다.
+   2. 첫 시도(고정 px 폭 4열 그리드)는 좁은 화면에서 배지·이벤트 텍스트가
+      겹치거나 잘렸다. 날짜/물때를 자체 flex 줄(head row)로 올려 폭
+      압박을 없애고, 그 아래 이벤트만 1fr/1fr 그리드로 둬서 화면 폭에
+      상관없이 겹치지 않게 했다.
+   3. "간조만조 시간보다는 고저와 고저차가 중요하다"는 요청대로 이벤트
+      한 칸 안에서 잔여높이(cm)를 가장 크게, 델타(▲▼)를 그다음, 시각은
+      작은 보조 글자로 순서를 바꿨다. */
 .tide-month-table-card { background: #fff; border: 1px solid oklch(0.925 0.008 240); border-radius: 18px; overflow: hidden; }
-.tide-month-row {
-  display: grid; grid-template-columns: 50px 46px minmax(0, 1fr) auto; gap: 8px; align-items: center;
-  padding: 9px 12px; border-top: 1px solid oklch(0.965 0.006 240); font-size: 11px;
-}
+.tide-month-row { padding: 10px 14px; border-top: 1px solid oklch(0.965 0.006 240); }
 .tide-month-row:first-child { border-top: none; }
 .tide-month-row.is-today { background: oklch(0.97 0.03 245); }
-.tide-month-date { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.tide-month-date img { width: 15px; height: 15px; flex: none; }
-.tide-month-date .d { font-size: 11.5px; font-weight: 760; white-space: nowrap; }
-.tide-month-date .l { font-size: 9px; font-weight: 620; color: oklch(0.62 0.015 250); white-space: nowrap; }
-.tide-month-flow { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-.tide-month-label { font-size: 9.5px; font-weight: 780; padding: 2px 6px; border-radius: 6px; white-space: nowrap; color: #fff; }
-/* 고저차(사리/조금 물흐름 %)를 막대로 - 다른 앱의 퍼센트 바와 같은 역할 */
-.tide-month-flowbar { width: 38px; height: 4px; border-radius: 99px; background: oklch(0.93 0.01 250); overflow: hidden; }
+.tide-month-row-head { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; flex-wrap: wrap; }
+.tide-month-date { display: flex; align-items: center; gap: 5px; min-width: 0; flex: 1 1 auto; }
+.tide-month-date img { width: 16px; height: 16px; flex: none; }
+.tide-month-date .d { font-size: 13px; font-weight: 760; white-space: nowrap; }
+.tide-month-date .l { font-size: 10px; font-weight: 620; color: oklch(0.62 0.015 250); white-space: nowrap; }
+.tide-month-flow { display: flex; align-items: center; gap: 8px; flex: none; }
+.tide-month-label { font-size: 10.5px; font-weight: 780; padding: 3px 8px; border-radius: 7px; white-space: nowrap; color: #fff; }
+/* 물흐름(사리/조금) %를 막대로 - 다른 앱의 퍼센트 바와 같은 역할 */
+.tide-month-flowbar { display: inline-block; width: 42px; height: 5px; border-radius: 99px; background: oklch(0.93 0.01 250); overflow: hidden; flex: none; }
 .tide-month-flowbar > i { display: block; height: 100%; }
-/* 만조·간조를 시간순으로 합쳐 2열로 - 하루 4번(만조 2 + 간조 2)이 보통이라
-   2x2로 딱 맞는다. 높이 차(고저차)는 delta 화살표로 그대로 보여준다. */
-.tide-month-events { display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); gap: 3px 8px; }
-.tide-month-event { font-size: 10.5px; font-weight: 620; color: oklch(0.44 0.015 250); white-space: nowrap; }
-.tide-month-event b { font-weight: 780; color: var(--ink); }
-.tide-month-event .delta { font-weight: 700; }
-.tide-month-event .delta.up { color: oklch(0.5 0.16 25); }
-.tide-month-event .delta.down { color: oklch(0.5 0.14 235); }
 .tide-month-detail-btn {
-  height: 26px; padding: 0 9px; border-radius: 8px; border: 1px solid oklch(0.9 0.01 245); background: oklch(0.965 0.02 245);
+  flex: none; height: 26px; padding: 0 9px; border-radius: 8px; border: 1px solid oklch(0.9 0.01 245); background: oklch(0.965 0.02 245);
   color: oklch(0.42 0.12 248); font-size: 10.5px; font-weight: 720; cursor: pointer; white-space: nowrap;
 }
 .tide-month-detail-btn:hover { background: oklch(0.93 0.04 245); }
-@media (max-width: 380px) {
-  .tide-month-row { grid-template-columns: 44px 40px minmax(0, 1fr) auto; padding: 8px 10px; gap: 6px; }
-}
+/* 만조·간조를 시간순으로 합쳐 2열로 - 하루 4번(만조 2 + 간조 2)이 보통이라
+   2x2로 딱 맞는다. 1fr/1fr(고정 px 아님)이라 어떤 화면 폭에서도 겹치거나
+   잘리지 않는다. */
+.tide-month-events { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; }
+.tide-month-event { font-size: 11px; font-weight: 620; color: oklch(0.5 0.015 250); white-space: nowrap; }
+.tide-month-event .h { font-size: 12.5px; font-weight: 800; color: var(--ink); }
+.tide-month-event .delta { font-weight: 750; }
+.tide-month-event .delta.up { color: oklch(0.5 0.16 25); }
+.tide-month-event .delta.down { color: oklch(0.5 0.14 235); }
+.tide-month-event .t { font-size: 9.5px; font-weight: 600; color: oklch(0.66 0.012 250); }
 
 /* 바다낚시지수(KHOA). 오늘부터 +5일만 예보한다 - 범위 밖 날짜가 훨씬 흔하므로
    '없음'을 오류가 아니라 담담한 안내로 보인다. */
@@ -833,7 +826,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return { grade: '조금', badge: 'oklch(0.56 0.12 242)', bar: 'linear-gradient(90deg, oklch(0.84 0.07 235), oklch(0.78 0.11 242))', hint: '조금 전후 — 물이 거의 흐르지 않습니다' };
   }
   function tideWindColor(v) { return v < 4 ? 'oklch(0.6 0.11 200)' : v < 8 ? 'oklch(0.66 0.14 90)' : v < 12 ? 'oklch(0.68 0.16 55)' : 'oklch(0.55 0.18 25)'; }
-  function tideWaveColor(v) { return v < 0.5 ? 'oklch(0.58 0.13 200)' : v < 1 ? 'oklch(0.62 0.13 168)' : v < 1.5 ? 'oklch(0.7 0.15 68)' : 'oklch(0.55 0.18 25)'; }
   const TIDE_WIND_DEG = { '북': 180, '북동': 225, '동': 270, '남동': 315, '남': 0, '남서': 45, '서': 90, '북서': 135 };
   function tideParseFloat(s) { const m = /(-?\d+(\.\d+)?)/.exec(s || ''); return m ? parseFloat(m[1]) : 0; }
   function tideMoonSunIcon(key) { return { sunrise: '🌅', sunset: '🌇', moonrise: '🌙', moonset: '🌘' }[key]; }
@@ -930,14 +922,16 @@ document.addEventListener('DOMContentLoaded', () => {
     return '<div class="tide-cards">' + heroHtml + eventsCardHtml + seaCardHtml + '</div>';
   }
 
-  function buildTideHourlyHtml(data, withRain) {
+  // 실측 피드백: 파고·강수 컬럼까지 있으면 6컬럼이라 모바일에서 가로
+  // 스크롤이 생겼다("오늘 상세에도 파고·강수는 없어도 된다") - 시각/날씨/
+  // 기온/바람 4개만 보여준다.
+  function buildTideHourlyHtml(data) {
     const rows = (data.hourly || []).map(h => {
       const dir = h.wind_dir || '';
       const deg = TIDE_WIND_DEG[dir] || 0;
       const windVal = tideParseFloat(h.wind_speed);
-      const waveVal = tideParseFloat(h.wave_height);
       return (
-        '<div class="tide-hour-row' + (withRain ? ' has-rain' : '') + '">' +
+        '<div class="tide-hour-row">' +
           '<div class="tide-hour-time">' + esc(h.time) + '</div>' +
           '<div class="tide-hour-weather">' +
             (h.weather_icon_url ? '<img src="' + esc(h.weather_icon_url) + '" alt="">' : '') +
@@ -949,8 +943,6 @@ document.addEventListener('DOMContentLoaded', () => {
             '<span class="tide-hour-wind-dir">' + esc(dir) + '</span>' +
             '<span class="tide-hour-wind-speed" style="background:' + tideWindColor(windVal) + ';">' + esc(h.wind_speed) + '</span>' +
           '</div>' +
-          '<div class="tide-hour-wave" style="color:' + tideWaveColor(waveVal) + ';">' + esc(h.wave_height) + '</div>' +
-          (withRain ? ('<div class="tide-hour-rain">' + esc(h.precipitation || '-') + '</div>') : '') +
         '</div>'
       );
     }).join('');
@@ -960,16 +952,11 @@ document.addEventListener('DOMContentLoaded', () => {
     return (
       '<div class="tide-table-card">' +
         '<div class="tide-table-head">' +
-          '<span class="tide-table-title">시간별 날씨 · 바람 · 파고</span>' +
-          '<span class="tide-table-meta">풍속 m/s · 파고 m' + (withRain ? ' · 강수량 mm' : '') + '</span>' +
+          '<span class="tide-table-title">시간별 날씨 · 바람</span>' +
+          '<span class="tide-table-meta">풍속 m/s</span>' +
         '</div>' +
-        '<div class="tide-table-scroll"><div class="tide-table-inner">' +
-          '<div class="tide-table-header-row' + (withRain ? ' has-rain' : '') + '">' +
-            '<span>시각</span><span>날씨</span><span style="text-align:right;">기온</span><span>바람</span><span style="text-align:right;">파고</span>' +
-            (withRain ? '<span style="text-align:right;">강수</span>' : '') +
-          '</div>' +
-          rows +
-        '</div></div>' +
+        '<div class="tide-table-header-row"><span>시각</span><span>날씨</span><span style="text-align:right;">기온</span><span>바람</span></div>' +
+        rows +
       '</div>'
     );
   }
@@ -1150,66 +1137,69 @@ document.addEventListener('DOMContentLoaded', () => {
           '<div class="tide-curve-scroll">' + curveSvg + '</div>' +
         '</div>'
       ) : '') +
-      buildTideHourlyHtml(data, true) +
+      buildTideHourlyHtml(data) +
       buildTideWindyHtml(data, 'wind', true);
     wireTideWindyTabs(contentEl);
   }
 
   // ---- "월별 물때" 탭 렌더 ----
+  //
+  // 실측 피드백 2건을 반영한 결과다:
+  //  1. 요약 통계 카드(조회기간/사리일수/조금일수/평균물흐름)는 "불필요" -
+  //     지워서 화면을 바로 표로 시작하게 했다.
+  //  2. 첫 시도(고정폭 4열 그리드)는 배지·이벤트 텍스트가 서로 겹치거나
+  //     잘렸다 - 고정 px 폭 컬럼을 좁은 화면이 못 버틴 것이다. 날짜/물때를
+  //     자체 줄(head row, flex)로 올리고, 그 아래 이벤트만 1fr/1fr 그리드로
+  //     둬서 폭에 상관없이 안 겹치게 했다. 또 "간조만조 시간보다는 고저와
+  //     고저차가 중요하다"는 요청대로 잔여높이(cm)를 크고 굵게, 델타(▲▼)를
+  //     그다음, 시각은 작은 보조 글자로 낮췄다.
   function renderTideMonth(days, contentEl) {
     if (!days.length) {
       contentEl.innerHTML = '<div class="popup-error">월별 물때 정보를 찾을 수 없습니다.</div>';
       return;
     }
     const todayStr = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD (로컬 기준)
-    const flows = days.map(d => d.flow_percent).filter(v => v != null);
-    const sariCount = flows.filter(v => tideFlowStyle(v).grade === '사리').length;
-    const jogeumCount = flows.filter(v => tideFlowStyle(v).grade === '조금').length;
-    const avgFlow = flows.length ? Math.round(flows.reduce((a, b) => a + b, 0) / flows.length) : null;
-
-    const statsHtml =
-      '<div class="tide-month-stats">' +
-        '<div class="tide-month-stat"><div class="lbl">조회 기간</div><div class="val"><span class="n">' + days.length + '</span><span class="u">일</span></div></div>' +
-        '<div class="tide-month-stat"><div class="lbl">사리 일수</div><div class="val"><span class="n">' + sariCount + '</span><span class="u">일</span></div></div>' +
-        '<div class="tide-month-stat"><div class="lbl">조금 일수</div><div class="val"><span class="n">' + jogeumCount + '</span><span class="u">일</span></div></div>' +
-        '<div class="tide-month-stat"><div class="lbl">평균 물흐름</div><div class="val"><span class="n">' + (avgFlow != null ? avgFlow : '-') + '</span><span class="u">%</span></div></div>' +
-      '</div>';
 
     const rowsHtml = days.map(d => {
       const dayNum = d.date ? d.date.slice(8, 10) : '-';
       const fs = d.flow_percent != null ? tideFlowStyle(d.flow_percent) : null;
+      const flowColor = fs ? fs.badge : 'oklch(0.75 0.01 250)';
       // 만조/간조를 따로 두 컬럼에 늘어놓지 않고 시간순으로 합친다 - 하루
-      // 흐름을 그대로 따라가면서 보게 하고, 좁은 화면에서 컬럼을 하나
-      // 줄여준다. 높이 차(고저차)는 delta 화살표(▲상승/▼하강)로 보여준다.
+      // 흐름을 그대로 따라가면서 보게 한다. 고저(잔여높이)와 고저차(델타)가
+      // 시각보다 중요하다는 요청대로 높이를 가장 크게, 시각은 보조로 낮췄다.
       const events = (d.tide_events || []).slice().sort((a, b) => (a.time || '').localeCompare(b.time || ''));
       const eventsHtml = events.length
         ? events.map(e => {
             const up = e.delta >= 0;
-            return '<div class="tide-month-event"><b>' + esc(e.time) + '</b> ' + e.level + 'cm '
-              + '<span class="delta ' + (up ? 'up' : 'down') + '">' + (up ? '▲+' : '▼') + e.delta + '</span></div>';
+            return '<div class="tide-month-event">' +
+              '<span class="h">' + e.level + 'cm</span> ' +
+              '<span class="delta ' + (up ? 'up' : 'down') + '">' + (up ? '▲+' : '▼') + e.delta + '</span> ' +
+              '<span class="t">' + esc(e.time) + '</span>' +
+            '</div>';
           }).join('')
         : '<div class="tide-month-event">-</div>';
       return (
         '<div class="tide-month-row' + (d.date === todayStr ? ' is-today' : '') + '">' +
-          '<div class="tide-month-date">' +
-            (d.moon_icon_url ? '<img src="' + esc(d.moon_icon_url) + '" alt="">' : '') +
-            '<div><div class="d">' + dayNum + '일(' + esc(d.weekday) + ')</div><div class="l">음 ' + esc(d.lunar_date) + '</div></div>' +
-          '</div>' +
-          '<div class="tide-month-flow">' +
-            '<div class="tide-month-label" style="background:' + (fs ? fs.badge : 'oklch(0.75 0.01 250)') + ';">' + esc(d.tide_label || '-') + '</div>' +
-            (d.flow_percent != null
-              ? '<div class="tide-month-flowbar"><i style="width:' + d.flow_percent + '%;background:' + (fs ? fs.badge : 'oklch(0.75 0.01 250)') + ';"></i></div>'
-              : '') +
+          '<div class="tide-month-row-head">' +
+            '<div class="tide-month-date">' +
+              (d.moon_icon_url ? '<img src="' + esc(d.moon_icon_url) + '" alt="">' : '') +
+              '<span class="d">' + dayNum + '일(' + esc(d.weekday) + ')</span>' +
+              '<span class="l">음 ' + esc(d.lunar_date) + '</span>' +
+            '</div>' +
+            '<div class="tide-month-flow">' +
+              '<span class="tide-month-label" style="background:' + flowColor + ';">' + esc(d.tide_label || '-') + '</span>' +
+              (d.flow_percent != null
+                ? '<span class="tide-month-flowbar"><i style="width:' + d.flow_percent + '%;background:' + flowColor + ';"></i></span>'
+                : '') +
+            '</div>' +
+            '<button type="button" class="tide-month-detail-btn" data-date="' + esc(d.date || '') + '"' + (d.date ? '' : ' disabled') + '>상세</button>' +
           '</div>' +
           '<div class="tide-month-events">' + eventsHtml + '</div>' +
-          '<button type="button" class="tide-month-detail-btn" data-date="' + esc(d.date || '') + '"' + (d.date ? '' : ' disabled') + '>상세</button>' +
         '</div>'
       );
     }).join('');
 
-    contentEl.innerHTML =
-      statsHtml +
-      '<div class="tide-month-table-card">' + rowsHtml + '</div>';
+    contentEl.innerHTML = '<div class="tide-month-table-card">' + rowsHtml + '</div>';
 
     contentEl.querySelectorAll('.tide-month-detail-btn').forEach(btn => {
       btn.addEventListener('click', () => {
