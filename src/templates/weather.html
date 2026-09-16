@@ -440,21 +440,30 @@ input.weather-select { background-image: none; }
 .tide-month-row { padding: 10px 14px; border-top: 1px solid oklch(0.965 0.006 240); }
 .tide-month-row:first-child { border-top: none; }
 .tide-month-row.is-today { background: oklch(0.97 0.03 245); }
-.tide-month-row-head { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; flex-wrap: wrap; }
+.tide-month-row-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .tide-month-date { display: flex; align-items: center; gap: 5px; min-width: 0; flex: 1 1 auto; }
 .tide-month-date img { width: 16px; height: 16px; flex: none; }
 .tide-month-date .d { font-size: 13px; font-weight: 760; white-space: nowrap; }
 .tide-month-date .l { font-size: 10px; font-weight: 620; color: oklch(0.62 0.015 250); white-space: nowrap; }
-.tide-month-flow { display: flex; align-items: center; gap: 8px; flex: none; }
-.tide-month-label { font-size: 10.5px; font-weight: 780; padding: 3px 8px; border-radius: 7px; white-space: nowrap; color: #fff; }
-/* 물흐름(사리/조금) %를 막대로 - 다른 앱의 퍼센트 바와 같은 역할 */
-.tide-month-flowbar { display: inline-block; width: 42px; height: 5px; border-radius: 99px; background: oklch(0.93 0.01 250); overflow: hidden; flex: none; }
-.tide-month-flowbar > i { display: block; height: 100%; }
 .tide-month-detail-btn {
   flex: none; height: 26px; padding: 0 9px; border-radius: 8px; border: 1px solid oklch(0.9 0.01 245); background: oklch(0.965 0.02 245);
   color: oklch(0.42 0.12 248); font-size: 10.5px; font-weight: 720; cursor: pointer; white-space: nowrap;
 }
 .tide-month-detail-btn:hover { background: oklch(0.93 0.04 245); }
+/* 물흐름(사리/조금) 세기를 %로 - 바다타임 등 다른 앱의 가로 퍼센트 바를
+   참고해 깔끔하게 다시 그렸다. "N물" 배지는 좁게, 바는 남는 폭을 최대한
+   채우게(flex:1) 해서 한눈에 세기가 비교된다. */
+.tide-month-flowline { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+.tide-month-label {
+  flex: none; width: 34px; text-align: center; font-size: 10.5px; font-weight: 780;
+  padding: 3px 0; border-radius: 7px; white-space: nowrap; color: #fff;
+}
+.tide-month-flowbar {
+  flex: 1 1 auto; min-width: 0; height: 8px; border-radius: 99px;
+  background: oklch(0.93 0.01 250); overflow: hidden;
+}
+.tide-month-flowbar > i { display: block; height: 100%; border-radius: inherit; transition: width 0.2s; }
+.tide-month-flowpct { flex: none; min-width: 30px; text-align: right; font-size: 11px; font-weight: 760; color: oklch(0.42 0.02 250); }
 /* 만조·간조를 시간순으로 합쳐 2열로 - 하루 4번(만조 2 + 간조 2)이 보통이라
    2x2로 딱 맞는다. 1fr/1fr(고정 px 아님)이라 어떤 화면 폭에서도 겹치거나
    잘리지 않는다. */
@@ -1186,13 +1195,12 @@ document.addEventListener('DOMContentLoaded', () => {
               '<span class="d">' + dayNum + '일(' + esc(d.weekday) + ')</span>' +
               '<span class="l">음 ' + esc(d.lunar_date) + '</span>' +
             '</div>' +
-            '<div class="tide-month-flow">' +
-              '<span class="tide-month-label" style="background:' + flowColor + ';">' + esc(d.tide_label || '-') + '</span>' +
-              (d.flow_percent != null
-                ? '<span class="tide-month-flowbar"><i style="width:' + d.flow_percent + '%;background:' + flowColor + ';"></i></span>'
-                : '') +
-            '</div>' +
             '<button type="button" class="tide-month-detail-btn" data-date="' + esc(d.date || '') + '"' + (d.date ? '' : ' disabled') + '>상세</button>' +
+          '</div>' +
+          '<div class="tide-month-flowline">' +
+            '<span class="tide-month-label" style="background:' + flowColor + ';">' + esc(d.tide_label || '-') + '</span>' +
+            '<span class="tide-month-flowbar"><i style="width:' + (d.flow_percent ?? 0) + '%;background:' + flowColor + ';"></i></span>' +
+            '<span class="tide-month-flowpct">' + (d.flow_percent != null ? d.flow_percent + '%' : '-') + '</span>' +
           '</div>' +
           '<div class="tide-month-events">' + eventsHtml + '</div>' +
         '</div>'
