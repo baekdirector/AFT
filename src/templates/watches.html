@@ -492,6 +492,47 @@ document.addEventListener('DOMContentLoaded', function () {
       return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
     }
 
+    // 이 기기(브라우저)의 고정 ID - 구독 endpoint가 서버 모르게 조용히
+    // 바뀌어도(알림 권한 재설정, 앱 데이터 초기화, 푸시 서비스 쪽 토큰 만료
+    // 등) 서버가 "같은 기기"임을 알아보고 기존 감시를 이어받게 하는
+    // 열쇠다(실측 버그: 어드민엔 감시가 여전히 활성으로 보이는데 정작 그
+    // 기기 화면은 "알림 꺼짐"으로 보였다 - endpoint만 신원으로 쓰던 게
+    // 원인). localStorage가 아니라 IndexedDB에 두는 이유: 서비스워커가
+    // pushsubscriptionchange를 받을 때(페이지가 열려있지 않을 수도 있다)도
+    // 같은 값을 읽어야 하는데, localStorage는 페이지 스크립트에서만 보이고
+    // 서비스워커에서는 접근할 수 없다. status.html에 있는 같은 이름의
+    // 함수와 동일하다(페이지별 독립 스크립트라 복제).
+    function aftIdbOpen() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open('aft-device', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('kv');
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+    async function getOrCreateDeviceId() {
+      try {
+        const db = await aftIdbOpen();
+        const existing = await new Promise((resolve, reject) => {
+          const req = db.transaction('kv', 'readonly').objectStore('kv').get('device_id');
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+        if (existing) return existing;
+        const id = crypto.randomUUID ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction('kv', 'readwrite');
+          tx.objectStore('kv').put(id, 'device_id');
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+        });
+        return id;
+      } catch (e) {
+        return null;
+      }
+    }
+
     async function enable() {
       // 권한 요청·서비스워커 대기·서버 왕복까지 몇 단계가 이어져서 눈에 띄게
       // 걸릴 수 있는데, 이전엔 그동안 버튼이 아무 반응 없이 가만히 있다가
@@ -524,11 +565,12 @@ document.addEventListener('DOMContentLoaded', function () {
           });
         }
         endpoint = sub.endpoint;
+        const deviceId = await getOrCreateDeviceId();
 
         const body = await (await fetch('/api/push/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(sub.toJSON())
+          body: JSON.stringify({ ...sub.toJSON(), device_id: deviceId })
         })).json();
 
         limit = body.limit || limit;
@@ -625,6 +667,14 @@ document.addEventListener('DOMContentLoaded', function () {
         const sub = await reg.pushManager.getSubscription();
         if (!sub) { setButtonOn(false); historyLoaded = true; renderAll(); return; }
         endpoint = sub.endpoint;
+        // status.html의 restore()와 같은 이유 - device_id를 조용히 백필해서
+        // 나중에 이 구독이 회전해도 service worker가 같은 기기임을 알아볼 수
+        // 있게 한다(응답을 기다리지 않는다).
+        getOrCreateDeviceId().then(deviceId => deviceId && fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...sub.toJSON(), device_id: deviceId })
+        })).catch(() => {});
         const body = await (await fetch('/api/watches?endpoint=' +
                                         encodeURIComponent(endpoint), { cache: 'no-store' })).json();
         limit = body.limit || limit;

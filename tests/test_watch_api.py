@@ -76,6 +76,25 @@ def test_subscribe_rejects_incomplete_body(client):
     assert rv.status_code == 400
 
 
+def test_subscribe_with_rotated_endpoint_keeps_watches_via_device_id(client, boats):
+    """브라우저가 서버 모르게 구독 endpoint를 회전시켜도, service worker가
+    같은 device_id로 재구독하면 감시가 안 끊겨야 한다(실측 버그: 관리자
+    콘솔엔 감시가 활성으로 남는데 정작 그 기기 화면은 "알림 꺼짐"으로
+    보였다 - endpoint만으로 신원을 가리던 게 원인)."""
+    body = dict(SUB_BODY, device_id='device-xyz')
+    first = client.post('/api/push/subscribe', json=body).get_json()
+    client.post('/api/watches', json={
+        'endpoint': EP, 'boat_id': boats[0], 'ship_name': '1호', 'target_date': DATE})
+
+    rotated_body = dict(SUB_BODY, endpoint='https://push.example/rotated',
+                        device_id='device-xyz')
+    second = client.post('/api/push/subscribe', json=rotated_body).get_json()
+
+    assert second['subscriber_id'] == first['subscriber_id'], '같은 기기면 새 구독자가 되면 안 된다'
+    assert len(second['watches']) == 1, '기존 감시가 새 endpoint 아래에서도 그대로 보여야 한다'
+    assert second['watches'][0]['ship_name'] == '1호'
+
+
 # --- 알림 끄기(전체 해제) ----------------------------------------------------
 
 def test_unsubscribe_deactivates_all_watches(client, boats):

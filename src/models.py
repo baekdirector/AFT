@@ -152,6 +152,18 @@ class Subscriber(db.Model):
     device_type = db.Column(db.String(16), nullable=True)
     user_agent = db.Column(db.String(500), nullable=True)
 
+    #: 브라우저가 IndexedDB에 직접 만들어 갖고 있는 고정 ID(페이지 스크립트가
+    #: 최초 구독 시 발급). endpoint는 브라우저/OS가 알림 권한 재설정, 앱 데이터
+    #: 초기화, 푸시 서비스 쪽 토큰 만료 등으로 서버 모르게 조용히 회전(rotate)
+    #: 될 수 있다 - endpoint만 신원으로 쓰면 그 순간 완전히 다른 사람 취급돼
+    #: 기존 감시가 통째로 orphan된다(실측 버그: 관리자 콘솔엔 감시 17건이
+    #: 여전히 활성으로 보이는데 정작 그 기기 화면은 "알림 꺼짐"으로 보였다 -
+    #: service-worker.js가 pushsubscriptionchange를 못 들어서 재구독 사실을
+    #: 서버에 알릴 방법이 없었다). device_id는 endpoint가 바뀌어도 그대로라,
+    #: upsert_subscriber가 이 값으로 "같은 기기"를 찾아 endpoint만 새 값으로
+    #: 갈아끼우고 subscriber_id(=감시들의 연결고리)는 그대로 유지한다.
+    device_id = db.Column(db.String(64), nullable=True, index=True)
+
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     last_seen_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 

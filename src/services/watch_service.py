@@ -24,28 +24,41 @@ class WatchLimitExceeded(Exception):
 def upsert_subscriber(endpoint: str, p256dh: str, auth: str,
                       label: str | None = None, ip: str | None = None,
                       device_type: str | None = None,
-                      user_agent: str | None = None) -> Subscriber:
-    """푸시 구독을 저장한다. 같은 endpoint 면 갱신한다.
+                      user_agent: str | None = None,
+                      device_id: str | None = None) -> Subscriber:
+    """푸시 구독을 저장한다. 같은 endpoint 면 갱신하고, endpoint 가 조용히
+    바뀌었어도 device_id 가 같으면 같은 기기로 보고 endpoint 만 갈아끼운다.
 
-    브라우저는 구독을 조용히 갱신(rotate)할 수 있으므로 endpoint 를 키로 두고
-    upsert 한다. 새 행을 계속 쌓으면 같은 사람에게 중복 알림이 간다.
-
-    ip/device_type/user_agent 는 관리자 콘솔의 "알림 등록" 탭이 기기별로
-    감시를 묶어 보여주기 위한 표시용 정보다(services.visit_logger 와 같은
-    계산). 없으면(예: 과거 구독) 그냥 기존 값을 유지한다.
+    브라우저는 구독을 조용히 갱신(rotate)할 수 있으므로 원래는 endpoint 를
+    키로 두고 upsert 했다. 그런데 endpoint 자체가 서버 모르게 바뀌는 경우
+    (알림 권한 재설정, 앱 데이터 초기화, 푸시 서비스 쪽 토큰 만료 등 -
+    service-worker.js 가 pushsubscriptionchange 를 못 들으면 이 사실을 서버에
+    알릴 방법이 아예 없었다)엔 endpoint 만으로 찾으면 완전히 다른 사람처럼
+    새 행이 생기고, 기존 감시(Watch, 이 Subscriber.id 에 연결)는 예전 행에
+    그대로 남아 orphan 된다 - 실측 버그: 관리자 콘솔엔 감시가 여전히 활성으로
+    보이는데 정작 그 기기 화면은 "알림 꺼짐"으로 보였다. device_id 는
+    페이지 스크립트가 최초 구독 시 IndexedDB에 발급해두는 값이라 endpoint가
+    바뀌어도 그대로다 - 이걸로 "같은 기기"를 찾아 endpoint/키만 갱신하면
+    subscriber_id 가 그대로라 감시가 안 끊긴다.
     """
     if not endpoint or not p256dh or not auth:
         raise ValueError('구독 정보가 불완전합니다.')
 
     sub = Subscriber.query.filter_by(endpoint=endpoint).one_or_none()
+    if sub is None and device_id:
+        sub = Subscriber.query.filter_by(device_id=device_id).one_or_none()
+
     if sub is None:
-        sub = Subscriber(endpoint=endpoint, p256dh=p256dh, auth=auth, label=label)
+        sub = Subscriber(endpoint=endpoint, p256dh=p256dh, auth=auth, label=label, device_id=device_id)
         db.session.add(sub)
     else:
+        sub.endpoint = endpoint
         sub.p256dh = p256dh
         sub.auth = auth
         if label:
             sub.label = label
+        if device_id:
+            sub.device_id = device_id
     if ip:
         sub.ip = ip
     if device_type:

@@ -111,6 +111,7 @@ def push_subscribe():
             ip=visit_logger.client_ip(),
             device_type=visit_logger.device_type(ua),
             user_agent=ua,
+            device_id=data.get('device_id'),
         )
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400

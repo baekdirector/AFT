@@ -57,6 +57,52 @@ def test_upsert_subscriber_rejects_incomplete_subscription(app):
             upsert_subscriber('', 'k', 'a')
 
 
+def test_upsert_subscriber_migrates_rotated_endpoint_via_device_id(app):
+    """브라우저가 서버 모르게 구독 endpoint를 조용히 회전시켜도(알림 권한
+    재설정, 앱 데이터 초기화 등) device_id가 같으면 새 행을 만들지 않고
+    기존 행의 endpoint만 갈아끼운다 - subscriber_id가 그대로라 그 사람이
+    걸어둔 감시(Watch)가 안 끊긴다(실측 버그 수정: endpoint만으로 찾으면
+    회전 시 완전히 다른 사람 취급돼 감시가 orphan됐다)."""
+    with app.app_context():
+        original = upsert_subscriber('https://push.example/old', 'k1', 'a1',
+                                     '나', device_id='device-123')
+        rotated = upsert_subscriber('https://push.example/new', 'k2', 'a2',
+                                    device_id='device-123')
+
+        assert rotated.id == original.id, '같은 device_id면 새 행을 만들지 않는다'
+        assert Subscriber.query.count() == 1
+        assert rotated.endpoint == 'https://push.example/new', 'endpoint가 새 값으로 갱신돼야 한다'
+        assert (rotated.p256dh, rotated.auth) == ('k2', 'a2')
+
+        # 예전 endpoint로는 더 이상 찾을 수 없다 - 갈아끼웠기 때문이다.
+        assert Subscriber.query.filter_by(endpoint='https://push.example/old').one_or_none() is None
+
+
+def test_upsert_subscriber_backfills_device_id_on_existing_row(app):
+    """device_id 컬럼이 이번에 추가돼 과거 구독자는 전부 NULL이다 - 그런
+    구독자가 정상적으로 재구독(같은 endpoint)하면 그 김에 device_id를
+    채워 넣어야, 다음번 회전부터는 이 기기를 알아볼 수 있다."""
+    with app.app_context():
+        sub = upsert_subscriber('https://push.example/x', 'k1', 'a1', '나')
+        assert sub.device_id is None
+
+        refreshed = upsert_subscriber('https://push.example/x', 'k1', 'a1',
+                                      device_id='device-456')
+        assert refreshed.id == sub.id
+        assert refreshed.device_id == 'device-456'
+
+
+def test_upsert_subscriber_without_device_id_still_matches_by_endpoint(app):
+    """device_id를 안 보내는 요청(옛 서비스워커/캐시된 페이지 등)도 여전히
+    endpoint 기준 upsert가 그대로 동작해야 한다 - 하위 호환."""
+    with app.app_context():
+        a = upsert_subscriber('https://push.example/y', 'k1', 'a1', '나')
+        b = upsert_subscriber('https://push.example/y', 'k2', 'a2')
+
+        assert a.id == b.id
+        assert Subscriber.query.count() == 1
+
+
 # --- 상한 ------------------------------------------------------------------
 
 def test_can_register_up_to_the_limit(app, ctx):

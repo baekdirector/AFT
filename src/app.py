@@ -62,7 +62,8 @@ def _ensure_snapshot_shiptime_columns(app):
 def _ensure_subscriber_device_columns(app):
     """위 두 함수와 같은 이유(Alembic 없이 가볍게 유지) - subscribers 테이블에
     관리자 콘솔 "알림 등록" 탭이 기기별로 묶어 보여줄 ip/device_type/
-    user_agent 컬럼을 보탠다. shiptime 때와 같은 이유로 전부 nullable이라
+    user_agent 컬럼과, 구독 endpoint가 조용히 회전해도 같은 기기를 알아보기
+    위한 device_id 컬럼을 보탠다. shiptime 때와 같은 이유로 전부 nullable이라
     기존 행을 건드릴 필요가 없다 - 다음 구독 갱신 때 자연히 채워진다."""
     from sqlalchemy import inspect, text
     try:
@@ -70,13 +71,17 @@ def _ensure_subscriber_device_columns(app):
         if 'subscribers' not in inspector.get_table_names():
             return
         existing_columns = {col['name'] for col in inspector.get_columns('subscribers')}
-        missing = [c for c in ('ip', 'device_type', 'user_agent') if c not in existing_columns]
+        missing = [c for c in ('ip', 'device_type', 'user_agent', 'device_id') if c not in existing_columns]
         if not missing:
             return
-        col_types = {'ip': 'VARCHAR(64)', 'device_type': 'VARCHAR(16)', 'user_agent': 'VARCHAR(500)'}
+        col_types = {'ip': 'VARCHAR(64)', 'device_type': 'VARCHAR(16)', 'user_agent': 'VARCHAR(500)',
+                    'device_id': 'VARCHAR(64)'}
         with db.engine.begin() as conn:
             for col in missing:
                 conn.execute(text(f'ALTER TABLE subscribers ADD COLUMN {col} {col_types[col]}'))
+            if 'device_id' in missing:
+                conn.execute(text(
+                    'CREATE INDEX IF NOT EXISTS ix_subscribers_device_id ON subscribers (device_id)'))
         app.logger.info('subscribers 테이블에 %s 컬럼을 추가했다', missing)
     except Exception:
         app.logger.exception('subscribers 기기정보 컬럼 보정 실패')

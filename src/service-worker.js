@@ -16,7 +16,10 @@
 // 확인 주기가 느긋하다). 버전을 다시 올려 이번 배포가 확실히 새 설치로
 // 잡히게 하고, base.html/base_design.html에서 등록 직후+탭 복귀 시
 // update()를 명시적으로 불러 다음부터는 반영이 더 빨라지게 했다.
-const CACHE_VERSION = 'v6';
+// v7: pushsubscriptionchange 핸들러 추가(실측 버그 - 구독이 조용히
+// 회전/무효화돼도 서버에 알릴 방법이 없어 감시가 orphan됐다). 이 핸들러가
+// 실제로 등록되려면 설치된 기기의 서비스워커가 이 파일로 교체돼야 한다.
+const CACHE_VERSION = 'v7';
 const PRECACHE = `aft-precache-${CACHE_VERSION}`;
 const RUNTIME = `aft-runtime-${CACHE_VERSION}`;
 
@@ -234,5 +237,85 @@ async function muteFromNotification(info) {
     });
   } catch (e) {
     // 조용히 실패 - 이 배는 /watches 화면에서 직접 끌 수 있다.
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 구독 회전(pushsubscriptionchange) - 실측 버그 수정
+//
+// 브라우저는 알림 권한 재설정, 앱 데이터 초기화, 푸시 서비스(FCM 등) 쪽
+// 토큰 만료 같은 이유로 서버 모르게 조용히 기존 구독을 무효화할 수 있다.
+// 이 핸들러가 없으면 그 사실을 서버에 전혀 알릴 방법이 없다 - 사용자가
+// 페이지를 다시 열어야 비로소 getSubscription()이 null을 돌려줘서 "알림
+// 꺼짐"으로 보이는데, 그 사이 서버는 예전 구독을 여전히 활성으로 알고
+// 있어 관리자 콘솔엔 감시가 그대로 남아있는 것처럼 보였다(실측: 어드민엔
+// 17건이 활성인데 정작 그 기기 화면은 "웹 푸시 알림 꺼짐" + 감시 없음).
+//
+// 이 이벤트는 페이지가 안 열려 있어도 서비스워커가 살아있는 동안 발생할 수
+// 있어서, 여기서 곧바로 재구독하고 서버에 새 endpoint를 알려야 한다.
+self.addEventListener('pushsubscriptionchange', event => {
+  event.waitUntil(handlePushSubscriptionChange(event));
+});
+
+// status.html/watches.html의 같은 이름 함수와 동일한 IndexedDB 스키마를
+// 공유한다(페이지 스크립트가 최초 구독 시 이미 만들어뒀을 device_id를
+// 여기서는 새로 만들지 않고 읽기만 한다 - 이 기기에서 한 번도 페이지를
+// 연 적이 없다면 device_id가 없어 마이그레이션 자체가 불가능하다).
+function aftIdbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('aft-device', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('kv');
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function aftGetDeviceId() {
+  try {
+    const db = await aftIdbOpen();
+    return await new Promise(resolve => {
+      const req = db.transaction('kv', 'readonly').objectStore('kv').get('device_id');
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch (e) {
+    return null;
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function handlePushSubscriptionChange(event) {
+  try {
+    const deviceId = await aftGetDeviceId();
+    if (!deviceId) return;   // 이 기기에서 페이지를 연 적이 없다 - 알아볼 방법이 없다.
+
+    let newSub = event.newSubscription;
+    if (!newSub) {
+      // 브라우저가 자동으로 재구독해주지 않았다면 직접 한다. 예전 구독의
+      // applicationServerKey를 재사용하는 대신 서버에서 다시 받는다 - 항상
+      // 최신 VAPID 공개키를 쓰게 되고, oldSubscription.options 지원 여부에
+      // 기대지 않아도 된다.
+      const info = await (await fetch('/api/push/public-key')).json();
+      if (!info.configured) return;
+      newSub = await self.registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(info.public_key)
+      });
+    }
+
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...newSub.toJSON(), device_id: deviceId })
+    });
+  } catch (e) {
+    // 조용히 실패해도 어쩔 수 없다 - 다음에 사용자가 페이지를 직접 열면
+    // 그때 다시 시도할 기회가 있다(단, endpoint가 이미 완전히 죽어버렸다면
+    // 그마저도 늦을 수 있다 - 알려진 한계).
   }
 }
