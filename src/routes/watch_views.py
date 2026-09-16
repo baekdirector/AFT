@@ -16,6 +16,7 @@ from flask import Blueprint, current_app, jsonify, request
 from db import db
 from models import MAX_WATCHES_PER_SUBSCRIBER, Boat, Subscriber
 from services import visit_logger
+from services.http_helpers import no_store_response as _no_store
 from services.notify import webpush
 from services.watch_service import (
     WatchLimitExceeded,
@@ -39,15 +40,19 @@ def _find_subscriber(endpoint):
 
 @watch_views.route('/api/scrape/run', methods=['POST'])
 def trigger_scrape():
-    """수집 파이프라인을 이 서버에서 한 번 돌린다. GitHub Actions 가 호출한다.
+    """수집 파이프라인을 이 서버에서 한 번 돌린다. 외부 cron 서비스
+    (cron-job.org, 30분 간격)가 X-Scrape-Token 헤더를 붙여 호출한다
+    (GitHub Actions 는 더 이상 이 트리거에 관여하지 않는다 - PLAN.md D21,
+    `.github/workflows/scrape.yml` 은 삭제됐다).
 
-    왜 Actions 가 직접 긁지 않는가:
-    Actions 러너에서는 한국 중소 호스팅 상당수에 TCP 연결이 되지 않는다.
-    실측(2026-09) 감시 6척 중 5척이 connect timeout 이었고, 타임아웃을 20초로
-    늘려도 같았다. SYN 에 응답이 없다는 뜻이라 방화벽 드롭이다. 같은 배들이
-    이 서버에서는 6/6 이 8.9초에 붙는다. 그래서 긁는 일은 여기서 하고 Actions 는
-    방아쇠만 당긴다. 덤으로 Actions 실행 시간이 짧아져 무료 분을 아끼고,
-    매시간 이 서버를 깨워 콜드스타트도 줄인다.
+    왜 외부 cron 이 직접 긁지 않고 이 서버를 거치는가:
+    애초에 GitHub Actions 러너에서는 한국 중소 호스팅 상당수에 TCP 연결이
+    되지 않았다(실측 2026-09: 감시 6척 중 5척이 connect timeout, 타임아웃을
+    20초로 늘려도 같았다 - SYN 에 응답이 없다는 뜻이라 방화벽 드롭이다).
+    같은 배들이 이 서버(Render)에서는 6/6 이 8.9초에 붙는다. 그래서 긁는
+    일은 처음부터 이 서버가 담당했고, 트리거만 GitHub Actions에서
+    cron-job.org 로 옮겨간 것이다. 덤으로 이 엔드포인트를 주기적으로
+    부르는 것 자체가 Render 콜드스타트도 줄여준다.
 
     인증: SCRAPE_TOKEN 환경변수와 X-Scrape-Token 헤더가 일치해야 한다.
     토큰이 설정돼 있지 않으면 아무도 호출할 수 없다(열어두지 않는다).
@@ -172,14 +177,6 @@ def push_test():
                         'error': '구독이 만료되었습니다. 알림을 다시 켜주세요.'}), 410
 
     return jsonify({'result': result, 'error': detail}), 502
-
-
-def _no_store(payload: dict):
-    """이 응답을 브라우저가 캐시하지 못하게 한다(관리자 콘솔에서 겪은 것과
-    같은 종류의 실측 버그 예방 - routes/views.py의 동명 헬퍼 참고)."""
-    resp = jsonify(payload)
-    resp.headers['Cache-Control'] = 'no-store'
-    return resp
 
 
 @watch_views.route('/api/watches', methods=['GET'])

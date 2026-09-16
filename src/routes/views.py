@@ -11,8 +11,9 @@ from services.reservation_checker import check_single_boat
 from services.tide.mulddae import get_mulddae
 from config import BADA_PORT_IDS
 from services.api_response import success_response, error_response, validation_error_response
-from services.status_service import StatusPageService
+from services.status_service import StatusPageService, DateValidator
 from services.weather_tide_service import PortDataService
+from services.http_helpers import no_store_response as _no_store, DEVICE_LABELS
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from time import perf_counter
 import re
@@ -328,11 +329,9 @@ def edit_boat(boat_id):
 @views.route('/status', methods=['GET'])
 def status():
     """배 예약 현황 조회 페이지
-    
+
     복잡한 로직을 StatusPageService로 분리하여 가독성 향상
     """
-    from services.status_service import StatusPageService, DateValidator
-    
     form = StatusCheckForm()
     service = StatusPageService()
     
@@ -357,43 +356,14 @@ def status():
     region_counts, total_registered = _compute_region_counts(registered_boats)
     region_boats = _get_region_boats(registered_boats)
     
-    # 날짜가 완전하지 않으면 빈 결과 반환
-    if not DateValidator.is_complete(year, month, day):
-        context = service.build_render_context(
-            form=form,
-            entries=[],
-            year=year,
-            month=month,
-            day=day,
-            region_names=region_names,
-            selected_regions=selected_regions,
-            selected_boats=selected_boats,
-            region_counts=region_counts,
-            total_registered=total_registered,
-            region_boats=region_boats,
-        )
-        return render_template("status.html", **context)
-    
-    # 날짜 유효성 검증
-    is_valid, error_msg = DateValidator.validate(year, month, day)
-    if not is_valid:
-        flash(error_msg, "warning")
-        context = service.build_render_context(
-            form=form,
-            entries=[],
-            year=year,
-            month=month,
-            day=day,
-            region_names=region_names,
-            selected_regions=selected_regions,
-            selected_boats=selected_boats,
-            region_counts=region_counts,
-            total_registered=total_registered,
-            region_boats=region_boats,
-        )
-        return render_template("status.html", **context)
-    
-    # 정상 렌더링 (비동기로 데이터 조회)
+    # 날짜가 완전하면 유효성까지 검증한다 - 불완전하거나 무효해도 빈 결과로
+    # 같은 템플릿을 그대로 렌더한다(차이는 경고 메시지 유무뿐이라 컨텍스트
+    # 생성을 한 번만 한다).
+    if DateValidator.is_complete(year, month, day):
+        is_valid, error_msg = DateValidator.validate(year, month, day)
+        if not is_valid:
+            flash(error_msg, "warning")
+
     context = service.build_render_context(
         form=form,
         entries=[],
@@ -1543,21 +1513,6 @@ def _admin_data_guard():
     return None
 
 
-def _no_store(payload: dict):
-    """이 응답을 브라우저가 캐시하지 못하게 한다.
-
-    실측 버그: 관리자 콘솔 "새로고침" 버튼(admin.html)이 fetch()를 다시
-    불러도, 시크릿 창이 아닌 일반 창에서는 브라우저가 같은 URL의 예전
-    응답을 그대로 재사용해 어제 데이터만 계속 보였다(사용자가 시크릿
-    창과 비교해서 직접 확인함). 프런트에서 fetch(..., {cache:'no-store'})
-    로 고쳤지만, 이 세 엔드포인트 자체도 캐시 가능한 응답으로 보이면
-    안 되므로(다른 호출부나 중간 프록시까지 안전하게) 서버 쪽에서도
-    명시적으로 막는다."""
-    resp = jsonify(payload)
-    resp.headers['Cache-Control'] = 'no-store'
-    return resp
-
-
 def _admin_recent_visit_logs():
     """최근(보관 기간 내) 방문 기록 + IP 위치 캐시. "접속 이력" 탭과 "알림
     등록" 탭(기기 IP 추정 백필)이 둘 다 이 원시 데이터가 필요해서 공용으로
@@ -1629,7 +1584,6 @@ def admin_data_access_route():
     # 오탐 가능성이 있어 필요하면 확인할 수 있어야 한다).
     show_bots = request.args.get('bots') == 'show'
 
-    DEVICE_LABELS = {'pc': 'PC', 'mobile': '모바일', 'tablet': '태블릿', 'unknown': '알 수 없음'}
     groups = []
     current_day = None
     current_rows = None
@@ -1686,7 +1640,6 @@ def admin_data_watch_route():
 
     logs, locations = _admin_recent_visit_logs()
 
-    DEVICE_LABELS = {'pc': 'PC', 'mobile': '모바일', 'tablet': '태블릿', 'unknown': '알 수 없음'}
     devices = admin_list_devices()
 
     # ip/device_type 컬럼이 생기기 전에 만들어진 구독자는 계속 NULL로 남는다
