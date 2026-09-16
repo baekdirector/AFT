@@ -460,11 +460,17 @@
   .device-checklog-col-available, .device-checklog-col-changed { text-align: right; }
   .device-checklog-row { padding: 6px 0; border-top: 1px solid oklch(0.965 0.006 240); font-size: 11px; }
   .device-checklog-row:first-child { border-top: none; }
+  /* 자리 변화(알림 발송)가 있었던 확인은 행 전체를 빨간 톤으로 강조한다
+     (watches.html의 .watch-log-row.is-changed와 같은 처리). */
+  .device-checklog-row.is-changed { background: oklch(0.58 0.18 25 / 0.09); }
+  .device-checklog-row.is-changed .device-checklog-what,
+  .device-checklog-row.is-changed .device-checklog-available { color: oklch(0.58 0.18 25); }
   .device-checklog-time { color: oklch(0.5 0.015 250); white-space: nowrap; }
   .device-checklog-what { font-weight: 660; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .device-checklog-date { color: oklch(0.58 0.015 250); white-space: nowrap; }
   .device-checklog-available { text-align: right; font-weight: 700; white-space: nowrap; }
   .device-checklog-changed { text-align: right; }
+  .device-checklog-changed.is-changed { color: oklch(0.58 0.18 25); }
   .device-checklog-empty { padding: 14px 0; text-align: center; font-size: 12px; color: oklch(0.6 0.015 250); }
 
   @media (max-width: 768px) {
@@ -1077,7 +1083,7 @@
 
       logs.slice().sort((a, b) => (b.checked_at || '').localeCompare(a.checked_at || '')).forEach(h => {
         const row = document.createElement('div');
-        row.className = 'device-checklog-row';
+        row.className = 'device-checklog-row' + (h.changed ? ' is-changed' : '');
         row.innerHTML =
           '<span class="device-checklog-time">' + esc(fmtLogTime(h.checked_at)) + '</span>' +
           '<span class="device-checklog-what">' + esc(h.boat_name || h.ship_name || '-') + '</span>' +
@@ -1085,7 +1091,7 @@
             esc(h.target_date ? h.target_date.slice(5).replace('-', '/') : '-') +
           '</span>' +
           '<span class="device-checklog-available">' + (h.available == null ? '확인 전' : esc(h.available)) + '</span>' +
-          '<span class="device-checklog-changed" title="' + (h.changed ? '이 확인에서 변화 감지(알림 발송됨)' : '변화 없음') + '">' +
+          '<span class="device-checklog-changed' + (h.changed ? ' is-changed' : '') + '" title="' + (h.changed ? '이 확인에서 변화 감지(알림 발송됨)' : '변화 없음') + '">' +
             (h.changed ? '✅' : '–') +
           '</span>';
         body.appendChild(row);

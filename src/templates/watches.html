@@ -392,12 +392,18 @@
   padding: 8px 0; border-top: 1px solid oklch(0.95 0.006 250); font-size: 12.5px;
 }
 .watch-log-row:first-child { border-top: none; }
+/* 자리 변화(알림 발송)가 있었던 확인은 행 전체를 빨간 톤으로 강조한다 -
+   사용자 요청: 목록을 훑을 때 어느 확인에서 실제 변화가 있었는지 한눈에
+   보이면 좋겠다는 것. */
+.watch-log-row.is-changed { background: oklch(0.58 0.18 25 / 0.09); }
+.watch-log-row.is-changed .watch-log-what,
+.watch-log-row.is-changed .watch-log-available { color: var(--red); }
 .watch-log-time { color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .watch-log-what { color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .watch-log-date { color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .watch-log-available { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
 .watch-log-changed { text-align: right; color: var(--ink-softer); font-size: 12.5px; white-space: nowrap; cursor: default; }
-.watch-log-changed.is-changed { color: oklch(0.55 0.15 155); }
+.watch-log-changed.is-changed { color: var(--red); }
 .watch-log-empty { padding: 4px 0 8px; font-size: 12.5px; color: var(--ink-soft); }
 .watch-log-loading {
   display: flex; align-items: center; gap: 8px; padding: 14px 0; font-size: 12.5px; color: var(--ink-soft);
@@ -963,7 +969,7 @@ document.addEventListener('DOMContentLoaded', function () {
         (a, b) => (b.checked_at || '').localeCompare(a.checked_at || ''));
       sorted.forEach(function (h) {
         const row = document.createElement('div');
-        row.className = 'watch-log-row';
+        row.className = 'watch-log-row' + (h.changed ? ' is-changed' : '');
 
         const time = document.createElement('span');
         time.className = 'watch-log-time';
