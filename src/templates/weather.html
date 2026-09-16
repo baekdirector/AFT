@@ -192,6 +192,14 @@
 .header-nav-btn.active { background: #fff; color: oklch(0.3 0.02 255); box-shadow: 0 1px 4px oklch(0.4 0.02 250 / 0.14); }
 .header-nav-btn:hover { color: var(--accent); }
 .nav-watch-badge { margin-left: 3px; font-weight: 800; color: oklch(0.62 0.19 25); }
+/* 배지 값이 오기 전(서비스워커 준비 + 구독 조회 + API 호출, 비동기)엔 아무
+   표시가 없다가 갑자기 숫자가 튀어나와 "로딩 중인지 안 느껴진다"는 피드백에
+   따른 것 - 값을 기다리는 동안 작은 점을 깜빡여 보여준다. */
+.nav-watch-badge.is-loading {
+  display: inline-block; width: 5px; height: 5px; margin-left: 5px; border-radius: 50%;
+  background: oklch(0.62 0.19 25 / 0.55); animation: navWatchPulse 1s ease-in-out infinite;
+}
+@keyframes navWatchPulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
 
 /* 메인 */
 .app-main { max-width: 1300px; margin: 0 auto; padding: clamp(16px, 3vw, 30px) clamp(14px, 3vw, 28px) 110px; }
@@ -1280,5 +1288,29 @@ document.addEventListener('DOMContentLoaded', () => {
     body.innerHTML = html;
   }
 });
+
+// GNB "알림" 옆(상단 헤더 + 모바일 하단 탭바 둘 다) 등록된 감시 개수 배지.
+// 실측 버그: 이 화면엔 배지 마크업만 있고 이 스크립트가 아예 없어서, 날씨
+// 화면으로 넘어오면 배지가 항상 hidden 상태 그대로 남아 "다른 화면에서 보이던
+// 카운트가 없어진다"는 피드백을 받았다. index.html과 같은 조회 로직을 그대로
+// 옮긴다(이 화면도 감시를 직접 다루지 않아 기존에 도는 fetch가 없다).
+(function () {
+  const badges = document.querySelectorAll('.nav-watch-count');
+  if (!badges.length || !('serviceWorker' in navigator)) return;
+  badges.forEach(b => { b.hidden = false; b.classList.add('is-loading'); b.textContent = ''; });
+  function finish(n) {
+    badges.forEach(b => {
+      b.classList.remove('is-loading');
+      if (n > 0) { b.textContent = `(${n})`; b.hidden = false; }
+      else { b.hidden = true; b.textContent = ''; }
+    });
+  }
+  navigator.serviceWorker.ready
+    .then(reg => reg.pushManager.getSubscription())
+    .then(sub => sub ? fetch('/api/watches?endpoint=' + encodeURIComponent(sub.endpoint)) : null)
+    .then(resp => resp ? resp.json() : null)
+    .then(body => finish(body ? (body.watches || []).length : 0))
+    .catch(() => finish(0));
+})();
 </script>
 {% endblock %}
