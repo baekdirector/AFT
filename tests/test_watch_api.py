@@ -332,6 +332,22 @@ def test_get_watches_for_unknown_endpoint_is_empty_not_error(client):
     assert rv.get_json()['watches'] == []
 
 
+def test_get_watches_is_never_cached(client, boats):
+    """실측 버그: 서비스워커가 /admin/data/* 등 API 아닌 same-origin GET을
+    캐시 우선으로 서빙해 옛 감시 목록이 계속 보였다(시크릿 창에서만 최신 -
+    사용자가 직접 비교해서 확인함). /api/* 는 서비스워커 자체가 이미
+    네트워크로만 보내지만, 그 안에서도 브라우저 HTTP 캐시가 끼어들 수 있어
+    서버가 명시적으로 no-store를 선언한다."""
+    subscribe(client)
+    rv = client.get('/api/watches', query_string={'endpoint': EP})
+    assert rv.headers.get('Cache-Control') == 'no-store'
+
+
+def test_get_watches_history_is_never_cached(client, boats):
+    rv = client.get('/api/watches/history', query_string={'endpoint': 'https://nope/x'})
+    assert rv.headers.get('Cache-Control') == 'no-store'
+
+
 def test_delete_watch(client, boats):
     subscribe(client)
     client.post('/api/watches', json={

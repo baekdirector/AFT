@@ -612,7 +612,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!sub) { setButtonOn(false); historyLoaded = true; renderAll(); return; }
         endpoint = sub.endpoint;
         const body = await (await fetch('/api/watches?endpoint=' +
-                                        encodeURIComponent(endpoint))).json();
+                                        encodeURIComponent(endpoint), { cache: 'no-store' })).json();
         limit = body.limit || limit;
         watches = body.watches || [];
         setButtonOn(true);
@@ -672,7 +672,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // 서버 상태를 다시 조회해서 반영한다(부분 실패가 있어도 실제 상태를 신뢰)
         const body = await (await fetch('/api/watches?endpoint=' +
-                                        encodeURIComponent(endpoint))).json();
+                                        encodeURIComponent(endpoint), { cache: 'no-store' })).json();
         limit = body.limit || limit;
         watches = body.watches || [];
         checked.clear();
@@ -920,7 +920,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       try {
         const body = await (await fetch('/api/watches/history?endpoint=' +
-                                        encodeURIComponent(endpoint))).json();
+                                        encodeURIComponent(endpoint), { cache: 'no-store' })).json();
         history = body.history || [];
       } catch (e) {
         console.warn('체크 기록 이력 조회 실패', e);

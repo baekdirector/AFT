@@ -3,7 +3,14 @@
 // 버전을 올려야 설치된 PWA 가 새 아이콘/매니페스트를 받는다.
 // v4: 홈 화면 앱 아이콘 배지(숫자) 지원 추가 - 새 로직이 실제로 쓰이려면
 // 설치된 기기의 서비스워커가 이 파일로 교체돼야 한다.
-const CACHE_VERSION = 'v4';
+// v5: 실측 버그 - PRECACHE_URLS에 없는 same-origin GET(예: /admin,
+// /admin/data/access, /admin/data/watch)까지 "정적 자원"으로 오분류해
+// 캐시 우선으로 서빙하고 있었다. 그 URL을 처음 연 순간의 응답이 캐시에
+// 영원히 박혀서, 이후 재방문(같은 브라우저 탭·프로필)해도 항상 그 옛
+// 데이터만 보였다 - 시크릿 창은 캐시가 비어있어 매번 최신으로 보였던
+// 것뿐이다(사용자가 직접 비교해서 확인함). fetch 핸들러를 다시 짜서
+// 이 문제를 근본적으로 막는다.
+const CACHE_VERSION = 'v5';
 const PRECACHE = `aft-precache-${CACHE_VERSION}`;
 const RUNTIME = `aft-runtime-${CACHE_VERSION}`;
 
@@ -61,21 +68,42 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Same-origin static: Cache-first
   if (url.origin === self.location.origin) {
+    // 캐시 우선은 "오프라인에서도 열리길 바라는 핵심 화면"(PRECACHE_URLS)과
+    // 이미지/CSS/JS 같은 진짜 정적 자원에만 쓴다. 그 외 same-origin
+    // GET(예: /admin, /admin/data/*, /register, /edit/<id> - 사람·시점마다
+    // 내용이 달라지는 화면과 그 화면이 부르는 비-API fetch)은 네트워크를
+    // 먼저 시도하고, 실패(오프라인)했을 때만 예전 캐시로 폴백한다 - "캐시
+    // 우선"이 아니라 "네트워크 우선, 실패 시 캐시"라 늘 최신을 보여주면서도
+    // 오프라인 대비는 그대로 유지한다.
+    const isCoreOfflinePage = PRECACHE_URLS.includes(url.pathname);
+    const isStaticAsset = /\.(?:png|jpg|jpeg|gif|svg|ico|webp|css|js|mjs|woff2?|ttf)$/i.test(url.pathname);
+
+    if (isCoreOfflinePage || isStaticAsset) {
+      event.respondWith(
+        caches.match(request).then(cached => {
+          if (cached) return cached;
+          return caches.open(RUNTIME).then(cache =>
+            fetch(request).then(response => {
+              // Only cache successful basic responses
+              if (response && response.status === 200 && response.type === 'basic') {
+                cache.put(request, response.clone());
+              }
+              return response;
+            })
+          );
+        })
+      );
+      return;
+    }
+
     event.respondWith(
-      caches.match(request).then(cached => {
-        if (cached) return cached;
-        return caches.open(RUNTIME).then(cache =>
-          fetch(request).then(response => {
-            // Only cache successful basic responses
-            if (response && response.status === 200 && response.type === 'basic') {
-              cache.put(request, response.clone());
-            }
-            return response;
-          })
-        );
-      })
+      fetch(request).then(response => {
+        if (response && response.status === 200 && response.type === 'basic') {
+          caches.open(RUNTIME).then(cache => cache.put(request, response.clone()));
+        }
+        return response;
+      }).catch(() => caches.match(request))
     );
     return;
   }

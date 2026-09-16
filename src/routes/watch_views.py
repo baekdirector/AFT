@@ -174,13 +174,21 @@ def push_test():
     return jsonify({'result': result, 'error': detail}), 502
 
 
+def _no_store(payload: dict):
+    """이 응답을 브라우저가 캐시하지 못하게 한다(관리자 콘솔에서 겪은 것과
+    같은 종류의 실측 버그 예방 - routes/views.py의 동명 헬퍼 참고)."""
+    resp = jsonify(payload)
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
 @watch_views.route('/api/watches', methods=['GET'])
 def get_watches():
     """이 브라우저가 걸어둔 감시 목록. 화면 로드 시 체크박스를 복원하는 데 쓴다."""
     subscriber = _find_subscriber(request.args.get('endpoint'))
     if subscriber is None:
-        return jsonify({'watches': [], 'limit': MAX_WATCHES_PER_SUBSCRIBER})
-    return jsonify({
+        return _no_store({'watches': [], 'limit': MAX_WATCHES_PER_SUBSCRIBER})
+    return _no_store({
         'watches': serialize_watches(list_watches(subscriber)),
         'limit': MAX_WATCHES_PER_SUBSCRIBER,
     })
@@ -191,8 +199,8 @@ def get_watches_history():
     """이 브라우저가 지금 걸어둔 감시들의 확인 이력(최근 2일). 체크 기록 로그용."""
     subscriber = _find_subscriber(request.args.get('endpoint'))
     if subscriber is None:
-        return jsonify({'history': []})
-    return jsonify({'history': check_log_history(subscriber)})
+        return _no_store({'history': []})
+    return _no_store({'history': check_log_history(subscriber)})
 
 
 @watch_views.route('/api/watches', methods=['POST'])
