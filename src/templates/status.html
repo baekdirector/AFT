@@ -854,7 +854,15 @@
    등록이 서버에 실제 반영되는 게 화면에 보이는 것보다 늦어서, 배 여럿을
    한 번에 걸면 어느 게 실제로 걸렸는지 체감상 혼란스러웠다("sync가 너무
    늦게 반영"). 배별 알림은 fleet-ship-row 안의 개별 토글(buildWatchToggle)
-   로만 켜고 끈다. */
+   로만 켜고 끈다.
+
+   그 원인 자체(Watch.applyServerState가 응답 하나로 allWatches 전체를
+   덮어써서, 다른 배의 아직 안 끝난 낙관적 반영을 지워버리던 것)는 이 마스터
+   토글을 없앤 시점엔 못 고쳤었다 - 그런데 개별 토글을 연달아 눌러도 같은
+   증상이 재현된다는 사용자 리포트로 뒤늦게 진짜 원인을 찾아 고쳤다
+   (Watch.patchWatch, 이번 요청이 확정한 한 건만 patch). 이제 여러 배를
+   빠르게 연달아 켜도 서로의 상태를 건드리지 않으니, 이 마스터 토글을 다시
+   붙이는 것도 고려할 수 있다. */
 
 @media (max-width: 420px) {
   .bell-toggle-label { display: none; }
@@ -1576,6 +1584,44 @@ document.addEventListener('DOMContentLoaded', function(){
       updateNavWatchBadge(allWatches.length);
     }
 
+    // toggle() 전용 - applyServerState()처럼 allWatches 전체를 이 응답 하나로
+    // 덮어쓰지 않고, 이번에 확정된 그 한 건만 patch한다.
+    //
+    // 실측 버그(사용자 리포트): 여러 배(선사)의 알림을 연달아 켜면, 먼저 켠
+    // 배가 화면에서 잠깐 꺼졌다가 시간이 지나야 다시 켜지는 것처럼 보였다.
+    // 원인은 applyServerState의 전체 교체 방식 - 배 A를 켜는 요청이 아직 응답
+    // 대기 중인데 배 B를 켜는 요청이 먼저 응답을 받으면, B 요청 시점에 서버가
+    // 알던 목록(아직 A를 모른다)으로 allWatches 전체를 갈아치워서 A의 낙관적
+    // 반영이 통째로 사라졌다(그러다 A의 응답이 나중에 도착하면 다시 나타나
+    // "시간이 지나면 켜진다"로 보인 것). 개별 요청은 서로 자기 자신의 (배,
+    // 선박, 날짜) 한 건만 알 뿐이므로, 그 한 건만 patch하면 응답이 어떤
+    // 순서로 오든 다른 배의 낙관적 상태를 건드리지 않는다.
+    //
+    // 예전에 선단 카드의 "전체 알림" 마스터 토글을 사용자 결정으로 삭제한
+    // 이유가 바로 이 증상("sync가 너무 늦게 반영", 위 CSS 주석 참고)이었다 -
+    // 그때는 원인을 고치지 못해 여러 배를 한 번에 켜는 기능 자체를 없애는
+    // 우회로 덮었는데, 이번엔 개별 토글을 연달아 눌러도 같은 증상이 재현돼
+    // 근본 원인(전체 교체)을 고쳤다.
+    function patchWatch(turningOn, k, targetDate, body) {
+      limit = body.limit || limit;
+      const idx = allWatches.findIndex(w =>
+        w.target_date === targetDate && key(w.boat_name, w.ship_name) === k);
+      if (turningOn) {
+        const confirmed = (body.watches || []).find(w =>
+          w.target_date === targetDate && key(w.boat_name, w.ship_name) === k);
+        if (confirmed) {
+          if (idx >= 0) allWatches[idx] = confirmed; else allWatches.push(confirmed);
+        }
+      } else if (idx >= 0) {
+        // 낙관적 제거가 이미 했겠지만, 방어적으로 한 번 더 확인한다.
+        allWatches.splice(idx, 1);
+      }
+      refreshCheckboxes();
+      updateBanner();
+      renderWatchList();
+      updateNavWatchBadge(allWatches.length);
+    }
+
     // GNB "알림" 옆 개수 배지(상단 헤더 + 모바일 하단 탭바 둘 다 - 좁은 화면은
     // 상단 header-nav 자체가 숨고 하단 탭바만 보이므로 둘 다 갱신해야 한다).
     // 토글할 때마다(applyServerState가 불릴 때마다) 같이 갱신되므로 이 화면
@@ -1838,6 +1884,7 @@ document.addEventListener('DOMContentLoaded', function(){
         // 네트워크 실패도 되돌린다. 켜진 것처럼 보이는데 실제로는 아닌 상태가 최악이다.
         applyLocal(!turningOn, k, stub);
         cb.checked = !turningOn;
+        syncWatchRowVisual(cb);
         showToast('통신에 실패했습니다. 다시 시도해주세요.', { type: 'error' });
         return;
       }
@@ -1846,10 +1893,11 @@ document.addEventListener('DOMContentLoaded', function(){
         // 상한 초과 등. 서버가 거절했으므로 낙관적 반영을 되돌린다.
         applyLocal(!turningOn, k, stub);
         cb.checked = !turningOn;
+        syncWatchRowVisual(cb);
         showToast(body.error || '알림 등록에 실패했습니다.', { type: 'error' });
         return;
       }
-      applyServerState(body);
+      patchWatch(turningOn, k, stub.target_date, body);
     }
 
     // 이미 구독한 브라우저면 화면을 열 때 조용히 상태를 복원한다.
