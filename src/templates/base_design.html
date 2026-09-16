@@ -187,9 +187,23 @@ function showConfirm(message, opts) {
 }
 
 // Service Worker registration
+//
+// 실측: 서버는 이미 최신 코드를 내려주는데(직접 확인함), 브라우저가 예전에
+// 설치해둔 서비스워커를 계속 쓰면서 화면이 안 바뀌는 것처럼 보이는 일이
+// 반복됐다 - 브라우저의 자동 업데이트 확인 주기가 느긋해서(대략 하루에
+// 한 번 수준), 탭을 오래 열어두는 모바일에서 특히 체감됐다. register()
+// 직후와 탭이 다시 보일 때마다 update()를 명시적으로 불러 새 버전이
+// 있는지 그때그때 확인하게 한다 - 새 버전이 감지되면 service-worker.js의
+// skipWaiting()/clients.claim() 덕에 곧바로 활성화된다.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/service-worker.js')
+      .then(reg => {
+        reg.update();
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') reg.update();
+        });
+      })
       .catch(err => console.warn('SW registration failed', err));
   });
 }

@@ -272,9 +272,19 @@
 </body>
 <script>
 // Service Worker registration
+//
+// base_design.html과 같은 이유로 update()를 명시적으로 부른다 - 브라우저의
+// 느긋한 자동 업데이트 확인 주기 때문에 서버는 최신인데 화면은 예전
+// 서비스워커가 계속 서빙하는 문제를 실제로 겪었다.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/service-worker.js')
+      .then(reg => {
+        reg.update();
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') reg.update();
+        });
+      })
       .catch(err => console.warn('SW registration failed', err));
   });
 }

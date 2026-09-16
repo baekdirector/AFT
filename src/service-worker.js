@@ -10,7 +10,13 @@
 // 데이터만 보였다 - 시크릿 창은 캐시가 비어있어 매번 최신으로 보였던
 // 것뿐이다(사용자가 직접 비교해서 확인함). fetch 핸들러를 다시 짜서
 // 이 문제를 근본적으로 막는다.
-const CACHE_VERSION = 'v5';
+// v6: v5를 배포한 뒤에도 "서버는 최신인데 화면은 그대로"가 재현됐다 -
+// 서버 응답을 직접 확인해 최신 코드임을 검증했으니, 원인은 브라우저가
+// 예전 서비스워커를 계속 쓰고 있었던 것이다(브라우저의 자동 업데이트
+// 확인 주기가 느긋하다). 버전을 다시 올려 이번 배포가 확실히 새 설치로
+// 잡히게 하고, base.html/base_design.html에서 등록 직후+탭 복귀 시
+// update()를 명시적으로 불러 다음부터는 반영이 더 빨라지게 했다.
+const CACHE_VERSION = 'v6';
 const PRECACHE = `aft-precache-${CACHE_VERSION}`;
 const RUNTIME = `aft-runtime-${CACHE_VERSION}`;
 
