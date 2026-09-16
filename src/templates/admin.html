@@ -407,40 +407,71 @@
   .date-group-head .release-date { flex: none; border: none; background: transparent; font-size: 11.5px; font-weight: 700; color: oklch(0.54 0.015 250); cursor: pointer; white-space: nowrap; }
   .date-group-head .release-date:hover { color: oklch(0.5 0.17 25); }
   .date-group-body { background: #fff; border: 1px solid oklch(0.93 0.008 240); border-radius: 12px; overflow: hidden; }
-  .watch-row {
-    display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center; gap: 10px;
-    padding: 10px 13px; border-top: 1px solid oklch(0.965 0.006 240);
-  }
+  /* 실측 피드백: 예전엔 5열 그리드(체크/이름/상태 · 자리뱃지 · 예약 ·
+     해제)라 모바일에서 컬럼이 2개로 줄면서 자리뱃지·예약·해제가 각자
+     제 줄을 차지해 배 한 척이 4줄까지 늘어졌다. 그리드를 버리고 항상
+     "1줄(이름+상태) + 1줄(자리/예약/해제)"인 2줄짜리 flex로 고정해
+     화면 폭과 무관하게 선사 카드 높이가 일정하게 짧다. 자리 뱃지도
+     상태 뱃지와 같은 글자를 또 보여주던 것(예: "알 수 없음"이 두 번)을
+     없애고, 실제 잔여석 숫자가 있을 때만("남은자리 N"/"잔여 N") 보여준다. */
+  .watch-row { padding: 9px 13px; border-top: 1px solid oklch(0.965 0.006 240); }
   .watch-row:first-child { border-top: none; }
   .watch-row.checked { background: oklch(0.976 0.014 248); }
-  .watch-boat { font-size: 13px; font-weight: 740; letter-spacing: -0.3px; white-space: nowrap; }
+  .watch-row-top { display: flex; align-items: center; gap: 8px; }
+  .watch-row-bottom { display: flex; align-items: center; gap: 8px; margin-top: 7px; margin-left: 28px; }
+  .watch-boat { font-size: 13px; font-weight: 740; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .watch-status { flex: none; font-size: 10px; font-weight: 740; padding: 2px 7px; border-radius: 6px; white-space: nowrap; color: #fff; }
   .watch-status.tone-open { background: oklch(0.5 0.13 158); }
   .watch-status.tone-soon { background: oklch(0.66 0.15 68); }
   .watch-status.tone-off { background: oklch(0.48 0.015 250); }
   .watch-status.tone-none { background: oklch(0.68 0.012 250); }
-  .watch-meta { font-size: 11px; font-weight: 580; color: oklch(0.58 0.015 250); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .watch-seat { justify-self: end; flex: none; font-size: 11px; font-weight: 740; padding: 4px 9px; border-radius: 99px; white-space: nowrap; background: oklch(0.955 0.006 240); color: oklch(0.52 0.015 250); }
+  .watch-meta { flex: none; font-size: 11px; font-weight: 580; color: oklch(0.58 0.015 250); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 30%; margin-left: auto; }
+  .watch-seat { flex: none; font-size: 11px; font-weight: 740; padding: 4px 9px; border-radius: 99px; white-space: nowrap; background: oklch(0.955 0.006 240); color: oklch(0.52 0.015 250); }
   .watch-seat.tone-open, .watch-seat.tone-soon { color: #fff; }
   .watch-seat.tone-open { background: oklch(0.5 0.13 158); }
   .watch-seat.tone-soon { background: oklch(0.66 0.15 68); }
   .watch-link {
-    display: inline-flex; align-items: center; justify-content: center; height: 30px; padding: 0 11px; border-radius: 9px;
-    background: oklch(0.955 0.02 248); font-size: 11.5px; font-weight: 700; color: oklch(0.42 0.12 248); white-space: nowrap; flex: none;
+    display: inline-flex; align-items: center; justify-content: center; height: 28px; padding: 0 10px; border-radius: 8px;
+    background: oklch(0.955 0.02 248); font-size: 11px; font-weight: 700; color: oklch(0.42 0.12 248); white-space: nowrap; flex: none;
   }
   .watch-link:hover { background: oklch(0.92 0.04 248); color: oklch(0.42 0.12 248); }
   .watch-release {
-    flex: none; height: 30px; padding: 0 11px; border-radius: 9px; border: 1px solid oklch(0.92 0.008 240); background: #fff;
-    font-size: 11.5px; font-weight: 680; color: oklch(0.48 0.02 250); cursor: pointer; white-space: nowrap;
+    flex: none; height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid oklch(0.92 0.008 240); background: #fff;
+    font-size: 11px; font-weight: 680; color: oklch(0.48 0.02 250); cursor: pointer; white-space: nowrap;
   }
   .watch-release:hover { border-color: oklch(0.78 0.09 25); color: oklch(0.5 0.17 25); }
+
+  /* 기기별 체크 기록 로그 - watches.html의 .watch-log-* 를 그대로 이식했다
+     (사용자 요청: "어드민에서도 기기별 로그 정보를 확인하고 싶어"). 기기당
+     항목이 많을 수 있어 기본은 접힌 상태다. */
+  .device-checklog { margin-top: 12px; background: #fff; border: 1px solid oklch(0.93 0.008 240); border-radius: 12px; overflow: hidden; }
+  .device-checklog-toggle {
+    width: 100%; display: flex; align-items: center; gap: 8px; padding: 11px 13px;
+    border: none; background: transparent; cursor: pointer; text-align: left;
+    font-size: 12.5px; font-weight: 700; color: var(--ink, oklch(0.24 0.02 255));
+  }
+  .device-checklog-toggle-icon { margin-left: auto; font-size: 11px; color: oklch(0.56 0.015 250); transition: transform 0.18s; }
+  .device-checklog[open] .device-checklog-toggle-icon { transform: rotate(180deg); }
+  .device-checklog-body { padding: 0 13px 12px; max-height: 260px; overflow-y: auto; }
+  .device-checklog-header, .device-checklog-row {
+    display: grid; grid-template-columns: 74px minmax(70px, 1fr) 46px 56px 34px;
+    align-items: center; gap: 6px;
+  }
+  .device-checklog-header { padding: 0 0 6px; font-size: 10px; font-weight: 700; color: oklch(0.6 0.015 250); }
+  .device-checklog-col-available, .device-checklog-col-changed { text-align: right; }
+  .device-checklog-row { padding: 6px 0; border-top: 1px solid oklch(0.965 0.006 240); font-size: 11px; }
+  .device-checklog-row:first-child { border-top: none; }
+  .device-checklog-time { color: oklch(0.5 0.015 250); white-space: nowrap; }
+  .device-checklog-what { font-weight: 660; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .device-checklog-date { color: oklch(0.58 0.015 250); white-space: nowrap; }
+  .device-checklog-available { text-align: right; font-weight: 700; white-space: nowrap; }
+  .device-checklog-changed { text-align: right; }
+  .device-checklog-empty { padding: 14px 0; text-align: center; font-size: 12px; color: oklch(0.6 0.015 250); }
 
   @media (max-width: 768px) {
     .visit-table { min-width: 480px; }
     .device-row { padding: 12px; }
-    .watch-row { grid-template-columns: auto minmax(0, 1fr); row-gap: 6px; }
-    .watch-seat { justify-self: start; grid-column: 2; }
-    .watch-link, .watch-release { grid-column: 2; justify-self: start; }
+    .watch-meta { display: none; }
     .header-nav { display: none; }
   }
 </style>
@@ -1006,6 +1037,66 @@
   }
   function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 
+  // watches.html의 fmtLogTime과 동일 - 서버(datetime.utcnow().isoformat())가
+  // 타임존 없이 내려주므로 'Z'를 안 붙이면 new Date()가 이걸 UTC가 아니라
+  // 브라우저 로컬 시간으로 오해해서 9시간(KST) 어긋난다.
+  function fmtLogTime(iso) {
+    if (!iso) return '-';
+    const d = new Date(/[Zz+]/.test(iso) ? iso : iso + 'Z');
+    if (isNaN(d.getTime())) return '-';
+    const pad = n => String(n).padStart(2, '0');
+    return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  // 기기별 체크 기록 로그 - watches.html의 체크 기록 로그 패널을 그대로
+  // 이식했다(사용자 요청: "어드민에서도 기기별 로그 정보를 확인하고
+  // 싶어"). 데이터는 admin_list_devices()가 이미 내려준 d.check_log를
+  // 그대로 쓴다 - 별도 fetch가 필요 없다.
+  function buildDeviceCheckLog(d) {
+    const details = document.createElement('details');
+    details.className = 'device-checklog';
+    const summary = document.createElement('summary');
+    summary.className = 'device-checklog-toggle';
+    summary.innerHTML = '<span>체크 기록 로그' + (d.check_log && d.check_log.length ? ' (' + d.check_log.length + ')' : '') + '</span>' +
+      '<span class="device-checklog-toggle-icon">▾</span>';
+    details.appendChild(summary);
+
+    const body = document.createElement('div');
+    body.className = 'device-checklog-body';
+    const logs = d.check_log || [];
+    if (!logs.length) {
+      const empty = document.createElement('div');
+      empty.className = 'device-checklog-empty';
+      empty.textContent = '체크 기록이 없습니다';
+      body.appendChild(empty);
+    } else {
+      const header = document.createElement('div');
+      header.className = 'device-checklog-header';
+      header.innerHTML =
+        '<span>체크 시간</span><span>배 이름</span><span>날짜</span>' +
+        '<span class="device-checklog-col-available">남은 자리</span><span class="device-checklog-col-changed">변경</span>';
+      body.appendChild(header);
+
+      logs.slice().sort((a, b) => (b.checked_at || '').localeCompare(a.checked_at || '')).forEach(h => {
+        const row = document.createElement('div');
+        row.className = 'device-checklog-row';
+        row.innerHTML =
+          '<span class="device-checklog-time">' + esc(fmtLogTime(h.checked_at)) + '</span>' +
+          '<span class="device-checklog-what">' + esc(h.boat_name || h.ship_name || '-') + '</span>' +
+          '<span class="device-checklog-date" title="' + esc(h.target_date || '') + '">' +
+            esc(h.target_date ? h.target_date.slice(5).replace('-', '/') : '-') +
+          '</span>' +
+          '<span class="device-checklog-available">' + (h.available == null ? '확인 전' : esc(h.available)) + '</span>' +
+          '<span class="device-checklog-changed" title="' + (h.changed ? '이 확인에서 변화 감지(알림 발송됨)' : '변화 없음') + '">' +
+            (h.changed ? '✅' : '–') +
+          '</span>';
+        body.appendChild(row);
+      });
+    }
+    details.appendChild(body);
+    return details;
+  }
+
   // ---- 상태 ----
   const state = { query: '', deviceFilter: 'all', checked: new Set(), openIds: new Set(), devices: DEVICES_RAW };
 
@@ -1280,6 +1371,12 @@
             const on = state.checked.has(w.id);
             const r = document.createElement('div');
             r.className = 'watch-row' + (on ? ' checked' : '');
+
+            // 1줄: 체크 + 이름 + 상태 뱃지. 배 이름은 남는 공간을 채우고
+            // 선사명(watch-meta)은 오른쪽 끝에 붙인다(모바일에선 숨김 -
+            // 카드를 짧게 유지하는 게 우선이라 배 이름만으로 충분하다).
+            const top = document.createElement('div');
+            top.className = 'watch-row-top';
             const wChk = document.createElement('button');
             wChk.type = 'button';
             wChk.className = 'chk' + (on ? ' on' : '');
@@ -1288,38 +1385,42 @@
               if (on) state.checked.delete(w.id); else state.checked.add(w.id);
               render();
             });
-            r.appendChild(wChk);
+            top.appendChild(wChk);
+            top.innerHTML +=
+              '<span class="watch-boat">' + esc(w.ship_name) + '</span>' +
+              '<span class="watch-status tone-' + s.tone + '">' + esc(s.text) + '</span>' +
+              '<span class="watch-meta">' + esc(w.boat_name || '') + '</span>';
+            r.appendChild(top);
 
-            const info = document.createElement('div');
-            info.style.minWidth = '0';
-            info.innerHTML =
-              '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-                '<span class="watch-boat">' + esc(w.ship_name) + '</span>' +
-                '<span class="watch-status tone-' + s.tone + '">' + esc(s.text) + '</span>' +
-              '</div>' +
-              '<div class="watch-meta">' + esc(w.boat_name || '') + '</div>';
-            r.appendChild(info);
-
-            const seat = document.createElement('span');
-            const seatText = s.tone === 'open' ? '남은자리 ' + (w.available ?? '') : s.tone === 'soon' ? '잔여 ' + (w.available ?? '') : s.text;
-            seat.className = 'watch-seat tone-' + s.tone;
-            seat.textContent = seatText;
-            r.appendChild(seat);
-
+            // 2줄: 자리 뱃지(있을 때만) + 예약 + 해제 - 항상 이 한 줄에
+            // 같이 둔다(실측 피드백: "선사 이름과 예약 해제를 같은
+            // 라인으로 해서 카드 크기를 줄여줘"). 자리 뱃지는 실제
+            // 잔여석 숫자가 있을 때만 보여준다 - 없으면 위 상태 뱃지와
+            // 같은 글자("알 수 없음"/"예약마감" 등)를 또 보여주는
+            // 중복이었다.
+            const bottom = document.createElement('div');
+            bottom.className = 'watch-row-bottom';
+            if (s.tone === 'open' || s.tone === 'soon') {
+              const seat = document.createElement('span');
+              seat.className = 'watch-seat tone-' + s.tone;
+              seat.textContent = (s.tone === 'open' ? '남은자리 ' : '잔여 ') + (w.available ?? '');
+              bottom.appendChild(seat);
+            }
             const link = document.createElement('a');
             link.className = 'watch-link';
             link.href = w.url || '#';
             link.target = '_blank';
             link.rel = 'noopener';
             link.textContent = '예약 →';
-            r.appendChild(link);
+            bottom.appendChild(link);
 
             const relOne = document.createElement('button');
             relOne.type = 'button';
             relOne.className = 'watch-release';
             relOne.textContent = '해제';
             relOne.addEventListener('click', () => releaseIds([w.id], null, esc(w.ship_name) + ' 알림을 해제했습니다'));
-            r.appendChild(relOne);
+            bottom.appendChild(relOne);
+            r.appendChild(bottom);
 
             gBody.appendChild(r);
           });
@@ -1327,6 +1428,7 @@
           body.appendChild(grp);
         });
         card.appendChild(body);
+        card.appendChild(buildDeviceCheckLog(d));
       }
 
       container.appendChild(card);

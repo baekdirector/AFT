@@ -112,6 +112,32 @@ def test_admin_list_devices_empty_when_no_active_watches(app):
         assert admin_list_devices() == []
 
 
+def test_admin_list_devices_includes_per_device_check_log(app):
+    """기기별 카드에 그 기기가 지금 감시 중인 것들의 확인 이력이 같이
+    실려야 한다(사용자 요청: "어드민에서도 기기별 로그 정보를 확인하고
+    싶어") - watches.html이 쓰는 것과 같은 check_log_history()를 그대로
+    재사용하므로, 다른 기기의 이력이 섞이면 안 된다."""
+    sub1_id, _ = _seed_watch(app, ip='1.1.1.1', ship_name='내배', target_date='2026-12-25')
+    sub2_id, _ = _seed_watch(app, ip='2.2.2.2', ship_name='남의배', target_date='2026-12-25')
+
+    with app.app_context():
+        from datetime import datetime
+        from models import Boat, WatchCheckLog
+        from services.watch_service import admin_list_devices
+
+        boat = Boat.query.filter_by(name='테스트선단').first()
+        db.session.add(WatchCheckLog(boat_id=boat.id, ship_name='내배', target_date='2026-12-25',
+                                     checked_at=datetime.utcnow(), available=3, changed=True))
+        db.session.commit()
+
+        devices = admin_list_devices()
+
+    by_sub = {d['subscriber_id']: d for d in devices}
+    assert len(by_sub[sub1_id]['check_log']) == 1
+    assert by_sub[sub1_id]['check_log'][0]['ship_name'] == '내배'
+    assert by_sub[sub2_id]['check_log'] == [], '다른 기기의 확인 이력이 섞이면 안 된다'
+
+
 # ---- services.watch_service.admin_release_watches ----
 
 def test_admin_release_watches_deactivates_only_given_ids(app):

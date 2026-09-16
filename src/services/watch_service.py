@@ -299,6 +299,11 @@ def admin_list_devices() -> list[dict]:
             'created_at': sub.created_at.isoformat() if sub.created_at else None,
             'last_seen_at': sub.last_seen_at.isoformat() if sub.last_seen_at else None,
             'watches': serialize_watches(sub_watches),
+            # 이 기기가 지금 감시 중인 것들의 확인 이력(최근 2일) - 사용자
+            # 요청: "어드민에서도 기기별 로그 정보를 확인하고 싶어". 이미
+            # /watches 화면이 쓰는 것과 같은 함수를 구독자만 바꿔 그대로
+            # 재사용한다(로직 중복 없음).
+            'check_log': check_log_history(sub, days=2),
         })
     devices.sort(key=lambda d: d['last_seen_at'] or '', reverse=True)
     return devices
