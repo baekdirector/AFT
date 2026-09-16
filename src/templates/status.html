@@ -401,6 +401,16 @@
 .header-nav-btn:hover { color: var(--accent); }
 /* 등록된 알림(감시) 개수 배지 - 나머지 글자보다 눈에 띄게 색을 다르게 준다 */
 .nav-watch-badge { margin-left: 3px; font-weight: 800; color: oklch(0.62 0.19 25); }
+/* 이 화면은 감시 상태 복원(restore())이 끝나야 배지가 채워지는데, 그동안
+   아무 표시가 없다가 갑자기 숫자가 나타났다("예약현황에서만 스피너가
+   안 돈다" 피드백) - index.html/weather.html과 같은 회전 스피너로
+   로딩 중임을 보여준다. */
+.nav-watch-badge.is-loading {
+  display: inline-block; width: 11px; height: 11px; margin-left: 6px; vertical-align: -1px;
+  border: 2px solid oklch(0.85 0.01 250); border-top-color: oklch(0.62 0.19 25);
+  border-radius: 50%; animation: navWatchSpin 0.7s linear infinite;
+}
+@keyframes navWatchSpin { to { transform: rotate(360deg); } }
 
 /* 메인 */
 .app-main { max-width: 1180px; margin: 0 auto; padding: clamp(16px, 3vw, 30px) clamp(14px, 3vw, 28px) 110px; }
@@ -1572,8 +1582,20 @@ document.addEventListener('DOMContentLoaded', function(){
     // 안에서 감시를 켜고 꺼도 즉시 반영된다.
     function updateNavWatchBadge(n) {
       document.querySelectorAll('.nav-watch-count').forEach(badge => {
+        badge.classList.remove('is-loading');
         if (n > 0) { badge.textContent = `(${n})`; badge.hidden = false; }
         else { badge.hidden = true; badge.textContent = ''; }
+      });
+    }
+
+    // restore()가 끝나기 전까지 배지 자리에 회전 스피너를 보여준다 -
+    // updateNavWatchBadge()가 (성공/미구독/실패 어느 경로든) 반드시 뒤이어
+    // 불려서 is-loading을 지우므로 스피너가 영영 도는 일은 없다.
+    function setNavWatchBadgeLoading() {
+      document.querySelectorAll('.nav-watch-count').forEach(badge => {
+        badge.hidden = false;
+        badge.classList.add('is-loading');
+        badge.textContent = '';
       });
     }
 
@@ -1836,10 +1858,11 @@ document.addEventListener('DOMContentLoaded', function(){
     // 호출해 확정 상태로 바꿔야 한다 - 안 그러면 "확인 중…"에 영영 멈춘다.
     async function restore() {
       if (!('serviceWorker' in navigator)) { setButtonOn(false); return; }
+      setNavWatchBadgeLoading();
       try {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
-        if (!sub) { setButtonOn(false); updateBanner(); return; }
+        if (!sub) { setButtonOn(false); updateBanner(); updateNavWatchBadge(0); return; }
         endpoint = sub.endpoint;
         const body = await (await fetch('/api/watches?endpoint=' +
                                         encodeURIComponent(endpoint))).json();
@@ -1848,6 +1871,7 @@ document.addEventListener('DOMContentLoaded', function(){
       } catch (e) {
         console.warn('감시 상태 복원 실패', e);
         setButtonOn(false);
+        updateNavWatchBadge(0);
       }
     }
 
