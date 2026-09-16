@@ -116,7 +116,8 @@ def serialize_watches(watches: list[Watch]) -> list[dict]:
     return result
 
 
-def check_log_history(subscriber: Subscriber, days: int = 2) -> list[dict]:
+def check_log_history(subscriber: Subscriber, days: int = 2,
+                      watches: list[Watch] | None = None) -> list[dict]:
     """이 구독자가 지금 걸어둔 감시들의 확인 이력을 최신순으로 돌려준다.
 
     WatchCheckLog 는 구독자별로 나뉘어 있지 않다(확인 자체는 시스템 공용
@@ -124,8 +125,13 @@ def check_log_history(subscriber: Subscriber, days: int = 2) -> list[dict]:
     (boat_id, ship_name, target_date) 집합을 먼저 구하고, 그 키에 해당하는
     로그만 걸러낸다. 같은 배를 여러 사람이 감시해도 이력 자체는 동일하게
     보인다 - 정상이다.
+
+    `watches`를 이미 조회해둔 호출부(admin_list_devices)는 그걸 그대로
+    넘겨서 같은 활성 감시를 또 쿼리하지 않게 할 수 있다 - 생략하면(기존
+    /watches 화면 호출부처럼) 여기서 직접 조회한다.
     """
-    watches = list_watches(subscriber)
+    if watches is None:
+        watches = list_watches(subscriber)
     if not watches:
         return []
 
@@ -302,8 +308,10 @@ def admin_list_devices() -> list[dict]:
             # 이 기기가 지금 감시 중인 것들의 확인 이력(최근 2일) - 사용자
             # 요청: "어드민에서도 기기별 로그 정보를 확인하고 싶어". 이미
             # /watches 화면이 쓰는 것과 같은 함수를 구독자만 바꿔 그대로
-            # 재사용한다(로직 중복 없음).
-            'check_log': check_log_history(sub, days=2),
+            # 재사용한다(로직 중복 없음). sub_watches를 넘겨 check_log_history가
+            # 같은 활성 감시를 또 쿼리하지 않게 한다(위 by_subscriber 그룹핑에서
+            # 이미 읽어둔 것과 동일한 데이터).
+            'check_log': check_log_history(sub, days=2, watches=sub_watches),
         })
     devices.sort(key=lambda d: d['last_seen_at'] or '', reverse=True)
     return devices

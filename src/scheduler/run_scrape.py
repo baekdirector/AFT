@@ -1,10 +1,13 @@
 """
-수집 -> 스냅샷 비교 -> 알림. Phase D. GitHub Actions cron 의 진입점이다.
+수집 -> 스냅샷 비교 -> 알림. Phase D. run_pipeline()이 이 파이프라인의 본체고,
+외부 cron 서비스(cron-job.org, 30분 간격)가 `/api/scrape/run`을 호출해 트리거한다
+(GitHub Actions는 더 이상 이 트리거에 관여하지 않는다 - PLAN.md D21).
 
 이 파일이 웹 앱과 분리돼 있는 이유:
 Render 무료 인스턴스는 15분 무활동 후 잠들고, 잠든 동안에는 아무것도 수집하지
-못한다. 그래서 수집과 발송은 Actions 에서 돌리고, 웹은 같은 DB 를 보기만 한다.
-웹이 잠들어 있어도 알림은 나간다.
+못한다. 그래서 CLI(`run()`)로도 독립 실행 가능하게 분리해뒀다 - 웹이 잠들어
+있어도 트리거만 오면(cron-job.org가 `/api/scrape/run`을 호출하는 순간 Render가
+깨어난다) 수집과 발송이 이 파일 안에서 끝까지 실행된다.
 
 전 선박을 훑지 않는다. 감시 등록된 (배, 날짜) 만 수집한다. 그래서 한 번 도는
 비용이 감시 수에 비례하고, 사람당 5척 상한이 곧 부하 상한이다.
@@ -186,8 +189,15 @@ def run_pipeline(dry_run: bool = False, delay: float = DEFAULT_DELAY) -> dict:
     all_observations = []
     boat_names = {}
 
+    # 대상 배를 한 번에 조회한다 - targets 만큼 Boat.query.get()을 반복하면
+    # 감시 상한(사람당 20 x 사람 수)이 커질수록 왕복이 그만큼 늘어난다.
+    boats_by_id = {
+        b.id: b for b in
+        Boat.query.filter(Boat.id.in_({boat_id for boat_id, _ in targets})).all()
+    }
+
     for index, (boat_id, target_date) in enumerate(targets, 1):
-        boat = Boat.query.get(boat_id)
+        boat = boats_by_id.get(boat_id)
         if boat is None:
             logger.warning('[%d/%d] 배 %s 가 사라졌다 - 건너뛴다',
                            index, len(targets), boat_id)
@@ -277,8 +287,9 @@ def main() -> int:
             '보게 되어 감시 대상을 하나도 찾지 못하고, 아무 일도 하지 않은 채 '
             '성공한 것처럼 끝난다.')
         logger.error(
-            'GitHub Actions 라면 Settings -> Secrets and variables -> Actions 에 '
-            'DATABASE_URL 을 등록했는지, 워크플로의 env 에 넘기고 있는지 확인한다.')
+            'Render 라면 환경변수 탭에 DATABASE_URL 이 등록돼 있는지 확인한다 '
+            '(수집 트리거는 cron-job.org 가 /api/scrape/run 을 호출하는 것이라, '
+            '이 CLI 를 직접 돌리는 경우는 로컬 디버깅뿐이다).')
         logger.error('개발 중 로컬 DB 로 돌려보려면 --allow-local-db 를 준다.')
         return 2
 

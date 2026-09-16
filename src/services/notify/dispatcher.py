@@ -46,14 +46,19 @@ def already_notified(watch_id: int, dedup_key: str) -> bool:
     return last_sent is not None and last_sent.dedup_key == dedup_key
 
 
-def dispatch(transition, boat_name: str | None = None) -> list[Notification]:
+def dispatch(transition, boat_name: str | None = None,
+            watches: list | None = None) -> list[Notification]:
     """전환 하나를 관련 감시자 전원에게 보낸다.
 
     돌려주는 값은 이번에 새로 만든 Notification 행들이다.
     이미 보냈거나 감시자가 없으면 빈 목록이다.
+
+    `watches`를 이미 조회해둔 호출부(dispatch_all)는 그걸 넘겨서 같은
+    조건으로 또 쿼리하지 않게 할 수 있다 - 생략하면 여기서 직접 조회한다.
     """
-    watches = watches_for(transition.boat_id, transition.target_date,
-                          transition.ship_name)
+    if watches is None:
+        watches = watches_for(transition.boat_id, transition.target_date,
+                              transition.ship_name)
     if not watches:
         return []
 
@@ -115,16 +120,17 @@ def dispatch_all(transitions, boat_names: dict | None = None) -> dict:
     for transition in transitions:
         summary['transitions'] += 1
         try:
-            before = len(watches_for(transition.boat_id, transition.target_date,
-                                     transition.ship_name))
-            records = dispatch(transition, boat_names.get(transition.boat_id))
+            watches = watches_for(transition.boat_id, transition.target_date,
+                                  transition.ship_name)
+            records = dispatch(transition, boat_names.get(transition.boat_id),
+                               watches=watches)
         except Exception:
             db.session.rollback()
             logger.exception('전환 발송 실패(격리) boat=%s date=%s ship=%s kind=%s',
                              transition.boat_id, transition.target_date,
                              transition.ship_name, transition.kind)
             continue
-        summary['skipped_duplicate'] += max(0, before - len(records))
+        summary['skipped_duplicate'] += max(0, len(watches) - len(records))
         for record in records:
             if record.result in summary:
                 summary[record.result] += 1

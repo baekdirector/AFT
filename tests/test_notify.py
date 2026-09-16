@@ -282,14 +282,14 @@ def test_dispatch_all_rolls_back_session_after_a_db_failure(app, target, sent_ok
 
         original_dispatch = dispatcher.dispatch
 
-        def dispatch_with_a_real_db_failure_for_broken(transition, boat_name=None):
+        def dispatch_with_a_real_db_failure_for_broken(transition, boat_name=None, watches=None):
             if transition.boat_id == boat_id:
                 # watch_id 는 nullable=False - 실제 제약 조건 위반으로
                 # flush 를 실패시켜 세션을 진짜로 오염시킨다.
                 db.session.add(Notification(watch_id=None, dedup_key='x', channel='webpush', result='sent'))
                 db.session.flush()
                 return []
-            return original_dispatch(transition, boat_name)
+            return original_dispatch(transition, boat_name, watches=watches)
 
         monkeypatch.setattr(dispatcher, 'dispatch', dispatch_with_a_real_db_failure_for_broken)
 

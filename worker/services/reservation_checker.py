@@ -91,10 +91,19 @@ def _get_cached_result(cache_key: tuple) -> Dict | None:
 
 
 def _store_cached_result(cache_key: tuple, result: Dict) -> Dict:
+    now = time()
     with _CACHE_LOCK:
+        # 만료된 항목은 그 키를 다시 조회할 때만 지워졌다(_get_cached_result) -
+        # 한 번 조회하고 다시 안 보는 (url, y, m, d) 조합은 프로세스 수명 내내
+        # 캐시에 남아 메모리를 먹었다. 저장 시점마다 한 번 훑어 청소한다
+        # (캐시 크기가 작아 - 감시/라이브 조회 대상 수준 - 매번 전체 스캔해도
+        # 비용이 작다).
+        expired_keys = [key for key, entry in _CACHE.items() if entry["expires_at"] <= now]
+        for key in expired_keys:
+            del _CACHE[key]
         _CACHE[cache_key] = {
             "result": result,
-            "expires_at": time() + _CACHE_TTL_SECONDS,
+            "expires_at": now + _CACHE_TTL_SECONDS,
         }
     return result
 
