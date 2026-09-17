@@ -262,10 +262,18 @@ def test_dispatch_all_rolls_back_session_after_a_db_failure(app, target, sent_ok
     (제약 조건 위반 등 db.session.flush/commit 이 실제로 실패하는 경우)가
     한 번 나면 SQLAlchemy 세션이 rollback 전까지 그 뒤 모든 쿼리를 거부하는
     상태가 되고, 이 상태에서 rollback 없이 다음 전환으로 넘어가면 그
-    전환의 발송까지 연쇄로 조용히 실패한다 - 체크 기록 로그엔 "변경"으로
-    남는데 푸시는 하나도 안 나가는, 겉보기엔 원인을 알 수 없는 무음
-    실패다. 이 테스트는 진짜 DB 제약 위반(NOT NULL)으로 세션을 오염시켜
-    이 정확한 실패 모드를 재현한다."""
+    전환의 기록까지 연쇄로 조용히 실패한다. 이 테스트는 진짜 DB 제약
+    위반(NOT NULL)으로 세션을 오염시켜 이 정확한 실패 모드를 재현한다.
+
+    발송 병렬화(dispatch_all의 Phase A/B/C 분리) 이후로는 이 테스트가
+    검증하는 대상이 살짝 좁아졌다 - 이제 모든 전환의 실제 발송(Phase B)이
+    기록(Phase C)보다 먼저, 배치 전체가 한꺼번에 끝나므로, 한 전환의
+    "기록" 실패가 다른 전환의 "발송" 자체를 막는 것은 이제 구조적으로
+    불가능하다(그래서 sent_ok 호출 수는 2건 - 두 전환 다 실제로 보내려고
+    시도한다). 그래도 여전히 중요한 건: 기록 단계에서 세션이 오염돼도
+    그 뒤 전환의 기록(=Notification 행 생성, 중복 방지/반복 알림의
+    근거)까지 조용히 실패하면 안 된다는 것 - 그건 이 테스트가 그대로
+    지킨다."""
     boat_id, _ = target
     with app.app_context():
         other = add_boat_instance(name='딴배', url='https://x.example/y',
@@ -273,33 +281,78 @@ def test_dispatch_all_rolls_back_session_after_a_db_failure(app, target, sent_ok
         sub2 = upsert_subscriber('https://push.example/ccc', 'k3', 'a3', '친구2')
         add_watch(sub2, other.id, '딴배호', DATE)
 
-        broken = seat_open_transition(boat_id)          # 이게 먼저 진짜 DB 오류로 터진다
+        broken = seat_open_transition(boat_id)          # 이게 기록 단계에서 진짜 DB 오류로 터진다
         healthy = compare(
             Observation(boat_id=other.id, target_date=DATE, ship_name='딴배호',
                         status='full', available=0),
             Observation(boat_id=other.id, target_date=DATE, ship_name='딴배호',
                         status='open', available=2, display_status='남은자리 2명'))
 
-        original_dispatch = dispatcher.dispatch
+        original_record_results = dispatcher._record_results
 
-        def dispatch_with_a_real_db_failure_for_broken(transition, boat_name=None, watches=None):
-            if transition.boat_id == boat_id:
+        def record_results_with_a_real_db_failure_for_broken(results):
+            if results and results[0][0]['dedup_key'].split('|')[0] == str(boat_id):
                 # watch_id 는 nullable=False - 실제 제약 조건 위반으로
                 # flush 를 실패시켜 세션을 진짜로 오염시킨다.
                 db.session.add(Notification(watch_id=None, dedup_key='x', channel='webpush', result='sent'))
                 db.session.flush()
                 return []
-            return original_dispatch(transition, boat_name, watches=watches)
+            return original_record_results(results)
 
-        monkeypatch.setattr(dispatcher, 'dispatch', dispatch_with_a_real_db_failure_for_broken)
+        monkeypatch.setattr(dispatcher, '_record_results', record_results_with_a_real_db_failure_for_broken)
 
         summary = dispatcher.dispatch_all([broken, healthy])
 
         assert summary['sent'] == 1, (
-            'rollback 없이 세션이 오염되면 이 두 번째(정상) 전환의 발송까지 '
+            'rollback 없이 세션이 오염되면 이 두 번째(정상) 전환의 기록까지 '
             '조용히 실패한다 - rollback 이 빠지면 이 assert 가 실패해야 한다'
         )
-        assert len(sent_ok) == 1
+        assert len(sent_ok) == 2, 'Phase B는 기록 성공 여부와 무관하게 두 전환 모두 실제 발송을 시도한다'
+
+
+def test_dispatch_all_sends_concurrently_not_one_at_a_time(app, monkeypatch):
+    """실측 진단(라이브 조회 "마무리" 구간 지연)의 실제 개선 효과를 증명한다
+    - 그냥 "안 깨졌다"가 아니라 "진짜 동시에 나간다"를 확인한다.
+
+    전환 4건(DISPATCH_MAX_WORKERS와 같은 수)을 각자 다른 배·구독자로
+    준비하고, webpush.send가 0.2초씩 걸리게 만든다. 순차였다면 4건
+    합쳐 0.8초 이상 걸려야 하는데, 병렬이면 한 번에 겹쳐 나가 0.2초대에
+    끝나야 한다 - 넉넉히 잡아도 배치 전체 절반(0.4초) 밑으로 끝나야
+    "확실히 겹쳐서 나갔다"고 볼 수 있다."""
+    import time
+
+    def seat_open_transition_for(boat_id, ship_name):
+        before = Observation(boat_id=boat_id, target_date=DATE, ship_name=ship_name,
+                             status='full', available=0)
+        after = Observation(boat_id=boat_id, target_date=DATE, ship_name=ship_name,
+                            status='open', available=3, display_status='남은자리 3명',
+                            source_url='https://example/x')
+        return compare(before, after)
+
+    with app.app_context():
+        transitions = []
+        for i in range(4):
+            boat = add_boat_instance(name=f'배{i}호', url=f'https://b{i}.example/x',
+                                     city='인천', port='남항(인천항)', note='', is_shared=False)
+            sub = upsert_subscriber(f'https://push.example/p{i}', f'k{i}', f'a{i}', f'친구{i}')
+            add_watch(sub, boat.id, f'선박{i}', DATE)
+            transitions.append(seat_open_transition_for(boat.id, f'선박{i}'))
+
+        def slow_send(subscription_info, payload, timeout=10):
+            time.sleep(0.2)
+            return webpush.SENT, ''
+
+        monkeypatch.setattr(webpush, 'send', slow_send)
+
+        started = time.perf_counter()
+        summary = dispatcher.dispatch_all(transitions)
+        elapsed = time.perf_counter() - started
+
+        assert summary['sent'] == 4
+        assert elapsed < 0.4, (
+            f'{elapsed:.2f}초 걸림 - 순차 발송(0.2초 x 4건 = 0.8초 이상)이었다면 '
+            '이 상한을 넘겨야 정상이다. 병렬로 겹쳐 나가지 않고 있다는 뜻'
+        )
 
 
 # --- 반복 알림(dispatch_reminders) -------------------------------------------
