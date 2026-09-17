@@ -158,6 +158,18 @@ def send(subscription_info: dict, payload: dict, timeout: int = 10) -> tuple[str
             vapid_private_key=os.environ['VAPID_PRIVATE_KEY'],
             vapid_claims={'sub': os.environ.get('VAPID_SUBJECT', 'mailto:admin@example.com')},
             timeout=timeout,
+            # 실측 버그: 자리남 알림이 감지 직후가 아니라 정확히 다음
+            # 30분 주기(다음 cron-job.org 트리거)에야 도착했다 - Urgency
+            # 헤더를 안 주면 pywebpush/FCM이 기본(보통 우선순위) 취급해서,
+            # 안드로이드 Doze(절전) 모드에 들어간 기기는 다음 유지보수
+            # 창이 열릴 때까지 배달을 미룬다(구글/파이어베이스 문서에
+            # 명시된 동작 - 높은 우선순위여야 즉시 깨운다). 이 앱의 알림은
+            # "자리 나면 서둘러야" 하는 시간 민감 정보라 항상 높은
+            # 우선순위로 보낸다. ttl(기본값 0 - 즉시 배달 안 되면 버려질
+            # 수 있다)도 올려서, 기기가 잠깐 오프라인이어도 한 시간 안엔
+            # 다시 배달을 시도하게 한다(반복 알림 주기 1시간과 맞춘 값).
+            ttl=3600,
+            headers={'Urgency': 'high'},
         )
         return SENT, ''
     except WebPushException as exc:
