@@ -277,5 +277,110 @@ window.addEventListener('load', () => {
     console.log('현재 오프라인 상태입니다.');
   }
 });
+
+// ====== 홈 화면 진입 시 대기 중인 푸시 알림을 팝업으로 보여주기 ======
+// 사용자 리포트: 홈 화면 아이콘의 배지 숫자를 보고 앱을 열어도, 그냥
+// 배 목록이 뜰 뿐 무슨 알림이 왔었는지는 알림함을 따로 열어봐야 알 수
+// 있었다. getNotifications()로 아직 안 지워진 알림을 그대로 읽어와서
+// (showNotification에 이미 담아둔 title/body/data.url을 재사용 - 서버
+// 변경 없음) 앱 자체 팝업으로 보여준다. 이 프로젝트는 iOS 사용자가
+// 없어(getNotifications()는 iOS Safari에서 지원이 불안정하다) 신경
+// 안 써도 된다 - 그래도 지원 안 하는 환경에서는 조용히 아무 일도 안
+// 하도록 방어적으로 짠다.
+async function refreshPushBadgeCount() {
+  if (!('setAppBadge' in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const remaining = await reg.getNotifications();
+    if (remaining.length > 0) await navigator.setAppBadge(remaining.length);
+    else await navigator.clearAppBadge();
+  } catch (e) {
+    // 배지 갱신 실패는 무시 - 알림 팝업 자체엔 영향 없다.
+  }
+}
+
+async function showPendingPushNotifications() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    if (!reg.getNotifications) return;
+    const notifications = await reg.getNotifications();
+    if (!notifications.length) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'aft-confirm-overlay';
+    const box = document.createElement('div');
+    box.className = 'aft-confirm-box';
+
+    const heading = document.createElement('div');
+    heading.className = 'aft-confirm-msg';
+    heading.style.marginBottom = '14px';
+    heading.textContent = notifications.length > 1
+      ? `새 알림 ${notifications.length}건이 있습니다`
+      : '새 알림이 있습니다';
+    box.appendChild(heading);
+
+    const list = document.createElement('div');
+    list.style.cssText = 'display:flex; flex-direction:column; gap:10px; margin-bottom:16px;';
+    notifications.forEach(n => {
+      const item = document.createElement('div');
+      item.style.cssText = 'text-align:left; padding:12px 14px; border-radius:12px; background:oklch(0.965 0.006 250);';
+
+      const title = document.createElement('div');
+      title.style.cssText = 'font-weight:700; font-size:14px; color:var(--ink, #1c1c26); margin-bottom:4px;';
+      title.textContent = n.title || '';
+      item.appendChild(title);
+
+      if (n.body) {
+        const body = document.createElement('div');
+        body.style.cssText = 'font-size:12.5px; color:var(--ink-soft, #666); white-space:pre-line; margin-bottom:10px;';
+        body.textContent = n.body;
+        item.appendChild(body);
+      }
+
+      // 푸시 알림 자체를 눌렀을 때와 똑같은 목적지로 보낸다(build_payload가
+      // 이미 담아둔 url을 그대로 재사용) - 예약은 원본 사이트에서 하므로
+      // 여기서도 그 사이트로 이동한다.
+      const openBtn = document.createElement('button');
+      openBtn.type = 'button';
+      openBtn.textContent = '예약 페이지 열기';
+      openBtn.style.cssText = 'height:34px; padding:0 14px; border:none; border-radius:10px; font-size:12.5px; font-weight:700; color:#fff; cursor:pointer; background:linear-gradient(145deg, var(--accent, #2f6fa8), var(--accent-2, #1f4d78));';
+      openBtn.addEventListener('click', () => {
+        const url = (n.data && n.data.url) || '/status';
+        n.close();
+        refreshPushBadgeCount();
+        window.location.href = url;
+      });
+      item.appendChild(openBtn);
+
+      list.appendChild(item);
+    });
+    box.appendChild(list);
+
+    const actions = document.createElement('div');
+    actions.className = 'aft-confirm-actions';
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'aft-confirm-btn cancel';
+    closeBtn.textContent = '닫기';
+    closeBtn.addEventListener('click', () => {
+      notifications.forEach(n => n.close());
+      refreshPushBadgeCount();
+      overlay.remove();
+    });
+    actions.appendChild(closeBtn);
+    box.appendChild(actions);
+
+    overlay.appendChild(box);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeBtn.click(); });
+    document.body.appendChild(overlay);
+  } catch (e) {
+    // 이 기능이 실패해도 앱 나머지는 정상 동작해야 한다(조용히 무시).
+  }
+}
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', showPendingPushNotifications);
+}
 </script>
 </html>
