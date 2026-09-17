@@ -16,5 +16,5 @@ def test_macro_page_renders_when_admin_authed(client):
     rv = client.get('/macro')
     assert rv.status_code == 200
     html = rv.get_data(as_text=True)
-    assert '예약 매크로' in html
-    assert '레드히어로' in html
+    assert '자동예약 매크로' in html
+    assert 'sunsang24' in html

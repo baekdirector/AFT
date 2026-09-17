@@ -1,537 +1,1225 @@
 {% extends "base_design.html" %}
-{% block title %}예약 매크로{% endblock %}
+{% block title %}자동예약 매크로{% endblock %}
 {% block content %}
 <style>
-  :root {
-    --ink: oklch(0.22 0.02 250);
-    --ink-soft: oklch(0.5 0.02 255);
-    --ink-softer: oklch(0.62 0.015 255);
-    --line: oklch(0.9 0.008 250);
-    --accent: oklch(0.55 0.14 245);
-    --accent-2: oklch(0.46 0.13 225);
-    --red: oklch(0.58 0.18 25);
-    --amber: oklch(0.68 0.15 70);
-  }
-  body { background: oklch(0.975 0.006 250); }
-  .macro-shell { max-width: 880px; margin: 0 auto; padding: 24px clamp(14px, 3vw, 28px) 80px; }
-  .macro-header { margin-bottom: 22px; }
-  .macro-header h1 { font-size: 20px; font-weight: 750; color: var(--ink); margin: 0 0 4px; letter-spacing: -0.2px; }
-  .macro-header p { font-size: 12.5px; color: var(--ink-soft); margin: 0; }
-  .macro-badge {
-    display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700;
-    color: var(--red); background: oklch(0.58 0.18 25 / 0.1); border-radius: 99px; padding: 3px 10px; margin-bottom: 10px;
-  }
-  .card {
-    background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 20px;
-    margin-bottom: 18px; box-shadow: 0 2px 10px oklch(0.2 0.02 255 / 0.04);
-  }
-  .card h2 { font-size: 14.5px; font-weight: 750; color: var(--ink); margin: 0 0 14px; display: flex; align-items: center; gap: 8px; }
-  .card h2 .step-no {
-    width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff;
-    font-size: 11.5px; display: inline-flex; align-items: center; justify-content: center; flex: none;
-  }
-  .field-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-  .field-row:last-child { margin-bottom: 0; }
-  .field-row label { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
-  .field-row .hint { font-size: 11px; color: var(--ink-softer); font-weight: 500; }
-  input[type="text"], input[type="url"], input[type="date"], input[type="time"], input[type="tel"], input[type="number"], select {
-    width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
-    font-size: 13.5px; font-family: inherit; color: var(--ink); background: #fff;
-  }
-  input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px oklch(0.55 0.14 245 / 0.13); }
-  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .field-grid.three { grid-template-columns: 1fr 1fr 1fr; }
-  @media (max-width: 560px) { .field-grid, .field-grid.three { grid-template-columns: 1fr; } }
-  .seg { display: inline-flex; background: oklch(0.95 0.006 250); border-radius: 10px; padding: 3px; gap: 2px; }
-  .seg button {
-    border: none; background: transparent; padding: 8px 16px; border-radius: 8px; font-size: 12.5px; font-weight: 700;
-    color: var(--ink-soft); cursor: pointer;
-  }
-  .seg button.active { background: #fff; color: var(--accent); box-shadow: 0 1px 4px oklch(0.2 0.02 255 / 0.12); }
-  .seg button:disabled { opacity: .45; cursor: not-allowed; }
-  .stepper { display: flex; align-items: center; gap: 10px; }
-  .stepper button {
-    width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line); background: #fff;
-    font-size: 16px; font-weight: 700; color: var(--accent); cursor: pointer;
-  }
-  .stepper span { font-size: 15px; font-weight: 750; color: var(--ink); min-width: 24px; text-align: center; }
+  .mc-root { min-height: 100vh; font-feature-settings: 'tnum' 1; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 92px); }
+  .mc-root * { box-sizing: border-box; }
+  .mc-header { position: sticky; top: 0; z-index: 40; background: oklch(1 0 0 / 0.88); backdrop-filter: blur(20px) saturate(160%); border-bottom: 1px solid oklch(0.92 0.008 240); }
+  .mc-header-in { max-width: 1120px; margin: 0 auto; padding: 0 clamp(14px, 2.6vw, 30px); height: 60px; display: flex; align-items: center; gap: 11px; }
+  .mc-logo { width: 32px; height: 32px; flex: none; border-radius: 11px; background: linear-gradient(150deg, oklch(0.52 0.12 248), oklch(0.4 0.1 235)); display: grid; place-items: center; font-size: 16px; line-height: 1; }
+  .mc-title { font-size: 14.5px; font-weight: 770; letter-spacing: -0.45px; line-height: 1.25; white-space: nowrap; }
+  .mc-meta { font-size: 11px; font-weight: 580; color: oklch(0.58 0.012 250); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mc-chip { flex: none; font-size: 11.5px; font-weight: 780; padding: 5px 11px; border-radius: 99px; white-space: nowrap; color: #fff; background: oklch(0.62 0.015 250); }
+  .mc-chip.state-ready { background: oklch(0.52 0.12 168); }
+  .mc-chip.state-running { background: oklch(0.55 0.19 25); }
+  .mc-chip.state-rec { background: oklch(0.58 0.16 45); }
 
-  /* 단계 편집기 */
-  .step-list { display: flex; flex-direction: column; gap: 10px; }
-  .step-card {
-    border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: oklch(0.985 0.004 250);
-  }
-  .step-card.confirm { border-color: oklch(0.68 0.15 70 / 0.5); background: oklch(0.68 0.15 70 / 0.06); }
-  .step-top { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-  .step-order-btns { display: flex; flex-direction: column; gap: 2px; }
-  .step-order-btns button {
-    width: 20px; height: 16px; border: none; background: var(--line); border-radius: 4px; color: var(--ink-soft);
-    font-size: 9px; cursor: pointer; line-height: 1; display: flex; align-items: center; justify-content: center;
-  }
-  .step-index {
-    width: 24px; height: 24px; border-radius: 7px; background: var(--ink); color: #fff; font-size: 11px; font-weight: 700;
-    display: flex; align-items: center; justify-content: center; flex: none;
-  }
-  .step-manual-tag {
-    font-size: 10.5px; font-weight: 800; color: var(--amber); background: oklch(0.68 0.15 70 / 0.15);
-    padding: 2px 8px; border-radius: 99px; flex: none;
-  }
-  .step-del {
-    margin-left: auto; border: none; background: transparent; color: var(--ink-softer); cursor: pointer;
-    font-size: 16px; width: 26px; height: 26px; border-radius: 7px;
-  }
-  .step-del:hover { background: oklch(0.58 0.18 25 / 0.1); color: var(--red); }
-  .step-body { display: grid; grid-template-columns: 1fr 130px; gap: 8px; margin-bottom: 8px; }
-  @media (max-width: 560px) { .step-body { grid-template-columns: 1fr; } }
-  .step-detail-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .step-detail-row.coords { grid-template-columns: 90px 90px 1fr; }
-  .step-detail-row input, .step-detail-row select { font-size: 12.5px; padding: 8px 10px; }
-  .step-detail-row .coord-label { font-size: 10.5px; color: var(--ink-softer); font-weight: 700; padding: 8px 2px; }
-  .add-step-btn {
-    width: 100%; padding: 12px; border: 1.5px dashed var(--line); border-radius: 12px; background: transparent;
-    color: var(--accent); font-size: 12.5px; font-weight: 750; cursor: pointer; margin-top: 10px;
-  }
-  .add-step-btn:hover { border-color: var(--accent); background: oklch(0.55 0.14 245 / 0.05); }
-  .preset-btn {
-    border: 1px solid var(--line); background: #fff; color: var(--ink-soft); font-size: 11.5px; font-weight: 700;
-    padding: 7px 12px; border-radius: 9px; cursor: pointer;
-  }
-  .preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .mc-main { max-width: 1120px; margin: 0 auto; padding: clamp(16px, 2.6vw, 26px) clamp(14px, 2.6vw, 30px) 0; display: flex; flex-direction: column; gap: 11px; }
+  .mc-section { background: #fff; border: 1px solid oklch(0.925 0.008 240); border-radius: 18px; padding: 16px clamp(14px, 2.2vw, 20px); }
+  .mc-section-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 14px; }
+  .mc-step-num { flex: none; width: 24px; height: 24px; border-radius: 99px; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #fff; background: linear-gradient(145deg, oklch(0.5 0.13 248), oklch(0.4 0.11 238)); }
+  .mc-section-title { font-size: 15px; font-weight: 790; letter-spacing: -0.5px; white-space: nowrap; }
+  .mc-spacer { flex: 1 1 0; min-width: 0; }
 
-  .approach-note {
-    font-size: 11.5px; color: var(--ink-soft); line-height: 1.6; background: oklch(0.55 0.14 245 / 0.06);
-    border-radius: 10px; padding: 10px 12px; margin-top: 12px;
-  }
-  .approach-note b { color: var(--accent-2); }
+  .mc-seg { display: flex; gap: 3px; padding: 3px; background: oklch(0.955 0.006 240); border-radius: 12px; margin-bottom: 13px; max-width: 360px; }
+  .mc-seg-btn { flex: 1; height: 36px; padding: 0 12px; border-radius: 9px; border: none; background: transparent; color: oklch(0.54 0.015 250); font-size: 13px; font-weight: 730; white-space: nowrap; cursor: pointer; transition: all 0.15s; }
+  .mc-seg-btn.active { background: #fff; color: oklch(0.26 0.02 250); box-shadow: 0 1px 3px oklch(0.4 0.02 240 / 0.16); }
+  .mc-seg-btn.notready { opacity: 0.6; }
 
-  .start-bar {
-    position: sticky; bottom: 14px; display: flex; gap: 10px; align-items: center;
-    background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px;
-    box-shadow: 0 10px 30px oklch(0.2 0.02 255 / 0.14);
-  }
-  .start-bar .countdown { font-size: 13px; font-weight: 700; color: var(--ink-soft); flex: 1; }
-  .start-bar .countdown b { color: var(--accent-2); font-variant-numeric: tabular-nums; }
-  .start-btn {
-    border: none; border-radius: 12px; padding: 13px 22px; font-size: 14px; font-weight: 800; color: #fff;
-    background: linear-gradient(145deg, var(--accent), var(--accent-2)); cursor: pointer;
-  }
-  .start-btn:disabled { opacity: .5; cursor: not-allowed; }
-  .stop-btn {
-    border: 1px solid var(--line); background: #fff; color: var(--ink-soft); border-radius: 12px;
-    padding: 13px 16px; font-size: 13px; font-weight: 700; cursor: pointer;
-  }
+  .mc-field { display: grid; gap: 5px; margin-bottom: 12px; }
+  .mc-field:last-child { margin-bottom: 0; }
+  .mc-field label, .mc-field-label { font-size: 12px; font-weight: 720; color: oklch(0.44 0.02 250); }
+  .mc-input { width: 100%; min-width: 0; height: 46px; padding: 0 14px; border-radius: 12px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 14px; font-weight: 600; outline: none; font-family: inherit; }
+  .mc-input:focus { border-color: oklch(0.55 0.12 248); }
+  .mc-hint { font-size: 11px; font-weight: 660; color: oklch(0.6 0.015 250); }
+  .mc-hint.ok { color: oklch(0.46 0.11 168); }
+  .mc-hint.bad { color: oklch(0.55 0.16 45); }
+
+  .mc-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+  .mc-grid-guest { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+
+  .mc-date-wrap { position: relative; }
+  .mc-date-btn { display: inline-flex; align-items: center; gap: 9px; height: 46px; padding: 0 14px; width: 100%; border-radius: 12px; cursor: pointer; white-space: nowrap; transition: all 0.16s; border: 1px solid oklch(0.91 0.008 240); background: #fff; color: oklch(0.26 0.02 250); font-size: 14px; font-weight: 760; }
+  .mc-date-btn.open { border-color: transparent; background: linear-gradient(145deg, oklch(0.5 0.13 248), oklch(0.4 0.11 238)); color: #fff; box-shadow: 0 6px 16px oklch(0.45 0.12 248 / 0.3); }
+  .mc-date-caret { margin-left: auto; font-size: 12px; line-height: 1; opacity: 0.6; transition: transform 0.2s; }
+  .mc-date-btn.open .mc-date-caret { transform: rotate(180deg); }
+  .mc-cal { position: absolute; top: calc(100% + 8px); left: 0; z-index: 70; width: min(320px, calc(100vw - 42px)); padding: 15px; border-radius: 20px; background: #fff; border: 1px solid oklch(0.92 0.008 240); box-shadow: 0 18px 44px oklch(0.3 0.03 250 / 0.16); }
+  .mc-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 11px; }
+  .mc-cal-nav { width: 32px; height: 32px; border-radius: 10px; border: none; background: oklch(0.96 0.006 240); color: oklch(0.4 0.02 250); font-size: 14px; cursor: pointer; }
+  .mc-cal-month { font-size: 14.5px; font-weight: 770; letter-spacing: -0.4px; white-space: nowrap; }
+  .mc-cal-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 3px; }
+  .mc-cal-week span { text-align: center; padding: 5px 0; font-size: 11px; font-weight: 720; color: oklch(0.62 0.012 250); display: block; }
+  .mc-cal-week span.sun { color: oklch(0.6 0.14 25); }
+  .mc-cal-week span.sat { color: oklch(0.56 0.1 250); }
+  .mc-cal-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .mc-cal-day { height: 38px; border-radius: 11px; cursor: pointer; font-size: 13.5px; font-weight: 640; transition: all 0.15s; border: 1px solid transparent; background: transparent; color: oklch(0.3 0.02 250); }
+  .mc-cal-day.empty { pointer-events: none; }
+  .mc-cal-day.past { color: oklch(0.82 0.012 250); }
+  .mc-cal-day.sun { color: oklch(0.58 0.14 25); }
+  .mc-cal-day.sat { color: oklch(0.54 0.1 250); }
+  .mc-cal-day.today { border-color: oklch(0.82 0.06 248); background: oklch(0.975 0.014 248); color: oklch(0.4 0.12 248); }
+  .mc-cal-day.selected { border-color: transparent; background: linear-gradient(145deg, oklch(0.5 0.13 248), oklch(0.4 0.11 238)); color: #fff; font-weight: 800; box-shadow: 0 5px 12px oklch(0.45 0.12 248 / 0.3); }
+
+  .mc-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .mc-chip-btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 38px; min-width: 52px; padding: 0 13px; border-radius: 11px; cursor: pointer; font-size: 13px; font-weight: 740; white-space: nowrap; flex: none; transition: all 0.15s; border: 1px solid oklch(0.92 0.008 240); background: #fff; color: oklch(0.4 0.02 250); }
+  .mc-chip-btn.active { border-color: transparent; background: oklch(0.46 0.12 248); color: #fff; box-shadow: 0 3px 10px oklch(0.46 0.12 248 / 0.26); }
+  .mc-chip-btn.active.time { background: oklch(0.46 0.12 210); box-shadow: 0 3px 10px oklch(0.46 0.12 210 / 0.26); }
+
+  .mc-countdown-chip { flex: none; font-size: 11.5px; font-weight: 700; padding: 5px 11px; border-radius: 99px; white-space: nowrap; background: oklch(0.955 0.006 240); color: oklch(0.5 0.015 250); }
+  .mc-countdown-chip.running { background: oklch(0.96 0.03 25); color: oklch(0.5 0.17 25); }
+
+  .mc-lead-row { display: flex; align-items: center; gap: 7px; }
+  .mc-lead-row input { width: 96px; flex: none; text-align: right; }
+  .mc-lead-row span { font-size: 12px; font-weight: 660; color: oklch(0.52 0.015 250); white-space: nowrap; }
+  .mc-relative-row { display: flex; align-items: center; gap: 8px; }
+  .mc-relative-row input { width: 96px; flex: none; height: 40px; text-align: right; }
+  .mc-relative-row span { font-size: 12px; font-weight: 700; color: oklch(0.44 0.02 250); white-space: nowrap; }
+  .mc-relative-row span.unit { font-weight: 660; color: oklch(0.52 0.015 250); }
+
+  .mc-step-badge { font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 99px; background: oklch(0.955 0.006 240); color: oklch(0.5 0.015 250); white-space: nowrap; }
+  .mc-rec-btn { display: inline-flex; align-items: center; gap: 8px; flex: none; height: 38px; padding: 0 14px; border-radius: 11px; border: 1px solid oklch(0.9 0.05 25); background: oklch(0.975 0.022 25); color: oklch(0.48 0.17 25); font-size: 12.5px; font-weight: 740; cursor: pointer; white-space: nowrap; }
+  .mc-rec-dot { width: 8px; height: 8px; border-radius: 99px; background: oklch(0.55 0.19 25); flex: none; }
+  .mc-info-box { display: flex; align-items: flex-start; gap: 9px; padding: 12px 13px; border-radius: 13px; background: oklch(0.972 0.018 235); border: 1px solid oklch(0.92 0.03 238); margin-bottom: 13px; }
+  .mc-info-box .txt { font-size: 11.5px; font-weight: 580; line-height: 1.65; color: oklch(0.4 0.035 242); }
+
+  .mc-step-list { display: flex; flex-direction: column; gap: 8px; }
+  .mc-step-card { border-radius: 14px; padding: 12px 13px; transition: all 0.16s; border: 1px solid oklch(0.93 0.008 240); background: oklch(0.988 0.003 240); }
+  .mc-step-card.manual { border-color: oklch(0.88 0.05 62); background: oklch(0.99 0.012 70); }
+  .mc-step-top { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+  .mc-step-num { flex: none; width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; font-size: 11.5px; font-weight: 800; color: #fff; background: oklch(0.3 0.02 250); }
+  .mc-step-num.manual { background: oklch(0.6 0.16 50); }
+  .mc-step-label { flex: 1 1 auto; width: 100%; min-width: 0; height: 36px; padding: 0 11px; border-radius: 10px; border: 1px solid oklch(0.93 0.008 240); background: oklch(0.985 0.003 240); font-size: 13px; font-weight: 700; outline: none; }
+  .mc-step-label:focus { border-color: oklch(0.55 0.12 248); background: #fff; }
+  .mc-step-action { flex: none; height: 36px; padding: 0 8px; border-radius: 10px; border: 1px solid oklch(0.93 0.008 240); background: #fff; font-size: 12px; font-weight: 700; color: oklch(0.3 0.02 250); cursor: pointer; outline: none; }
+  .mc-step-mini-btns { display: flex; gap: 3px; flex: none; }
+  .mc-step-mini { flex: none; width: 28px; height: 30px; border-radius: 9px; border: 1px solid oklch(0.93 0.008 240); background: #fff; font-size: 8px; color: oklch(0.5 0.02 250); cursor: pointer; padding: 0; line-height: 1; }
+  .mc-step-mini:disabled { opacity: 0.35; pointer-events: none; }
+  .mc-step-del { flex: none; width: 30px; height: 30px; border-radius: 9px; border: 1px solid oklch(0.93 0.008 240); background: #fff; font-size: 11px; color: oklch(0.5 0.02 250); cursor: pointer; }
+  .mc-step-del:hover { border-color: oklch(0.78 0.09 25); color: oklch(0.5 0.17 25); }
+  .mc-step-row2 { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+  .mc-mode-seg { display: flex; gap: 2px; padding: 3px; background: oklch(0.955 0.006 240); border-radius: 9px; flex: none; }
+  .mc-mode-btn { height: 30px; padding: 0 11px; border-radius: 7px; border: none; font-size: 11.5px; font-weight: 730; white-space: nowrap; flex: none; cursor: pointer; background: transparent; color: oklch(0.54 0.015 250); }
+  .mc-mode-btn.active { background: #fff; color: oklch(0.26 0.02 250); box-shadow: 0 1px 3px oklch(0.4 0.02 240 / 0.16); }
+  .mc-step-selector { flex: 1 1 220px; min-width: 0; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid oklch(0.93 0.008 240); background: oklch(0.985 0.003 240); font-size: 12.5px; font-weight: 640; outline: none; font-family: ui-monospace, Menlo, monospace; }
+  .mc-step-selector:focus { border-color: oklch(0.55 0.12 248); background: #fff; }
+  .mc-coord-row { display: flex; align-items: center; gap: 6px; flex: 1 1 240px; min-width: 0; }
+  .mc-coord-row span.lbl { font-size: 11px; font-weight: 740; color: oklch(0.54 0.015 250); white-space: nowrap; flex: none; }
+  .mc-coord-input { width: 82px; flex: none; height: 38px; padding: 0 10px; border-radius: 10px; border: 1px solid oklch(0.93 0.008 240); background: oklch(0.985 0.003 240); font-size: 13px; font-weight: 740; outline: none; text-align: right; }
+  .mc-coord-input:focus { border-color: oklch(0.55 0.12 248); background: #fff; }
+  .mc-coord-meta { flex: none; font-size: 10.5px; font-weight: 680; white-space: nowrap; color: oklch(0.56 0.015 250); }
+  .mc-coord-meta.warn { color: oklch(0.62 0.12 50); }
+  .mc-step-value { flex: 1 1 160px; min-width: 0; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid oklch(0.9 0.03 168); background: oklch(0.98 0.015 168); font-size: 12.5px; font-weight: 700; color: oklch(0.34 0.07 172); outline: none; }
+  .mc-step-value:focus { border-color: oklch(0.6 0.1 168); background: #fff; }
+  .mc-sleep-row { display: flex; align-items: center; gap: 6px; flex: none; }
+  .mc-sleep-row span { font-size: 11px; font-weight: 740; color: oklch(0.54 0.015 250); white-space: nowrap; }
+  .mc-sleep-input { width: 80px; height: 38px; padding: 0 10px; border-radius: 10px; border: 1px solid oklch(0.93 0.008 240); background: oklch(0.985 0.003 240); font-size: 13px; font-weight: 740; outline: none; text-align: right; }
+  .mc-manual-banner { display: flex; align-items: center; gap: 8px; margin-top: 9px; padding: 9px 11px; border-radius: 11px; background: oklch(0.968 0.028 70); border: 1px solid oklch(0.9 0.05 70); }
+  .mc-manual-banner span.txt { font-size: 11.5px; font-weight: 700; color: oklch(0.42 0.1 62); }
+  .mc-manual-toggle { margin-left: auto; flex: none; height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid oklch(0.88 0.06 70); background: #fff; font-size: 11px; font-weight: 740; color: oklch(0.44 0.1 62); cursor: pointer; white-space: nowrap; }
+  .mc-manual-suggest { height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid oklch(0.93 0.008 240); background: #fff; font-size: 11px; font-weight: 700; color: oklch(0.5 0.015 250); cursor: pointer; white-space: nowrap; margin-top: 9px; }
+
+  .mc-step-actions-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .mc-add-step { flex: 1 1 180px; height: 44px; border-radius: 12px; border: 1px dashed oklch(0.86 0.01 240); background: oklch(0.985 0.003 240); font-size: 13px; font-weight: 740; color: oklch(0.42 0.12 248); cursor: pointer; white-space: nowrap; }
+  .mc-add-step:hover { border-color: oklch(0.62 0.1 248); background: oklch(0.975 0.012 248); }
+  .mc-template-btn { flex: none; height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 12.5px; font-weight: 700; color: oklch(0.44 0.02 250); cursor: pointer; white-space: nowrap; }
+  .mc-template-btn:hover { border-color: oklch(0.8 0.02 240); }
+  .mc-clear-btn { flex: none; height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid oklch(0.93 0.02 25); background: #fff; font-size: 12.5px; font-weight: 700; color: oklch(0.52 0.17 25); cursor: pointer; white-space: nowrap; }
+  .mc-clear-btn:hover { background: oklch(0.97 0.02 25); }
+
+  .mc-flow-section { padding: 0; overflow: hidden; }
+  .mc-flow-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; padding: 15px clamp(14px, 2.2vw, 20px) 12px; }
+  .mc-run-mode-chip { flex: none; font-size: 10.5px; font-weight: 780; padding: 3px 9px; border-radius: 99px; white-space: nowrap; color: oklch(0.55 0.015 250); background: oklch(0.955 0.006 240); }
+  .mc-run-mode-chip.running { color: #fff; background: oklch(0.58 0.16 45); }
+  .mc-run-mode-chip.done { color: oklch(0.36 0.09 172); background: oklch(0.95 0.032 168); }
+  .mc-dryrun-btn { flex: none; height: 34px; padding: 0 14px; border-radius: 10px; border: none; font-size: 12px; font-weight: 740; cursor: pointer; white-space: nowrap; background: oklch(0.24 0.02 250); color: #fff; }
+  .mc-dryrun-btn.stop { background: oklch(0.55 0.19 25); }
+  .mc-clear-logs-btn { flex: none; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 12px; font-weight: 700; color: oklch(0.46 0.02 250); cursor: pointer; white-space: nowrap; }
+  .mc-clear-logs-btn:hover { border-color: oklch(0.8 0.02 240); }
+
+  .mc-run-progress { padding: 0 clamp(14px, 2.2vw, 20px) 13px; }
+  .mc-run-progress-top { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 8px; }
+  .mc-run-headline { font-size: 12.5px; font-weight: 760; letter-spacing: -0.3px; white-space: nowrap; }
+  .mc-run-progress-text { font-size: 11.5px; font-weight: 660; color: oklch(0.56 0.015 250); white-space: nowrap; }
+  .mc-run-elapsed { font-size: 11.5px; font-weight: 740; white-space: nowrap; color: oklch(0.42 0.02 250); font-variant-numeric: tabular-nums; }
+  .mc-run-bar-track { height: 7px; border-radius: 99px; background: oklch(0.955 0.006 240); overflow: hidden; }
+  .mc-run-bar { height: 100%; width: 2%; border-radius: 99px; transition: width 0.25s ease; background: oklch(0.56 0.12 168); }
+  .mc-run-bar.running { background: linear-gradient(90deg, oklch(0.62 0.13 240), oklch(0.56 0.12 210)); }
+  .mc-run-bar.failed { background: oklch(0.6 0.17 27); }
+
+  .mc-flow-list { padding: 0 clamp(14px, 2.2vw, 20px) 14px; display: flex; flex-direction: column; gap: 5px; }
+  .mc-flow-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 9px; align-items: center; padding: 8px 11px; border-radius: 11px; transition: all 0.2s; border: 1px solid oklch(0.95 0.006 240); background: oklch(0.99 0.002 240); }
+  .mc-flow-row.active { border-color: oklch(0.7 0.1 245); background: oklch(0.975 0.018 245); box-shadow: 0 2px 10px oklch(0.5 0.12 245 / 0.14); }
+  .mc-flow-icon { flex: none; width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; font-size: 10.5px; font-weight: 800; white-space: nowrap; color: oklch(0.5 0.015 250); background: oklch(0.95 0.006 240); }
+  .mc-flow-title-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .mc-flow-label { font-size: 12.5px; font-weight: 760; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mc-flow-action-tag { flex: none; font-size: 10px; font-weight: 740; padding: 2px 7px; border-radius: 6px; white-space: nowrap; background: oklch(0.95 0.006 240); color: oklch(0.48 0.015 250); }
+  .mc-flow-manual-tag { flex: none; font-size: 10px; font-weight: 740; padding: 2px 7px; border-radius: 6px; white-space: nowrap; background: oklch(0.96 0.035 60); color: oklch(0.46 0.12 55); }
+  .mc-flow-target { font-size: 10.5px; font-weight: 620; color: oklch(0.58 0.015 250); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, Menlo, monospace; }
+  .mc-flow-time { justify-self: end; flex: none; font-size: 10.5px; font-weight: 700; color: oklch(0.6 0.015 250); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .mc-flow-status { justify-self: end; flex: none; font-size: 10.5px; font-weight: 780; padding: 4px 9px; border-radius: 99px; white-space: nowrap; background: oklch(0.955 0.006 240); color: oklch(0.5 0.015 250); }
+
+  .mc-log-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; padding: 11px clamp(14px, 2.2vw, 20px); border-top: 1px solid oklch(0.955 0.006 240); background: oklch(0.985 0.004 240); }
+  .mc-log-head .title { font-size: 12px; font-weight: 760; letter-spacing: -0.3px; white-space: nowrap; }
+  .mc-log-meta { font-size: 11px; font-weight: 660; color: oklch(0.58 0.015 250); white-space: nowrap; }
+  .mc-log-filters { display: flex; gap: 2px; padding: 3px; background: oklch(0.945 0.006 240); border-radius: 9px; flex: none; }
+  .mc-log-list { max-height: 340px; overflow-y: auto; }
+  .mc-log-row { display: grid; grid-template-columns: 72px 58px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px clamp(14px, 2.2vw, 20px); border-top: 1px solid oklch(0.965 0.006 240); background: #fff; }
+  .mc-log-row:nth-child(even) { background: oklch(0.99 0.002 240); }
+  .mc-log-time { font-size: 11.5px; font-weight: 680; color: oklch(0.56 0.015 250); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .mc-log-tag { flex: none; font-size: 10px; font-weight: 780; padding: 3px 8px; border-radius: 6px; white-space: nowrap; text-align: center; color: #fff; background: oklch(0.46 0.12 248); }
+  .mc-log-text { font-size: 12.5px; font-weight: 660; color: oklch(0.34 0.02 250); min-width: 0; }
+  .mc-log-dur { justify-self: end; flex: none; font-size: 10.5px; font-weight: 700; color: oklch(0.62 0.015 250); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .mc-log-empty { text-align: center; padding: 30px 20px; border-top: 1px solid oklch(0.965 0.006 240); }
+  .mc-log-empty .t1 { font-size: 13px; font-weight: 700; color: oklch(0.5 0.015 250); }
+  .mc-log-empty .t2 { font-size: 12px; font-weight: 560; color: oklch(0.6 0.015 250); margin-top: 5px; }
+
+  .mc-bottom-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; background: oklch(1 0 0 / 0.92); backdrop-filter: blur(20px) saturate(160%); border-top: 1px solid oklch(0.92 0.008 240); padding: 11px clamp(14px, 2.6vw, 30px) calc(env(safe-area-inset-bottom, 0px) + 11px); }
+  .mc-bottom-in { max-width: 1120px; margin: 0 auto; display: flex; align-items: center; gap: 11px; flex-wrap: wrap; }
+  .mc-ready-title { font-size: 12.5px; font-weight: 740; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mc-ready-desc { font-size: 11.5px; font-weight: 580; color: oklch(0.56 0.015 250); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mc-save-btn { flex: none; height: 46px; padding: 0 18px; border-radius: 13px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 13.5px; font-weight: 720; color: oklch(0.42 0.02 250); cursor: pointer; white-space: nowrap; }
+  .mc-save-btn:hover { border-color: oklch(0.8 0.02 240); }
+  .mc-start-btn { flex: none; height: 46px; padding: 0 22px; border-radius: 13px; border: none; font-size: 14px; font-weight: 780; cursor: pointer; white-space: nowrap; transition: all 0.16s; background: oklch(0.945 0.006 240); color: oklch(0.7 0.012 250); pointer-events: none; }
+  .mc-start-btn.ready { background: linear-gradient(145deg, oklch(0.5 0.13 248), oklch(0.4 0.11 238)); color: #fff; box-shadow: 0 8px 20px oklch(0.45 0.12 248 / 0.32); pointer-events: auto; }
+  .mc-start-btn.running { background: oklch(0.55 0.19 25); color: #fff; box-shadow: 0 8px 20px oklch(0.55 0.19 25 / 0.3); pointer-events: auto; }
+
+  .mc-rec-overlay { position: fixed; inset: 0; z-index: 140; background: oklch(0.16 0.02 250 / 0.72); backdrop-filter: blur(3px); display: flex; flex-direction: column; }
+  .mc-rec-overlay[hidden] { display: none; }
+  .mc-rec-top { flex: none; display: flex; align-items: center; gap: 11px; flex-wrap: wrap; padding: 13px clamp(14px, 2.6vw, 26px); background: oklch(0.2 0.02 250); color: #fff; }
+  .mc-rec-badge { display: inline-flex; align-items: center; gap: 8px; flex: none; height: 34px; padding: 0 13px; border-radius: 99px; background: oklch(0.55 0.19 25); font-size: 12.5px; font-weight: 780; white-space: nowrap; }
+  .mc-rec-pulse { width: 8px; height: 8px; border-radius: 99px; background: #fff; animation: mcPulseRec 1.1s ease-in-out infinite; }
+  @keyframes mcPulseRec { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  .mc-rec-title { font-size: 13px; font-weight: 740; letter-spacing: -0.3px; white-space: nowrap; }
+  .mc-rec-sub { font-size: 11px; font-weight: 560; opacity: 0.76; margin-top: 2px; }
+  .mc-rec-count { flex: none; font-size: 11.5px; font-weight: 700; padding: 5px 10px; border-radius: 99px; background: oklch(1 0 0 / 0.14); white-space: nowrap; }
+  .mc-rec-topbtn { flex: none; height: 36px; padding: 0 13px; border-radius: 11px; border: 1px solid oklch(1 0 0 / 0.26); background: oklch(1 0 0 / 0.1); color: #fff; font-size: 12.5px; font-weight: 720; cursor: pointer; white-space: nowrap; }
+  .mc-rec-cancel { background: transparent; color: oklch(0.9 0.01 250); font-weight: 700; }
+  .mc-rec-finish { border: none; background: #fff; color: oklch(0.24 0.02 250); font-size: 12.5px; font-weight: 780; padding: 0 16px; }
+  .mc-rec-body { flex: 1; min-height: 0; display: flex; gap: 11px; padding: 11px clamp(14px, 2.6vw, 26px) clamp(14px, 2.6vw, 22px); flex-wrap: wrap; }
+  .mc-rec-canvas { position: relative; flex: 1 1 420px; min-width: 0; min-height: 320px; border-radius: 16px; overflow: hidden; background: #fff; border: 2px solid oklch(0.55 0.19 25); cursor: crosshair; }
+  .mc-rec-canvas-bg { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, oklch(0.97 0.004 240) 0 39px, oklch(0.94 0.006 240) 39px 40px), repeating-linear-gradient(90deg, transparent 0 39px, oklch(0.945 0.006 240) 39px 40px); }
+  .mc-rec-canvas-url { position: absolute; top: 11px; left: 11px; right: 11px; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-radius: 10px; background: oklch(0.965 0.006 240); border: 1px solid oklch(0.92 0.008 240); font-size: 11px; font-weight: 700; color: oklch(0.54 0.015 250); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mc-rec-canvas-hint { position: absolute; top: 58px; left: 11px; right: 11px; bottom: 11px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; pointer-events: none; text-align: center; }
+  .mc-rec-mark { position: absolute; transform: translate(-50%, -50%); width: 34px; height: 34px; pointer-events: none; }
+  .mc-rec-mark .ring { position: absolute; inset: 0; border-radius: 99px; border: 2px solid oklch(0.55 0.19 25); background: oklch(0.55 0.19 25 / 0.14); }
+  .mc-rec-mark .num { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 20px; height: 20px; border-radius: 99px; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #fff; background: oklch(0.55 0.19 25); }
+  .mc-rec-side { flex: 1 1 280px; min-width: 0; max-width: 380px; display: flex; flex-direction: column; gap: 9px; background: #fff; border-radius: 16px; padding: 14px; overflow: hidden; }
+  .mc-rec-side-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .mc-rec-side-head .t { font-size: 13px; font-weight: 780; letter-spacing: -0.4px; }
+  .mc-rec-side-head .screen { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 99px; background: oklch(0.955 0.006 240); color: oklch(0.52 0.015 250); }
+  .mc-rec-default-sleep { display: flex; align-items: center; gap: 7px; padding: 9px 11px; border-radius: 11px; background: oklch(0.972 0.005 240); }
+  .mc-rec-default-sleep input { width: 80px; flex: none; height: 34px; padding: 0 10px; border-radius: 9px; border: 1px solid oklch(0.92 0.008 240); background: #fff; font-size: 13px; font-weight: 740; outline: none; text-align: right; }
+  .mc-rec-default-sleep span { font-size: 11px; font-weight: 700; color: oklch(0.5 0.015 250); white-space: nowrap; }
+  .mc-rec-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+  .mc-rec-item { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border-radius: 11px; background: oklch(0.978 0.004 240); border: 1px solid oklch(0.94 0.006 240); }
+  .mc-rec-item .num { flex: none; width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #fff; background: oklch(0.55 0.19 25); }
+  .mc-rec-item .body { min-width: 0; flex: 1; }
+  .mc-rec-item .t1 { font-size: 12.5px; font-weight: 740; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mc-rec-item .t2 { font-size: 10.5px; font-weight: 600; color: oklch(0.58 0.015 250); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mc-rec-item input { width: 66px; height: 30px; padding: 0 8px; border-radius: 8px; border: 1px solid oklch(0.92 0.008 240); background: #fff; font-size: 12px; font-weight: 740; outline: none; text-align: right; }
+  .mc-rec-item .rm { width: 26px; height: 26px; border-radius: 8px; border: 1px solid oklch(0.93 0.008 240); background: #fff; font-size: 11px; color: oklch(0.5 0.02 250); cursor: pointer; }
+  .mc-rec-empty { text-align: center; padding: 26px 14px; border: 1px dashed oklch(0.88 0.01 240); border-radius: 12px; font-size: 12.5px; font-weight: 700; color: oklch(0.5 0.015 250); }
 </style>
 
-<div class="macro-shell">
-  <div class="macro-header">
-    <div class="macro-badge">🔒 관리자 전용 · URL 직접 접근</div>
-    <h1>선사 예약 매크로</h1>
-    <p>금어기 해제일처럼 예약 경쟁이 붙는 날, 지정한 시각에 예약 절차를 자동으로 밟기 위한 설정 화면입니다.</p>
-  </div>
+<div class="mc-root" id="mc-root">
+  <header class="mc-header">
+    <div class="mc-header-in">
+      <div class="mc-logo">⚡</div>
+      <div style="min-width:0;">
+        <div class="mc-title">자동예약 매크로</div>
+        <div class="mc-meta" id="mc-header-meta"></div>
+      </div>
+      <div class="mc-spacer"></div>
+      <span class="mc-chip" id="mc-status-chip"></span>
+    </div>
+  </header>
 
-  <!-- 1. 대상 -->
-  <div class="card">
-    <h2><span class="step-no">1</span>예약 대상</h2>
-    <div class="field-row">
-      <label>플랫폼</label>
-      <div class="seg" id="platform-seg">
-        <button type="button" data-platform="sunsang24" class="active">선상24</button>
-        <button type="button" data-platform="thefishing" disabled title="다음 단계에서 지원 예정">더피싱 (준비중)</button>
+  <main class="mc-main">
+    <!-- 1 · 대상 -->
+    <section class="mc-section">
+      <div class="mc-section-head">
+        <span class="mc-step-num">1</span>
+        <span class="mc-section-title">예약 대상</span>
       </div>
-    </div>
-    <div class="field-row">
-      <label>선사 예약 페이지 URL</label>
-      <input type="url" id="f-url" placeholder="https://redhunter.sunsang24.com/ship/schedule_fleet">
-    </div>
-    <div class="field-grid">
-      <div class="field-row">
-        <label>예약 날짜</label>
-        <input type="date" id="f-date">
+      <div class="mc-seg" id="mc-vendor-tabs"></div>
+      <div class="mc-field">
+        <span class="mc-field-label">선사 예약 페이지 URL</span>
+        <input type="text" class="mc-input" id="mc-url">
+        <span class="mc-hint" id="mc-url-hint"></span>
       </div>
-      <div class="field-row">
-        <label>예약 인원</label>
-        <div class="stepper">
-          <button type="button" id="f-headcount-minus">−</button>
-          <span id="f-headcount-display">1</span>
-          <button type="button" id="f-headcount-plus">+</button>
+      <div class="mc-grid-2">
+        <div class="mc-field mc-date-wrap">
+          <span class="mc-field-label">예약 날짜</span>
+          <button type="button" class="mc-date-btn" id="mc-date-btn">
+            <span>📅</span>
+            <span id="mc-date-label"></span>
+            <span class="mc-date-caret">⌄</span>
+          </button>
+          <div class="mc-cal" id="mc-cal" hidden></div>
+        </div>
+        <div class="mc-field">
+          <span class="mc-field-label">예약 인원</span>
+          <div class="mc-chips" id="mc-party-options"></div>
         </div>
       </div>
+    </section>
+
+    <!-- 2 · 예약자 -->
+    <section class="mc-section">
+      <div class="mc-section-head">
+        <span class="mc-step-num">2</span>
+        <span class="mc-section-title">예약자 정보</span>
+      </div>
+      <div class="mc-grid-guest">
+        <div class="mc-field">
+          <span class="mc-field-label">예약자명</span>
+          <input type="text" class="mc-input" id="mc-guest-name" placeholder="홍기백">
+        </div>
+        <div class="mc-field">
+          <span class="mc-field-label">휴대전화</span>
+          <input type="tel" class="mc-input" id="mc-guest-phone" placeholder="01012345678">
+          <span class="mc-hint" id="mc-phone-hint"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 · 실행 시각 -->
+    <section class="mc-section">
+      <div class="mc-section-head">
+        <span class="mc-step-num">3</span>
+        <span class="mc-section-title">실행 시각</span>
+        <div class="mc-spacer"></div>
+        <span class="mc-countdown-chip" id="mc-countdown"></span>
+      </div>
+      <div class="mc-seg" id="mc-time-mode-tabs"></div>
+
+      <div class="mc-grid-2" id="mc-time-absolute">
+        <div class="mc-field">
+          <span class="mc-field-label">시작 시각 (KST)</span>
+          <input type="text" class="mc-input" id="mc-start-clock" placeholder="17:00:00" style="font-size:19px; font-weight:800; letter-spacing:0.5px;">
+        </div>
+        <div class="mc-field">
+          <span class="mc-field-label">자주 쓰는 오픈 시각</span>
+          <div class="mc-chips" id="mc-preset-clocks"></div>
+        </div>
+        <div class="mc-field">
+          <span class="mc-field-label">서버 시간 보정</span>
+          <div class="mc-lead-row">
+            <input type="text" class="mc-input" id="mc-lead-ms">
+            <span>ms 먼저 시작</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="mc-time-relative" style="display:none;">
+        <div class="mc-chips" id="mc-delay-options" style="margin-bottom:9px;"></div>
+        <div class="mc-relative-row">
+          <span>직접 입력</span>
+          <input type="text" class="mc-input" id="mc-delay-sec">
+          <span class="unit">초 뒤 시작 (테스트용)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 · 매크로 단계 -->
+    <section class="mc-section">
+      <div class="mc-section-head">
+        <span class="mc-step-num">4</span>
+        <span class="mc-section-title">매크로 단계</span>
+        <span class="mc-step-badge" id="mc-step-badge"></span>
+        <div class="mc-spacer"></div>
+        <button type="button" class="mc-rec-btn" id="mc-start-recording">
+          <span class="mc-rec-dot"></span>
+          <span>화면 레코딩으로 단계 만들기</span>
+        </button>
+      </div>
+
+      <div class="mc-info-box">
+        <span style="font-size:13px; flex:none;">💡</span>
+        <div class="txt">각 단계는 <b>선택자(권장)</b> 또는 <b>좌표(x, y)</b>로 동작 지점을 지정합니다. 선택자는 창 크기·해상도·스크롤이 달라져도 유지되므로 기본값이고, 좌표는 <b>레코딩으로 기록한 보조 수단</b>입니다 — 기록한 화면 크기와 실행 환경이 다르면 저장된 비율로 자동 보정합니다. 마지막 <b>예약하기</b> 단계는 실제 결제가 확정되는 지점이라 사람이 직접 누르도록 기본 설정돼 있습니다.</div>
+      </div>
+
+      <div class="mc-step-list" id="mc-step-list"></div>
+
+      <div class="mc-step-actions-row">
+        <button type="button" class="mc-add-step" id="mc-add-step">＋ 단계 추가</button>
+        <button type="button" class="mc-template-btn" id="mc-load-template"></button>
+        <button type="button" class="mc-clear-btn" id="mc-clear-steps">전체 비우기</button>
+      </div>
+    </section>
+
+    <!-- 5 · 동작 흐름 · 실행 로그 -->
+    <section class="mc-section mc-flow-section">
+      <div class="mc-flow-head">
+        <span class="mc-step-num">5</span>
+        <span class="mc-section-title">동작 흐름 · 실행 로그</span>
+        <span class="mc-run-mode-chip" id="mc-run-mode-chip"></span>
+        <div class="mc-spacer"></div>
+        <button type="button" class="mc-dryrun-btn" id="mc-dry-run"></button>
+        <button type="button" class="mc-clear-logs-btn" id="mc-clear-logs">로그 비우기</button>
+      </div>
+
+      <div class="mc-run-progress">
+        <div class="mc-run-progress-top">
+          <span class="mc-run-headline" id="mc-run-headline"></span>
+          <span class="mc-run-progress-text" id="mc-run-progress-text"></span>
+          <div class="mc-spacer"></div>
+          <span class="mc-run-elapsed" id="mc-run-elapsed"></span>
+        </div>
+        <div class="mc-run-bar-track"><div class="mc-run-bar" id="mc-run-bar"></div></div>
+      </div>
+
+      <div class="mc-flow-list" id="mc-flow-list"></div>
+
+      <div class="mc-log-head">
+        <span class="title">실행 로그</span>
+        <span class="mc-log-meta" id="mc-log-meta"></span>
+        <div class="mc-spacer"></div>
+        <div class="mc-log-filters" id="mc-log-filters"></div>
+      </div>
+      <div id="mc-log-area"></div>
+    </section>
+  </main>
+
+  <div class="mc-bottom-bar">
+    <div class="mc-bottom-in">
+      <div style="min-width:0; flex:1 1 200px;">
+        <div class="mc-ready-title" id="mc-ready-title"></div>
+        <div class="mc-ready-desc" id="mc-ready-desc"></div>
+      </div>
+      <button type="button" class="mc-save-btn" id="mc-save-config">설정 저장</button>
+      <button type="button" class="mc-start-btn" id="mc-start-btn"></button>
     </div>
   </div>
 
-  <!-- 2. 예약자 정보 -->
-  <div class="card">
-    <h2><span class="step-no">2</span>예약자 정보</h2>
-    <div class="field-grid">
-      <div class="field-row">
-        <label>예약자명</label>
-        <input type="text" id="f-name" placeholder="홍길동">
+  <div class="mc-rec-overlay" id="mc-rec-overlay" hidden>
+    <div class="mc-rec-top">
+      <span class="mc-rec-badge"><span class="mc-rec-pulse"></span> REC <span id="mc-rec-elapsed"></span></span>
+      <div style="min-width:0; flex:1 1 200px;">
+        <div class="mc-rec-title">클릭할 위치를 순서대로 눌러 주세요</div>
+        <div class="mc-rec-sub">클릭 = 좌표 + 클릭 이벤트 기록 · 클릭 간격이 자동으로 다음 단계 대기시간(ms)이 됩니다</div>
       </div>
-      <div class="field-row">
-        <label>휴대전화</label>
-        <input type="tel" id="f-phone" placeholder="010-0000-0000">
+      <span class="mc-rec-count" id="mc-rec-count"></span>
+      <button type="button" class="mc-rec-topbtn" id="mc-rec-undo">마지막 취소</button>
+      <button type="button" class="mc-rec-topbtn mc-rec-cancel" id="mc-rec-cancel">취소</button>
+      <button type="button" class="mc-rec-topbtn mc-rec-finish" id="mc-rec-finish">기록 완료 · 단계로 추가</button>
+    </div>
+    <div class="mc-rec-body">
+      <div class="mc-rec-canvas" id="mc-rec-canvas">
+        <div class="mc-rec-canvas-bg"></div>
+        <div class="mc-rec-canvas-url" id="mc-rec-url"></div>
+        <div class="mc-rec-canvas-hint">
+          <span style="font-size:30px;">🖱️</span>
+          <span style="font-size:13px; font-weight:740; color:oklch(0.42 0.02 250); padding:0 20px;">실제 예약 페이지가 이 영역에 표시됩니다.<br>클릭한 지점의 x · y 좌표와 클릭 이벤트가 순서대로 기록됩니다.</span>
+        </div>
+        <div id="mc-rec-marks"></div>
+      </div>
+      <div class="mc-rec-side">
+        <div class="mc-rec-side-head">
+          <span class="t">기록된 동작</span>
+          <span class="screen" id="mc-rec-screen"></span>
+        </div>
+        <div class="mc-rec-default-sleep">
+          <span>기본 대기</span>
+          <input type="text" id="mc-rec-default-sleep-input">
+          <span>ms</span>
+          <span style="margin-left:auto; font-size:10.5px; font-weight:600; color:oklch(0.6 0.015 250);">클릭 간격 자동 기록</span>
+        </div>
+        <div class="mc-rec-list" id="mc-rec-list"></div>
       </div>
     </div>
-  </div>
-
-  <!-- 3. 실행 시각 -->
-  <div class="card">
-    <h2><span class="step-no">3</span>실행 시각</h2>
-    <div class="field-row">
-      <div class="seg" id="schedule-seg">
-        <button type="button" data-mode="absolute" class="active">지정 시각(한국시간)</button>
-        <button type="button" data-mode="relative">상대 시간(테스트용)</button>
-      </div>
-    </div>
-    <div id="schedule-absolute" class="field-grid">
-      <div class="field-row">
-        <label>날짜</label>
-        <input type="date" id="f-sched-date">
-      </div>
-      <div class="field-row">
-        <label>시각 (예: 17:00:00)</label>
-        <input type="text" id="f-sched-time" placeholder="17:00:00" value="17:00:00">
-      </div>
-    </div>
-    <div id="schedule-relative" class="field-row" style="display:none;">
-      <label>지금부터 몇 초 뒤</label>
-      <input type="number" id="f-sched-relative" value="10" min="1">
-      <span class="hint">테스트용 - 예: 5초 뒤, 10초 뒤로 전체 흐름을 미리 확인할 때</span>
-    </div>
-  </div>
-
-  <!-- 4. 단계 편집기 -->
-  <div class="card">
-    <h2><span class="step-no">4</span>매크로 단계</h2>
-    <div class="approach-note">
-      각 단계는 <b>선택자(추천)</b> 또는 <b>좌표(x, y)</b> 중 하나로 동작 지점을 지정합니다. 화면 요소를 구조로 찾는
-      <b>선택자 방식이 더 안정적</b>입니다 - 좌표는 창 크기·해상도·스크롤 위치가 조금만 달라져도 어긋나기 때문에,
-      선택자로 찾기 애매한 경우의 보조 수단으로만 권장합니다. 마지막 "예약하기" 단계는 실제 결제·예약이 확정되는
-      지점이라 <b>사람이 마지막으로 확인 후 직접 누르는 것</b>을 기본값으로 뒀습니다.
-    </div>
-    <div class="step-list" id="step-list"></div>
-    <button type="button" class="add-step-btn" id="add-step-btn">+ 단계 추가</button>
-    <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
-      <button type="button" class="preset-btn" id="load-preset-btn">레드히어로(선상24) 예시 흐름 불러오기</button>
-      <button type="button" class="preset-btn" id="clear-steps-btn">단계 전체 지우기</button>
-    </div>
-  </div>
-
-  <div class="start-bar">
-    <div class="countdown" id="countdown-label">설정을 채우고 저장하세요</div>
-    <button type="button" class="stop-btn" id="save-btn">저장</button>
-    <button type="button" class="start-btn" id="start-btn">매크로 준비 시작</button>
   </div>
 </div>
 
 <script>
 (function () {
-  const STORAGE_KEY = 'aft_macro_config_v1';
-  const STEP_TYPES = [
-    { value: 'navigate', label: '이동(페이지 열기)' },
-    { value: 'click', label: '클릭' },
-    { value: 'type', label: '텍스트 입력' },
-    { value: 'wait', label: '대기/확인' },
-    { value: 'popup', label: '팝업 감지' },
-    { value: 'confirm', label: '최종 확인(사람이 직접 클릭)' },
+  const STORAGE_KEY = 'aft_macro_config_v2';
+
+  const vendors = [
+    { key: 'sunsang24', label: '선상24', ready: true, host: 'sunsang24.com', sample: 'https://redhunter.sunsang24.com/ship/schedule_fleet' },
+    { key: 'thefishing', label: '더피싱', ready: false, host: 'thefishing.kr', sample: 'https://xxx.thefishing.kr/index.php?mid=bk' },
   ];
 
-  function uid() { return 's' + Math.random().toString(36).slice(2, 9); }
+  const actionDefs = [
+    { value: 'click', label: '클릭', needsValue: false },
+    { value: 'input', label: '입력', needsValue: true, ph: '입력할 값 / {이름} {전화} {인원}' },
+    { value: 'select', label: '선택', needsValue: true, ph: '선택할 항목 (예: 2명)' },
+    { value: 'wait', label: '대기', needsValue: false },
+    { value: 'waitFor', label: '요소 대기', needsValue: false },
+    { value: 'scroll', label: '스크롤', needsValue: true, ph: '스크롤 px (예: 400)' },
+    { value: 'reload', label: '새로고침', needsValue: false },
+  ];
 
-  function defaultState() {
-    return {
-      platform: 'sunsang24',
-      url: '',
-      date: '',
-      headcount: 1,
-      name: '',
-      phone: '',
-      scheduleMode: 'absolute',
-      schedDate: '',
-      schedTime: '17:00:00',
-      relativeSeconds: 10,
-      steps: [],
-    };
+  const templates = {
+    sunsang24: [
+      { label: '예약 페이지 진입 대기', action: 'waitFor', mode: 'selector', selector: 'text=예약하기', sleep: 200 },
+      { label: '해당 날짜 일정 열기', action: 'click', mode: 'selector', selector: "td[data-date='{날짜}']", sleep: 400 },
+      { label: '잔여석 있는 배 선택', action: 'click', mode: 'selector', selector: '.ship_list .available:first', sleep: 350 },
+      { label: '바로예약 버튼 클릭', action: 'click', mode: 'selector', selector: 'text=바로예약', sleep: 500 },
+      { label: '예약자명 입력', action: 'input', mode: 'selector', selector: 'input[name=name]', value: '{이름}', sleep: 150 },
+      { label: '휴대전화 입력', action: 'input', mode: 'selector', selector: 'input[name=hp]', value: '{전화}', sleep: 150 },
+      { label: '인원 선택', action: 'select', mode: 'selector', selector: 'select[name=person]', value: '{인원}', sleep: 200 },
+      { label: '약관 동의 체크', action: 'click', mode: 'selector', selector: '#agree_all', sleep: 200 },
+      { label: '예약하기 (최종 확정)', action: 'click', mode: 'selector', selector: 'text=예약하기', sleep: 0, manual: true },
+    ],
+    thefishing: [
+      { label: '예약 게시판 진입 대기', action: 'waitFor', mode: 'selector', selector: '.bk_calendar', sleep: 200 },
+      { label: '해당 날짜 선택', action: 'click', mode: 'selector', selector: "a[data-ymd='{날짜}']", sleep: 400 },
+      { label: '예약 신청 클릭', action: 'click', mode: 'selector', selector: 'text=예약신청', sleep: 500 },
+      { label: '예약자명 입력', action: 'input', mode: 'selector', selector: 'input[name=wr_name]', value: '{이름}', sleep: 150 },
+      { label: '연락처 입력', action: 'input', mode: 'selector', selector: 'input[name=wr_hp]', value: '{전화}', sleep: 150 },
+      { label: '신청 완료 (최종 확정)', action: 'click', mode: 'selector', selector: 'text=신청완료', sleep: 0, manual: true },
+    ],
+  };
+
+  let seed = 0;
+  const withDefaults = (s) => Object.assign({ id: ++seed, x: '', y: '', value: '', manual: false }, s);
+
+  function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function addDays(n) { const d = new Date(); d.setDate(d.getDate() + n); return iso(d); }
+  function parseD(s) { const p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function dowOf(s) { return ['일', '월', '화', '수', '목', '금', '토'][parseD(s).getDay()]; }
+  function shiftMonth(ym, n) { const p = ym.split('-'); const d = new Date(+p[0], +p[1] - 1 + n, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+  function buildMonth(ym) {
+    const p = ym.split('-'), y = +p[0], m = +p[1] - 1;
+    const first = new Date(y, m, 1).getDay(), len = new Date(y, m + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < first; i++) cells.push(null);
+    for (let d = 1; d <= len; d++) cells.push({ day: d, dow: new Date(y, m, d).getDay(), iso: y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0') });
+    while (cells.length % 7) cells.push(null);
+    return cells;
+  }
+  function clockNow() {
+    const d = new Date();
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0');
   }
 
-  // status.html/watches.html 의 subscribeWithName()과 같은 이유로, 이 화면도
-  // 새로고침해도 입력이 안 날아가게 localStorage에 즉시 저장한다(아직 서버
-  // 저장은 없음 - 화면 설계 단계라 클라이언트에만 둔다).
-  function load() {
+  const state = {
+    vendor: 'sunsang24',
+    url: vendors[0].sample,
+    date: addDays(5),
+    calOpen: false,
+    calMonth: null,
+    party: 1,
+    guestName: '',
+    guestPhone: '',
+    timeMode: 'absolute',
+    startClock: '17:00:00',
+    leadMs: '300',
+    delaySec: '5',
+    steps: templates.sunsang24.map(withDefaults),
+    running: false,
+    logs: [],
+    runMode: '',
+    runIdx: -1,
+    runStates: {},
+    runStart: 0,
+    logFilter: '전체',
+    recOpen: false,
+    recMarks: [],
+    recDefaultSleep: '300',
+    recStart: 0,
+    screenW: window.innerWidth || 1440,
+    screenH: window.innerHeight || 900,
+  };
+
+  function currentVendor() { return vendors.find(v => v.key === state.vendor) || vendors[0]; }
+
+  // ---- 로컬 저장 (실행 엔진은 아직 없어 - 화면 설정만 저장) ----
+  function loadSaved() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return defaultState();
-      return { ...defaultState(), ...JSON.parse(raw) };
-    } catch (e) {
-      return defaultState();
-    }
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      ['vendor', 'url', 'date', 'party', 'guestName', 'guestPhone', 'timeMode', 'startClock', 'leadMs', 'delaySec'].forEach(k => {
+        if (saved[k] !== undefined) state[k] = saved[k];
+      });
+      if (Array.isArray(saved.steps) && saved.steps.length) {
+        state.steps = saved.steps.map(s => withDefaults(Object.assign({}, s, { id: undefined })));
+      }
+    } catch (e) { /* 저장된 값이 손상됐으면 기본값으로 시작 */ }
+  }
+  function saveConfig() {
+    const persistable = {
+      vendor: state.vendor, url: state.url, date: state.date, party: state.party,
+      guestName: state.guestName, guestPhone: state.guestPhone, timeMode: state.timeMode,
+      startClock: state.startClock, leadMs: state.leadMs, delaySec: state.delaySec,
+      steps: state.steps.map(s => ({ label: s.label, action: s.action, mode: s.mode, selector: s.selector, x: s.x, y: s.y, value: s.value, sleep: s.sleep, manual: s.manual })),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable));
+    showToast('설정을 저장했습니다 · ' + currentVendor().label + ' / ' + state.date, { type: 'success' });
   }
 
-  function save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }
-
-  function redhunterPreset() {
-    return [
-      { id: uid(), type: 'navigate', label: '예약 페이지 접속', selector: '', x: null, y: null, value: '{{url}}' },
-      { id: uid(), type: 'click', label: '상단 달력에서 예약 날짜 클릭', selector: '달력의 {{date}} 날짜 셀', x: null, y: null, value: '' },
-      { id: uid(), type: 'click', label: '"바로예약" 버튼 클릭', selector: '해당 배 행의 "바로예약" 버튼', x: null, y: null, value: '' },
-      { id: uid(), type: 'popup', label: '예약 팝업(새 창) 감지 - mypage/reservation_ready/*', selector: '', x: null, y: null, value: '' },
-      { id: uid(), type: 'click', label: `인원수 "+" 버튼 {{headcount}}회 클릭`, selector: '인원선택 + 버튼', x: null, y: null, value: '' },
-      { id: uid(), type: 'type', label: '예약자명 입력', selector: '예약자명 입력창', x: null, y: null, value: '{{name}}' },
-      { id: uid(), type: 'type', label: '휴대전화 입력', selector: '휴대전화 입력창', x: null, y: null, value: '{{phone}}' },
-      { id: uid(), type: 'click', label: '전체동의 체크', selector: '전체동의 체크박스', x: null, y: null, value: '' },
-      { id: uid(), type: 'confirm', label: '"예약하기" 버튼 - 최종 결제/확정, 직접 확인 후 클릭', selector: '예약하기 버튼', x: null, y: null, value: '' },
-    ];
-  }
-
-  let state = load();
-  let countdownTimer = null;
-
-  // ---- 필드 바인딩 ----
   const $ = (id) => document.getElementById(id);
 
-  function renderFields() {
-    $('f-url').value = state.url;
-    $('f-date').value = state.date;
-    $('f-headcount-display').textContent = state.headcount;
-    $('f-name').value = state.name;
-    $('f-phone').value = state.phone;
-    $('f-sched-date').value = state.schedDate;
-    $('f-sched-time').value = state.schedTime;
-    $('f-sched-relative').value = state.relativeSeconds;
-
-    document.querySelectorAll('#platform-seg button').forEach(b => {
-      b.classList.toggle('active', b.dataset.platform === state.platform);
-    });
-    document.querySelectorAll('#schedule-seg button').forEach(b => {
-      b.classList.toggle('active', b.dataset.mode === state.scheduleMode);
-    });
-    $('schedule-absolute').style.display = state.scheduleMode === 'absolute' ? 'grid' : 'none';
-    $('schedule-relative').style.display = state.scheduleMode === 'relative' ? 'flex' : 'none';
+  // ---- 헤더 / 상태칩 ----
+  function renderHeader() {
+    const v = currentVendor();
+    $('mc-header-meta').textContent = 'aft-hcwf.onrender.com/macro · ' + v.label + ' · ' +
+      (state.timeMode === 'absolute' ? state.startClock + ' KST' : state.delaySec + '초 뒤');
+    const chip = $('mc-status-chip');
+    const missing = validationProblems();
+    const ready = missing.length === 0;
+    chip.className = 'mc-chip' + (state.running ? ' state-running' : state.recOpen ? ' state-rec' : ready ? ' state-ready' : '');
+    chip.textContent = state.running ? '실행 중' : state.recOpen ? '레코딩' : ready ? '실행 준비 완료' : '설정 필요';
   }
 
-  $('f-url').addEventListener('input', (e) => { state.url = e.target.value; save(); });
-  $('f-date').addEventListener('input', (e) => { state.date = e.target.value; save(); });
-  $('f-name').addEventListener('input', (e) => { state.name = e.target.value; save(); });
-  $('f-phone').addEventListener('input', (e) => { state.phone = e.target.value; save(); });
-  $('f-sched-date').addEventListener('input', (e) => { state.schedDate = e.target.value; save(); });
-  $('f-sched-time').addEventListener('input', (e) => { state.schedTime = e.target.value; save(); });
-  $('f-sched-relative').addEventListener('input', (e) => { state.relativeSeconds = parseInt(e.target.value, 10) || 1; save(); });
+  function validationProblems() {
+    const missing = [];
+    if (!state.url.trim()) missing.push('URL');
+    if (!state.guestName.trim()) missing.push('예약자명');
+    const phoneDigits = state.guestPhone.replace(/[^0-9]/g, '');
+    if (phoneDigits.length < 10) missing.push('휴대전화');
+    if (!state.steps.length) missing.push('매크로 단계');
+    return missing;
+  }
 
-  $('f-headcount-minus').addEventListener('click', () => {
-    state.headcount = Math.max(1, state.headcount - 1);
-    renderFields(); save();
-  });
-  $('f-headcount-plus').addEventListener('click', () => {
-    state.headcount = Math.min(9, state.headcount + 1);
-    renderFields(); save();
-  });
-
-  document.querySelectorAll('#platform-seg button').forEach(b => {
-    b.addEventListener('click', () => {
-      if (b.disabled) return;
-      state.platform = b.dataset.platform;
-      renderFields(); save();
+  // ---- 1. 대상 ----
+  function renderVendorTabs() {
+    const wrap = $('mc-vendor-tabs');
+    wrap.innerHTML = '';
+    vendors.forEach(v => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'mc-seg-btn' + (state.vendor === v.key ? ' active' : '') + (v.ready ? '' : ' notready');
+      btn.textContent = v.ready ? v.label : v.label + ' (준비중)';
+      btn.addEventListener('click', () => {
+        if (!v.ready) return;
+        state.vendor = v.key;
+        state.url = v.sample;
+        state.steps = templates[v.key].map(withDefaults);
+        renderVendorTabs(); syncUrlField(); renderSteps(); renderStepMeta(); renderHeader(); renderBottomBar();
+      });
+      wrap.appendChild(btn);
     });
-  });
-  document.querySelectorAll('#schedule-seg button').forEach(b => {
-    b.addEventListener('click', () => {
-      state.scheduleMode = b.dataset.mode;
-      renderFields(); save();
-    });
-  });
+  }
 
-  // ---- 단계 편집기 ----
-  function stepTypeOptions(selected) {
-    return STEP_TYPES.map(t => `<option value="${t.value}" ${t.value === selected ? 'selected' : ''}>${t.label}</option>`).join('');
+  function syncUrlField() {
+    const v = currentVendor();
+    const input = $('mc-url');
+    input.value = state.url;
+    input.placeholder = v.sample;
+    renderUrlHint();
+  }
+  function renderUrlHint() {
+    const v = currentVendor();
+    const urlOk = state.url.indexOf(v.host) > -1;
+    const hint = $('mc-url-hint');
+    hint.className = 'mc-hint' + (!state.url.trim() ? '' : urlOk ? ' ok' : ' bad');
+    hint.textContent = !state.url.trim() ? '예약 페이지 URL을 입력해 주세요'
+      : urlOk ? '✓ ' + v.label + ' 주소 형식이 맞습니다'
+      : '⚠ ' + v.host + ' 주소가 아닙니다 — 탭 선택을 확인해 주세요';
+  }
+
+  function renderDateButton() {
+    const btn = $('mc-date-btn');
+    btn.classList.toggle('open', state.calOpen);
+    $('mc-date-label').textContent = (+state.date.slice(5, 7)) + '월 ' + (+state.date.slice(8, 10)) + '일 (' + dowOf(state.date) + ')';
+  }
+  function renderCalendar() {
+    const cal = $('mc-cal');
+    cal.hidden = !state.calOpen;
+    if (!state.calOpen) return;
+    const ym = state.calMonth || state.date.slice(0, 7);
+    const m = ym.split('-');
+    cal.innerHTML = '';
+    const head = document.createElement('div');
+    head.className = 'mc-cal-head';
+    const prevBtn = document.createElement('button'); prevBtn.type = 'button'; prevBtn.className = 'mc-cal-nav'; prevBtn.textContent = '‹';
+    prevBtn.addEventListener('click', () => { state.calMonth = shiftMonth(ym, -1); renderCalendar(); });
+    const label = document.createElement('div'); label.className = 'mc-cal-month'; label.textContent = m[0] + '년 ' + (+m[1]) + '월';
+    const nextBtn = document.createElement('button'); nextBtn.type = 'button'; nextBtn.className = 'mc-cal-nav'; nextBtn.textContent = '›';
+    nextBtn.addEventListener('click', () => { state.calMonth = shiftMonth(ym, 1); renderCalendar(); });
+    head.appendChild(prevBtn); head.appendChild(label); head.appendChild(nextBtn);
+    cal.appendChild(head);
+
+    const week = document.createElement('div'); week.className = 'mc-cal-week';
+    ['일', '월', '화', '수', '목', '금', '토'].forEach((w, i) => {
+      const span = document.createElement('span');
+      span.textContent = w;
+      if (i === 0) span.classList.add('sun'); if (i === 6) span.classList.add('sat');
+      week.appendChild(span);
+    });
+    cal.appendChild(week);
+
+    const days = document.createElement('div'); days.className = 'mc-cal-days';
+    const todayIso = iso(new Date());
+    buildMonth(ym).forEach(c => {
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'mc-cal-day';
+      if (!c) { btn.classList.add('empty'); days.appendChild(btn); return; }
+      btn.textContent = String(c.day);
+      if (c.dow === 0) btn.classList.add('sun'); if (c.dow === 6) btn.classList.add('sat');
+      if (c.iso === todayIso) btn.classList.add('today');
+      if (c.iso < todayIso) btn.classList.add('past');
+      if (c.iso === state.date) btn.classList.add('selected');
+      btn.addEventListener('click', () => { state.date = c.iso; state.calOpen = false; renderDateButton(); renderCalendar(); renderHeader(); renderBottomBar(); });
+      days.appendChild(btn);
+    });
+    cal.appendChild(days);
+  }
+  function toggleCalendar() {
+    state.calOpen = !state.calOpen;
+    state.calMonth = state.calMonth || state.date.slice(0, 7);
+    renderDateButton(); renderCalendar();
+  }
+
+  function renderPartyOptions() {
+    const wrap = $('mc-party-options');
+    wrap.innerHTML = '';
+    [1, 2, 3, 4].forEach(n => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'mc-chip-btn' + (state.party === n ? ' active' : '');
+      btn.textContent = n + '명';
+      btn.addEventListener('click', () => { state.party = n; renderPartyOptions(); });
+      wrap.appendChild(btn);
+    });
+  }
+
+  // ---- 2. 예약자 ----
+  function renderPhoneHint() {
+    const digits = state.guestPhone.replace(/[^0-9]/g, '');
+    const ok = digits.length >= 10;
+    const hint = $('mc-phone-hint');
+    hint.className = 'mc-hint' + (!state.guestPhone ? '' : ok ? ' ok' : ' bad');
+    hint.textContent = !state.guestPhone ? '숫자만 입력 (예: 01012345678)'
+      : ok ? '✓ ' + digits.replace(/(\d{3})(\d{3,4})(\d{4})/, '$1-$2-$3')
+      : '⚠ 자리 수를 확인해 주세요';
+  }
+
+  // ---- 3. 실행 시각 ----
+  function renderTimeModeTabs() {
+    const wrap = $('mc-time-mode-tabs');
+    wrap.innerHTML = '';
+    [{ k: 'absolute', l: '지정 시각 (한국시간)' }, { k: 'relative', l: '상대 시간 (테스트)' }].forEach(t => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'mc-seg-btn' + (state.timeMode === t.k ? ' active' : '');
+      btn.textContent = t.l;
+      btn.addEventListener('click', () => {
+        state.timeMode = t.k;
+        renderTimeModeTabs();
+        $('mc-time-absolute').style.display = t.k === 'absolute' ? 'grid' : 'none';
+        $('mc-time-relative').style.display = t.k === 'relative' ? 'block' : 'none';
+        renderHeader(); renderBottomBar(); renderCountdown();
+      });
+      wrap.appendChild(btn);
+    });
+  }
+  function renderPresetClocks() {
+    const wrap = $('mc-preset-clocks');
+    wrap.innerHTML = '';
+    ['09:00:00', '10:00:00', '17:00:00', '20:00:00'].forEach(c => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'mc-chip-btn time' + (state.startClock === c ? ' active time' : '');
+      btn.textContent = c.slice(0, 5);
+      btn.addEventListener('click', () => { state.startClock = c; $('mc-start-clock').value = c; renderPresetClocks(); renderHeader(); renderCountdown(); renderBottomBar(); });
+      wrap.appendChild(btn);
+    });
+  }
+  function renderDelayOptions() {
+    const wrap = $('mc-delay-options');
+    wrap.innerHTML = '';
+    ['3', '5', '10', '30', '60'].forEach(s => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'mc-chip-btn time' + (state.delaySec === s ? ' active time' : '');
+      btn.textContent = s + '초 뒤';
+      btn.addEventListener('click', () => { state.delaySec = s; $('mc-delay-sec').value = s; renderDelayOptions(); renderHeader(); renderCountdown(); renderBottomBar(); });
+      wrap.appendChild(btn);
+    });
+  }
+  function renderCountdown() {
+    const chip = $('mc-countdown');
+    chip.classList.toggle('running', state.running);
+    chip.textContent = state.running
+      ? '실행 중 — 단계 진행 로그 확인'
+      : state.timeMode === 'absolute'
+        ? '현재 ' + clockNow() + ' · 시작 ' + state.startClock + ' (−' + (parseInt(state.leadMs, 10) || 0) + 'ms)'
+        : state.delaySec + '초 뒤 즉시 시작';
+  }
+
+  // ---- 4. 매크로 단계 ----
+  function renderStepMeta() {
+    const totalMs = state.steps.reduce((n, s) => n + (parseInt(s.sleep, 10) || 0), 0);
+    $('mc-step-badge').textContent = state.steps.length + '단계 · 총 ' + (totalMs >= 1000 ? (totalMs / 1000).toFixed(1) + '초' : totalMs + 'ms');
+    $('mc-load-template').textContent = currentVendor().label + ' 기본 단계 불러오기';
   }
 
   function renderSteps() {
-    const list = $('step-list');
+    const list = $('mc-step-list');
     list.innerHTML = '';
-    state.steps.forEach((step, idx) => {
+    state.steps.forEach((s, i) => {
+      const isLast = i === state.steps.length - 1;
+      const byCoord = s.mode === 'coord';
+      const act = actionDefs.find(a => a.value === s.action) || actionDefs[0];
+
       const card = document.createElement('div');
-      card.className = 'step-card' + (step.type === 'confirm' ? ' confirm' : '');
+      card.className = 'mc-step-card' + (s.manual ? ' manual' : '');
 
       const top = document.createElement('div');
-      top.className = 'step-top';
-      top.innerHTML = `
-        <div class="step-order-btns">
-          <button type="button" data-act="up" ${idx === 0 ? 'disabled' : ''}>▲</button>
-          <button type="button" data-act="down" ${idx === state.steps.length - 1 ? 'disabled' : ''}>▼</button>
-        </div>
-        <div class="step-index">${idx + 1}</div>
-        ${step.type === 'confirm' ? '<span class="step-manual-tag">사람이 직접 클릭</span>' : ''}
-        <button type="button" class="step-del" title="이 단계 삭제">✕</button>
-      `;
-      top.querySelector('[data-act="up"]').addEventListener('click', () => {
-        if (idx === 0) return;
-        [state.steps[idx - 1], state.steps[idx]] = [state.steps[idx], state.steps[idx - 1]];
-        renderSteps(); save();
-      });
-      top.querySelector('[data-act="down"]').addEventListener('click', () => {
-        if (idx === state.steps.length - 1) return;
-        [state.steps[idx + 1], state.steps[idx]] = [state.steps[idx], state.steps[idx + 1]];
-        renderSteps(); save();
-      });
-      top.querySelector('.step-del').addEventListener('click', () => {
-        state.steps.splice(idx, 1);
-        renderSteps(); save();
-      });
+      top.className = 'mc-step-top';
+      const num = document.createElement('span'); num.className = 'mc-step-num' + (s.manual ? ' manual' : ''); num.textContent = String(i + 1);
+      const label = document.createElement('input'); label.type = 'text'; label.className = 'mc-step-label';
+      label.placeholder = '이 단계가 뭘 하는지 (예: 바로예약 버튼 클릭)'; label.value = s.label || '';
+      label.addEventListener('input', e => { s.label = e.target.value; });
+      const actionSel = document.createElement('select'); actionSel.className = 'mc-step-action';
+      actionDefs.forEach(a => { const o = document.createElement('option'); o.value = a.value; o.textContent = a.label; if (a.value === s.action) o.selected = true; actionSel.appendChild(o); });
+      actionSel.addEventListener('change', e => { s.action = e.target.value; renderSteps(); });
+      const miniBtns = document.createElement('div'); miniBtns.className = 'mc-step-mini-btns';
+      const upBtn = document.createElement('button'); upBtn.type = 'button'; upBtn.className = 'mc-step-mini'; upBtn.title = '위로'; upBtn.textContent = '▲'; upBtn.disabled = i === 0;
+      upBtn.addEventListener('click', () => { const j = i - 1; if (j < 0) return; const tmp = state.steps[i]; state.steps[i] = state.steps[j]; state.steps[j] = tmp; renderSteps(); });
+      const downBtn = document.createElement('button'); downBtn.type = 'button'; downBtn.className = 'mc-step-mini'; downBtn.title = '아래로'; downBtn.textContent = '▼'; downBtn.disabled = isLast;
+      downBtn.addEventListener('click', () => { const j = i + 1; if (j >= state.steps.length) return; const tmp = state.steps[i]; state.steps[i] = state.steps[j]; state.steps[j] = tmp; renderSteps(); });
+      miniBtns.appendChild(upBtn); miniBtns.appendChild(downBtn);
+      const delBtn = document.createElement('button'); delBtn.type = 'button'; delBtn.className = 'mc-step-del'; delBtn.title = '단계 삭제'; delBtn.textContent = '✕';
+      delBtn.addEventListener('click', () => { state.steps = state.steps.filter(x => x.id !== s.id); renderSteps(); renderStepMeta(); renderHeader(); });
+      top.appendChild(num); top.appendChild(label); top.appendChild(actionSel); top.appendChild(miniBtns); top.appendChild(delBtn);
       card.appendChild(top);
 
-      const body = document.createElement('div');
-      body.className = 'step-body';
-      const labelInput = document.createElement('input');
-      labelInput.type = 'text';
-      labelInput.placeholder = '이 단계가 뭘 하는지 (예: 바로예약 버튼 클릭)';
-      labelInput.value = step.label || '';
-      labelInput.addEventListener('input', (e) => { step.label = e.target.value; save(); });
-      const typeSelect = document.createElement('select');
-      typeSelect.innerHTML = stepTypeOptions(step.type);
-      typeSelect.addEventListener('change', (e) => { step.type = e.target.value; renderSteps(); save(); });
-      body.appendChild(labelInput);
-      body.appendChild(typeSelect);
-      card.appendChild(body);
+      const row2 = document.createElement('div'); row2.className = 'mc-step-row2';
+      const modeSeg = document.createElement('div'); modeSeg.className = 'mc-mode-seg';
+      const selTab = document.createElement('button'); selTab.type = 'button'; selTab.className = 'mc-mode-btn' + (!byCoord ? ' active' : ''); selTab.textContent = '선택자';
+      selTab.addEventListener('click', () => { s.mode = 'selector'; renderSteps(); });
+      const coordTab = document.createElement('button'); coordTab.type = 'button'; coordTab.className = 'mc-mode-btn' + (byCoord ? ' active' : ''); coordTab.textContent = '좌표';
+      coordTab.addEventListener('click', () => { s.mode = 'coord'; renderSteps(); });
+      modeSeg.appendChild(selTab); modeSeg.appendChild(coordTab);
+      row2.appendChild(modeSeg);
 
-      const detail = document.createElement('div');
-      detail.className = 'step-detail-row' + (step.type === 'click' ? ' coords' : '');
-      if (step.type === 'click') {
-        const xInput = document.createElement('input');
-        xInput.type = 'number'; xInput.placeholder = 'x(좌표, 보조)'; xInput.value = step.x ?? '';
-        xInput.addEventListener('input', (e) => { step.x = e.target.value === '' ? null : Number(e.target.value); save(); });
-        const yInput = document.createElement('input');
-        yInput.type = 'number'; yInput.placeholder = 'y(좌표, 보조)'; yInput.value = step.y ?? '';
-        yInput.addEventListener('input', (e) => { step.y = e.target.value === '' ? null : Number(e.target.value); save(); });
-        const selInput = document.createElement('input');
-        selInput.type = 'text'; selInput.placeholder = '선택자(추천) - 예: "바로예약" 버튼';
-        selInput.value = step.selector || '';
-        selInput.addEventListener('input', (e) => { step.selector = e.target.value; save(); });
-        detail.appendChild(xInput); detail.appendChild(yInput); detail.appendChild(selInput);
-      } else if (step.type === 'type') {
-        const selInput = document.createElement('input');
-        selInput.type = 'text'; selInput.placeholder = '선택자 - 예: 예약자명 입력창';
-        selInput.value = step.selector || '';
-        selInput.addEventListener('input', (e) => { step.selector = e.target.value; save(); });
-        const valInput = document.createElement('input');
-        valInput.type = 'text'; valInput.placeholder = '입력할 값 - {{name}} / {{phone}} 등 사용 가능';
-        valInput.value = step.value || '';
-        valInput.addEventListener('input', (e) => { step.value = e.target.value; save(); });
-        detail.appendChild(selInput); detail.appendChild(valInput);
-      } else if (step.type === 'navigate') {
-        const valInput = document.createElement('input');
-        valInput.type = 'text'; valInput.placeholder = 'URL - {{url}} 사용 가능';
-        valInput.value = step.value || '';
-        valInput.style.gridColumn = '1 / -1';
-        valInput.addEventListener('input', (e) => { step.value = e.target.value; save(); });
-        detail.appendChild(valInput);
+      if (!byCoord) {
+        const selInput = document.createElement('input'); selInput.type = 'text'; selInput.className = 'mc-step-selector';
+        selInput.placeholder = "예: text=바로예약  /  .btn_reserve"; selInput.value = s.selector || '';
+        selInput.addEventListener('input', e => { s.selector = e.target.value; });
+        row2.appendChild(selInput);
       } else {
-        const selInput = document.createElement('input');
-        selInput.type = 'text'; selInput.placeholder = '선택자 / 설명(선택)';
-        selInput.value = step.selector || '';
-        selInput.style.gridColumn = '1 / -1';
-        selInput.addEventListener('input', (e) => { step.selector = e.target.value; save(); });
-        detail.appendChild(selInput);
+        const coordRow = document.createElement('div'); coordRow.className = 'mc-coord-row';
+        const lx = document.createElement('span'); lx.className = 'lbl'; lx.textContent = 'x';
+        const xInput = document.createElement('input'); xInput.type = 'text'; xInput.className = 'mc-coord-input'; xInput.placeholder = '0'; xInput.value = s.x;
+        xInput.addEventListener('input', e => { s.x = e.target.value; });
+        const ly = document.createElement('span'); ly.className = 'lbl'; ly.textContent = 'y';
+        const yInput = document.createElement('input'); yInput.type = 'text'; yInput.className = 'mc-coord-input'; yInput.placeholder = '0'; yInput.value = s.y;
+        yInput.addEventListener('input', e => { s.y = e.target.value; });
+        const meta = document.createElement('span'); meta.className = 'mc-coord-meta' + (s.x && s.y ? '' : ' warn');
+        meta.textContent = s.x && s.y ? '기준 ' + state.screenW + '×' + state.screenH : '레코딩 권장';
+        coordRow.appendChild(lx); coordRow.appendChild(xInput); coordRow.appendChild(ly); coordRow.appendChild(yInput); coordRow.appendChild(meta);
+        row2.appendChild(coordRow);
       }
-      card.appendChild(detail);
+
+      if (act.needsValue) {
+        const valInput = document.createElement('input'); valInput.type = 'text'; valInput.className = 'mc-step-value';
+        valInput.placeholder = act.ph || ''; valInput.value = s.value || '';
+        valInput.addEventListener('input', e => { s.value = e.target.value; });
+        row2.appendChild(valInput);
+      }
+
+      const sleepRow = document.createElement('div'); sleepRow.className = 'mc-sleep-row';
+      const sleepLbl = document.createElement('span'); sleepLbl.textContent = '다음까지';
+      const sleepInput = document.createElement('input'); sleepInput.type = 'text'; sleepInput.className = 'mc-sleep-input'; sleepInput.placeholder = '300'; sleepInput.value = String(s.sleep);
+      sleepInput.addEventListener('input', e => { s.sleep = e.target.value; });
+      const sleepUnit = document.createElement('span'); sleepUnit.textContent = 'ms';
+      sleepRow.appendChild(sleepLbl); sleepRow.appendChild(sleepInput); sleepRow.appendChild(sleepUnit);
+      row2.appendChild(sleepRow);
+      card.appendChild(row2);
+
+      if (s.manual) {
+        const banner = document.createElement('div'); banner.className = 'mc-manual-banner';
+        const hand = document.createElement('span'); hand.textContent = '🖐';
+        const txt = document.createElement('span'); txt.className = 'txt'; txt.textContent = '사람이 직접 확인 후 누르는 단계 — 매크로는 여기서 멈춥니다';
+        const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'mc-manual-toggle'; toggle.textContent = '자동으로 변경';
+        toggle.addEventListener('click', () => { s.manual = false; renderSteps(); });
+        banner.appendChild(hand); banner.appendChild(txt); banner.appendChild(toggle);
+        card.appendChild(banner);
+      } else if (isLast) {
+        const suggest = document.createElement('button'); suggest.type = 'button'; suggest.className = 'mc-manual-suggest'; suggest.textContent = '🖐 수동 확인 단계로 지정';
+        suggest.addEventListener('click', () => { s.manual = true; renderSteps(); });
+        card.appendChild(suggest);
+      }
+
       list.appendChild(card);
     });
   }
 
-  $('add-step-btn').addEventListener('click', () => {
-    state.steps.push({ id: uid(), type: 'click', label: '', selector: '', x: null, y: null, value: '' });
-    renderSteps(); save();
-  });
-  $('load-preset-btn').addEventListener('click', async () => {
-    if (state.steps.length) {
-      const ok = await showConfirm('지금 단계 목록을 지우고 레드히어로(선상24) 예시로 바꿀까요?', { confirmText: '바꾸기', cancelText: '취소' });
-      if (!ok) return;
-    }
-    state.steps = redhunterPreset();
-    if (!state.url) state.url = 'https://redhunter.sunsang24.com/ship/schedule_fleet';
-    renderFields(); renderSteps(); save();
-    showToast('레드히어로 예시 흐름을 불러왔습니다.', { type: 'success' });
-  });
-  $('clear-steps-btn').addEventListener('click', async () => {
-    if (!state.steps.length) return;
-    const ok = await showConfirm('단계를 전부 지울까요?', { confirmText: '지우기', cancelText: '취소' });
-    if (!ok) return;
-    state.steps = [];
-    renderSteps(); save();
-  });
+  // ---- 5. 동작 흐름 · 실행 로그 ----
+  let runTimer = null;
+  let runQueue = [];
 
-  // ---- 저장 / 시작 ----
-  function validate() {
-    const problems = [];
-    if (!state.url) problems.push('선사 예약 페이지 URL');
-    if (!state.date) problems.push('예약 날짜');
-    if (!state.name) problems.push('예약자명');
-    if (!state.phone) problems.push('휴대전화');
-    if (!state.steps.length) problems.push('매크로 단계(최소 1개)');
-    return problems;
+  function stopRun(reason) {
+    clearInterval(runTimer);
+    runQueue.forEach(t => clearTimeout(t));
+    runQueue = [];
+    state.running = false;
+    state.runIdx = -1;
+    if (reason) addLog('중단', reason);
+    renderRunSummary(); renderFlow(); renderBottomBar(); renderHeader(); renderDryRunBtn();
   }
 
-  $('save-btn').addEventListener('click', () => {
-    save();
-    showToast('설정을 저장했습니다.', { type: 'success' });
-  });
-
-  function computeTargetTime() {
-    if (state.scheduleMode === 'relative') {
-      return new Date(Date.now() + Math.max(1, state.relativeSeconds) * 1000);
-    }
-    // 지정 시각(한국시간) - 이 브라우저 자체가 한국시간 기준이라고 가정한다.
-    const dateStr = state.schedDate || new Date().toISOString().slice(0, 10);
-    const timeStr = (state.schedTime || '17:00:00').padEnd(8, ':00').slice(0, 8);
-    return new Date(`${dateStr}T${timeStr}`);
+  function addLog(tag, text, dur) {
+    state.logs = [{ time: clockNow(), tag, text, dur: dur || '' }].concat(state.logs).slice(0, 80);
+    renderLogs();
   }
 
-  $('start-btn').addEventListener('click', async () => {
-    const problems = validate();
-    if (problems.length) {
-      showToast('아직 안 채운 항목이 있습니다: ' + problems.join(', '), { type: 'error' });
+  function playRun(mode) {
+    if (!state.steps.length) { showToast('매크로 단계를 먼저 추가해 주세요', { type: 'error' }); return; }
+    clearInterval(runTimer);
+    runQueue.forEach(t => clearTimeout(t));
+    runQueue = [];
+
+    const steps = state.steps.slice();
+    const states = {};
+    steps.forEach(s => { states[s.id] = '대기'; });
+    state.running = true; state.runMode = mode; state.runIdx = -1; state.runStates = states; state.runStart = Date.now();
+    state.logs = [{ time: clockNow(), tag: '시작', text: (mode === 'dry' ? '테스트 실행(드라이런) 시작 — 최종 확정 단계는 건너뜁니다' : '실전 실행 시작') + ' · ' + steps.length + '단계', dur: '' }];
+    renderRunSummary(); renderFlow(); renderLogs(); renderBottomBar(); renderHeader(); renderDryRunBtn();
+
+    runTimer = setInterval(() => { renderRunSummary(); }, 200);
+
+    const scale = 0.5;
+    let t = 260;
+    steps.forEach((s, i) => {
+      const wait = Math.max(80, (parseInt(s.sleep, 10) || 200) * scale);
+      runQueue.push(setTimeout(() => {
+        state.runIdx = i;
+        state.runStates = Object.assign({}, state.runStates, { [s.id]: '진행' });
+        addLog('진행', (i + 1) + '. ' + (s.label || '(라벨 없음)') + ' — ' +
+          (s.mode === 'coord' ? '좌표 (' + (s.x || '?') + ', ' + (s.y || '?') + ')' : '선택자 ' + (s.selector || '?')));
+        renderFlow(); renderRunSummary();
+      }, t));
+      t += wait;
+
+      runQueue.push(setTimeout(() => {
+        const skip = mode === 'dry' && s.manual;
+        const bad = !s.manual && s.mode === 'selector' && !String(s.selector || '').trim();
+        const badCoord = !s.manual && s.mode === 'coord' && (!String(s.x).trim() || !String(s.y).trim());
+        const result = skip ? '건너뜀' : s.manual ? '수동 대기' : (bad || badCoord) ? '실패' : '성공';
+        state.runStates = Object.assign({}, state.runStates, { [s.id]: result });
+        addLog(
+          result === '실패' ? '오류' : result === '건너뜀' ? '건너뜀' : result === '수동 대기' ? '대기' : '완료',
+          (i + 1) + '. ' + (s.label || '(라벨 없음)') + ' ' +
+            (result === '실패' ? '— 동작 지점이 비어 있어 실행할 수 없습니다'
+              : result === '건너뜀' ? '— 테스트 모드라 최종 확정은 건너뜁니다'
+              : result === '수동 대기' ? '— 사람이 직접 확인 후 진행해야 합니다'
+              : '— 정상 처리'),
+          (parseInt(s.sleep, 10) || 0) + 'ms'
+        );
+        renderFlow(); renderRunSummary();
+      }, t - 40));
+    });
+
+    runQueue.push(setTimeout(() => {
+      clearInterval(runTimer);
+      const total = state.steps.reduce((n, s) => n + (parseInt(s.sleep, 10) || 0), 0);
+      const fails = Object.keys(state.runStates).filter(k => state.runStates[k] === '실패').length;
+      state.running = false; state.runIdx = -1;
+      addLog(fails ? '오류' : '완료',
+        fails ? '흐름 종료 — 실패 ' + fails + '단계, 설정을 확인해 주세요'
+          : (mode === 'dry' ? '테스트 흐름 정상 종료' : '실행 종료') + ' · 단계 대기 합계 ' + (total / 1000).toFixed(1) + '초');
+      showToast(fails ? '실패 ' + fails + '단계 — 로그를 확인해 주세요' : '흐름이 정상적으로 끝났습니다', { type: fails ? 'error' : 'success' });
+      renderRunSummary(); renderFlow(); renderBottomBar(); renderHeader(); renderDryRunBtn();
+    }, t + 200));
+  }
+
+  function renderDryRunBtn() {
+    const btn = $('mc-dry-run');
+    btn.className = 'mc-dryrun-btn' + (state.running ? ' stop' : '');
+    btn.textContent = state.running ? '■ 중지' : '▶ 테스트 실행 (확정 제외)';
+  }
+
+  function renderRunSummary() {
+    const totalMs = state.steps.reduce((n, s) => n + (parseInt(s.sleep, 10) || 0), 0);
+    const chip = $('mc-run-mode-chip');
+    chip.className = 'mc-run-mode-chip' + (state.running ? ' running' : state.runMode ? ' done' : '');
+    chip.textContent = state.running ? (state.runMode === 'dry' ? '테스트 실행 중' : '실전 실행 중') : state.runMode === 'dry' ? '테스트 완료' : state.runMode ? '실행 완료' : '미실행';
+
+    $('mc-run-headline').textContent = state.running
+      ? '진행 중 · ' + (state.runIdx + 1) + ' / ' + state.steps.length + '단계'
+      : state.runMode ? '마지막 실행 결과' : '실행 전 — 단계 흐름 미리보기';
+
+    const ks = Object.keys(state.runStates);
+    $('mc-run-progress-text').textContent = !ks.length ? state.steps.length + '단계 등록됨'
+      : (() => { const cnt = k => ks.filter(x => state.runStates[x] === k).length; return '성공 ' + cnt('성공') + ' · 실패 ' + cnt('실패') + ' · 건너뜀 ' + cnt('건너뜀') + ' · 수동 ' + cnt('수동 대기'); })();
+
+    $('mc-run-elapsed').textContent = !state.runStart ? '00.0초'
+      : state.running ? ((Date.now() - state.runStart) / 1000).toFixed(1) + '초 경과'
+      : '대기 합계 ' + (totalMs / 1000).toFixed(1) + '초';
+
+    const done = ks.filter(k => state.runStates[k] !== '대기' && state.runStates[k] !== '진행').length;
+    const pct = state.steps.length ? Math.round(done / state.steps.length * 100) : 0;
+    const fails = ks.filter(k => state.runStates[k] === '실패').length;
+    const bar = $('mc-run-bar');
+    bar.style.width = Math.max(2, pct) + '%';
+    bar.className = 'mc-run-bar' + (fails ? ' failed' : state.running ? ' running' : '');
+  }
+
+  function renderFlow() {
+    const wrap = $('mc-flow-list');
+    wrap.innerHTML = '';
+    state.steps.forEach((s, i) => {
+      const act = actionDefs.find(a => a.value === s.action) || actionDefs[0];
+      const st = state.runStates[s.id] || '대기';
+      const active = state.runIdx === i && state.running;
+      const row = document.createElement('div');
+      row.className = 'mc-flow-row' + (active ? ' active' : '');
+      const icon = document.createElement('span'); icon.className = 'mc-flow-icon';
+      icon.textContent = st === '성공' ? '✓' : st === '실패' ? '!' : st === '건너뜀' ? '–' : st === '수동 대기' ? '🖐' : st === '진행' ? '▶' : String(i + 1);
+      const colorMap = { '성공': 'oklch(0.48 0.12 168)', '실패': 'oklch(0.52 0.18 27)', '건너뜀': 'oklch(0.58 0.015 250)', '수동 대기': 'oklch(0.52 0.14 55)', '진행': 'oklch(0.44 0.12 245)', '대기': 'oklch(0.64 0.012 250)' };
+      const bgMap = { '성공': 'oklch(0.96 0.03 168)', '실패': 'oklch(0.96 0.035 27)', '수동 대기': 'oklch(0.965 0.03 60)', '진행': 'oklch(0.955 0.025 245)', '대기': 'oklch(0.955 0.006 240)', '건너뜀': 'oklch(0.955 0.006 240)' };
+      if (st !== '대기') { icon.style.color = '#fff'; icon.style.background = colorMap[st]; }
+      const body = document.createElement('div'); body.style.minWidth = '0';
+      const titleRow = document.createElement('div'); titleRow.className = 'mc-flow-title-row';
+      const lbl = document.createElement('span'); lbl.className = 'mc-flow-label'; lbl.textContent = (i + 1) + '. ' + (s.label || '(라벨 없음)');
+      const actionTag = document.createElement('span'); actionTag.className = 'mc-flow-action-tag'; actionTag.textContent = act.label;
+      titleRow.appendChild(lbl); titleRow.appendChild(actionTag);
+      if (s.manual) { const mTag = document.createElement('span'); mTag.className = 'mc-flow-manual-tag'; mTag.textContent = '🖐 수동'; titleRow.appendChild(mTag); }
+      const target = document.createElement('div'); target.className = 'mc-flow-target'; target.textContent = s.mode === 'coord' ? '(x ' + (s.x || '?') + ', y ' + (s.y || '?') + ')' : (s.selector || '선택자 미지정');
+      body.appendChild(titleRow); body.appendChild(target);
+      const time = document.createElement('span'); time.className = 'mc-flow-time'; time.textContent = (parseInt(s.sleep, 10) || 0) + 'ms';
+      const status = document.createElement('span'); status.className = 'mc-flow-status'; status.textContent = st;
+      if (st !== '대기') { status.style.background = bgMap[st]; status.style.color = colorMap[st]; }
+      row.appendChild(icon); row.appendChild(body); row.appendChild(time); row.appendChild(status);
+      wrap.appendChild(row);
+    });
+  }
+
+  function renderLogFilters() {
+    const wrap = $('mc-log-filters');
+    wrap.innerHTML = '';
+    ['전체', '진행', '완료', '오류'].forEach(f => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'mc-mode-btn' + (state.logFilter === f ? ' active' : '');
+      btn.textContent = f;
+      btn.addEventListener('click', () => { state.logFilter = f; renderLogFilters(); renderLogs(); });
+      wrap.appendChild(btn);
+    });
+  }
+
+  const tagColor = { '오류': 'oklch(0.55 0.18 25)', '중단': 'oklch(0.55 0.18 25)', '대기': 'oklch(0.6 0.13 55)', '건너뜀': 'oklch(0.66 0.012 250)', '완료': 'oklch(0.52 0.12 168)', '시작': 'oklch(0.4 0.02 250)' };
+
+  function renderLogs() {
+    const shown = state.logs.filter(l => state.logFilter === '전체'
+      || (state.logFilter === '오류' ? (l.tag === '오류' || l.tag === '중단')
+        : state.logFilter === '완료' ? (l.tag === '완료' || l.tag === '건너뜀')
+        : l.tag === state.logFilter || l.tag === '시작' || l.tag === '대기'));
+
+    $('mc-log-meta').textContent = !state.logs.length ? '대기 중'
+      : state.logFilter === '전체' ? state.logs.length + '건 기록'
+      : shown.length + '건 / 전체 ' + state.logs.length + '건';
+
+    const area = $('mc-log-area');
+    area.innerHTML = '';
+    if (!shown.length) {
+      const empty = document.createElement('div'); empty.className = 'mc-log-empty';
+      const t1 = document.createElement('div'); t1.className = 't1';
+      t1.textContent = state.logs.length ? '「' + state.logFilter + '」 조건에 해당하는 로그가 없습니다' : '아직 실행 기록이 없습니다 — 「테스트 실행」으로 흐름을 확인해 보세요';
+      const t2 = document.createElement('div'); t2.className = 't2';
+      t2.textContent = state.logs.length ? '전체 탭으로 돌아가면 ' + state.logs.length + '건의 기록을 볼 수 있습니다' : '테스트 실행은 마지막 확정 단계를 건너뛰므로 안전하게 흐름만 확인할 수 있습니다';
+      empty.appendChild(t1); empty.appendChild(t2);
+      area.appendChild(empty);
       return;
     }
-    save();
-    const target = computeTargetTime();
-    if (isNaN(target.getTime())) {
-      showToast('실행 시각을 확인해주세요.', { type: 'error' });
-      return;
-    }
-    const ok = await showConfirm(
-      `${target.toLocaleString('ko-KR')}에 매크로를 준비합니다.\n실제 예약 실행 엔진은 아직 없어서, 이번엔 카운트다운까지만 보여줍니다.`,
-      { confirmText: '진행', cancelText: '취소' }
-    );
-    if (!ok) return;
-    runCountdown(target);
-  });
-
-  function runCountdown(target) {
-    if (countdownTimer) clearInterval(countdownTimer);
-    const label = $('countdown-label');
-    const startBtn = $('start-btn');
-    startBtn.disabled = true;
-    countdownTimer = setInterval(() => {
-      const diffMs = target.getTime() - Date.now();
-      if (diffMs <= 0) {
-        clearInterval(countdownTimer);
-        countdownTimer = null;
-        label.innerHTML = '⏱ 실행 시각 도달 - <b>실행 엔진은 다음 단계에서 연결됩니다</b>';
-        startBtn.disabled = false;
-        showToast('실행 시각이 됐습니다. 실제 클릭 자동화는 아직 연결 전입니다.', { type: 'info', duration: 6000 });
-        return;
-      }
-      const totalSec = Math.ceil(diffMs / 1000);
-      const h = String(Math.floor(totalSec / 3600)).padStart(2, '0');
-      const m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
-      const s = String(totalSec % 60).padStart(2, '0');
-      label.innerHTML = `실행까지 <b>${h}:${m}:${s}</b> 남음`;
-    }, 250);
+    const list = document.createElement('div'); list.className = 'mc-log-list';
+    shown.forEach(l => {
+      const row = document.createElement('div'); row.className = 'mc-log-row';
+      const time = document.createElement('span'); time.className = 'mc-log-time'; time.textContent = l.time;
+      const tag = document.createElement('span'); tag.className = 'mc-log-tag'; tag.textContent = l.tag;
+      tag.style.background = tagColor[l.tag] || 'oklch(0.46 0.12 248)';
+      const text = document.createElement('span'); text.className = 'mc-log-text'; text.textContent = l.text;
+      const dur = document.createElement('span'); dur.className = 'mc-log-dur'; dur.textContent = l.dur || ''; dur.style.visibility = l.dur ? 'visible' : 'hidden';
+      row.appendChild(time); row.appendChild(tag); row.appendChild(text); row.appendChild(dur);
+      list.appendChild(row);
+    });
+    area.appendChild(list);
   }
 
-  renderFields();
-  renderSteps();
+  // ---- 하단 바 ----
+  function renderBottomBar() {
+    const totalMs = state.steps.reduce((n, s) => n + (parseInt(s.sleep, 10) || 0), 0);
+    const missing = validationProblems();
+    const ready = missing.length === 0;
+    $('mc-ready-title').textContent = state.running
+      ? '매크로 실행 중 — ' + state.steps.length + '단계'
+      : ready ? '실행 준비 완료 · ' + currentVendor().label + ' · ' + state.party + '명'
+      : missing.join(' · ') + ' 설정이 필요합니다';
+    $('mc-ready-desc').textContent = state.timeMode === 'absolute'
+      ? '지정 시각 ' + state.startClock + ' (KST) · 보정 ' + (parseInt(state.leadMs, 10) || 0) + 'ms · 단계 총 ' + (totalMs / 1000).toFixed(1) + '초'
+      : state.delaySec + '초 뒤 시작 · 단계 총 ' + (totalMs / 1000).toFixed(1) + '초';
+    const btn = $('mc-start-btn');
+    btn.textContent = state.running ? '■ 중지' : state.timeMode === 'absolute' ? '▶ 예약 시각에 시작' : '▶ ' + state.delaySec + '초 뒤 시작';
+    btn.className = 'mc-start-btn' + (state.running ? ' running' : ready ? ' ready' : '');
+  }
+
+  // ---- 레코딩 ----
+  let recTimer = null;
+  function startRecording() {
+    state.recOpen = true; state.recMarks = []; state.recStart = Date.now();
+    $('mc-rec-overlay').hidden = false;
+    $('mc-rec-url').textContent = state.url || currentVendor().sample;
+    $('mc-rec-screen').textContent = state.screenW + '×' + state.screenH;
+    $('mc-rec-default-sleep-input').value = state.recDefaultSleep;
+    renderRecHeader(); renderRecMarks(); renderRecList(); renderHeader();
+    clearInterval(recTimer);
+    recTimer = setInterval(renderRecHeader, 1000);
+  }
+  function closeRecording() {
+    clearInterval(recTimer);
+    state.recOpen = false; state.recMarks = [];
+    $('mc-rec-overlay').hidden = true;
+    renderHeader();
+  }
+  function renderRecHeader() {
+    const sec = state.recOpen ? Math.floor((Date.now() - state.recStart) / 1000) : 0;
+    $('mc-rec-elapsed').textContent = String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
+    $('mc-rec-count').textContent = state.recMarks.length + '개 기록';
+  }
+  function renderRecMarks() {
+    const wrap = $('mc-rec-marks');
+    wrap.innerHTML = '';
+    state.recMarks.forEach((m, i) => {
+      const mark = document.createElement('div'); mark.className = 'mc-rec-mark';
+      mark.style.left = m.left + 'px'; mark.style.top = m.top + 'px';
+      const ring = document.createElement('span'); ring.className = 'ring';
+      const numEl = document.createElement('span'); numEl.className = 'num'; numEl.textContent = String(i + 1);
+      mark.appendChild(ring); mark.appendChild(numEl);
+      wrap.appendChild(mark);
+    });
+  }
+  function renderRecList() {
+    const wrap = $('mc-rec-list');
+    wrap.innerHTML = '';
+    if (!state.recMarks.length) {
+      const empty = document.createElement('div'); empty.className = 'mc-rec-empty'; empty.textContent = '왼쪽 화면을 클릭하면 기록됩니다';
+      wrap.appendChild(empty);
+      return;
+    }
+    state.recMarks.forEach((m, i) => {
+      const item = document.createElement('div'); item.className = 'mc-rec-item';
+      const num = document.createElement('span'); num.className = 'num'; num.textContent = String(i + 1);
+      const body = document.createElement('div'); body.className = 'body';
+      const t1 = document.createElement('div'); t1.className = 't1'; t1.textContent = '클릭 · x ' + m.x + ' · y ' + m.y;
+      const t2 = document.createElement('div'); t2.className = 't2'; t2.textContent = '비율 ' + m.ratio + ' · 기준 ' + state.screenW + '×' + state.screenH;
+      body.appendChild(t1); body.appendChild(t2);
+      const sleepInput = document.createElement('input'); sleepInput.type = 'text'; sleepInput.value = m.sleep;
+      sleepInput.addEventListener('input', e => { m.sleep = e.target.value; });
+      const unit = document.createElement('span'); unit.style.fontSize = '10.5px'; unit.style.fontWeight = '700'; unit.style.color = 'oklch(0.54 0.015 250)'; unit.textContent = 'ms';
+      const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'rm'; rm.textContent = '✕';
+      rm.addEventListener('click', () => { state.recMarks = state.recMarks.filter((x, j) => j !== i); renderRecMarks(); renderRecList(); renderRecHeader(); });
+      item.appendChild(num); item.appendChild(body); item.appendChild(sleepInput); item.appendChild(unit); item.appendChild(rm);
+      wrap.appendChild(item);
+    });
+  }
+  function captureClick(e) {
+    const box = e.currentTarget.getBoundingClientRect();
+    const px = Math.round(e.clientX - box.left);
+    const py = Math.round(e.clientY - box.top);
+    const ratioX = (px / box.width * 100).toFixed(1);
+    const ratioY = (py / box.height * 100).toFixed(1);
+    const absX = Math.round(px / box.width * state.screenW);
+    const absY = Math.round(py / box.height * state.screenH);
+    const now = Date.now();
+    const prev = state.recMarks[state.recMarks.length - 1];
+    const gap = prev ? Math.max(50, now - prev.at) : parseInt(state.recDefaultSleep, 10) || 300;
+    if (prev) prev.sleep = String(gap);
+    state.recMarks.push({ x: absX, y: absY, left: px, top: py, ratio: ratioX + '% · ' + ratioY + '%', sleep: state.recDefaultSleep, at: now });
+    renderRecMarks(); renderRecList(); renderRecHeader();
+  }
+  function finishRecording() {
+    clearInterval(recTimer);
+    const marks = state.recMarks;
+    if (!marks.length) { closeRecording(); showToast('기록된 동작이 없습니다', { type: 'info' }); return; }
+    state.steps = state.steps.concat(marks.map((m, i) => withDefaults({
+      label: '레코딩 클릭 ' + (i + 1), action: 'click', mode: 'coord',
+      selector: '', x: String(m.x), y: String(m.y), value: '',
+      sleep: parseInt(m.sleep, 10) || 300, manual: false,
+    })));
+    state.recOpen = false; state.recMarks = [];
+    $('mc-rec-overlay').hidden = true;
+    renderSteps(); renderStepMeta(); renderHeader();
+    showToast('클릭 ' + marks.length + '개를 단계로 추가했습니다', { type: 'success' });
+  }
+
+  // ---- 초기화 ----
+  function bindStatic() {
+    $('mc-url').addEventListener('input', e => { state.url = e.target.value; renderUrlHint(); renderHeader(); renderBottomBar(); });
+    $('mc-date-btn').addEventListener('click', toggleCalendar);
+    $('mc-guest-name').value = state.guestName;
+    $('mc-guest-name').addEventListener('input', e => { state.guestName = e.target.value; renderHeader(); renderBottomBar(); });
+    $('mc-guest-phone').value = state.guestPhone;
+    $('mc-guest-phone').addEventListener('input', e => { state.guestPhone = e.target.value; renderPhoneHint(); renderHeader(); renderBottomBar(); });
+    $('mc-start-clock').addEventListener('input', e => { state.startClock = e.target.value; renderPresetClocks(); renderHeader(); renderCountdown(); renderBottomBar(); });
+    $('mc-lead-ms').addEventListener('input', e => { state.leadMs = e.target.value; renderBottomBar(); });
+    $('mc-delay-sec').addEventListener('input', e => { state.delaySec = e.target.value; renderDelayOptions(); renderHeader(); renderCountdown(); renderBottomBar(); });
+    $('mc-add-step').addEventListener('click', () => {
+      state.steps.push(withDefaults({ label: '', action: 'click', mode: 'selector', selector: '', sleep: 300 }));
+      renderSteps(); renderStepMeta(); renderHeader();
+    });
+    $('mc-load-template').addEventListener('click', () => {
+      state.steps = templates[state.vendor].map(withDefaults);
+      renderSteps(); renderStepMeta(); renderHeader();
+      showToast(currentVendor().label + ' 기본 단계를 불러왔습니다', { type: 'success' });
+    });
+    $('mc-clear-steps').addEventListener('click', () => {
+      state.steps = [];
+      renderSteps(); renderStepMeta(); renderHeader();
+      showToast('모든 단계를 비웠습니다', { type: 'info' });
+    });
+    $('mc-dry-run').addEventListener('click', () => {
+      if (state.running) { stopRun('사용자가 실행을 중지했습니다'); showToast('실행을 중지했습니다', { type: 'info' }); }
+      else playRun('dry');
+    });
+    $('mc-clear-logs').addEventListener('click', () => {
+      state.logs = []; state.runStates = {}; state.runMode = ''; state.runIdx = -1;
+      renderLogs(); renderRunSummary(); renderFlow();
+    });
+    $('mc-start-recording').addEventListener('click', startRecording);
+    $('mc-rec-cancel').addEventListener('click', closeRecording);
+    $('mc-rec-undo').addEventListener('click', () => { state.recMarks = state.recMarks.slice(0, -1); renderRecMarks(); renderRecList(); renderRecHeader(); });
+    $('mc-rec-finish').addEventListener('click', finishRecording);
+    $('mc-rec-canvas').addEventListener('click', captureClick);
+    $('mc-rec-default-sleep-input').addEventListener('input', e => { state.recDefaultSleep = e.target.value; });
+    $('mc-save-config').addEventListener('click', saveConfig);
+    $('mc-start-btn').addEventListener('click', () => {
+      if (state.running) { stopRun('사용자가 실행을 중지했습니다'); showToast('매크로를 중지했습니다', { type: 'info' }); return; }
+      if (validationProblems().length) { showToast('아직 설정이 필요합니다: ' + validationProblems().join(', '), { type: 'error' }); return; }
+      playRun('live');
+    });
+    document.addEventListener('click', e => {
+      if (state.calOpen && !e.target.closest('.mc-date-wrap')) { state.calOpen = false; renderDateButton(); renderCalendar(); }
+    });
+  }
+
+  function renderAll() {
+    renderHeader();
+    renderVendorTabs();
+    syncUrlField();
+    renderDateButton();
+    renderCalendar();
+    renderPartyOptions();
+    renderPhoneHint();
+    renderTimeModeTabs();
+    $('mc-time-absolute').style.display = state.timeMode === 'absolute' ? 'grid' : 'none';
+    $('mc-time-relative').style.display = state.timeMode === 'relative' ? 'block' : 'none';
+    $('mc-start-clock').value = state.startClock;
+    $('mc-lead-ms').value = state.leadMs;
+    $('mc-delay-sec').value = state.delaySec;
+    renderPresetClocks();
+    renderDelayOptions();
+    renderCountdown();
+    renderStepMeta();
+    renderSteps();
+    renderDryRunBtn();
+    renderRunSummary();
+    renderFlow();
+    renderLogFilters();
+    renderLogs();
+    renderBottomBar();
+  }
+
+  loadSaved();
+  bindStatic();
+  renderAll();
+  setInterval(() => { if (!state.running) renderCountdown(); }, 1000);
 })();
 </script>
 {% endblock %}
