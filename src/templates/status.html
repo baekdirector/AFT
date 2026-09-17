@@ -1497,7 +1497,7 @@ document.addEventListener('DOMContentLoaded', function(){
   const Watch = (function () {
     let endpoint = null;          // 이 브라우저의 푸시 구독 주소
     let allWatches = [];          // 날짜 무관 전체 감시. 상한은 이것으로 센다.
-    let limit = 20;
+    let limit = 30;
     // 예전엔 "현재 조회 날짜의 감시 키" Set을 applyServerState 가 호출될
     // 때만 currentDate() 기준으로 미리 계산해 캐시해뒀다(watched 변수) -
     // 그런데 restore()는 페이지가 처음 열릴 때 한 번만 도는데, 그 시점의
