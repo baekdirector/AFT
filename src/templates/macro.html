@@ -1,0 +1,537 @@
+{% extends "base_design.html" %}
+{% block title %}예약 매크로{% endblock %}
+{% block content %}
+<style>
+  :root {
+    --ink: oklch(0.22 0.02 250);
+    --ink-soft: oklch(0.5 0.02 255);
+    --ink-softer: oklch(0.62 0.015 255);
+    --line: oklch(0.9 0.008 250);
+    --accent: oklch(0.55 0.14 245);
+    --accent-2: oklch(0.46 0.13 225);
+    --red: oklch(0.58 0.18 25);
+    --amber: oklch(0.68 0.15 70);
+  }
+  body { background: oklch(0.975 0.006 250); }
+  .macro-shell { max-width: 880px; margin: 0 auto; padding: 24px clamp(14px, 3vw, 28px) 80px; }
+  .macro-header { margin-bottom: 22px; }
+  .macro-header h1 { font-size: 20px; font-weight: 750; color: var(--ink); margin: 0 0 4px; letter-spacing: -0.2px; }
+  .macro-header p { font-size: 12.5px; color: var(--ink-soft); margin: 0; }
+  .macro-badge {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700;
+    color: var(--red); background: oklch(0.58 0.18 25 / 0.1); border-radius: 99px; padding: 3px 10px; margin-bottom: 10px;
+  }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 20px;
+    margin-bottom: 18px; box-shadow: 0 2px 10px oklch(0.2 0.02 255 / 0.04);
+  }
+  .card h2 { font-size: 14.5px; font-weight: 750; color: var(--ink); margin: 0 0 14px; display: flex; align-items: center; gap: 8px; }
+  .card h2 .step-no {
+    width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff;
+    font-size: 11.5px; display: inline-flex; align-items: center; justify-content: center; flex: none;
+  }
+  .field-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .field-row:last-child { margin-bottom: 0; }
+  .field-row label { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+  .field-row .hint { font-size: 11px; color: var(--ink-softer); font-weight: 500; }
+  input[type="text"], input[type="url"], input[type="date"], input[type="time"], input[type="tel"], input[type="number"], select {
+    width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    font-size: 13.5px; font-family: inherit; color: var(--ink); background: #fff;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px oklch(0.55 0.14 245 / 0.13); }
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+  @media (max-width: 560px) { .field-grid, .field-grid.three { grid-template-columns: 1fr; } }
+  .seg { display: inline-flex; background: oklch(0.95 0.006 250); border-radius: 10px; padding: 3px; gap: 2px; }
+  .seg button {
+    border: none; background: transparent; padding: 8px 16px; border-radius: 8px; font-size: 12.5px; font-weight: 700;
+    color: var(--ink-soft); cursor: pointer;
+  }
+  .seg button.active { background: #fff; color: var(--accent); box-shadow: 0 1px 4px oklch(0.2 0.02 255 / 0.12); }
+  .seg button:disabled { opacity: .45; cursor: not-allowed; }
+  .stepper { display: flex; align-items: center; gap: 10px; }
+  .stepper button {
+    width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line); background: #fff;
+    font-size: 16px; font-weight: 700; color: var(--accent); cursor: pointer;
+  }
+  .stepper span { font-size: 15px; font-weight: 750; color: var(--ink); min-width: 24px; text-align: center; }
+
+  /* 단계 편집기 */
+  .step-list { display: flex; flex-direction: column; gap: 10px; }
+  .step-card {
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: oklch(0.985 0.004 250);
+  }
+  .step-card.confirm { border-color: oklch(0.68 0.15 70 / 0.5); background: oklch(0.68 0.15 70 / 0.06); }
+  .step-top { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .step-order-btns { display: flex; flex-direction: column; gap: 2px; }
+  .step-order-btns button {
+    width: 20px; height: 16px; border: none; background: var(--line); border-radius: 4px; color: var(--ink-soft);
+    font-size: 9px; cursor: pointer; line-height: 1; display: flex; align-items: center; justify-content: center;
+  }
+  .step-index {
+    width: 24px; height: 24px; border-radius: 7px; background: var(--ink); color: #fff; font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex: none;
+  }
+  .step-manual-tag {
+    font-size: 10.5px; font-weight: 800; color: var(--amber); background: oklch(0.68 0.15 70 / 0.15);
+    padding: 2px 8px; border-radius: 99px; flex: none;
+  }
+  .step-del {
+    margin-left: auto; border: none; background: transparent; color: var(--ink-softer); cursor: pointer;
+    font-size: 16px; width: 26px; height: 26px; border-radius: 7px;
+  }
+  .step-del:hover { background: oklch(0.58 0.18 25 / 0.1); color: var(--red); }
+  .step-body { display: grid; grid-template-columns: 1fr 130px; gap: 8px; margin-bottom: 8px; }
+  @media (max-width: 560px) { .step-body { grid-template-columns: 1fr; } }
+  .step-detail-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .step-detail-row.coords { grid-template-columns: 90px 90px 1fr; }
+  .step-detail-row input, .step-detail-row select { font-size: 12.5px; padding: 8px 10px; }
+  .step-detail-row .coord-label { font-size: 10.5px; color: var(--ink-softer); font-weight: 700; padding: 8px 2px; }
+  .add-step-btn {
+    width: 100%; padding: 12px; border: 1.5px dashed var(--line); border-radius: 12px; background: transparent;
+    color: var(--accent); font-size: 12.5px; font-weight: 750; cursor: pointer; margin-top: 10px;
+  }
+  .add-step-btn:hover { border-color: var(--accent); background: oklch(0.55 0.14 245 / 0.05); }
+  .preset-btn {
+    border: 1px solid var(--line); background: #fff; color: var(--ink-soft); font-size: 11.5px; font-weight: 700;
+    padding: 7px 12px; border-radius: 9px; cursor: pointer;
+  }
+  .preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .approach-note {
+    font-size: 11.5px; color: var(--ink-soft); line-height: 1.6; background: oklch(0.55 0.14 245 / 0.06);
+    border-radius: 10px; padding: 10px 12px; margin-top: 12px;
+  }
+  .approach-note b { color: var(--accent-2); }
+
+  .start-bar {
+    position: sticky; bottom: 14px; display: flex; gap: 10px; align-items: center;
+    background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px;
+    box-shadow: 0 10px 30px oklch(0.2 0.02 255 / 0.14);
+  }
+  .start-bar .countdown { font-size: 13px; font-weight: 700; color: var(--ink-soft); flex: 1; }
+  .start-bar .countdown b { color: var(--accent-2); font-variant-numeric: tabular-nums; }
+  .start-btn {
+    border: none; border-radius: 12px; padding: 13px 22px; font-size: 14px; font-weight: 800; color: #fff;
+    background: linear-gradient(145deg, var(--accent), var(--accent-2)); cursor: pointer;
+  }
+  .start-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .stop-btn {
+    border: 1px solid var(--line); background: #fff; color: var(--ink-soft); border-radius: 12px;
+    padding: 13px 16px; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+</style>
+
+<div class="macro-shell">
+  <div class="macro-header">
+    <div class="macro-badge">🔒 관리자 전용 · URL 직접 접근</div>
+    <h1>선사 예약 매크로</h1>
+    <p>금어기 해제일처럼 예약 경쟁이 붙는 날, 지정한 시각에 예약 절차를 자동으로 밟기 위한 설정 화면입니다.</p>
+  </div>
+
+  <!-- 1. 대상 -->
+  <div class="card">
+    <h2><span class="step-no">1</span>예약 대상</h2>
+    <div class="field-row">
+      <label>플랫폼</label>
+      <div class="seg" id="platform-seg">
+        <button type="button" data-platform="sunsang24" class="active">선상24</button>
+        <button type="button" data-platform="thefishing" disabled title="다음 단계에서 지원 예정">더피싱 (준비중)</button>
+      </div>
+    </div>
+    <div class="field-row">
+      <label>선사 예약 페이지 URL</label>
+      <input type="url" id="f-url" placeholder="https://redhunter.sunsang24.com/ship/schedule_fleet">
+    </div>
+    <div class="field-grid">
+      <div class="field-row">
+        <label>예약 날짜</label>
+        <input type="date" id="f-date">
+      </div>
+      <div class="field-row">
+        <label>예약 인원</label>
+        <div class="stepper">
+          <button type="button" id="f-headcount-minus">−</button>
+          <span id="f-headcount-display">1</span>
+          <button type="button" id="f-headcount-plus">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 예약자 정보 -->
+  <div class="card">
+    <h2><span class="step-no">2</span>예약자 정보</h2>
+    <div class="field-grid">
+      <div class="field-row">
+        <label>예약자명</label>
+        <input type="text" id="f-name" placeholder="홍길동">
+      </div>
+      <div class="field-row">
+        <label>휴대전화</label>
+        <input type="tel" id="f-phone" placeholder="010-0000-0000">
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 실행 시각 -->
+  <div class="card">
+    <h2><span class="step-no">3</span>실행 시각</h2>
+    <div class="field-row">
+      <div class="seg" id="schedule-seg">
+        <button type="button" data-mode="absolute" class="active">지정 시각(한국시간)</button>
+        <button type="button" data-mode="relative">상대 시간(테스트용)</button>
+      </div>
+    </div>
+    <div id="schedule-absolute" class="field-grid">
+      <div class="field-row">
+        <label>날짜</label>
+        <input type="date" id="f-sched-date">
+      </div>
+      <div class="field-row">
+        <label>시각 (예: 17:00:00)</label>
+        <input type="text" id="f-sched-time" placeholder="17:00:00" value="17:00:00">
+      </div>
+    </div>
+    <div id="schedule-relative" class="field-row" style="display:none;">
+      <label>지금부터 몇 초 뒤</label>
+      <input type="number" id="f-sched-relative" value="10" min="1">
+      <span class="hint">테스트용 - 예: 5초 뒤, 10초 뒤로 전체 흐름을 미리 확인할 때</span>
+    </div>
+  </div>
+
+  <!-- 4. 단계 편집기 -->
+  <div class="card">
+    <h2><span class="step-no">4</span>매크로 단계</h2>
+    <div class="approach-note">
+      각 단계는 <b>선택자(추천)</b> 또는 <b>좌표(x, y)</b> 중 하나로 동작 지점을 지정합니다. 화면 요소를 구조로 찾는
+      <b>선택자 방식이 더 안정적</b>입니다 - 좌표는 창 크기·해상도·스크롤 위치가 조금만 달라져도 어긋나기 때문에,
+      선택자로 찾기 애매한 경우의 보조 수단으로만 권장합니다. 마지막 "예약하기" 단계는 실제 결제·예약이 확정되는
+      지점이라 <b>사람이 마지막으로 확인 후 직접 누르는 것</b>을 기본값으로 뒀습니다.
+    </div>
+    <div class="step-list" id="step-list"></div>
+    <button type="button" class="add-step-btn" id="add-step-btn">+ 단계 추가</button>
+    <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button type="button" class="preset-btn" id="load-preset-btn">레드히어로(선상24) 예시 흐름 불러오기</button>
+      <button type="button" class="preset-btn" id="clear-steps-btn">단계 전체 지우기</button>
+    </div>
+  </div>
+
+  <div class="start-bar">
+    <div class="countdown" id="countdown-label">설정을 채우고 저장하세요</div>
+    <button type="button" class="stop-btn" id="save-btn">저장</button>
+    <button type="button" class="start-btn" id="start-btn">매크로 준비 시작</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const STORAGE_KEY = 'aft_macro_config_v1';
+  const STEP_TYPES = [
+    { value: 'navigate', label: '이동(페이지 열기)' },
+    { value: 'click', label: '클릭' },
+    { value: 'type', label: '텍스트 입력' },
+    { value: 'wait', label: '대기/확인' },
+    { value: 'popup', label: '팝업 감지' },
+    { value: 'confirm', label: '최종 확인(사람이 직접 클릭)' },
+  ];
+
+  function uid() { return 's' + Math.random().toString(36).slice(2, 9); }
+
+  function defaultState() {
+    return {
+      platform: 'sunsang24',
+      url: '',
+      date: '',
+      headcount: 1,
+      name: '',
+      phone: '',
+      scheduleMode: 'absolute',
+      schedDate: '',
+      schedTime: '17:00:00',
+      relativeSeconds: 10,
+      steps: [],
+    };
+  }
+
+  // status.html/watches.html 의 subscribeWithName()과 같은 이유로, 이 화면도
+  // 새로고침해도 입력이 안 날아가게 localStorage에 즉시 저장한다(아직 서버
+  // 저장은 없음 - 화면 설계 단계라 클라이언트에만 둔다).
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return defaultState();
+      return { ...defaultState(), ...JSON.parse(raw) };
+    } catch (e) {
+      return defaultState();
+    }
+  }
+
+  function save() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function redhunterPreset() {
+    return [
+      { id: uid(), type: 'navigate', label: '예약 페이지 접속', selector: '', x: null, y: null, value: '{{url}}' },
+      { id: uid(), type: 'click', label: '상단 달력에서 예약 날짜 클릭', selector: '달력의 {{date}} 날짜 셀', x: null, y: null, value: '' },
+      { id: uid(), type: 'click', label: '"바로예약" 버튼 클릭', selector: '해당 배 행의 "바로예약" 버튼', x: null, y: null, value: '' },
+      { id: uid(), type: 'popup', label: '예약 팝업(새 창) 감지 - mypage/reservation_ready/*', selector: '', x: null, y: null, value: '' },
+      { id: uid(), type: 'click', label: `인원수 "+" 버튼 {{headcount}}회 클릭`, selector: '인원선택 + 버튼', x: null, y: null, value: '' },
+      { id: uid(), type: 'type', label: '예약자명 입력', selector: '예약자명 입력창', x: null, y: null, value: '{{name}}' },
+      { id: uid(), type: 'type', label: '휴대전화 입력', selector: '휴대전화 입력창', x: null, y: null, value: '{{phone}}' },
+      { id: uid(), type: 'click', label: '전체동의 체크', selector: '전체동의 체크박스', x: null, y: null, value: '' },
+      { id: uid(), type: 'confirm', label: '"예약하기" 버튼 - 최종 결제/확정, 직접 확인 후 클릭', selector: '예약하기 버튼', x: null, y: null, value: '' },
+    ];
+  }
+
+  let state = load();
+  let countdownTimer = null;
+
+  // ---- 필드 바인딩 ----
+  const $ = (id) => document.getElementById(id);
+
+  function renderFields() {
+    $('f-url').value = state.url;
+    $('f-date').value = state.date;
+    $('f-headcount-display').textContent = state.headcount;
+    $('f-name').value = state.name;
+    $('f-phone').value = state.phone;
+    $('f-sched-date').value = state.schedDate;
+    $('f-sched-time').value = state.schedTime;
+    $('f-sched-relative').value = state.relativeSeconds;
+
+    document.querySelectorAll('#platform-seg button').forEach(b => {
+      b.classList.toggle('active', b.dataset.platform === state.platform);
+    });
+    document.querySelectorAll('#schedule-seg button').forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === state.scheduleMode);
+    });
+    $('schedule-absolute').style.display = state.scheduleMode === 'absolute' ? 'grid' : 'none';
+    $('schedule-relative').style.display = state.scheduleMode === 'relative' ? 'flex' : 'none';
+  }
+
+  $('f-url').addEventListener('input', (e) => { state.url = e.target.value; save(); });
+  $('f-date').addEventListener('input', (e) => { state.date = e.target.value; save(); });
+  $('f-name').addEventListener('input', (e) => { state.name = e.target.value; save(); });
+  $('f-phone').addEventListener('input', (e) => { state.phone = e.target.value; save(); });
+  $('f-sched-date').addEventListener('input', (e) => { state.schedDate = e.target.value; save(); });
+  $('f-sched-time').addEventListener('input', (e) => { state.schedTime = e.target.value; save(); });
+  $('f-sched-relative').addEventListener('input', (e) => { state.relativeSeconds = parseInt(e.target.value, 10) || 1; save(); });
+
+  $('f-headcount-minus').addEventListener('click', () => {
+    state.headcount = Math.max(1, state.headcount - 1);
+    renderFields(); save();
+  });
+  $('f-headcount-plus').addEventListener('click', () => {
+    state.headcount = Math.min(9, state.headcount + 1);
+    renderFields(); save();
+  });
+
+  document.querySelectorAll('#platform-seg button').forEach(b => {
+    b.addEventListener('click', () => {
+      if (b.disabled) return;
+      state.platform = b.dataset.platform;
+      renderFields(); save();
+    });
+  });
+  document.querySelectorAll('#schedule-seg button').forEach(b => {
+    b.addEventListener('click', () => {
+      state.scheduleMode = b.dataset.mode;
+      renderFields(); save();
+    });
+  });
+
+  // ---- 단계 편집기 ----
+  function stepTypeOptions(selected) {
+    return STEP_TYPES.map(t => `<option value="${t.value}" ${t.value === selected ? 'selected' : ''}>${t.label}</option>`).join('');
+  }
+
+  function renderSteps() {
+    const list = $('step-list');
+    list.innerHTML = '';
+    state.steps.forEach((step, idx) => {
+      const card = document.createElement('div');
+      card.className = 'step-card' + (step.type === 'confirm' ? ' confirm' : '');
+
+      const top = document.createElement('div');
+      top.className = 'step-top';
+      top.innerHTML = `
+        <div class="step-order-btns">
+          <button type="button" data-act="up" ${idx === 0 ? 'disabled' : ''}>▲</button>
+          <button type="button" data-act="down" ${idx === state.steps.length - 1 ? 'disabled' : ''}>▼</button>
+        </div>
+        <div class="step-index">${idx + 1}</div>
+        ${step.type === 'confirm' ? '<span class="step-manual-tag">사람이 직접 클릭</span>' : ''}
+        <button type="button" class="step-del" title="이 단계 삭제">✕</button>
+      `;
+      top.querySelector('[data-act="up"]').addEventListener('click', () => {
+        if (idx === 0) return;
+        [state.steps[idx - 1], state.steps[idx]] = [state.steps[idx], state.steps[idx - 1]];
+        renderSteps(); save();
+      });
+      top.querySelector('[data-act="down"]').addEventListener('click', () => {
+        if (idx === state.steps.length - 1) return;
+        [state.steps[idx + 1], state.steps[idx]] = [state.steps[idx], state.steps[idx + 1]];
+        renderSteps(); save();
+      });
+      top.querySelector('.step-del').addEventListener('click', () => {
+        state.steps.splice(idx, 1);
+        renderSteps(); save();
+      });
+      card.appendChild(top);
+
+      const body = document.createElement('div');
+      body.className = 'step-body';
+      const labelInput = document.createElement('input');
+      labelInput.type = 'text';
+      labelInput.placeholder = '이 단계가 뭘 하는지 (예: 바로예약 버튼 클릭)';
+      labelInput.value = step.label || '';
+      labelInput.addEventListener('input', (e) => { step.label = e.target.value; save(); });
+      const typeSelect = document.createElement('select');
+      typeSelect.innerHTML = stepTypeOptions(step.type);
+      typeSelect.addEventListener('change', (e) => { step.type = e.target.value; renderSteps(); save(); });
+      body.appendChild(labelInput);
+      body.appendChild(typeSelect);
+      card.appendChild(body);
+
+      const detail = document.createElement('div');
+      detail.className = 'step-detail-row' + (step.type === 'click' ? ' coords' : '');
+      if (step.type === 'click') {
+        const xInput = document.createElement('input');
+        xInput.type = 'number'; xInput.placeholder = 'x(좌표, 보조)'; xInput.value = step.x ?? '';
+        xInput.addEventListener('input', (e) => { step.x = e.target.value === '' ? null : Number(e.target.value); save(); });
+        const yInput = document.createElement('input');
+        yInput.type = 'number'; yInput.placeholder = 'y(좌표, 보조)'; yInput.value = step.y ?? '';
+        yInput.addEventListener('input', (e) => { step.y = e.target.value === '' ? null : Number(e.target.value); save(); });
+        const selInput = document.createElement('input');
+        selInput.type = 'text'; selInput.placeholder = '선택자(추천) - 예: "바로예약" 버튼';
+        selInput.value = step.selector || '';
+        selInput.addEventListener('input', (e) => { step.selector = e.target.value; save(); });
+        detail.appendChild(xInput); detail.appendChild(yInput); detail.appendChild(selInput);
+      } else if (step.type === 'type') {
+        const selInput = document.createElement('input');
+        selInput.type = 'text'; selInput.placeholder = '선택자 - 예: 예약자명 입력창';
+        selInput.value = step.selector || '';
+        selInput.addEventListener('input', (e) => { step.selector = e.target.value; save(); });
+        const valInput = document.createElement('input');
+        valInput.type = 'text'; valInput.placeholder = '입력할 값 - {{name}} / {{phone}} 등 사용 가능';
+        valInput.value = step.value || '';
+        valInput.addEventListener('input', (e) => { step.value = e.target.value; save(); });
+        detail.appendChild(selInput); detail.appendChild(valInput);
+      } else if (step.type === 'navigate') {
+        const valInput = document.createElement('input');
+        valInput.type = 'text'; valInput.placeholder = 'URL - {{url}} 사용 가능';
+        valInput.value = step.value || '';
+        valInput.style.gridColumn = '1 / -1';
+        valInput.addEventListener('input', (e) => { step.value = e.target.value; save(); });
+        detail.appendChild(valInput);
+      } else {
+        const selInput = document.createElement('input');
+        selInput.type = 'text'; selInput.placeholder = '선택자 / 설명(선택)';
+        selInput.value = step.selector || '';
+        selInput.style.gridColumn = '1 / -1';
+        selInput.addEventListener('input', (e) => { step.selector = e.target.value; save(); });
+        detail.appendChild(selInput);
+      }
+      card.appendChild(detail);
+      list.appendChild(card);
+    });
+  }
+
+  $('add-step-btn').addEventListener('click', () => {
+    state.steps.push({ id: uid(), type: 'click', label: '', selector: '', x: null, y: null, value: '' });
+    renderSteps(); save();
+  });
+  $('load-preset-btn').addEventListener('click', async () => {
+    if (state.steps.length) {
+      const ok = await showConfirm('지금 단계 목록을 지우고 레드히어로(선상24) 예시로 바꿀까요?', { confirmText: '바꾸기', cancelText: '취소' });
+      if (!ok) return;
+    }
+    state.steps = redhunterPreset();
+    if (!state.url) state.url = 'https://redhunter.sunsang24.com/ship/schedule_fleet';
+    renderFields(); renderSteps(); save();
+    showToast('레드히어로 예시 흐름을 불러왔습니다.', { type: 'success' });
+  });
+  $('clear-steps-btn').addEventListener('click', async () => {
+    if (!state.steps.length) return;
+    const ok = await showConfirm('단계를 전부 지울까요?', { confirmText: '지우기', cancelText: '취소' });
+    if (!ok) return;
+    state.steps = [];
+    renderSteps(); save();
+  });
+
+  // ---- 저장 / 시작 ----
+  function validate() {
+    const problems = [];
+    if (!state.url) problems.push('선사 예약 페이지 URL');
+    if (!state.date) problems.push('예약 날짜');
+    if (!state.name) problems.push('예약자명');
+    if (!state.phone) problems.push('휴대전화');
+    if (!state.steps.length) problems.push('매크로 단계(최소 1개)');
+    return problems;
+  }
+
+  $('save-btn').addEventListener('click', () => {
+    save();
+    showToast('설정을 저장했습니다.', { type: 'success' });
+  });
+
+  function computeTargetTime() {
+    if (state.scheduleMode === 'relative') {
+      return new Date(Date.now() + Math.max(1, state.relativeSeconds) * 1000);
+    }
+    // 지정 시각(한국시간) - 이 브라우저 자체가 한국시간 기준이라고 가정한다.
+    const dateStr = state.schedDate || new Date().toISOString().slice(0, 10);
+    const timeStr = (state.schedTime || '17:00:00').padEnd(8, ':00').slice(0, 8);
+    return new Date(`${dateStr}T${timeStr}`);
+  }
+
+  $('start-btn').addEventListener('click', async () => {
+    const problems = validate();
+    if (problems.length) {
+      showToast('아직 안 채운 항목이 있습니다: ' + problems.join(', '), { type: 'error' });
+      return;
+    }
+    save();
+    const target = computeTargetTime();
+    if (isNaN(target.getTime())) {
+      showToast('실행 시각을 확인해주세요.', { type: 'error' });
+      return;
+    }
+    const ok = await showConfirm(
+      `${target.toLocaleString('ko-KR')}에 매크로를 준비합니다.\n실제 예약 실행 엔진은 아직 없어서, 이번엔 카운트다운까지만 보여줍니다.`,
+      { confirmText: '진행', cancelText: '취소' }
+    );
+    if (!ok) return;
+    runCountdown(target);
+  });
+
+  function runCountdown(target) {
+    if (countdownTimer) clearInterval(countdownTimer);
+    const label = $('countdown-label');
+    const startBtn = $('start-btn');
+    startBtn.disabled = true;
+    countdownTimer = setInterval(() => {
+      const diffMs = target.getTime() - Date.now();
+      if (diffMs <= 0) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+        label.innerHTML = '⏱ 실행 시각 도달 - <b>실행 엔진은 다음 단계에서 연결됩니다</b>';
+        startBtn.disabled = false;
+        showToast('실행 시각이 됐습니다. 실제 클릭 자동화는 아직 연결 전입니다.', { type: 'info', duration: 6000 });
+        return;
+      }
+      const totalSec = Math.ceil(diffMs / 1000);
+      const h = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+      const m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+      const s = String(totalSec % 60).padStart(2, '0');
+      label.innerHTML = `실행까지 <b>${h}:${m}:${s}</b> 남음`;
+    }, 250);
+  }
+
+  renderFields();
+  renderSteps();
+})();
+</script>
+{% endblock %}

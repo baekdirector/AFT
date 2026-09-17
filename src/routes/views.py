@@ -1476,6 +1476,24 @@ def offline_page():
     return render_template('offline.html')
 
 
+@views.route('/macro')
+def macro_page():
+    """선사 예약 자동화("매크로") 설정 화면. GNB 어디에도 링크를 두지 않는다
+    (/admin 과 같은 이유 - "URL을 아는 사람만"). /admin 로그인 세션을 그대로
+    재사용한다 - 실제 예약자 이름·전화번호·자동 클릭 좌표 같은 민감한 설정을
+    다루는 화면이라 별도 로그인 폼을 새로 만드는 대신 이미 있는 보호막을
+    그대로 쓴다.
+
+    이번 단계는 화면(설정 UI)만이다 - 실제로 브라우저를 띄워 클릭을
+    실행하는 엔진은 아직 없다. "시작" 버튼은 설정을 저장하고 예약 시각까지
+    카운트다운을 보여주는 데까지만 한다(사용자와 합의한 범위 - 실행 엔진은
+    별도로 설계·구현하기로 함)."""
+    if not session.get('admin_authed'):
+        flash('매크로 설정 화면은 관리자 로그인이 필요합니다.', 'warning')
+        return redirect(url_for('views.admin_page'))
+    return render_template('macro.html')
+
+
 @views.route('/admin', methods=['GET', 'POST'])
 def admin_page():
     """URL을 아는 사람만(로그인 후) 볼 수 있는 접속 이력 표. GNB 어디에도
