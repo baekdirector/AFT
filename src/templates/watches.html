@@ -602,17 +602,29 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const reg = await navigator.serviceWorker.ready;
         let sub = await reg.pushManager.getSubscription();
+        let createdNewSubscription = false;
         if (!sub) {
           sub = await reg.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: urlBase64ToUint8Array(info.public_key)
           });
+          createdNewSubscription = true;
         }
-        endpoint = sub.endpoint;
         const deviceId = await getOrCreateDeviceId();
 
         const body = await subscribeWithName(sub, deviceId);
-        if (!body) return;   // 이름 입력을 취소했다 - 조용히 중단(버튼은 finally에서 원복)
+        if (!body) {
+          // status.html의 enable()과 같은 이유 - 방금 새로 만든 구독인데
+          // 이름 입력을 취소했다면 되돌려야 한다. 안 그러면 서버는 이
+          // 사람을 모르는데 브라우저에만 구독이 남아서, 다음에 페이지를
+          // 열 때 restore()가 "이미 켜져 있다"고 착각해 이름도 없이
+          // 조용히 등록해버린다.
+          if (createdNewSubscription) {
+            try { await sub.unsubscribe(); } catch (e) { /* 무시 */ }
+          }
+          return;
+        }
+        endpoint = sub.endpoint;
 
         limit = body.limit || limit;
         watches = body.watches || [];

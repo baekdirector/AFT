@@ -1857,17 +1857,30 @@ document.addEventListener('DOMContentLoaded', function(){
 
         const reg = await navigator.serviceWorker.ready;
         let sub = await reg.pushManager.getSubscription();
+        let createdNewSubscription = false;
         if (!sub) {
           sub = await reg.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: urlBase64ToUint8Array(info.public_key)
           });
+          createdNewSubscription = true;
         }
-        endpoint = sub.endpoint;
         const deviceId = await getOrCreateDeviceId();
 
         const body = await subscribeWithName(sub, deviceId);
-        if (!body) return;   // 이름 입력을 취소했다 - 조용히 중단(버튼은 finally에서 원복)
+        if (!body) {
+          // 이름 입력을 취소했다. 방금 새로 만든 구독이면(원래 없던 걸 이번에
+          // 만든 것) 반드시 되돌려야 한다 - 안 그러면 서버는 이 사람을 전혀
+          // 모르는데 브라우저에만 살아있는 구독이 남아서, 다음에 페이지를
+          // 열 때 restore()가 그걸 보고 "이미 켜져 있다"고 착각해 이름도
+          // 없이 조용히 등록해버린다(실측 버그 - 취소했는데 새로고침하면
+          // 켜진 것처럼 보임).
+          if (createdNewSubscription) {
+            try { await sub.unsubscribe(); } catch (e) { /* 무시 - 최선은 다했다 */ }
+          }
+          return;
+        }
+        endpoint = sub.endpoint;
 
         applyServerState(body);
         setButtonOn(true);   // 성공 - 버튼 텍스트를 "알림 켜짐"으로 바꾼다
