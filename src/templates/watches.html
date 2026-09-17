@@ -537,11 +537,14 @@ document.addEventListener('DOMContentLoaded', function () {
     // 복제) - 알림 이름(label)을 물어보고, 이미 다른 기기가 쓰는 이름이면
     // 확인 후에만 그 자리를 이어받는다.
     async function subscribeWithName(sub, deviceId) {
-      let label = (localStorage.getItem('aft_notify_name') || '').trim();
-      label = (window.prompt(
-        '향후 알림 관리를 위해 알림 이름을 등록해주세요\n(예: 백알림, baek1)',
-        label
-      ) || '').trim();
+      // showPrompt/showConfirm(base_design.html) - 브라우저 기본
+      // prompt()/confirm()은 새 디자인과 이질적이라 쓰지 않는다(사용자
+      // 지적: "알림 팝업/다이얼로그는 항상 지금 룩앤필에 맞게").
+      let label = await showPrompt('향후 알림 관리를 위해\n알림 이름을 등록해주세요', {
+        placeholder: '예: 백알림, baek1',
+        defaultValue: localStorage.getItem('aft_notify_name') || '',
+        confirmText: '등록',
+      });
       if (!label) return null;
 
       let confirmTakeover = false;
@@ -557,11 +560,15 @@ document.addEventListener('DOMContentLoaded', function () {
           return body;
         }
         if (body.error_code === 'NAME_TAKEN') {
-          const mine = window.confirm(
-            `"${label}"은(는) 이미 등록된 이름입니다.\n본인이 맞으면 [확인]을 눌러 계속 진행하세요.\n(다른 사람이면 [취소] 후 다른 이름을 입력해주세요)`
+          const mine = await showConfirm(
+            `"${label}"은(는) 이미 등록된 이름입니다.\n본인이 맞으면 계속 진행해주세요.`,
+            { confirmText: '계속 진행', cancelText: '다른 이름 사용' }
           );
           if (mine) { confirmTakeover = true; continue; }
-          label = (window.prompt('다른 알림 이름을 입력해주세요\n(예: 백알림, baek1)', '') || '').trim();
+          label = await showPrompt('다른 알림 이름을 입력해주세요', {
+            placeholder: '예: 백알림, baek1',
+            confirmText: '등록',
+          });
           if (!label) return null;
           confirmTakeover = false;
           continue;

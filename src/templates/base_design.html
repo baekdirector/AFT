@@ -99,6 +99,15 @@
     }
     .aft-confirm-btn.ok.danger { background: linear-gradient(145deg, oklch(0.6 0.18 25), oklch(0.52 0.17 22)); }
     .aft-confirm-btn.ok:hover { filter: brightness(1.06); }
+    .aft-prompt-input {
+      display: block; width: 100%; box-sizing: border-box; margin: -6px 0 16px;
+      padding: 11px 13px; border-radius: 12px; border: 1px solid oklch(0.88 0.01 250);
+      font-size: 14px; font-family: inherit; color: var(--ink, oklch(0.24 0.02 255));
+    }
+    .aft-prompt-input:focus {
+      outline: none; border-color: var(--accent, oklch(0.55 0.14 245));
+      box-shadow: 0 0 0 3px oklch(0.55 0.14 245 / 0.15);
+    }
   </style>
   {% block extra_head %}{% endblock %}
 </head>
@@ -183,6 +192,60 @@ function showConfirm(message, opts) {
     overlay.addEventListener('click', function (e) { if (e.target === overlay) close(false); });
     document.body.appendChild(overlay);
     okBtn.focus();
+  });
+}
+
+// showConfirm과 같은 이유(브라우저 기본 prompt()는 새 디자인과 이질적이고
+// 포커스를 완전히 뺏어간다) - 텍스트 한 줄을 받아야 할 때(예: 알림 이름
+// 등록) 쓴다. 취소하거나 빈 값으로 확인하면 null을 돌려준다(prompt()의
+// 취소와 같은 의미로 통일 - 호출부가 `if (!label) return;` 식으로 그대로
+// 쓸 수 있게).
+function showPrompt(message, opts) {
+  opts = opts || {};
+  return new Promise(function (resolve) {
+    const overlay = document.createElement('div');
+    overlay.id = 'aft-confirm-overlay';
+    const box = document.createElement('div');
+    box.className = 'aft-confirm-box';
+    const msgEl = document.createElement('div');
+    msgEl.className = 'aft-confirm-msg';
+    msgEl.textContent = message;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'aft-prompt-input';
+    input.placeholder = opts.placeholder || '';
+    input.value = opts.defaultValue || '';
+    input.maxLength = opts.maxLength || 40;
+    const actions = document.createElement('div');
+    actions.className = 'aft-confirm-actions';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'aft-confirm-btn cancel';
+    cancelBtn.textContent = opts.cancelText || '취소';
+    const okBtn = document.createElement('button');
+    okBtn.type = 'button';
+    okBtn.className = 'aft-confirm-btn ok';
+    okBtn.textContent = opts.confirmText || '확인';
+    actions.appendChild(cancelBtn);
+    actions.appendChild(okBtn);
+    box.appendChild(msgEl);
+    box.appendChild(input);
+    box.appendChild(actions);
+    overlay.appendChild(box);
+    function close(result) {
+      overlay.remove();
+      resolve(result);
+    }
+    function submit() { close(input.value.trim() || null); }
+    cancelBtn.addEventListener('click', () => close(null));
+    okBtn.addEventListener('click', submit);
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); submit(); }
+      if (e.key === 'Escape') close(null);
+    });
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(null); });
+    document.body.appendChild(overlay);
+    input.focus();
   });
 }
 
