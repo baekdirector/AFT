@@ -1784,6 +1784,47 @@ document.addEventListener('DOMContentLoaded', function(){
       }
     }
 
+    // 알림 이름(label)을 물어보고 서버에 등록한다 - device_id마저 사라지는
+    // 경우(기기를 통째로 바꾸거나 앱 데이터를 초기화)의 마지막 인계 수단이다
+    // (사용자 결정 - 계정 로그인 대신 "한 번에 한 기기만" 방식의 가벼운 인계
+    // 장치, watch_service.upsert_subscriber의 NameTakenError 참고).
+    // 이름이 이미 다른 기기에 등록돼 있으면 확인 후에만 그 자리를 이어받는다
+    // - 확인 없이 조용히 가로채면 동명이인/오타로 남의 감시를 볼 수 있다.
+    // null을 돌려주면 "사용자가 이름 입력을 취소했다"는 뜻이다(에러 아님).
+    async function subscribeWithName(sub, deviceId) {
+      let label = (localStorage.getItem('aft_notify_name') || '').trim();
+      label = (window.prompt(
+        '향후 알림 관리를 위해 알림 이름을 등록해주세요\n(예: 백알림, baek1)',
+        label
+      ) || '').trim();
+      if (!label) return null;
+
+      let confirmTakeover = false;
+      for (;;) {
+        const resp = await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...sub.toJSON(), device_id: deviceId, label, confirm_takeover: confirmTakeover })
+        });
+        const body = await resp.json();
+        if (resp.ok) {
+          localStorage.setItem('aft_notify_name', label);
+          return body;
+        }
+        if (body.error_code === 'NAME_TAKEN') {
+          const mine = window.confirm(
+            `"${label}"은(는) 이미 등록된 이름입니다.\n본인이 맞으면 [확인]을 눌러 계속 진행하세요.\n(다른 사람이면 [취소] 후 다른 이름을 입력해주세요)`
+          );
+          if (mine) { confirmTakeover = true; continue; }
+          label = (window.prompt('다른 알림 이름을 입력해주세요\n(예: 백알림, baek1)', '') || '').trim();
+          if (!label) return null;
+          confirmTakeover = false;
+          continue;
+        }
+        throw new Error(body.error || '알림 등록에 실패했습니다.');
+      }
+    }
+
     async function enable() {
       // 권한 요청·서비스워커 대기·서버 왕복까지 몇 단계가 이어져서 눈에 띄게
       // 걸릴 수 있는데, 이전엔 그동안 버튼이 아무 반응 없이 가만히 있다가
@@ -1818,11 +1859,8 @@ document.addEventListener('DOMContentLoaded', function(){
         endpoint = sub.endpoint;
         const deviceId = await getOrCreateDeviceId();
 
-        const body = await (await fetch('/api/push/subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...sub.toJSON(), device_id: deviceId })
-        })).json();
+        const body = await subscribeWithName(sub, deviceId);
+        if (!body) return;   // 이름 입력을 취소했다 - 조용히 중단(버튼은 finally에서 원복)
 
         applyServerState(body);
         setButtonOn(true);   // 성공 - 버튼 텍스트를 "알림 켜짐"으로 바꾼다

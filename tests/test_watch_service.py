@@ -9,6 +9,7 @@ import pytest
 from db import add_boat_instance
 from models import MAX_WATCHES_PER_SUBSCRIBER, Subscriber, Watch
 from services.watch_service import (
+    NameTakenError,
     WatchLimitExceeded,
     active_watch_targets,
     add_watch,
@@ -101,6 +102,69 @@ def test_upsert_subscriber_without_device_id_still_matches_by_endpoint(app):
 
         assert a.id == b.id
         assert Subscriber.query.count() == 1
+
+
+# --- 알림 이름(label) 기반 인계 ----------------------------------------------
+# device_id마저 사라지는 경우(기기 자체를 바꾸거나 앱 데이터를 초기화)의
+# 마지막 수단 - 사람이 직접 기억하는 이름으로 기존 감시를 이어받는다.
+
+def test_upsert_subscriber_with_new_name_just_creates(app):
+    """처음 쓰는 이름이면 그냥 평소처럼 새로 만든다 - 충돌이 없다."""
+    with app.app_context():
+        sub = upsert_subscriber('https://push.example/a', 'k', 'a', label='백알림')
+        assert sub.label == '백알림'
+        assert Subscriber.query.count() == 1
+
+
+def test_upsert_subscriber_raises_when_name_taken_by_another_device(app):
+    """다른 기기(다른 endpoint, 다른 device_id)가 이미 쓰는 이름으로 새
+    기기가 구독하려 하면, 확인 없이는 조용히 가로채지 않는다."""
+    with app.app_context():
+        upsert_subscriber('https://push.example/phone', 'k1', 'a1',
+                          label='백알림', device_id='dev-phone')
+
+        with pytest.raises(NameTakenError):
+            upsert_subscriber('https://push.example/pc', 'k2', 'a2',
+                              label='백알림', device_id='dev-pc')
+
+        # 확인 전이므로 아무 것도 바뀌지 않아야 한다 - 새 행도, 덮어쓰기도 없다.
+        assert Subscriber.query.count() == 1
+        assert Subscriber.query.filter_by(endpoint='https://push.example/phone').one_or_none() is not None
+
+
+def test_upsert_subscriber_confirm_takeover_migrates_to_new_device(app):
+    """확인(confirm_takeover=True) 후에는 그 이름의 기존 행을 새 기기로
+    옮긴다 - subscriber_id가 그대로라 감시가 안 끊긴다. 폰이 죽어서 PC로
+    이어받는 시나리오."""
+    with app.app_context():
+        boat = add_boat_instance(name='배1호', url='https://b1.example/x',
+                                 city='인천', port='남항(인천항)', note='', is_shared=False)
+        phone = upsert_subscriber('https://push.example/phone', 'k1', 'a1',
+                                  label='백알림', device_id='dev-phone')
+        add_watch(phone, boat.id, '1호', DATE)
+
+        pc = upsert_subscriber('https://push.example/pc', 'k2', 'a2',
+                               label='백알림', device_id='dev-pc',
+                               confirm_takeover=True)
+
+        assert pc.id == phone.id, '같은 이름을 확인하고 넘겨받으면 새 행이 아니라 그 행이어야 한다'
+        assert Subscriber.query.count() == 1
+        assert pc.endpoint == 'https://push.example/pc'
+        assert pc.device_id == 'dev-pc'
+        assert [w.ship_name for w in list_watches(pc)] == ['1호'], '기존 감시가 그대로 이어져야 한다'
+
+        # 예전 폰 endpoint로는 더 이상 못 찾는다 - 자리를 옮겼기 때문이다.
+        assert Subscriber.query.filter_by(endpoint='https://push.example/phone').one_or_none() is None
+
+
+def test_upsert_subscriber_name_match_is_case_insensitive(app):
+    """오타/대소문자 차이로 같은 사람이 다른 사람 취급되지 않게 대소문자
+    구분 없이 비교한다."""
+    with app.app_context():
+        upsert_subscriber('https://push.example/a', 'k1', 'a1', label='Baek1')
+
+        with pytest.raises(NameTakenError):
+            upsert_subscriber('https://push.example/b', 'k2', 'a2', label='baek1')
 
 
 # --- 상한 ------------------------------------------------------------------

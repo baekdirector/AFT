@@ -3,9 +3,14 @@
 
 /status 결과 표의 체크박스가 여기를 호출한다.
 
-사람을 식별하는 수단은 브라우저 푸시 구독 endpoint 하나뿐이다(로그인 없음).
+사람을 식별하는 기본 수단은 브라우저 푸시 구독 endpoint다(로그인 없음).
 그래서 모든 요청이 endpoint 를 함께 보내고, 서버는 그것으로 Subscriber 를 찾는다.
-친구 5명 규모에서 계정 체계를 만드는 것은 과설계다.
+친구 5명 규모에서 계정 체계(비밀번호 로그인)를 만드는 것은 과설계라 안 만들었지만,
+기기가 통째로 바뀌면(새 폰, 앱 데이터 초기화) endpoint도 device_id도 같이
+사라져 알아볼 방법이 없다 - 그 마지막 수단으로 사용자가 직접 정하는 알림
+이름(label)을 조회 키로도 쓴다(watch_service.upsert_subscriber의
+NameTakenError 처리 참고). 진짜 계정은 아니고, "한 번에 한 기기만 그
+이름으로 활성"인 가벼운 인계 장치다.
 """
 import hmac
 import os
@@ -19,6 +24,7 @@ from services import visit_logger
 from services.http_helpers import no_store_response as _no_store
 from services.notify import webpush
 from services.watch_service import (
+    NameTakenError,
     WatchLimitExceeded,
     add_watch,
     check_log_history,
@@ -98,7 +104,11 @@ def push_public_key():
 
 @watch_views.route('/api/push/subscribe', methods=['POST'])
 def push_subscribe():
-    """브라우저 푸시 구독을 저장한다. 같은 endpoint 면 갱신한다."""
+    """브라우저 푸시 구독을 저장한다. 같은 endpoint 면 갱신한다.
+
+    label(알림 이름)이 이미 다른 기기에 등록돼 있으면 confirm_takeover
+    없이는 409(NAME_TAKEN)를 돌려준다 - 프론트가 "본인이 맞으면 계속
+    진행" 확인창을 보여준 뒤에만 confirm_takeover:true 로 재시도한다."""
     data = request.get_json(silent=True) or {}
     keys = data.get('keys') or {}
     ua = (request.headers.get('User-Agent') or '')[:500]
@@ -112,7 +122,10 @@ def push_subscribe():
             device_type=visit_logger.device_type(ua),
             user_agent=ua,
             device_id=data.get('device_id'),
+            confirm_takeover=bool(data.get('confirm_takeover')),
         )
+    except NameTakenError as exc:
+        return jsonify({'error': str(exc), 'error_code': 'NAME_TAKEN'}), 409
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
 

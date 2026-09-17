@@ -21,13 +21,35 @@ class WatchLimitExceeded(Exception):
         super().__init__(f'감시는 최대 {limit}척까지 등록할 수 있습니다.')
 
 
+class NameTakenError(Exception):
+    """알림 이름(label)이 이미 다른 기기에 등록돼 있다.
+
+    사용자 확인 없이 조용히 가로채면(동명이인이거나 오타로 남의 감시
+    목록을 이어받는 사고) 위험하므로, 프론트가 "본인이 맞으면 계속
+    진행" 확인창을 보여준 뒤에만 confirm_takeover=True 로 재시도하게
+    한다(사용자 결정 - PIN/계정 로그인 대신 이름 하나로 기기를 옮겨
+    다니되, 충돌은 확인을 한 번 거친다).
+    """
+
+    def __init__(self, label: str):
+        self.label = label
+        super().__init__(f'"{label}"은(는) 이미 등록된 이름입니다.')
+
+
 def upsert_subscriber(endpoint: str, p256dh: str, auth: str,
                       label: str | None = None, ip: str | None = None,
                       device_type: str | None = None,
                       user_agent: str | None = None,
-                      device_id: str | None = None) -> Subscriber:
+                      device_id: str | None = None,
+                      confirm_takeover: bool = False) -> Subscriber:
     """푸시 구독을 저장한다. 같은 endpoint 면 갱신하고, endpoint 가 조용히
     바뀌었어도 device_id 가 같으면 같은 기기로 보고 endpoint 만 갈아끼운다.
+    이 기기가 처음 보는 endpoint/device_id인데 label(알림 이름)이 이미
+    다른 기기에 등록돼 있으면, confirm_takeover 없이는 NameTakenError를
+    던진다 - 있으면 그 자리를 이 기기로 옮긴다("한 번에 한 기기만 살아있는"
+    방식 - PC/폰을 번갈아 쓰되 이름 하나로 감시를 이어받는다. 동시에 여러
+    기기가 알림을 받게 하려면 Subscriber:기기를 1:N으로 바꾸는 별도 작업이
+    필요하다 - 지금은 그 규모까지는 필요 없다는 사용자 결정).
 
     브라우저는 구독을 조용히 갱신(rotate)할 수 있으므로 원래는 endpoint 를
     키로 두고 upsert 했다. 그런데 endpoint 자체가 서버 모르게 바뀌는 경우
@@ -39,7 +61,10 @@ def upsert_subscriber(endpoint: str, p256dh: str, auth: str,
     보이는데 정작 그 기기 화면은 "알림 꺼짐"으로 보였다. device_id 는
     페이지 스크립트가 최초 구독 시 IndexedDB에 발급해두는 값이라 endpoint가
     바뀌어도 그대로다 - 이걸로 "같은 기기"를 찾아 endpoint/키만 갱신하면
-    subscriber_id 가 그대로라 감시가 안 끊긴다.
+    subscriber_id 가 그대로라 감시가 안 끊긴다. device_id 는 기기(브라우저)가
+    바뀌면(예: 폰을 새로 사거나 앱 데이터를 지운 경우) 같이 사라져서 못
+    알아본다 - label(사람이 직접 정한 알림 이름)은 그 경우에도 사람이 기억해
+    다시 입력할 수 있는 마지막 수단이다.
     """
     if not endpoint or not p256dh or not auth:
         raise ValueError('구독 정보가 불완전합니다.')
@@ -47,6 +72,14 @@ def upsert_subscriber(endpoint: str, p256dh: str, auth: str,
     sub = Subscriber.query.filter_by(endpoint=endpoint).one_or_none()
     if sub is None and device_id:
         sub = Subscriber.query.filter_by(device_id=device_id).one_or_none()
+
+    if sub is None and label and label.strip():
+        name = label.strip()
+        named = Subscriber.query.filter(db.func.lower(Subscriber.label) == name.lower()).one_or_none()
+        if named is not None:
+            if not confirm_takeover:
+                raise NameTakenError(name)
+            sub = named
 
     if sub is None:
         sub = Subscriber(endpoint=endpoint, p256dh=p256dh, auth=auth, label=label, device_id=device_id)

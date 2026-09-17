@@ -95,6 +95,49 @@ def test_subscribe_with_rotated_endpoint_keeps_watches_via_device_id(client, boa
     assert second['watches'][0]['ship_name'] == '1호'
 
 
+def test_subscribe_with_taken_name_returns_409_without_confirm(client, boats):
+    """device_id마저 사라진 새 기기(예: 폰을 새로 삼)가 이미 쓰이는 이름으로
+    구독하려 하면, 확인 없이는 409(NAME_TAKEN)를 돌려주고 아무 것도 바꾸지
+    않는다."""
+    client.post('/api/push/subscribe', json=dict(
+        SUB_BODY, device_id='dev-phone', label='백알림'))
+    client.post('/api/watches', json={
+        'endpoint': EP, 'boat_id': boats[0], 'ship_name': '1호', 'target_date': DATE})
+
+    rv = client.post('/api/push/subscribe', json={
+        'endpoint': 'https://push.example/new-phone',
+        'keys': {'p256dh': 'k2', 'auth': 'a2'},
+        'label': '백알림', 'device_id': 'dev-new-phone',
+    })
+
+    assert rv.status_code == 409
+    assert rv.get_json()['error_code'] == 'NAME_TAKEN'
+    # 확인 전이므로 원래 구독자의 감시는 그대로 살아있어야 한다.
+    watches = client.get('/api/watches?endpoint=' + EP).get_json()['watches']
+    assert len(watches) == 1
+
+
+def test_subscribe_with_taken_name_and_confirm_takeover_migrates(client, boats):
+    """확인 후(confirm_takeover) 재시도하면 그 이름의 기존 감시를 새 기기가
+    이어받는다 - 폰이 죽어서 새 폰/PC로 넘어가는 시나리오."""
+    client.post('/api/push/subscribe', json=dict(
+        SUB_BODY, device_id='dev-phone', label='백알림'))
+    client.post('/api/watches', json={
+        'endpoint': EP, 'boat_id': boats[0], 'ship_name': '1호', 'target_date': DATE})
+
+    rv = client.post('/api/push/subscribe', json={
+        'endpoint': 'https://push.example/new-phone',
+        'keys': {'p256dh': 'k2', 'auth': 'a2'},
+        'label': '백알림', 'device_id': 'dev-new-phone',
+        'confirm_takeover': True,
+    })
+
+    assert rv.status_code == 200
+    body = rv.get_json()
+    assert len(body['watches']) == 1
+    assert body['watches'][0]['ship_name'] == '1호'
+
+
 # --- 알림 끄기(전체 해제) ----------------------------------------------------
 
 def test_unsubscribe_deactivates_all_watches(client, boats):
