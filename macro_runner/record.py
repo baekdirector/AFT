@@ -152,6 +152,9 @@ _VIEWER_HTML = """<!doctype html>
   .btn-ghost{background:#333c4d;color:#eee;}
   .btn-rec-active{background:#e2554f;color:#fff;opacity:1;cursor:default;}
   .btn-quit{position:fixed;top:10px;right:10px;background:#3a4152;color:#bbb;font-size:11px;padding:5px 9px;z-index:5;}
+  .seg{display:flex;gap:2px;background:#151922;border-radius:8px;padding:2px;}
+  .seg-btn{background:transparent;color:#9ba5b8;padding:6px 10px;border-radius:6px;}
+  .seg-btn.active{background:#3a4152;color:#fff;}
   .hint{font-size:10.5px;color:#8b93a3;width:100%;}
   .step{display:flex;gap:8px;background:#262b35;border-radius:8px;padding:9px 11px;margin-bottom:7px;border-left:3px solid transparent;}
   .step.current{border-left-color:#4f9bff;background:#2b3245;}
@@ -183,9 +186,14 @@ _VIEWER_HTML = """<!doctype html>
   <h1 id="title">기록된 단계 (0개)</h1>
 
   <div class="bar" id="testBar">
+    <div class="seg">
+      <button type="button" class="seg-btn active" id="modeAutoBtn">한 번에 쭉</button>
+      <button type="button" class="seg-btn" id="modeStepBtn">한 단계씩</button>
+    </div>
     <span class="hint" style="width:auto;">지연(ms)</span>
     <input type="number" id="delayInput" value="300" min="0" step="50">
     <button type="button" class="btn-primary" id="replayBtn">▶ 테스트 재생</button>
+    <button type="button" class="btn-primary" id="replayNextBtn" hidden>다음 단계 ▶</button>
     <button type="button" class="btn-danger" id="replayStopBtn" hidden>⏸ 재생 중지</button>
   </div>
 
@@ -235,10 +243,16 @@ function renderBars(data) {
   document.getElementById('saveBtn').disabled = !hasSteps || replaying;
   document.getElementById('clearBtn').disabled = !named || replaying;
 
+  const replayKind = data.replay && data.replay.kind;
+  const isStepReplay = replaying && replayKind === 'step';
   document.getElementById('delayInput').disabled = replaying || !hasSteps;
+  document.getElementById('modeAutoBtn').disabled = replaying;
+  document.getElementById('modeStepBtn').disabled = replaying;
   document.getElementById('replayBtn').hidden = replaying;
   document.getElementById('replayBtn').disabled = !hasSteps;
+  document.getElementById('replayNextBtn').hidden = !isStepReplay;
   document.getElementById('replayStopBtn').hidden = !replaying;
+  document.getElementById('replayStopBtn').textContent = isStepReplay ? '■ 종료' : '⏸ 재생 중지';
 }
 
 function renderSteps(data) {
@@ -285,10 +299,23 @@ document.getElementById('stopBtn').addEventListener('click', function () { post(
 document.getElementById('undoBtn').addEventListener('click', function () { post('/undo'); });
 document.getElementById('saveBtn').addEventListener('click', function () { post('/save'); });
 document.getElementById('clearBtn').addEventListener('click', function () { post('/clear'); });
+
+let replayMode = 'auto';
+document.getElementById('modeAutoBtn').addEventListener('click', function () {
+  replayMode = 'auto';
+  this.classList.add('active');
+  document.getElementById('modeStepBtn').classList.remove('active');
+});
+document.getElementById('modeStepBtn').addEventListener('click', function () {
+  replayMode = 'step';
+  this.classList.add('active');
+  document.getElementById('modeAutoBtn').classList.remove('active');
+});
 document.getElementById('replayBtn').addEventListener('click', function () {
   const delay = parseInt(document.getElementById('delayInput').value, 10) || 0;
-  post('/replay', { delayMs: delay });
+  post('/replay', { delayMs: delay, mode: replayMode });
 });
+document.getElementById('replayNextBtn').addEventListener('click', function () { post('/replay-next'); });
 document.getElementById('replayStopBtn').addEventListener('click', function () { post('/replay-stop'); });
 document.getElementById('quitBtn').addEventListener('click', function () {
   // 네이티브 confirm() 대신 - 종료해도 이름이 정해져 있으면 지금까지
@@ -483,6 +510,13 @@ class Session:
         self.quit_event = threading.Event()
         self.replay_current = -1
         self.replay_statuses = None
+        # "한 단계씩" 재생 도중 상태 - 여러 /replay-next 요청에 걸쳐
+        # 이어가야 하므로 Session에 보관한다(요청마다 새로 만들면 팝업
+        # 전환 등으로 바뀐 self.page를 잃어버린다).
+        self.replay_kind = None
+        self.replay_runner = None
+        self.replay_steps = None
+        self.replay_index = -1
         self._write_state()
 
     def _write_state(self):
@@ -494,6 +528,7 @@ class Session:
                 'current': self.replay_current,
                 'total': len(self.recorder.steps),
                 'statuses': self.replay_statuses,
+                'kind': self.replay_kind,
             },
         }
         tmp = self.state_path + '.tmp'
@@ -544,18 +579,15 @@ class Session:
         self._write_state()
 
 
-def run_replay(session, main_page, context, url, delay_ms):
-    """오른쪽 창의 "▶ 테스트 재생"이 큐에 넣은 요청을 메인 스레드에서
-    실제로 실행한다 - engine.py의 Runner를 그대로 재사용한다(새로
-    만들지 않음). Runner.run()을 그대로 쓰지 않고 직접 루프를 도는
-    이유: 단계 사이마다 중지 요청을 확인해야 하고, 기록된 sleep 대신
-    사용자가 오른쪽 창에서 정한 지연시간으로 재생해야 하기 때문이다."""
-    steps = session.recorder.steps
-    if not steps:
-        return
+def _prepare_replay(session, main_page, context, url, kind):
+    """"▶ 테스트 재생"을 누른 시점에 한 번만 하는 준비 작업 - 이전
+    재생이 남긴 팝업 정리, 페이지를 새로 불러오기(run.py의 실전 실행과
+    똑같이 매번 깨끗한 상태에서 시작), engine.py의 Runner 생성. 이
+    Runner를 Session에 보관해 두어야 "한 단계씩" 모드에서 여러 번의
+    /replay-next 요청에 걸쳐 같은 실행 상태(팝업 전환으로 바뀐
+    self.page 등)를 이어갈 수 있다."""
+    steps = list(session.recorder.steps)
 
-    # 이전 테스트 재생이 열어 둔 팝업이 남아있으면 정리한다 - 안 그러면
-    # 다시 누를 때마다 팝업 창이 계속 쌓인다.
     for page, role in list(session.recorder.page_roles.items()):
         if role == 'popup' and page != main_page:
             try:
@@ -567,36 +599,87 @@ def run_replay(session, main_page, context, url, delay_ms):
 
     session.mode = 'replaying'
     session.recorder.enabled = False
+    session.replay_kind = kind
     session.replay_current = -1
     session.replay_statuses = ['대기'] * len(steps)
     session._write_state()
 
-    # run.py가 실전 실행 시 하는 것과 똑같이, 매번 깨끗한 상태에서
-    # 시작한다 - 이전 테스트 재생이 남긴 입력값 등이 다음 테스트에
-    # 영향을 주지 않게 한다.
     main_page.goto(url)
-    runner = Runner({'steps': steps}, main_page, context)
+    session.replay_steps = steps
+    session.replay_runner = Runner({'steps': steps}, main_page, context)
+    session.replay_index = -1
 
-    for i, step in enumerate(steps):
-        if session.replay_stop.is_set():
-            break
-        session.replay_current = i
-        session.replay_statuses[i] = '진행'
+
+def _finish_replay(session):
+    session.mode = 'stopped'
+    session.replay_runner = None
+    session.replay_steps = None
+    session.replay_index = -1
+    session._write_state()
+
+
+def _execute_replay_step(session):
+    """다음 단계를 하나 실행한다 - engine.py의 Runner._execute()를
+    그대로 재사용한다(새로 만들지 않음). 더 실행할 단계가 없거나
+    오류가 나면 재생을 마무리하고 False를 돌려준다."""
+    idx = session.replay_index + 1
+    steps = session.replay_steps
+    if idx >= len(steps):
+        _finish_replay(session)
+        return False
+    session.replay_index = idx
+    session.replay_current = idx
+    session.replay_statuses[idx] = '진행'
+    session._write_state()
+    is_last = (idx == len(steps) - 1)
+    try:
+        session.replay_runner._execute(steps[idx])
+    except Exception as e:
+        session.replay_statuses[idx] = '오류: {}'.format(e)
         session._write_state()
-        try:
-            runner._execute(step)
-        except Exception as e:
-            session.replay_statuses[i] = '오류: {}'.format(e)
-            session._write_state()
-            print('  → 재생 오류({}단계): {}'.format(i + 1, e), flush=True)
-            break
-        else:
-            session.replay_statuses[i] = '완료'
-            session._write_state()
+        print('  → 재생 오류({}단계): {}'.format(idx + 1, e), flush=True)
+        _finish_replay(session)
+        return False
+    session.replay_statuses[idx] = '완료'
+    if is_last:
+        # 마지막 단계까지 실행했으면 "한 단계씩" 모드에서 의미 없는
+        # 확인용 클릭을 한 번 더 요구하지 않고 바로 종료한다 - auto
+        # 모드 루프도 여기서 그대로 멈춘다(False를 돌려주므로).
+        _finish_replay(session)
+        return False
+    session._write_state()
+    return True
+
+
+def run_replay_auto(session, main_page, context, url, delay_ms):
+    """"한 번에 쭉" - 단계 사이마다 지정한 지연시간만큼 쉬면서 끝까지
+    자동으로 실행한다. 사용자가 정한 지연시간을 반영하기 위해(기록된
+    sleep을 그대로 쓰지 않음) 직접 루프를 돈다."""
+    if not session.recorder.steps:
+        return
+    _prepare_replay(session, main_page, context, url, 'auto')
+    while True:
+        if session.replay_stop.is_set():
+            _finish_replay(session)
+            return
+        if not _execute_replay_step(session):
+            return
         time.sleep(delay_ms / 1000)
 
-    session.mode = 'stopped'
-    session._write_state()
+
+def run_replay_step_start(session, main_page, context, url):
+    """"한 단계씩" 시작 - 첫 단계만 바로 실행하고 멈춘다. 이후는
+    /replay-next가 한 단계씩 이어간다."""
+    if not session.recorder.steps:
+        return
+    _prepare_replay(session, main_page, context, url, 'step')
+    _execute_replay_step(session)
+
+
+def run_replay_step_next(session):
+    if session.mode != 'replaying' or session.replay_runner is None:
+        return
+    _execute_replay_step(session)
 
 
 def _start_control_server(viewer_dir, session, url):
@@ -660,12 +743,26 @@ def _start_control_server(viewer_dir, session, url):
                 # 메인 스레드가 처리한다(콜백 스레드 안에서 Playwright API
                 # 호출 금지 원칙과 같은 이유).
                 session.replay_stop.clear()
-                delay_ms = int(body.get('delayMs') or 300)
-                session.replay_queue.put(delay_ms)
+                if (body.get('mode') or 'auto') == 'step':
+                    session.replay_queue.put({'kind': 'step-start'})
+                else:
+                    session.replay_queue.put({'kind': 'auto', 'delayMs': int(body.get('delayMs') or 300)})
+                return self._reply(200, {'ok': True})
+
+            if self.path == '/replay-next':
+                if session.mode != 'replaying' or session.replay_kind != 'step':
+                    return self._reply(400, {'ok': False})
+                session.replay_queue.put({'kind': 'step-next'})
                 return self._reply(200, {'ok': True})
 
             if self.path == '/replay-stop':
                 session.replay_stop.set()
+                # "한 단계씩" 모드는 단계 사이에 대기 루프가 없으므로
+                # (각 단계가 별도 HTTP 요청으로만 진행된다) 이 자리에서
+                # 바로 끝내야 한다 - Playwright 호출 없이 상태만
+                # 바꾸는 것이라 핸들러 스레드에서 해도 안전하다.
+                if session.mode == 'replaying' and session.replay_kind == 'step':
+                    _finish_replay(session)
                 return self._reply(200, {'ok': True})
 
             if self.path == '/quit':
@@ -735,10 +832,16 @@ def main():
         while not session.quit_event.is_set():
             main_page.wait_for_timeout(200)
             try:
-                delay_ms = session.replay_queue.get_nowait()
+                cmd = session.replay_queue.get_nowait()
             except queue.Empty:
                 continue
-            run_replay(session, main_page, record_context, args.url, delay_ms)
+            kind = cmd.get('kind')
+            if kind == 'auto':
+                run_replay_auto(session, main_page, record_context, args.url, cmd.get('delayMs') or 300)
+            elif kind == 'step-start':
+                run_replay_step_start(session, main_page, record_context, args.url)
+            elif kind == 'step-next':
+                run_replay_step_next(session)
 
         # 아직 저장 안 한 녹화 중 상태로 종료하는 경우를 대비해 마지막으로
         # 한 번 더 저장해 둔다(이름이 정해져 있을 때만).
