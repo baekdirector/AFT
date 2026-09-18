@@ -3,7 +3,7 @@ import io
 import os
 import openpyxl
 from datetime import date, datetime, timedelta, timezone
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, Response, stream_with_context, session
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, Response, stream_with_context, session, abort
 from flask import send_from_directory
 from forms import BoatRegistrationForm, StatusCheckForm, BoatEditForm, AdminLoginForm
 from db import add_boat_instance, get_all_boats, delete_boat, get_boat_by_id, update_boat, upsert_port_coordinate
@@ -1492,6 +1492,26 @@ def macro_page():
         flash('매크로 설정 화면은 관리자 로그인이 필요합니다.', 'warning')
         return redirect(url_for('views.admin_page'))
     return render_template('macro.html')
+
+
+_MACRO_MOCK_FILES = {'mock_list.html', 'mock_popup.html'}
+
+
+@views.route('/macro/mock/<name>')
+def macro_mock_page(name):
+    """/macro "웹 리허설(목업)" 전용 - 실제 선사 사이트 대신 같은
+    도메인에서 제공하는 레드히어로 구조 목업이다(macro_runner/fixtures와
+    소스 공유 - macro_runner --stepwise 로 이미 검증한 것과 같은 파일).
+    같은 도메인이라 /macro 의 JS가 이 안에서 진짜로 Tab 이동·클릭·입력·
+    팝업 전환을 실행할 수 있다(cross-origin iframe이면 동일 출처
+    정책 때문에 절대 불가능 - 그래서 실제 선사 사이트는 여기서 못
+    다루고, 로컬 macro_runner만 최종 확인을 담당한다)."""
+    if not session.get('admin_authed'):
+        abort(404)
+    if name not in _MACRO_MOCK_FILES:
+        abort(404)
+    mock_dir = os.path.join(current_app.root_path, '..', 'macro_runner', 'fixtures')
+    return send_from_directory(mock_dir, name)
 
 
 @views.route('/admin', methods=['GET', 'POST'])

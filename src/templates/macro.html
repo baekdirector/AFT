@@ -142,6 +142,7 @@
   .mc-run-mode-chip.done { color: oklch(0.36 0.09 172); background: oklch(0.95 0.032 168); }
   .mc-dryrun-btn { flex: none; height: 34px; padding: 0 14px; border-radius: 10px; border: none; font-size: 12px; font-weight: 740; cursor: pointer; white-space: nowrap; background: oklch(0.24 0.02 250); color: #fff; }
   .mc-dryrun-btn.stop { background: oklch(0.55 0.19 25); }
+  .mc-dryrun-btn:disabled { background: oklch(0.9 0.006 250); color: oklch(0.65 0.012 250); cursor: not-allowed; }
   .mc-clear-logs-btn { flex: none; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 12px; font-weight: 700; color: oklch(0.46 0.02 250); cursor: pointer; white-space: nowrap; }
   .mc-clear-logs-btn:hover { border-color: oklch(0.8 0.02 240); }
 
@@ -366,7 +367,7 @@
 
       <div class="mc-info-box">
         <span style="font-size:13px; flex:none;">💡</span>
-        <div class="txt">각 단계는 <b>선택자</b>, <b>좌표(x, y)</b>, <b>Tab 이동</b> 중 하나로 동작 지점을 지정합니다. 선상24 팝업처럼 <b>뜨는 위치가 매번 달라지는 새 창</b>에는 좌표가 안 맞을 수 있는데, 이때는 <b>Tab 이동</b>이 강력합니다 — 팝업이 열린 자리에서 Tab을 정해진 횟수만큼 눌러 포커스를 옮기고, 그 위치에서 클릭/입력을 실행하므로 팝업 위치와 무관하게 항상 같은 필드에 도달합니다. 좌표는 <b>레코딩으로 기록한 보조 수단</b>(레코딩 해상도와 실행 브라우저 창 크기가 정확히 같아야 어긋나지 않습니다)이고, 선택자는 페이지 구조가 안정적인 사이트에 적합합니다. <b>팝업 안 필드는 좌표로 기록할 수 없습니다</b>(브라우저 보안 정책상 새 창은 이 화면에서 들여다볼 수 없음) — 반드시 Tab 이동을 쓰세요. 마지막 <b>예약하기</b> 단계는 실제 결제가 확정되는 지점이라 사람이 직접 누르도록 기본 설정돼 있습니다.</div>
+        <div class="txt">각 단계는 <b>선택자</b>, <b>좌표(x, y)</b>, <b>Tab 이동</b> 중 하나로 동작 지점을 지정합니다. 선상24 팝업처럼 <b>뜨는 위치가 매번 달라지는 새 창</b>에는 좌표가 안 맞을 수 있는데, 이때는 <b>Tab 이동</b>이 강력합니다 — 팝업이 열린 자리에서 Tab을 정해진 횟수만큼 눌러 포커스를 옮기고, 그 위치에서 클릭/입력을 실행하므로 팝업 위치와 무관하게 항상 같은 필드에 도달합니다. 좌표는 <b>레코딩으로 기록한 보조 수단</b>(레코딩 해상도와 실행 브라우저 창 크기가 정확히 같아야 어긋나지 않습니다)이고, 선택자는 페이지 구조가 안정적인 사이트에 적합합니다. <b>팝업 안 필드는 좌표로 기록할 수 없습니다</b>(브라우저 보안 정책상 새 창은 이 화면에서 들여다볼 수 없음) — 반드시 Tab 이동을 쓰세요. 마지막 <b>예약하기</b> 단계는 실제 결제가 확정되는 지점이라 사람이 직접 누르도록 기본 설정돼 있습니다. 아래 5번 섹션의 <b>"웹 리허설(목업)"</b>을 누르면 선상24 구조를 재현한 같은 도메인 목업에서 이 단계들이 실제로(진짜 Tab 이동·클릭·입력·팝업 전환까지) 실행되는 걸 확인할 수 있습니다 — 다만 실제 선사 사이트가 아니라 목업 대상이라, 실제 사이트 최종 확인은 로컬 <b>macro_runner</b>(`--stepwise`)를 쓰세요.</div>
       </div>
 
       <div class="mc-step-list" id="mc-step-list"></div>
@@ -460,6 +461,36 @@
           <span style="margin-left:auto; font-size:10.5px; font-weight:600; color:oklch(0.6 0.015 250);">클릭 간격 자동 기록</span>
         </div>
         <div class="mc-rec-list" id="mc-rec-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 웹 리허설(목업) 오버레이 - 같은 도메인 목업(레드히어로 팝업 구조 재현,
+       macro_runner/fixtures와 소스 공유)을 대상으로 실제 Tab 이동·클릭·입력·
+       팝업 전환을 이 화면에서 직접 실행한다. 실제 선사 사이트(다른 도메인)는
+       동일 출처 정책 때문에 이 방식으로 절대 다룰 수 없다 - 실제 사이트
+       최종 확인은 로컬 macro_runner --stepwise 몫이다. -->
+  <div class="mc-rec-overlay" id="mc-webrun-overlay" hidden>
+    <div class="mc-rec-top">
+      <span class="mc-rec-badge" style="background:oklch(0.6 0.16 50);">🧪 웹 리허설(목업) <span id="mc-webrun-count"></span></span>
+      <div style="min-width:0; flex:1 1 200px;">
+        <div class="mc-rec-title">레드히어로 목업 대상입니다 - 실제 선사 사이트가 아닙니다</div>
+        <div class="mc-rec-sub">단계를 하나씩 실제로 실행합니다 · 실제 사이트 최종 확인은 로컬 macro_runner를 쓰세요</div>
+      </div>
+      <button type="button" class="mc-rec-topbtn mc-rec-cancel" id="mc-webrun-close">닫기</button>
+    </div>
+    <div class="mc-rec-body">
+      <div class="mc-rec-canvas-wrap" id="mc-webrun-canvas-wrap">
+        <div class="mc-rec-canvas" id="mc-webrun-canvas">
+          <iframe id="mc-webrun-iframe" class="mc-rec-iframe" style="pointer-events:auto;" title="웹 리허설(목업)"></iframe>
+        </div>
+      </div>
+      <div class="mc-rec-side">
+        <div class="mc-rec-side-head">
+          <span class="t">현재 단계</span>
+        </div>
+        <div id="mc-webrun-step-card"></div>
+        <button type="button" class="mc-start-btn ready" id="mc-webrun-next" style="width:100%; margin-top:auto;"></button>
       </div>
     </div>
   </div>
@@ -691,7 +722,7 @@
         state.vendor = v.key;
         state.url = v.sample;
         state.steps = templates[v.key].map(withDefaults);
-        renderVendorTabs(); syncUrlField(); renderSteps(); renderStepMeta(); renderHeader(); renderBottomBar();
+        renderVendorTabs(); syncUrlField(); renderSteps(); renderStepMeta(); renderHeader(); renderBottomBar(); renderDryRunBtn();
       });
       wrap.appendChild(btn);
     });
@@ -983,6 +1014,269 @@
     return '선택자 ' + (s.selector || '?');
   }
 
+  // ---- 웹 리허설(목업) - macro_runner/engine.py의 실행 규칙을 그대로
+  // JS로 이식했다. /macro/mock/mock_list.html은 AFT 서버 자신이 주는
+  // 같은 도메인 페이지라(macro_runner/fixtures와 소스 공유) 동일 출처
+  // 정책 제약이 없다 - 그래서 여기서는 iframe 안에서 진짜로 Tab
+  // 이동·클릭·입력·팝업 전환을 실행할 수 있다. 실제 선사 사이트(다른
+  // 도메인)는 이 방식으로 절대 다룰 수 없다 - 그건 macro_runner 몫이다.
+  let webrunSteps = [];
+  let webrunIdx = -1;
+  let webrunWin = null;
+
+  function webFocusableElements(doc) {
+    return Array.from(doc.querySelectorAll(
+      'a[href], button, input, textarea, select, [tabindex]:not([tabindex="-1"])'
+    )).filter(el => !el.disabled && el.offsetParent !== null);
+  }
+
+  // 실제 물리 Tab 키 입력만 브라우저의 포커스 순회를 유발한다(신뢰된
+  // 입력 전용 - 보안 제약). 합성 이벤트로는 안 되므로, 포커스 가능한
+  // 요소를 DOM 순서대로 나열해 N번째 다음 요소를 직접 focus()한다 -
+  // 표준적인 폼 구조라면 실제 Tab 순서와 결과가 같다.
+  function webTabTo(win, count) {
+    if (!win) return null;
+    const doc = win.document;
+    const els = webFocusableElements(doc);
+    const cur = els.indexOf(doc.activeElement);
+    const idx = Math.min(els.length - 1, Math.max(0, (cur < 0 ? -1 : cur) + count));
+    const next = els[idx];
+    if (next) next.focus();
+    return next || null;
+  }
+
+  function webClickFocused() {
+    const el = webrunWin && webrunWin.document.activeElement;
+    if (el && typeof el.click === 'function') { el.click(); return true; }
+    return false;
+  }
+
+  // 단계 편집기의 "선택자" 필드는 Playwright 문법(예: text=바로예약,
+  // .ship_list .available:first)을 그대로 쓰도록 안내하는데(선택자
+  // 입력창 placeholder도 그렇게 돼 있음), 브라우저 네이티브
+  // querySelector는 이 문법을 몰라서 SyntaxError를 던진다 - 이게
+  // 그대로 새어나가면 advanceWebrun() 중간에 끊겨서 이후 단계가
+  // 전혀 진행되지 않는다(실제로 겪은 버그). 그래서 여기서 항상
+  // try/catch로 감싸고, text=/​:first 정도는 최소한으로 흉내 낸다.
+  function webQuerySelector(doc, selector) {
+    const sel = String(selector || '').trim();
+    if (!sel) return null;
+    try {
+      if (sel.indexOf('text=') === 0) {
+        const needle = sel.slice(5).trim();
+        if (!needle) return null;
+        const all = doc.querySelectorAll('button, a, [role="button"], label, span, div, td, th, li');
+        let loose = null;
+        for (const el of all) {
+          const text = (el.textContent || '').trim();
+          if (!text) continue;
+          if (text === needle && el.children.length === 0) return el;
+          if (!loose && text === needle) loose = el;
+        }
+        return loose;
+      }
+      // Playwright의 :first/:last 정도만 남아 있어도 네이티브
+      // querySelector가 못 알아듣고 예외를 던지므로 미리 제거한다
+      // (querySelector/querySelectorAll[0]은 이미 DOM 순서상 첫
+      // 번째를 돌려주므로 :first는 원래도 군더더기다).
+      const cleaned = sel.replace(/:(first|last)\b/g, '');
+      return doc.querySelector(cleaned);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function webClickTarget(step) {
+    const mode = step.mode || 'selector';
+    if (!webrunWin) return false;
+    if (mode === 'coord') {
+      const el = webrunWin.document.elementFromPoint(parseInt(step.x, 10) || 0, parseInt(step.y, 10) || 0);
+      if (el) { el.click(); return true; }
+      return false;
+    }
+    if (mode === 'selector') {
+      const el = webQuerySelector(webrunWin.document, step.selector);
+      if (el) { el.click(); return true; }
+      return false;
+    }
+    return webClickFocused();
+  }
+
+  function webSetValue(el, value) {
+    if (!el) return false;
+    el.value = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  }
+
+  // engine.py의 Runner._execute()와 동일한 분기 - manual 단계는 여기서
+  // 다루지 않는다(advanceWebrun에서 실행 자체를 건너뛴다, Python 쪽과
+  // 동일한 동작).
+  function webExecuteStep(step) {
+    const action = step.action;
+
+    if (action === 'popup') {
+      if (!webrunWin) return '실패';
+      const realOpen = webrunWin.open.bind(webrunWin);
+      let captured = null;
+      webrunWin.open = function () { captured = realOpen.apply(null, arguments); return captured; };
+      const ok = webClickTarget(step);
+      webrunWin.open = realOpen;
+      if (captured) { webrunWin = captured; return ok ? '성공' : '실패'; }
+      return '실패';
+    }
+
+    const mode = step.mode || 'selector';
+    if (mode === 'tab') {
+      webTabTo(webrunWin, parseInt(step.tabCount, 10) || 1);
+    }
+
+    if (!action || action === 'none' || action === 'wait') return '성공';
+
+    if (action === 'click') {
+      return (mode === 'tab' ? webClickFocused() : webClickTarget(step)) ? '성공' : '실패';
+    }
+    if (action === 'clickTimes') {
+      const n = parseInt(resolveValue(step.value || '1'), 10) || 0;
+      let ok = n > 0;
+      for (let i = 0; i < Math.max(0, n); i++) {
+        ok = (mode === 'tab' ? webClickFocused() : webClickTarget(step)) && ok;
+      }
+      return ok ? '성공' : '실패';
+    }
+    if (action === 'input') {
+      const value = resolveValue(step.value || '');
+      const el = mode === 'tab' ? (webrunWin && webrunWin.document.activeElement)
+        : (webrunWin && webQuerySelector(webrunWin.document, step.selector));
+      return webSetValue(el, value) ? '성공' : '실패';
+    }
+    if (action === 'waitFor') {
+      return (webrunWin && webQuerySelector(webrunWin.document, step.selector)) ? '성공' : '실패';
+    }
+    return '성공';
+  }
+
+  function webrunAvailable() { return state.vendor === 'sunsang24'; }
+
+  function openWebrun() {
+    if (!webrunAvailable()) { showToast('선상24 목업만 지원합니다', { type: 'info' }); return; }
+    if (!state.steps.length) { showToast('매크로 단계를 먼저 추가해 주세요', { type: 'error' }); return; }
+
+    webrunSteps = state.steps.slice();
+    webrunIdx = 0;
+    webrunWin = null;
+
+    const states = {};
+    webrunSteps.forEach(s => { states[s.id] = '대기'; });
+    state.running = true; state.runMode = 'webrun'; state.runIdx = -1; state.runStates = states; state.runStart = Date.now();
+    state.logs = [{ time: clockNow(), tag: '시작', text: '웹 리허설(목업) 시작 · ' + webrunSteps.length + '단계', dur: '' }];
+    renderRunSummary(); renderFlow(); renderLogs(); renderBottomBar(); renderHeader(); renderDryRunBtn();
+
+    const canvas = $('mc-webrun-canvas');
+    canvas.style.width = (parseInt(state.recWidth, 10) || 1280) + 'px';
+    canvas.style.height = (parseInt(state.recHeight, 10) || 800) + 'px';
+    const iframe = $('mc-webrun-iframe');
+    iframe.onload = () => { webrunWin = iframe.contentWindow; };
+    iframe.src = '/macro/mock/mock_list.html';
+
+    $('mc-webrun-overlay').hidden = false;
+    renderWebrunPanel();
+  }
+
+  function closeWebrun(reason) {
+    if (state.running && state.runMode === 'webrun') stopRun(reason || null);
+    $('mc-webrun-overlay').hidden = true;
+    $('mc-webrun-iframe').src = 'about:blank';
+    webrunWin = null;
+  }
+
+  function advanceWebrun() {
+    const step = webrunSteps[webrunIdx];
+    if (!step) return;
+
+    state.runIdx = webrunIdx;
+    state.runStates = Object.assign({}, state.runStates, { [step.id]: '진행' });
+    addLog('진행', (webrunIdx + 1) + '. ' + (step.label || '(라벨 없음)') + ' — ' + describeStepTarget(step) +
+      (step.value ? ' · 값 ' + resolveValue(step.value) : ''));
+    renderFlow(); renderRunSummary();
+
+    // webExecuteStep은 실제 DOM(팝업 차단, 요소 이탈 등 예측 못한 상황
+    // 포함)을 다루므로, 여기서 던지는 예외를 절대 새어나가게 두지
+    // 않는다 - 한 번이라도 새어나가면 webrunIdx가 증가하지 못해 "다음"
+    // 버튼이 같은 단계에서 영원히 멈춰버린다(실제로 겪은 버그).
+    let result;
+    if (step.manual) {
+      result = '수동 대기';
+    } else {
+      try {
+        result = webExecuteStep(step);
+      } catch (e) {
+        result = '실패';
+      }
+    }
+    state.runStates = Object.assign({}, state.runStates, { [step.id]: result });
+    addLog(
+      result === '실패' ? '오류' : result === '수동 대기' ? '대기' : '완료',
+      (webrunIdx + 1) + '. ' + (step.label || '(라벨 없음)') + ' ' +
+        (result === '실패' ? '— 목업에서 동작 지점을 찾지 못했습니다'
+          : result === '수동 대기' ? '— 사람이 직접 확인 후 진행해야 합니다'
+          : '— 정상 처리'),
+      (parseInt(step.sleep, 10) || 0) + 'ms'
+    );
+    renderFlow(); renderRunSummary();
+
+    webrunIdx += 1;
+    renderWebrunPanel();
+  }
+
+  function renderWebrunPanel() {
+    $('mc-webrun-count').textContent = Math.min(webrunIdx + 1, webrunSteps.length) + ' / ' + webrunSteps.length;
+    const card = $('mc-webrun-step-card');
+    const nextBtn = $('mc-webrun-next');
+    card.innerHTML = '';
+
+    if (webrunIdx >= webrunSteps.length) {
+      const fails = Object.keys(state.runStates).filter(k => state.runStates[k] === '실패').length;
+      addLog(fails ? '오류' : '완료', fails ? ('흐름 종료 — 실패 ' + fails + '단계, 설정을 확인해 주세요') : '웹 리허설(목업) 정상 종료');
+      showToast(fails ? ('실패 ' + fails + '단계 — 로그를 확인해 주세요') : '웹 리허설을 모두 확인했습니다', { type: fails ? 'error' : 'success' });
+      stopRun(null);
+
+      const done = document.createElement('div');
+      done.style.cssText = 'text-align:center; padding:24px 10px; font-size:13px; font-weight:700; color:oklch(0.5 0.015 250);';
+      done.textContent = '모든 단계를 확인했습니다.';
+      card.appendChild(done);
+      nextBtn.textContent = '닫기';
+      return;
+    }
+
+    const step = webrunSteps[webrunIdx];
+    const act = actionDefs.find(a => a.value === step.action) || actionDefs[0];
+    const num = document.createElement('div');
+    num.style.cssText = 'font-size:11px; font-weight:800; color:oklch(0.55 0.015 250);';
+    num.textContent = (webrunIdx + 1) + ' / ' + webrunSteps.length + '단계';
+    const label = document.createElement('div');
+    label.style.cssText = 'font-size:14px; font-weight:790; margin-top:4px; letter-spacing:-0.3px;';
+    label.textContent = step.label || '(라벨 없음)';
+    const target = document.createElement('div');
+    target.style.cssText = 'font-size:12px; font-weight:640; color:oklch(0.5 0.015 250); margin-top:6px; font-family:ui-monospace, Menlo, monospace; word-break:break-all;';
+    target.textContent = describeStepTarget(step) + (act.needsValue && step.value ? ' → ' + resolveValue(step.value) : '');
+    card.appendChild(num); card.appendChild(label); card.appendChild(target);
+
+    if (step.manual) {
+      const banner = document.createElement('div');
+      banner.className = 'mc-manual-banner';
+      banner.style.marginTop = '10px';
+      const hand = document.createElement('span'); hand.textContent = '🖐';
+      const txt = document.createElement('span'); txt.className = 'txt'; txt.textContent = '목업 팝업에서 직접 확인 후 눌러보세요';
+      banner.appendChild(hand); banner.appendChild(txt);
+      card.appendChild(banner);
+      nextBtn.textContent = '확인함 → 다음';
+    } else {
+      nextBtn.textContent = '다음 단계 ▶';
+    }
+  }
+
   function playRun(mode) {
     if (!state.steps.length) { showToast('매크로 단계를 먼저 추가해 주세요', { type: 'error' }); return; }
     clearInterval(runTimer);
@@ -1046,8 +1340,16 @@
 
   function renderDryRunBtn() {
     const btn = $('mc-dry-run');
-    btn.className = 'mc-dryrun-btn' + (state.running ? ' stop' : '');
-    btn.textContent = state.running ? '■ 중지' : '▶ 테스트 실행 (확정 제외)';
+    const hasMock = state.vendor === 'sunsang24';
+    btn.className = 'mc-dryrun-btn' + (state.running && state.runMode === 'webrun' ? ' stop' : '');
+    if (state.running && state.runMode === 'webrun') {
+      btn.textContent = '■ 리허설 중';
+      btn.disabled = false;
+    } else {
+      btn.textContent = '▶ 웹 리허설(목업)';
+      btn.disabled = !hasMock;
+      btn.title = hasMock ? '' : '선상24 목업만 지원합니다';
+    }
   }
 
   function renderRunSummary() {
@@ -1317,9 +1619,14 @@
       showToast('모든 단계를 비웠습니다', { type: 'info' });
     });
     $('mc-dry-run').addEventListener('click', () => {
-      if (state.running) { stopRun('사용자가 실행을 중지했습니다'); showToast('실행을 중지했습니다', { type: 'info' }); }
-      else playRun('dry');
+      if (state.running && state.runMode === 'webrun') { closeWebrun('사용자가 리허설을 중지했습니다'); showToast('리허설을 중지했습니다', { type: 'info' }); }
+      else openWebrun();
     });
+    $('mc-webrun-next').addEventListener('click', () => {
+      if (webrunIdx >= webrunSteps.length) { closeWebrun(null); return; }
+      advanceWebrun();
+    });
+    $('mc-webrun-close').addEventListener('click', () => closeWebrun('사용자가 리허설을 닫았습니다'));
     $('mc-clear-logs').addEventListener('click', () => {
       state.logs = []; state.runStates = {}; state.runMode = ''; state.runIdx = -1;
       renderLogs(); renderRunSummary(); renderFlow();
