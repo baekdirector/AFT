@@ -22,10 +22,11 @@ Playwright로 연 실제 브라우저(뷰포트 1280x800)**를 사용자가 직�
     playwright install chromium
     python record.py --url https://chf.sunsang24.com/ship/schedule_fleet
 
-두 개의 실제 브라우저 창이 뜬다 - 하나는 1280x800의 "녹화 대상" 창
-(사용자가 직접 조작하는 진짜 브라우저), 다른 하나는 560x800의 "단계
-표시" 창(지금까지 기록된 단계를 실시간으로 보여줌). 다 끝나면 이
-스크립트를 실행한 터미널에서 Enter를 누르면 저장된다.
+두 개의 실제 브라우저 창이 뜬다 - 왼쪽은 1280x800의 "녹화 대상" 창
+(사용자가 직접 조작하는 진짜 브라우저), 오른쪽은 560x800의 "단계
+표시" 창(지금까지 기록된 단계를 실시간으로 보여줌). 다 끝나면 단계
+표시 창의 "⏹ 녹화 종료 · 저장" 버튼을 누르거나, 스크립트를 실행한
+터미널에서 Enter를 누르면 저장된다.
 
 구현 메모: 단계 표시 창은 Python(Playwright) 쪽에서 직접
 `page.set_content(...)`를 불러 갱신하지 않는다 - 이벤트 콜백
@@ -86,20 +87,31 @@ _RECORDER_INIT_SCRIPT = r"""
     return path.join(' > ');
   }
 
-  document.addEventListener('click', function (e) {
-    window.__aftRecordEvent({ type: 'click', x: e.clientX, y: e.clientY, selector: describeSelector(e.target) });
+  // document가 아니라 window에 붙인다 - 실제 선상24 팝업에서 클릭은
+  // 잡히는데 Tab/텍스트 입력만 하나도 안 잡히는 문제가 실측됐다. 많은
+  // 실사이트 팝업/모달은 포커스를 가두려고(포커스 트랩) 자기 스크립트
+  // 안에서 keydown을 capturing 단계로 듣고 stopPropagation을 부른다 -
+  // 그 리스너가 document에 붙어 있으면 document보다 늦게 실행되는
+  // 우리 리스너까지는 이벤트가 아예 안 내려온다. 반면 이 스크립트는
+  // Playwright의 add_init_script로 그 페이지의 어떤 스크립트보다도
+  // 먼저 실행되므로, 캡처링 단계에서 가장 바깥쪽인 window에 리스너를
+  // 먼저 등록해 두면(같은 대상에 등록된 capturing 리스너는 등록
+  // "순서"대로 실행된다) 사이트 스크립트가 나중에 stopPropagation을
+  // 불러도 이미 우리 리스너는 실행된 뒤라 절대 못 막는다.
+  window.addEventListener('click', function (e) {
+    window.__aftRecordEvent({ type: 'click', x: e.clientX, y: e.clientY, scrollX: window.scrollX, scrollY: window.scrollY, selector: describeSelector(e.target) });
   }, true);
 
-  document.addEventListener('change', function (e) {
+  window.addEventListener('change', function (e) {
     var t = e.target;
     var textLike = t && (t.tagName === 'TEXTAREA' ||
-      (t.tagName === 'INPUT' && ['text', 'tel', 'email', 'search', 'password', ''].indexOf((t.type || '').toLowerCase()) !== -1));
+      (t.tagName === 'INPUT' && ['text', 'tel', 'email', 'search', 'password', 'number', ''].indexOf((t.type || '').toLowerCase()) !== -1));
     if (textLike) {
       window.__aftRecordEvent({ type: 'input', value: t.value, selector: describeSelector(t) });
     }
   }, true);
 
-  document.addEventListener('keydown', function (e) {
+  window.addEventListener('keydown', function (e) {
     if (e.key === 'Tab') window.__aftRecordEvent({ type: 'tab' });
   }, true);
 })();
@@ -110,6 +122,9 @@ _VIEWER_HTML = """<!doctype html>
 <style>
   body{font-family:-apple-system,"Malgun Gothic",sans-serif;margin:0;background:#1c1f26;color:#eee;padding:14px;}
   h1{font-size:14px;margin:0 0 10px;color:#9fc4ff;}
+  .finishbar{display:flex;justify-content:flex-end;margin-bottom:10px;}
+  .finishbtn{background:#e2554f;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:bold;cursor:pointer;}
+  .finishbtn:disabled{opacity:0.5;cursor:default;}
   .step{display:flex;gap:8px;background:#262b35;border-radius:8px;padding:9px 11px;margin-bottom:7px;}
   .num{flex:none;width:20px;height:20px;border-radius:50%;background:#3b7ddd;color:#fff;
        font-size:11px;font-weight:bold;display:flex;align-items:center;justify-content:center;}
@@ -119,6 +134,7 @@ _VIEWER_HTML = """<!doctype html>
   .empty{color:#888;font-size:12px;}
 </style></head>
 <body>
+  <div class="finishbar"><button type="button" class="finishbtn" id="finishBtn">⏹ 녹화 종료 · 저장</button></div>
   <h1 id="title">기록된 단계 (0개)</h1>
   <div id="list" class="empty">대상 창에서 클릭하면 여기 단계가 하나씩 쌓입니다.</div>
 <script>
@@ -150,6 +166,11 @@ async function refresh() {
     }
   } catch (e) { /* 서버가 아직 안 떠 있을 수도 있음 - 다음 폴링에 재시도 */ }
 }
+document.getElementById('finishBtn').addEventListener('click', function () {
+  this.disabled = true;
+  this.textContent = '저장 중...';
+  fetch('/finish', { method: 'POST' }).catch(function () {});
+});
 setInterval(refresh, 500);
 refresh();
 </script>
@@ -254,6 +275,12 @@ class Recorder:
                 'selector': selector,
                 'x': payload.get('x'),
                 'y': payload.get('y'),
+                # coord 모드로 재생할 때, 녹화 당시 페이지가 스크롤돼
+                # 있었다면 그 위치까지 먼저 스크롤한 뒤 좌표를 클릭해야
+                # 같은 지점을 가리킨다 - 그렇지 않으면 재생 시점의
+                # 스크롤 위치에 따라 엉뚱한 요소를 클릭한다.
+                'scrollX': payload.get('scrollX'),
+                'scrollY': payload.get('scrollY'),
             }
             self.seed += 1
             step = {
@@ -326,7 +353,7 @@ def _position_window(page, left, top, width, height):
         print('창 위치 지정에 실패했습니다({}) - 창을 직접 옮겨 주세요.'.format(e))
 
 
-def _start_viewer_server(viewer_dir):
+def _start_viewer_server(viewer_dir, finish_event):
     with open(os.path.join(viewer_dir, 'viewer.html'), 'w', encoding='utf-8') as f:
         f.write(_VIEWER_HTML)
 
@@ -336,6 +363,18 @@ def _start_viewer_server(viewer_dir):
 
         def log_message(self, fmt, *args):
             pass  # 폴링 요청 로그로 터미널이 도배되는 걸 막는다
+
+        def do_POST(self):
+            if self.path == '/finish':
+                finish_event.set()
+                body = b'{"ok":true}'
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self.send_error(404)
 
     server = ThreadingHTTPServer(('127.0.0.1', 0), QuietHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -351,7 +390,8 @@ def main():
 
     viewer_dir = tempfile.mkdtemp(prefix='aft_macro_record_')
     state_path = os.path.join(viewer_dir, 'state.json')
-    server = _start_viewer_server(viewer_dir)
+    finish_event = threading.Event()
+    server = _start_viewer_server(viewer_dir, finish_event)
     port = server.server_address[1]
 
     with sync_playwright() as p:
@@ -381,8 +421,27 @@ def main():
         _position_window(main_page, left=0, top=0, width=1290, height=860)
 
         print('녹화 중입니다 - 대상 창에서 직접 조작하세요.')
-        print('다 끝났으면 여기서 Enter를 누르면 저장합니다 ↵ ')
-        input()
+        print('다 끝났으면 단계 표시 창의 "⏹ 녹화 종료 · 저장" 버튼을 누르거나, 여기서 Enter를 누르세요 ↵ ')
+
+        # 터미널의 input()이 메인 스레드를 통째로 막고 있는 동안에는
+        # 실제로 사람이 클릭해도 그 이벤트가 콜백으로 즉시 넘어오지
+        # 않고 한참 지연되는 현상이 실측됐다(Windows에서 재현 - Enter를
+        # 누른 직후에야 그동안 쌓인 클릭들이 한꺼번에 처리됨). 그래서
+        # input()으로 무작정 막는 대신, 실제 Playwright 동기 API 호출
+        # (wait_for_timeout)을 짧은 간격으로 계속 불러 대기하면서 그
+        # 사이사이 이벤트가 정상적으로 처리되게 한다. 터미널 Enter는
+        # 별도 스레드에서 그대로 받아 같은 finish_event를 세팅한다
+        # (기존처럼 터미널에서 바로 끝내고 싶은 사람도 그대로 쓸 수 있게).
+        def _wait_for_enter():
+            try:
+                input()
+            except EOFError:
+                pass
+            finish_event.set()
+        threading.Thread(target=_wait_for_enter, daemon=True).start()
+
+        while not finish_event.is_set():
+            main_page.wait_for_timeout(200)
 
         data = recorder.to_json(args.url)
         with open(args.out, 'w', encoding='utf-8') as f:

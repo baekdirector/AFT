@@ -172,6 +172,14 @@ class Runner:
                 self.page.keyboard.press('Tab')
             self._click_focused()
         elif mode == 'coord':
+            # 녹화 당시 스크롤돼 있던 위치까지 먼저 맞춰야 좌표가 같은
+            # 지점을 가리킨다(record.py가 클릭 시점의 scrollX/scrollY도
+            # 같이 기록해 둔다).
+            if click.get('scrollX') is not None or click.get('scrollY') is not None:
+                self.page.evaluate(
+                    '([x, y]) => window.scrollTo(x, y)',
+                    [click.get('scrollX') or 0, click.get('scrollY') or 0],
+                )
             self.page.mouse.click(int(click['x']), int(click['y']))
         else:
             self._resolve_locator(click.get('selector') or '').click()

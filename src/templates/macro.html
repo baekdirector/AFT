@@ -1253,6 +1253,11 @@
     }
     if (mode === 'coord') {
       if (!webrunWin) return false;
+      // 녹화 당시 스크롤돼 있던 위치까지 먼저 맞춰야 좌표가 같은
+      // 지점을 가리킨다(macro_runner/engine.py의 같은 처리와 동일).
+      if (c.scrollX != null || c.scrollY != null) {
+        webrunWin.scrollTo(parseInt(c.scrollX, 10) || 0, parseInt(c.scrollY, 10) || 0);
+      }
       const el = webrunWin.document.elementFromPoint(parseInt(c.x, 10) || 0, parseInt(c.y, 10) || 0);
       if (el) { el.click(); return true; }
       return false;

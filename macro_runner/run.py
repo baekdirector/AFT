@@ -12,6 +12,14 @@
     playwright install chromium
     python run.py --config aft_macro_config.json
     python run.py --config aft_macro_config.json --stepwise   # 한 단계씩 확인하며 실행
+
+record.py로 직접 녹화한 파일(aft_macro_recording.json)도 /macro 웹
+페이지를 거치지 않고 바로 실행할 수 있다 - 녹화 중 팝업에 실제로 입력한
+이름·전화번호 등은 이미 그 값 그대로 기록돼 있으므로 별도로 채워
+넣을 필요가 없다. 다만 "언제 시작할지"는 화면 조작만으로는 알 수
+없으므로 --at/--now로 직접 지정한다:
+    python run.py --config aft_macro_recording.json --at 17:00:00
+    python run.py --config aft_macro_recording.json --now   # 지금 즉시(테스트용)
 """
 import argparse
 import json
@@ -42,13 +50,36 @@ def resolve_url(url, config_path):
     return url
 
 
-def compute_target(config):
-    """실행 시작 시각을 계산한다. timeMode가 'relative'면 지금부터
-    delaySec초 뒤(테스트용), 'absolute'면 date + startClock(KST, 이 PC
-    시간대가 한국시간이라고 가정) - leadMs(서버 시간 보정)."""
+def compute_target(config, at=None, now=False):
+    """실행 시작 시각을 계산한다.
+
+    --now/--at은 config의 실행 시각 필드보다 항상 우선한다 -
+    record.py가 그대로 만든 원본 녹화 JSON(/macro를 거치지 않은)에는
+    timeMode/date/startClock이 아예 없으므로, 이 두 옵션으로 명령줄에서
+    바로 실행 시각을 정할 수 있어야 한다.
+
+    config 자체에 실행 시각 정보가 있으면(timeMode가 'relative'거나,
+    /macro에서 내려받은 것처럼 date/startClock이 있으면) 그걸 쓴다.
+    반대로 그런 필드가 전혀 없으면(record.py 원본 그대로) "오늘 17시"
+    같은 걸 마음대로 가정하지 않고 지금 이 명령을 실행한 시점을 그대로
+    실행 시각으로 삼는다 - 예전엔 기본값을 17:00:00으로 가정해서,
+    이미 지난 시각이면 하루를 꼬박 기다리는 것처럼 보이는 문제가
+    있었다(실제로 겪음 - "브라우저가 안 뜬다"고 오해했지만 사실은
+    다음날 17시까지 정상적으로 대기 중이었다)."""
+    if now:
+        return datetime.now()
+    if at:
+        at = at.strip()
+        if ' ' not in at:
+            at = datetime.now().strftime('%Y-%m-%d') + ' ' + at
+        return datetime.strptime(at, '%Y-%m-%d %H:%M:%S')
+
     if config.get('timeMode') == 'relative':
         delay = float(config.get('delaySec') or 1)
         return datetime.now() + timedelta(seconds=delay)
+
+    if not config.get('date') and not config.get('startClock'):
+        return datetime.now()
 
     date_str = config.get('date') or datetime.now().strftime('%Y-%m-%d')
     time_str = config.get('startClock') or '17:00:00'
@@ -76,12 +107,14 @@ def main():
     parser.add_argument('--config', required=True, help='/macro에서 내려받은 설정 JSON 파일 경로')
     parser.add_argument('--stepwise', action='store_true',
                          help='각 단계 실행 전에 무엇을 할지 보여주고 Enter로 승인받은 뒤 실행한다')
+    parser.add_argument('--at', help='실행 시작 시각. "17:00:00"(오늘) 또는 "2026-09-23 17:00:00" - config의 실행 시각 필드보다 우선한다')
+    parser.add_argument('--now', action='store_true', help='대기 없이 즉시 실행한다(테스트/즉석 실행용) - --at보다 우선한다')
     args = parser.parse_args()
 
     with open(args.config, encoding='utf-8') as f:
         config = json.load(f)
 
-    target = compute_target(config)
+    target = compute_target(config, at=args.at, now=args.now)
     print('{} 에 시작합니다. 대기 중...'.format(target.isoformat(sep=' ', timespec='seconds')))
     wait_until(target)
     print('시작!')
