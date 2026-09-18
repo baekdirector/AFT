@@ -1,49 +1,59 @@
 # -*- coding: utf-8 -*-
-"""자동예약 매크로 - 실제 브라우저 조작 기반 녹화 도구.
+"""자동예약 매크로 - 실제 브라우저 조작 기반 녹화·테스트 재생 도구.
 
 지금까지 "레코딩"은 /macro 웹 페이지 안의 iframe에 좌표를 기록하는
 방식이었는데, 기록 환경(iframe)과 재생 환경(macro_runner가 여는 실제
 브라우저)의 화면 크기·상황이 달라서 좌표가 어긋나는 근본 문제가
 있었다. 이 도구는 그 문제를 원천적으로 없앤다 - **녹화도 재생과 똑같이
-Playwright로 연 실제 브라우저(뷰포트 1280x800)**를 사용자가 직접
-조작하게 하고, 그 실제 조작(클릭·입력·Tab 이동)을 있는 그대로 기록한다.
+Playwright로 연 실제 브라우저**를 사용자가 직접 조작하게 하고, 그 실제
+조작(클릭·입력·Tab 이동)을 있는 그대로 기록한다.
+
+거기서 한 걸음 더 나아가, **녹화 → 저장 → 그 자리에서 바로 테스트
+재생 → (문제가 있으면) 이어서 녹화**를 전부 오른쪽 창 하나에서 오갈 수
+있다 - 예전엔 저장한 뒤 좌표가 실제로 맞는지 확인하려면 브라우저를
+끄고 별도로 `run.py`를 다시 켜야 했는데, 실사이트에서 좌표가 스크롤/
+레이아웃 차이로 어긋나는 걸 실측한 뒤 그 왕복이 너무 느리다는 걸
+확인했다.
 
 핵심 규칙(사용자와 합의):
 - 하나의 "이벤트"(=매크로 한 단계)는 **마우스 클릭으로 마감**된다.
   클릭 전에 있었던 입력들은 그 클릭이 마감하는 이벤트 안에 묶인다.
-- 메인 창(대상 사이트 첫 화면)에서는 좌표/선택자 모두 신뢰할 수 있다
-  (녹화·재생 둘 다 뷰포트가 1280x800으로 고정되므로). 반면 **팝업(새
-  창)은 화면에 뜨는 위치가 매번 다를 수 있어 좌표를 못 쓴다** - 그래서
-  팝업 안에서는 항상 Tab 이동 횟수로 기록한다(레드히어로 팝업에서
-  이미 검증된 방식과 동일한 원리).
+- 메인 창(대상 사이트 첫 화면)에서는 좌표/선택자 모두 신뢰할 수 있다.
+  반면 **팝업(새 창)은 화면에 뜨는 위치가 매번 다를 수 있어 좌표를
+  못 쓴다** - 그래서 팝업 안에서는 항상 Tab 이동 횟수로 기록한다.
+- **매크로 이름을 먼저 정해야 녹화가 시작된다** - 이름이 고정이면
+  대상 URL(선사·배·날짜)이 바뀔 때마다 이전 녹화 파일을 덮어써
+  버리는 문제가 실제로 있었다.
 
 사용법:
     pip install -r requirements.txt
     playwright install chromium
     python record.py --url https://chf.sunsang24.com/ship/schedule_fleet
 
-두 개의 실제 브라우저 창이 뜬다 - 왼쪽은 1280x800의 "녹화 대상" 창
-(사용자가 직접 조작하는 진짜 브라우저), 오른쪽은 560x800의 "단계
-표시" 창(지금까지 기록된 단계를 실시간으로 보여줌). 다 끝나면 단계
-표시 창의 "⏹ 녹화 종료 · 저장" 버튼을 누르거나, 스크립트를 실행한
-터미널에서 Enter를 누르면 저장된다.
+두 개의 실제 브라우저 창이 뜬다 - 왼쪽은 "녹화 대상" 창(사용자가 직접
+조작하는 진짜 브라우저), 오른쪽은 "제어판" 창(이름 입력 → 녹화 시작 →
+단계 실시간 표시 → 저장 → 테스트 재생 → 이어서 녹화/처음부터, 전부 이
+창의 버튼으로 오간다). 완전히 끝내려면 터미널에서 Enter를 누른다.
 
-구현 메모: 단계 표시 창은 Python(Playwright) 쪽에서 직접
+구현 메모: 오른쪽 창은 Python(Playwright) 쪽에서 직접
 `page.set_content(...)`를 불러 갱신하지 않는다 - 이벤트 콜백
 (expose_binding)이 Playwright의 단일 디스패치 스레드에서 호출되는데,
-그 안에서 또 다른 Playwright 호출(set_content 등)을 하면 같은
-스레드가 자기 자신의 응답을 기다리며 멈춰버린다(실제로 겪음 - 처음엔
-콜백 안에서 time.sleep을 했다가 멈췄고, set_content로 바꿔도 똑같이
-멈췄다). 그래서 콜백 안에서는 순수 파이썬 상태만 바꾸고 파일에
-쓰기만 하며, 단계 표시 창은 그 파일을 자기 스스로(브라우저 JS의
-fetch) 주기적으로 읽어가게 한다 - Python 쪽에서 그 창에 대고
-Playwright 호출을 전혀 하지 않으므로 안전하다."""
+그 안에서 또 다른 Playwright 호출을 하면 같은 스레드가 자기 자신의
+응답을 기다리며 멈춰버린다(실제로 겪음). 그래서 콜백 안에서는 순수
+파이썬 상태만 바꾸고 파일에 쓰기만 하며, 오른쪽 창은 그 파일을 자기
+스스로(브라우저 JS의 fetch) 주기적으로 읽어가게 한다. 같은 이유로
+"테스트 재생"(실제 클릭·입력을 실행해야 함)은 HTTP 요청을 받는
+스레드가 아니라 **메인 스레드의 대기 루프**가 큐를 확인해 직접
+수행한다."""
 import argparse
 import json
 import os
+import queue
+import re
 import sys
 import tempfile
 import threading
+import time
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 if hasattr(sys.stdout, 'reconfigure'):
@@ -52,6 +62,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 from playwright.sync_api import sync_playwright
 
 from winutil import position_window, LEFT_BOUNDS, RIGHT_BOUNDS
+from engine import Runner
 
 # 실제(합성 아님) click/change/keydown(Tab)만 감지해서 파이썬으로 보고한다.
 # change는 텍스트류 입력에서만 듣는다 - 체크박스/라디오는 change도 같이
@@ -120,24 +131,71 @@ _RECORDER_INIT_SCRIPT = r"""
 """
 
 _VIEWER_HTML = """<!doctype html>
-<html><head><meta charset="utf-8"><title>매크로 녹화 - 단계 표시</title>
+<html><head><meta charset="utf-8"><title>매크로 녹화 · 재생 제어판</title>
 <style>
   body{font-family:-apple-system,"Malgun Gothic",sans-serif;margin:0;background:#1c1f26;color:#eee;padding:14px;}
   h1{font-size:14px;margin:0 0 10px;color:#9fc4ff;}
-  .finishbar{display:flex;justify-content:flex-end;margin-bottom:10px;}
-  .finishbtn{background:#e2554f;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:bold;cursor:pointer;}
-  .finishbtn:disabled{opacity:0.5;cursor:default;}
-  .step{display:flex;gap:8px;background:#262b35;border-radius:8px;padding:9px 11px;margin-bottom:7px;}
+  .panel{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;padding:12px;background:#242a38;border-radius:10px;}
+  .row{display:flex;gap:8px;align-items:center;}
+  input[type=text],input[type=number]{background:#151922;border:1px solid #3a4152;color:#eee;border-radius:6px;padding:8px 9px;font-size:13px;}
+  input[type=text]{flex:1;min-width:0;}
+  input[type=number]{width:80px;}
+  button{border:none;border-radius:8px;padding:9px 13px;font-size:12.5px;font-weight:bold;cursor:pointer;white-space:nowrap;}
+  button:disabled{opacity:0.4;cursor:default;}
+  .btn-primary{background:#4f9bff;color:#fff;}
+  .btn-danger{background:#e2554f;color:#fff;}
+  .btn-ghost{background:#333c4d;color:#eee;}
+  .btn-quit{position:fixed;top:10px;right:10px;background:#3a4152;color:#bbb;font-size:11px;padding:5px 9px;}
+  .hint{font-size:11px;color:#8b93a3;}
+  .step{display:flex;gap:8px;background:#262b35;border-radius:8px;padding:9px 11px;margin-bottom:7px;border-left:3px solid transparent;}
+  .step.current{border-left-color:#4f9bff;background:#2b3245;}
   .num{flex:none;width:20px;height:20px;border-radius:50%;background:#3b7ddd;color:#fff;
        font-size:11px;font-weight:bold;display:flex;align-items:center;justify-content:center;}
   .label{font-size:12.5px;font-weight:bold;}
   .input-row{font-size:11px;color:#9fb0c8;margin-top:3px;}
   .target{font-size:11px;color:#7fd6a0;margin-top:3px;font-family:monospace;}
+  .rstatus{font-size:10.5px;font-weight:bold;margin-top:4px;}
+  .rstatus.done{color:#5fd08a;} .rstatus.running{color:#4f9bff;} .rstatus.error{color:#e2554f;}
   .empty{color:#888;font-size:12px;}
 </style></head>
 <body>
-  <div class="finishbar"><button type="button" class="finishbtn" id="finishBtn">⏹ 녹화 종료 · 저장</button></div>
+  <button type="button" class="btn-quit" id="quitBtn">🔚 완전히 종료</button>
   <h1 id="title">기록된 단계 (0개)</h1>
+
+  <div class="panel" id="namingPanel" hidden>
+    <div class="hint">먼저 이 매크로의 이름을 정해주세요(파일 이름이 됩니다) - URL이 바뀌면 다른 이름을 써야 예전 녹화가 덮어써지지 않습니다.</div>
+    <div class="row">
+      <input type="text" id="nameInput" placeholder="예: 레드헌터_9월23일">
+      <button type="button" class="btn-primary" id="startBtn" disabled>🔴 녹화 시작</button>
+    </div>
+  </div>
+
+  <div class="panel" id="recordingPanel" hidden>
+    <div class="hint">대상 창에서 직접 클릭·입력하세요. 다 됐으면 저장하세요.</div>
+    <div class="row">
+      <button type="button" class="btn-ghost" id="undoBtn">↩ 마지막 단계 취소</button>
+      <button type="button" class="btn-primary" id="saveBtn">💾 저장</button>
+    </div>
+  </div>
+
+  <div class="panel" id="savedPanel" hidden>
+    <div class="hint" id="savedHint"></div>
+    <div class="row">
+      <span class="hint">지연(ms)</span>
+      <input type="number" id="delayInput" value="300" min="0" step="50">
+      <button type="button" class="btn-primary" id="replayBtn">▶ 테스트 재생</button>
+    </div>
+    <div class="row">
+      <button type="button" class="btn-ghost" id="resumeBtn">✏ 이어서 녹화</button>
+      <button type="button" class="btn-danger" id="clearBtn">🗑 처음부터</button>
+    </div>
+  </div>
+
+  <div class="panel" id="replayingPanel" hidden>
+    <div class="hint">테스트 재생 중입니다 - 왼쪽 창에서 실제로 실행되는 걸 확인하세요.</div>
+    <button type="button" class="btn-danger" id="replayStopBtn">⏸ 중지</button>
+  </div>
+
   <div id="list" class="empty">대상 창에서 클릭하면 여기 단계가 하나씩 쌓입니다.</div>
 <script>
 function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
@@ -146,54 +204,106 @@ function describeClick(c) {
   if (c.mode === 'coord') return '좌표 (' + c.x + ', ' + c.y + ')';
   return c.selector || '?';
 }
+function post(path, body) {
+  return fetch(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }).catch(function () {});
+}
+
+const panels = { naming: 'namingPanel', recording: 'recordingPanel', saved: 'savedPanel', replaying: 'replayingPanel' };
+let lastMode = null;
+
+function renderPanels(data) {
+  if (data.mode === lastMode) return;
+  lastMode = data.mode;
+  Object.keys(panels).forEach(function (m) { document.getElementById(panels[m]).hidden = (m !== data.mode); });
+  if (data.mode === 'saved') {
+    document.getElementById('savedHint').textContent = '"' + data.name + '.json"에 ' + data.steps.length + '개 단계를 저장했습니다.';
+  }
+}
+
+function renderSteps(data) {
+  const wrap = document.getElementById('list');
+  const steps = data.steps || [];
+  document.getElementById('title').textContent = (data.name ? data.name + ' · ' : '') + '기록된 단계 (' + steps.length + '개)';
+  if (!steps.length) {
+    wrap.className = 'empty';
+    wrap.textContent = '대상 창에서 클릭하면 여기 단계가 하나씩 쌓입니다.';
+    return;
+  }
+  wrap.className = '';
+  const replay = data.replay;
+  wrap.innerHTML = steps.map(function (s, i) {
+    const inputsHtml = (s.inputs || []).map(function (inp) {
+      return '<div class="input-row">입력: ' + esc(inp.value) + '</div>';
+    }).join('');
+    const isCurrent = replay && i === replay.current;
+    let statusHtml = '';
+    if (replay && replay.statuses && replay.statuses[i] && replay.statuses[i] !== '대기') {
+      const st = replay.statuses[i];
+      const cls = st === '완료' ? 'done' : st === '진행' ? 'running' : 'error';
+      statusHtml = '<div class="rstatus ' + cls + '">' + esc(st) + '</div>';
+    }
+    return '<div class="step' + (isCurrent ? ' current' : '') + '"><div class="num">' + (i + 1) + '</div><div class="body">' +
+      '<div class="label">' + esc(s.label) + '</div>' + inputsHtml +
+      '<div class="target">' + esc(describeClick(s.click)) + '</div>' + statusHtml + '</div></div>';
+  }).join('');
+}
+
 async function refresh() {
   try {
     const res = await fetch('state.json?_=' + Date.now(), { cache: 'no-store' });
-    const steps = await res.json();
-    document.getElementById('title').textContent = '기록된 단계 (' + steps.length + '개)';
-    const list = document.getElementById('list');
-    if (!steps.length) {
-      list.className = 'empty';
-      list.textContent = '대상 창에서 클릭하면 여기 단계가 하나씩 쌓입니다.';
-    } else {
-      list.className = '';
-      list.innerHTML = steps.map(function (s, i) {
-        const inputsHtml = (s.inputs || []).map(function (inp) {
-          return '<div class="input-row">입력: ' + esc(inp.value) + '</div>';
-        }).join('');
-        return '<div class="step"><div class="num">' + (i + 1) + '</div><div class="body">' +
-          '<div class="label">' + esc(s.label) + '</div>' + inputsHtml +
-          '<div class="target">' + esc(describeClick(s.click)) + '</div></div></div>';
-      }).join('');
-    }
+    const data = await res.json();
+    renderPanels(data);
+    renderSteps(data);
   } catch (e) { /* 서버가 아직 안 떠 있을 수도 있음 - 다음 폴링에 재시도 */ }
 }
-document.getElementById('finishBtn').addEventListener('click', function () {
-  this.disabled = true;
-  this.textContent = '저장 중...';
-  fetch('/finish', { method: 'POST' }).catch(function () {});
+
+document.getElementById('nameInput').addEventListener('input', function (e) {
+  document.getElementById('startBtn').disabled = !e.target.value.trim();
 });
-setInterval(refresh, 500);
+document.getElementById('startBtn').addEventListener('click', function () {
+  post('/start', { name: document.getElementById('nameInput').value });
+});
+document.getElementById('undoBtn').addEventListener('click', function () { post('/undo'); });
+document.getElementById('saveBtn').addEventListener('click', function () { post('/save'); });
+document.getElementById('replayBtn').addEventListener('click', function () {
+  const delay = parseInt(document.getElementById('delayInput').value, 10) || 0;
+  post('/replay', { delayMs: delay });
+});
+document.getElementById('replayStopBtn').addEventListener('click', function () { post('/replay-stop'); });
+document.getElementById('resumeBtn').addEventListener('click', function () { post('/resume'); });
+document.getElementById('clearBtn').addEventListener('click', function () { post('/clear'); });
+document.getElementById('quitBtn').addEventListener('click', function () {
+  if (confirm('브라우저를 닫고 완전히 종료할까요?')) post('/quit');
+});
+setInterval(refresh, 400);
 refresh();
 </script>
 </body></html>
 """
 
 
+def _sanitize_name(raw):
+    name = re.sub(r'[^0-9A-Za-z가-힣_-]+', '_', (raw or '').strip())
+    return name.strip('_')[:60]
+
+
 class Recorder:
     """실제 브라우저 이벤트를 복합 단계로 조립한다. 이 클래스의 메서드는
     Playwright의 바인딩 콜백에서 호출되므로 **Playwright API를 절대
-    호출하지 않는다** - 순수 파이썬 상태 변경 + 파일 쓰기만 한다."""
+    호출하지 않는다** - 순수 파이썬 상태 변경만 하고, 바뀔 때마다
+    on_change() 콜백(파일 쓰기 등)을 부른다."""
 
-    def __init__(self, state_path):
-        self.state_path = state_path
+    def __init__(self):
         self.page_roles = {}
         self.tab_counter = 0
         self.current_inputs = []
         self.steps = []
         self.seed = 0
         self.pending_popup = False
-        self._write_state()
+        # 이름을 정하기 전(naming)이나 테스트 재생 중에는 꺼둔다 - 그
+        # 사이 클릭이 들어와도 새 단계로 기록하지 않는다.
+        self.enabled = False
+        self.on_change = lambda: None
 
     def register_page(self, page, role):
         self.page_roles[page] = role
@@ -202,6 +312,19 @@ class Recorder:
         self.register_page(new_page, 'popup')
         self.pending_popup = True
 
+    def undo(self):
+        if self.steps:
+            self.steps.pop()
+            self.on_change()
+
+    def clear(self):
+        self.steps = []
+        self.current_inputs = []
+        self.tab_counter = 0
+        self.seed = 0
+        self.pending_popup = False
+        self.on_change()
+
     def _maybe_apply_pending_popup(self):
         if self.pending_popup and self.steps:
             self.pending_popup = False
@@ -209,7 +332,7 @@ class Recorder:
             if not last['opensPopup']:
                 last['opensPopup'] = True
                 last['label'] = self._label_for(last)
-                self._write_state()
+                self.on_change()
 
     def _label_for(self, step):
         base = ('입력 {}개 → 클릭'.format(len(step['inputs'])) if step['inputs'] else '클릭')
@@ -221,14 +344,14 @@ class Recorder:
 
     def _pick_main_mode(self, selector):
         # id나 name처럼 비교적 안정적인 선택자만 "선택자 우선"으로 쓰고,
-        # 그 외(자동 추정한 nth-of-type 경로)는 좌표를 기본으로 삼는다 -
-        # 좌표는 어차피 녹화 뷰포트와 재생 뷰포트가 똑같이 1280x800이라
-        # 안전하다.
+        # 그 외(자동 추정한 nth-of-type 경로)는 좌표를 기본으로 삼는다.
         if selector and (selector.startswith('#') or '[name=' in selector):
             return 'selector'
         return 'coord'
 
     def handle_event(self, source, payload):
+        if not self.enabled:
+            return
         self._maybe_apply_pending_popup()
 
         page = source['page']
@@ -279,8 +402,7 @@ class Recorder:
                 'y': payload.get('y'),
                 # coord 모드로 재생할 때, 녹화 당시 페이지가 스크롤돼
                 # 있었다면 그 위치까지 먼저 스크롤한 뒤 좌표를 클릭해야
-                # 같은 지점을 가리킨다 - 그렇지 않으면 재생 시점의
-                # 스크롤 위치에 따라 엉뚱한 요소를 클릭한다.
+                # 같은 지점을 가리킨다.
                 'scrollX': payload.get('scrollX'),
                 'scrollY': payload.get('scrollY'),
             }
@@ -302,13 +424,8 @@ class Recorder:
             self.steps.append(step)
             self.current_inputs = []
             self.tab_counter = 0
-            self._write_state()
-            # 단계 표시 창이 안 보이는 상황(창이 겹쳐 가려짐 등)에서도
-            # 최소한 터미널에서 "지금 이 클릭이 잡혔다"를 바로 확인할 수
-            # 있어야 한다 - 실제로 사용자가 클릭을 여러 번 했는데도 0개
-            # 단계로 저장된 사례가 있어(원인 특정 전) 매 클릭마다 실시간
-            # 확인 가능하게 해 둔다.
             print('  · [{}단계 기록] {} · {}'.format(len(self.steps), step['label'], self._describe_click(click)), flush=True)
+            self.on_change()
             return
 
     def _describe_click(self, click):
@@ -317,15 +434,6 @@ class Recorder:
         if click['mode'] == 'coord':
             return '좌표 ({}, {})'.format(click['x'], click['y'])
         return '선택자 {}'.format(click['selector'] or '?')
-
-    def _write_state(self):
-        # 단계 표시 창은 이 파일을 자기 스스로(fetch) 폴링한다 - Python
-        # 쪽에서 그 창에 Playwright 호출을 하지 않는다(위 파일 docstring
-        # 참고).
-        tmp = self.state_path + '.tmp'
-        with open(tmp, 'w', encoding='utf-8') as f:
-            json.dump(self.steps, f, ensure_ascii=False)
-        os.replace(tmp, self.state_path)
 
     def to_json(self, url):
         return {
@@ -336,45 +444,221 @@ class Recorder:
         }
 
 
-def _start_viewer_server(viewer_dir, finish_event):
+class Session:
+    """녹화·저장·재생 상태 기계. HTTP 핸들러 스레드는 이 객체의 필드를
+    바꾸고 파일 I/O만 하며(둘 다 스레드에 안전), 실제 Playwright 호출이
+    필요한 "재생"만 큐에 넣어 메인 스레드가 처리한다."""
+
+    def __init__(self, state_path):
+        self.recorder = Recorder()
+        self.recorder.on_change = self._write_state
+        self.state_path = state_path
+        self.mode = 'naming'  # naming | recording | saved | replaying
+        self.name = ''
+        self.out_path = None
+        self.replay_queue = queue.Queue()
+        self.replay_stop = threading.Event()
+        self.quit_event = threading.Event()
+        self.replay_current = -1
+        self.replay_statuses = None
+        self._write_state()
+
+    def _write_state(self):
+        data = {
+            'mode': self.mode,
+            'name': self.name,
+            'steps': self.recorder.steps,
+            'replay': None if self.replay_statuses is None else {
+                'current': self.replay_current,
+                'total': len(self.recorder.steps),
+                'statuses': self.replay_statuses,
+            },
+        }
+        tmp = self.state_path + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False)
+        os.replace(tmp, self.state_path)
+
+    def start(self, raw_name):
+        name = _sanitize_name(raw_name)
+        if not name:
+            return False
+        self.name = name
+        self.out_path = name + '.json'
+        self.recorder.enabled = True
+        self.mode = 'recording'
+        self._write_state()
+        return True
+
+    def save(self, url):
+        if not self.out_path:
+            return False
+        self.recorder.enabled = False
+        data = self.recorder.to_json(url)
+        tmp = self.out_path + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, self.out_path)
+        self.mode = 'saved'
+        self._write_state()
+        print('{} 개 단계를 {} 에 저장했습니다.'.format(len(self.recorder.steps), self.out_path), flush=True)
+        return True
+
+    def resume(self):
+        self.recorder.enabled = True
+        self.mode = 'recording'
+        self._write_state()
+
+    def clear(self):
+        self.recorder.clear()
+        self.recorder.enabled = True
+        self.mode = 'recording'
+        self.replay_statuses = None
+        self.replay_current = -1
+        self._write_state()
+
+
+def run_replay(session, main_page, context, url, delay_ms):
+    """오른쪽 창의 "▶ 테스트 재생"이 큐에 넣은 요청을 메인 스레드에서
+    실제로 실행한다 - engine.py의 Runner를 그대로 재사용한다(새로
+    만들지 않음). Runner.run()을 그대로 쓰지 않고 직접 루프를 도는
+    이유: 단계 사이마다 중지 요청을 확인해야 하고, 기록된 sleep 대신
+    사용자가 오른쪽 창에서 정한 지연시간으로 재생해야 하기 때문이다."""
+    steps = session.recorder.steps
+    if not steps:
+        return
+
+    # 이전 테스트 재생이 열어 둔 팝업이 남아있으면 정리한다 - 안 그러면
+    # 다시 누를 때마다 팝업 창이 계속 쌓인다.
+    for page, role in list(session.recorder.page_roles.items()):
+        if role == 'popup' and page != main_page:
+            try:
+                if not page.is_closed():
+                    page.close()
+            except Exception:
+                pass
+            session.recorder.page_roles.pop(page, None)
+
+    session.mode = 'replaying'
+    session.recorder.enabled = False
+    session.replay_current = -1
+    session.replay_statuses = ['대기'] * len(steps)
+    session._write_state()
+
+    # run.py가 실전 실행 시 하는 것과 똑같이, 매번 깨끗한 상태에서
+    # 시작한다 - 이전 테스트 재생이 남긴 입력값 등이 다음 테스트에
+    # 영향을 주지 않게 한다.
+    main_page.goto(url)
+    runner = Runner({'steps': steps}, main_page, context)
+
+    for i, step in enumerate(steps):
+        if session.replay_stop.is_set():
+            break
+        session.replay_current = i
+        session.replay_statuses[i] = '진행'
+        session._write_state()
+        try:
+            runner._execute(step)
+        except Exception as e:
+            session.replay_statuses[i] = '오류: {}'.format(e)
+            session._write_state()
+            print('  → 재생 오류({}단계): {}'.format(i + 1, e), flush=True)
+            break
+        else:
+            session.replay_statuses[i] = '완료'
+            session._write_state()
+        time.sleep(delay_ms / 1000)
+
+    session.mode = 'saved'
+    session._write_state()
+
+
+def _start_control_server(viewer_dir, session, url):
     with open(os.path.join(viewer_dir, 'viewer.html'), 'w', encoding='utf-8') as f:
         f.write(_VIEWER_HTML)
 
-    class QuietHandler(SimpleHTTPRequestHandler):
+    class ControlHandler(SimpleHTTPRequestHandler):
         def __init__(self, *a, **kw):
             super().__init__(*a, directory=viewer_dir, **kw)
 
         def log_message(self, fmt, *args):
             pass  # 폴링 요청 로그로 터미널이 도배되는 걸 막는다
 
-        def do_POST(self):
-            if self.path == '/finish':
-                finish_event.set()
-                body = b'{"ok":true}'
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.send_header('Content-Length', str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-            else:
-                self.send_error(404)
+        def _reply(self, status, payload):
+            body = json.dumps(payload).encode('utf-8')
+            self.send_response(status)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
 
-    server = ThreadingHTTPServer(('127.0.0.1', 0), QuietHandler)
+        def _read_body(self):
+            length = int(self.headers.get('Content-Length') or 0)
+            raw = self.rfile.read(length) if length else b''
+            try:
+                return json.loads(raw) if raw else {}
+            except json.JSONDecodeError:
+                return {}
+
+        def do_POST(self):
+            body = self._read_body()
+
+            if self.path == '/start':
+                ok = session.start(body.get('name') or '')
+                return self._reply(200 if ok else 400, {'ok': ok})
+
+            if self.path == '/save':
+                ok = session.save(url)
+                return self._reply(200 if ok else 400, {'ok': ok})
+
+            if self.path == '/undo':
+                session.recorder.undo()
+                return self._reply(200, {'ok': True})
+
+            if self.path == '/clear':
+                session.clear()
+                return self._reply(200, {'ok': True})
+
+            if self.path == '/resume':
+                session.resume()
+                return self._reply(200, {'ok': True})
+
+            if self.path == '/replay':
+                if session.mode != 'saved' or not session.recorder.steps:
+                    return self._reply(400, {'ok': False})
+                # 실제 Playwright 호출(재생)은 이 핸들러 스레드가 아니라
+                # 메인 스레드가 처리한다(콜백 스레드 안에서 Playwright API
+                # 호출 금지 원칙과 같은 이유).
+                session.replay_stop.clear()
+                delay_ms = int(body.get('delayMs') or 300)
+                session.replay_queue.put(delay_ms)
+                return self._reply(200, {'ok': True})
+
+            if self.path == '/replay-stop':
+                session.replay_stop.set()
+                return self._reply(200, {'ok': True})
+
+            if self.path == '/quit':
+                session.quit_event.set()
+                return self._reply(200, {'ok': True})
+
+            self.send_error(404)
+
+    server = ThreadingHTTPServer(('127.0.0.1', 0), ControlHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server
 
 
 def main():
-    parser = argparse.ArgumentParser(description='자동예약 매크로 - 실제 브라우저 조작 녹화 도구')
+    parser = argparse.ArgumentParser(description='자동예약 매크로 - 실제 브라우저 조작 녹화·테스트 재생 도구')
     parser.add_argument('--url', required=True, help='녹화를 시작할 선사 예약 페이지 URL')
-    parser.add_argument('--out', default='aft_macro_recording.json', help='저장할 JSON 파일 경로')
     args = parser.parse_args()
 
     viewer_dir = tempfile.mkdtemp(prefix='aft_macro_record_')
     state_path = os.path.join(viewer_dir, 'state.json')
-    finish_event = threading.Event()
-    server = _start_viewer_server(viewer_dir, finish_event)
+    session = Session(state_path)
+    server = _start_control_server(viewer_dir, session, args.url)
     port = server.server_address[1]
 
     with sync_playwright() as p:
@@ -383,7 +667,7 @@ def main():
         # 녹화 대상 창 - 실제 사용자가 직접 조작한다(자동 조작 아님).
         record_context = browser.new_context(viewport={'width': 1280, 'height': 800})
 
-        # 단계 표시 창 - 완전히 별도 컨텍스트라 녹화 스크립트가 안 심어진다
+        # 제어판 창 - 완전히 별도 컨텍스트라 녹화 스크립트가 안 심어진다
         # (여기서 클릭해도 기록되지 않음 - 이 창 자체가 기록 대상이 되면
         # 안 되므로).
         viewer_context = browser.new_context(viewport={'width': 560, 'height': 800})
@@ -391,45 +675,45 @@ def main():
         viewer_page.goto('http://127.0.0.1:{}/viewer.html'.format(port))
         position_window(viewer_page, **RIGHT_BOUNDS)
 
-        recorder = Recorder(state_path)
-
-        record_context.expose_binding('__aftRecordEvent', recorder.handle_event)
+        record_context.expose_binding('__aftRecordEvent', session.recorder.handle_event)
         record_context.add_init_script(_RECORDER_INIT_SCRIPT)
 
         main_page = record_context.new_page()
-        recorder.register_page(main_page, 'main')
-        record_context.on('page', recorder.on_new_page)
+        session.recorder.register_page(main_page, 'main')
+        record_context.on('page', session.recorder.on_new_page)
 
         main_page.goto(args.url)
         position_window(main_page, **LEFT_BOUNDS)
 
-        print('녹화 중입니다 - 대상 창에서 직접 조작하세요.')
-        print('다 끝났으면 단계 표시 창의 "⏹ 녹화 종료 · 저장" 버튼을 누르거나, 여기서 Enter를 누르세요 ↵ ')
+        print('제어판(오른쪽 창)에서 이름을 정하고 "녹화 시작"을 누르세요.')
+        print('완전히 종료하려면 오른쪽 창의 "🔚 완전히 종료" 버튼을 누르거나, 여기서 Enter를 누르세요 ↵ ')
 
         # 터미널의 input()이 메인 스레드를 통째로 막고 있는 동안에는
         # 실제로 사람이 클릭해도 그 이벤트가 콜백으로 즉시 넘어오지
-        # 않고 한참 지연되는 현상이 실측됐다(Windows에서 재현 - Enter를
-        # 누른 직후에야 그동안 쌓인 클릭들이 한꺼번에 처리됨). 그래서
+        # 않고 한참 지연되는 현상이 실측됐다(Windows에서 재현). 그래서
         # input()으로 무작정 막는 대신, 실제 Playwright 동기 API 호출
         # (wait_for_timeout)을 짧은 간격으로 계속 불러 대기하면서 그
-        # 사이사이 이벤트가 정상적으로 처리되게 한다. 터미널 Enter는
-        # 별도 스레드에서 그대로 받아 같은 finish_event를 세팅한다
-        # (기존처럼 터미널에서 바로 끝내고 싶은 사람도 그대로 쓸 수 있게).
+        # 사이사이 이벤트/재생 요청이 정상적으로 처리되게 한다.
         def _wait_for_enter():
             try:
                 input()
             except EOFError:
                 pass
-            finish_event.set()
+            session.quit_event.set()
         threading.Thread(target=_wait_for_enter, daemon=True).start()
 
-        while not finish_event.is_set():
+        while not session.quit_event.is_set():
             main_page.wait_for_timeout(200)
+            try:
+                delay_ms = session.replay_queue.get_nowait()
+            except queue.Empty:
+                continue
+            run_replay(session, main_page, record_context, args.url, delay_ms)
 
-        data = recorder.to_json(args.url)
-        with open(args.out, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        print('{} 개 단계를 {} 에 저장했습니다.'.format(len(recorder.steps), args.out))
+        # 아직 저장 안 한 녹화 중 상태로 종료하는 경우를 대비해 마지막으로
+        # 한 번 더 저장해 둔다(이름이 정해져 있을 때만).
+        if session.out_path and session.recorder.steps:
+            session.save(args.url)
 
         browser.close()
 
