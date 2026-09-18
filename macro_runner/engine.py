@@ -49,6 +49,12 @@ class Runner:
             time.sleep((step.get('sleep') or 0) / 1000)
 
     def _announce(self, i, total, step):
+        if 'click' in step:
+            print('\n[{}/{}] {}'.format(i + 1, total, step.get('label') or '(라벨 없음)'))
+            for sub in step.get('inputs', []):
+                print('  입력: ' + resolve_value(sub.get('value') or '', self.config))
+            print('  클릭: ' + self._describe_target(step['click']))
+            return
         target = self._describe_target(step)
         value = step.get('value')
         preview = ' → ' + resolve_value(value, self.config) if value else ''
@@ -58,6 +64,8 @@ class Runner:
     def _describe_target(self, step):
         # src/templates/macro.html의 describeStepTarget()과 같은 규칙 -
         # 화면 미리보기와 실제 실행이 같은 문구를 쓰도록 그대로 옮겼다.
+        # 복합 단계의 click 딕셔너리도 같은 mode/x/y/selector 모양이라
+        # 그대로 재사용할 수 있다.
         mode = step.get('mode') or 'selector'
         if mode == 'coord':
             return '좌표 (' + str(step.get('x')) + ', ' + str(step.get('y')) + ')'
@@ -70,6 +78,16 @@ class Runner:
             print("\n🖐 '{}' 단계입니다 - 브라우저 창에서 직접 확인 후 눌러주세요.".format(
                 step.get('label') or '(라벨 없음)'))
             input('완료했으면 여기서 Enter ↵ ')
+            return
+
+        # record.py(실제 브라우저 조작 녹화 도구)가 만드는 "복합 단계"는
+        # click 키가 있다 - 클릭 하나로 마감되는 이벤트 안에 그 전까지의
+        # 입력들(inputs[])이 묶여 있는 모양이다. 기존 평면 단계(action
+        # 기반)와는 완전히 다른 모양이라 여기서 분기하고, 없으면 기존
+        # 로직을 그대로 탄다(손으로 만든 단계·기존 프리셋은 전혀 안
+        # 건드림).
+        if 'click' in step:
+            self._execute_composite(step)
             return
 
         action = step.get('action')
@@ -105,11 +123,14 @@ class Runner:
         # select/scroll/reload: 아직 실제 사용 사례가 없어 필요해지면 추가한다.
 
     def _locator(self, step):
+        return self._resolve_locator(step['selector'])
+
+    def _resolve_locator(self, raw_selector):
         # 선택자에 {날짜} 같은 변수가 남아있으면 실제 값으로 치환한다 -
         # 값(value) 필드만 치환하고 선택자는 그대로 두면 {날짜}가 문자
         # 그대로 남아 어떤 실제 페이지에서도 절대 매칭되지 않는다
         # (macro.html의 webQuerySelector와 동일한 이유로 고친 버그).
-        sel = resolve_value(step['selector'], self.config) or ''
+        sel = resolve_value(raw_selector, self.config) or ''
         # ':first'/':last'는 jQuery/Sizzle 전용 의사 선택자라 Playwright도
         # 모른다(CSS 표준도 아님) - 그대로 넘기면 SyntaxError가 난다.
         # 접미사를 떼어내고 Playwright의 .first/.last로 좁힌다.
@@ -118,6 +139,42 @@ class Runner:
         if sel.endswith(':last'):
             return self.page.locator(sel[:-len(':last')]).last
         return self.page.locator(sel)
+
+    def _execute_composite(self, step):
+        # record.py가 만드는 복합 단계 실행 - 클릭 전에 있었던 입력들을
+        # 순서대로 채운 뒤 마지막 클릭을 수행한다. 팝업 안 입력/클릭은
+        # 항상 mode='tab'(화면 위치가 매번 달라 좌표를 못 씀 - 이미
+        # Tab 이동 방식으로 검증된 것과 같은 원리), 메인 창은 선택자
+        # 또는 좌표(녹화·재생 둘 다 뷰포트가 1280x800으로 고정되므로
+        # 좌표도 신뢰 가능).
+        for sub in step.get('inputs', []):
+            value = resolve_value(sub.get('value') or '', self.config)
+            if (sub.get('mode') or 'selector') == 'tab':
+                for _ in range(int(sub.get('tabCount') or 0)):
+                    self.page.keyboard.press('Tab')
+                self.page.keyboard.type(value)
+            else:
+                self._resolve_locator(sub.get('selector') or '').fill(value)
+
+        click = step.get('click') or {}
+        if step.get('opensPopup'):
+            with self.context.expect_page() as popup_info:
+                self._click_composite(click)
+            self.page = popup_info.value
+            self.page.wait_for_load_state()
+        else:
+            self._click_composite(click)
+
+    def _click_composite(self, click):
+        mode = click.get('mode') or 'selector'
+        if mode == 'tab':
+            for _ in range(int(click.get('tabCount') or 0)):
+                self.page.keyboard.press('Tab')
+            self._click_focused()
+        elif mode == 'coord':
+            self.page.mouse.click(int(click['x']), int(click['y']))
+        else:
+            self._resolve_locator(click.get('selector') or '').click()
 
     def _click_target(self, step):
         mode = step.get('mode') or 'selector'
