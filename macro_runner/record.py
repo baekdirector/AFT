@@ -133,20 +133,26 @@ _RECORDER_INIT_SCRIPT = r"""
 _VIEWER_HTML = """<!doctype html>
 <html><head><meta charset="utf-8"><title>매크로 녹화 · 재생 제어판</title>
 <style>
+  /* hidden 속성은 항상 이겨야 한다 - 아래 .btn-primary/.panel류처럼
+     display를 직접 지정하는 클래스와 같이 쓰면(둘 다 author 스타일이라
+     명시도가 같아 나중에 나온 규칙이 이긴다) hidden이 무시돼 여러 화면이
+     동시에 보이는 버그가 실제로 있었다 - 여기서 한 번에 막는다. */
+  [hidden]{display:none!important;}
   body{font-family:-apple-system,"Malgun Gothic",sans-serif;margin:0;background:#1c1f26;color:#eee;padding:14px;}
-  h1{font-size:14px;margin:0 0 10px;color:#9fc4ff;}
-  .panel{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;padding:12px;background:#242a38;border-radius:10px;}
-  .row{display:flex;gap:8px;align-items:center;}
+  h1{font-size:14px;margin:14px 0 10px;color:#9fc4ff;}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:9px;padding:11px 12px;background:#242a38;border-radius:10px;}
   input[type=text],input[type=number]{background:#151922;border:1px solid #3a4152;color:#eee;border-radius:6px;padding:8px 9px;font-size:13px;}
-  input[type=text]{flex:1;min-width:0;}
-  input[type=number]{width:80px;}
+  input[type=text]{flex:1;min-width:120px;}
+  input[type=text]:disabled{opacity:0.6;}
+  input[type=number]{width:76px;}
   button{border:none;border-radius:8px;padding:9px 13px;font-size:12.5px;font-weight:bold;cursor:pointer;white-space:nowrap;}
-  button:disabled{opacity:0.4;cursor:default;}
+  button:disabled{opacity:0.35;cursor:default;}
   .btn-primary{background:#4f9bff;color:#fff;}
   .btn-danger{background:#e2554f;color:#fff;}
   .btn-ghost{background:#333c4d;color:#eee;}
-  .btn-quit{position:fixed;top:10px;right:10px;background:#3a4152;color:#bbb;font-size:11px;padding:5px 9px;}
-  .hint{font-size:11px;color:#8b93a3;}
+  .btn-rec-active{background:#e2554f;color:#fff;opacity:1;cursor:default;}
+  .btn-quit{position:fixed;top:10px;right:10px;background:#3a4152;color:#bbb;font-size:11px;padding:5px 9px;z-index:5;}
+  .hint{font-size:10.5px;color:#8b93a3;width:100%;}
   .step{display:flex;gap:8px;background:#262b35;border-radius:8px;padding:9px 11px;margin-bottom:7px;border-left:3px solid transparent;}
   .step.current{border-left-color:#4f9bff;background:#2b3245;}
   .num{flex:none;width:20px;height:20px;border-radius:50%;background:#3b7ddd;color:#fff;
@@ -160,40 +166,27 @@ _VIEWER_HTML = """<!doctype html>
 </style></head>
 <body>
   <button type="button" class="btn-quit" id="quitBtn">🔚 완전히 종료</button>
+
+  <div class="bar" id="nameBar">
+    <div class="hint">매크로 이름을 먼저 정해주세요(파일 이름이 됩니다) - URL이 바뀌면 다른 이름을 써야 예전 녹화를 안 덮어씁니다.</div>
+    <input type="text" id="nameInput" placeholder="예: 레드헌터_9월23일">
+    <button type="button" class="btn-primary" id="recToggleBtn">🔴 녹화 시작</button>
+    <button type="button" class="btn-ghost" id="stopBtn" hidden>⏹ 중지</button>
+  </div>
+
+  <div class="bar" id="editBar">
+    <button type="button" class="btn-ghost" id="undoBtn">↩ 마지막 단계 취소</button>
+    <button type="button" class="btn-primary" id="saveBtn">💾 저장</button>
+    <button type="button" class="btn-danger" id="clearBtn">🗑 처음부터</button>
+  </div>
+
   <h1 id="title">기록된 단계 (0개)</h1>
 
-  <div class="panel" id="namingPanel" hidden>
-    <div class="hint">먼저 이 매크로의 이름을 정해주세요(파일 이름이 됩니다) - URL이 바뀌면 다른 이름을 써야 예전 녹화가 덮어써지지 않습니다.</div>
-    <div class="row">
-      <input type="text" id="nameInput" placeholder="예: 레드헌터_9월23일">
-      <button type="button" class="btn-primary" id="startBtn" disabled>🔴 녹화 시작</button>
-    </div>
-  </div>
-
-  <div class="panel" id="recordingPanel" hidden>
-    <div class="hint">대상 창에서 직접 클릭·입력하세요. 다 됐으면 저장하세요.</div>
-    <div class="row">
-      <button type="button" class="btn-ghost" id="undoBtn">↩ 마지막 단계 취소</button>
-      <button type="button" class="btn-primary" id="saveBtn">💾 저장</button>
-    </div>
-  </div>
-
-  <div class="panel" id="savedPanel" hidden>
-    <div class="hint" id="savedHint"></div>
-    <div class="row">
-      <span class="hint">지연(ms)</span>
-      <input type="number" id="delayInput" value="300" min="0" step="50">
-      <button type="button" class="btn-primary" id="replayBtn">▶ 테스트 재생</button>
-    </div>
-    <div class="row">
-      <button type="button" class="btn-ghost" id="resumeBtn">✏ 이어서 녹화</button>
-      <button type="button" class="btn-danger" id="clearBtn">🗑 처음부터</button>
-    </div>
-  </div>
-
-  <div class="panel" id="replayingPanel" hidden>
-    <div class="hint">테스트 재생 중입니다 - 왼쪽 창에서 실제로 실행되는 걸 확인하세요.</div>
-    <button type="button" class="btn-danger" id="replayStopBtn">⏸ 중지</button>
+  <div class="bar" id="testBar">
+    <span class="hint" style="width:auto;">지연(ms)</span>
+    <input type="number" id="delayInput" value="300" min="0" step="50">
+    <button type="button" class="btn-primary" id="replayBtn">▶ 테스트 재생</button>
+    <button type="button" class="btn-danger" id="replayStopBtn" hidden>⏸ 재생 중지</button>
   </div>
 
   <div id="list" class="empty">대상 창에서 클릭하면 여기 단계가 하나씩 쌓입니다.</div>
@@ -208,16 +201,44 @@ function post(path, body) {
   return fetch(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }).catch(function () {});
 }
 
-const panels = { naming: 'namingPanel', recording: 'recordingPanel', saved: 'savedPanel', replaying: 'replayingPanel' };
-let lastMode = null;
+const nameInput = document.getElementById('nameInput');
+const recToggleBtn = document.getElementById('recToggleBtn');
 
-function renderPanels(data) {
-  if (data.mode === lastMode) return;
-  lastMode = data.mode;
-  Object.keys(panels).forEach(function (m) { document.getElementById(panels[m]).hidden = (m !== data.mode); });
-  if (data.mode === 'saved') {
-    document.getElementById('savedHint').textContent = '"' + data.name + '.json"에 ' + data.steps.length + '개 단계를 저장했습니다.';
+function renderBars(data) {
+  const named = data.mode !== 'naming';
+  const recording = data.mode === 'recording';
+  const replaying = data.mode === 'replaying';
+  const hasSteps = (data.steps || []).length > 0;
+
+  nameInput.disabled = named;
+  if (named && document.activeElement !== nameInput) nameInput.value = data.name;
+
+  if (!named) {
+    recToggleBtn.textContent = '🔴 녹화 시작';
+    recToggleBtn.className = 'btn-primary';
+    recToggleBtn.disabled = !nameInput.value.trim();
+    recToggleBtn.onclick = function () { post('/start', { name: nameInput.value }); };
+  } else if (recording) {
+    recToggleBtn.textContent = '⏺ 녹화중';
+    recToggleBtn.className = 'btn-rec-active';
+    recToggleBtn.disabled = true;
+    recToggleBtn.onclick = null;
+  } else {
+    recToggleBtn.textContent = '✏ 이어서 녹화';
+    recToggleBtn.className = 'btn-ghost';
+    recToggleBtn.disabled = replaying;
+    recToggleBtn.onclick = function () { post('/resume'); };
   }
+
+  document.getElementById('stopBtn').hidden = !recording;
+  document.getElementById('undoBtn').disabled = !hasSteps || replaying;
+  document.getElementById('saveBtn').disabled = !hasSteps || replaying;
+  document.getElementById('clearBtn').disabled = !named || replaying;
+
+  document.getElementById('delayInput').disabled = replaying || !hasSteps;
+  document.getElementById('replayBtn').hidden = replaying;
+  document.getElementById('replayBtn').disabled = !hasSteps;
+  document.getElementById('replayStopBtn').hidden = !replaying;
 }
 
 function renderSteps(data) {
@@ -252,28 +273,29 @@ async function refresh() {
   try {
     const res = await fetch('state.json?_=' + Date.now(), { cache: 'no-store' });
     const data = await res.json();
-    renderPanels(data);
+    renderBars(data);
     renderSteps(data);
   } catch (e) { /* 서버가 아직 안 떠 있을 수도 있음 - 다음 폴링에 재시도 */ }
 }
 
-document.getElementById('nameInput').addEventListener('input', function (e) {
-  document.getElementById('startBtn').disabled = !e.target.value.trim();
+nameInput.addEventListener('input', function () {
+  if (!nameInput.disabled) recToggleBtn.disabled = !nameInput.value.trim();
 });
-document.getElementById('startBtn').addEventListener('click', function () {
-  post('/start', { name: document.getElementById('nameInput').value });
-});
+document.getElementById('stopBtn').addEventListener('click', function () { post('/stop'); });
 document.getElementById('undoBtn').addEventListener('click', function () { post('/undo'); });
 document.getElementById('saveBtn').addEventListener('click', function () { post('/save'); });
+document.getElementById('clearBtn').addEventListener('click', function () { post('/clear'); });
 document.getElementById('replayBtn').addEventListener('click', function () {
   const delay = parseInt(document.getElementById('delayInput').value, 10) || 0;
   post('/replay', { delayMs: delay });
 });
 document.getElementById('replayStopBtn').addEventListener('click', function () { post('/replay-stop'); });
-document.getElementById('resumeBtn').addEventListener('click', function () { post('/resume'); });
-document.getElementById('clearBtn').addEventListener('click', function () { post('/clear'); });
 document.getElementById('quitBtn').addEventListener('click', function () {
-  if (confirm('브라우저를 닫고 완전히 종료할까요?')) post('/quit');
+  // 네이티브 confirm() 대신 - 종료해도 이름이 정해져 있으면 지금까지
+  // 기록된 내용을 자동으로 한 번 더 저장한 뒤 끝나므로 안전하다.
+  this.disabled = true;
+  this.textContent = '종료 중...';
+  post('/quit');
 });
 setInterval(refresh, 400);
 refresh();
@@ -453,7 +475,7 @@ class Session:
         self.recorder = Recorder()
         self.recorder.on_change = self._write_state
         self.state_path = state_path
-        self.mode = 'naming'  # naming | recording | saved | replaying
+        self.mode = 'naming'  # naming | recording | stopped | replaying
         self.name = ''
         self.out_path = None
         self.replay_queue = queue.Queue()
@@ -491,18 +513,22 @@ class Session:
         return True
 
     def save(self, url):
+        # 저장은 "지금까지를 파일에 남긴다"는 뜻일 뿐, 녹화 중이든
+        # 멈춰 있든 언제든 부를 수 있다 - 녹화를 멈추는 건 stop()의 몫.
         if not self.out_path:
             return False
-        self.recorder.enabled = False
         data = self.recorder.to_json(url)
         tmp = self.out_path + '.tmp'
         with open(tmp, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         os.replace(tmp, self.out_path)
-        self.mode = 'saved'
-        self._write_state()
         print('{} 개 단계를 {} 에 저장했습니다.'.format(len(self.recorder.steps), self.out_path), flush=True)
         return True
+
+    def stop(self):
+        self.recorder.enabled = False
+        self.mode = 'stopped'
+        self._write_state()
 
     def resume(self):
         self.recorder.enabled = True
@@ -569,7 +595,7 @@ def run_replay(session, main_page, context, url, delay_ms):
             session._write_state()
         time.sleep(delay_ms / 1000)
 
-    session.mode = 'saved'
+    session.mode = 'stopped'
     session._write_state()
 
 
@@ -611,6 +637,10 @@ def _start_control_server(viewer_dir, session, url):
                 ok = session.save(url)
                 return self._reply(200 if ok else 400, {'ok': ok})
 
+            if self.path == '/stop':
+                session.stop()
+                return self._reply(200, {'ok': True})
+
             if self.path == '/undo':
                 session.recorder.undo()
                 return self._reply(200, {'ok': True})
@@ -624,7 +654,7 @@ def _start_control_server(viewer_dir, session, url):
                 return self._reply(200, {'ok': True})
 
             if self.path == '/replay':
-                if session.mode != 'saved' or not session.recorder.steps:
+                if session.mode in ('naming', 'replaying') or not session.recorder.steps:
                     return self._reply(400, {'ok': False})
                 # 실제 Playwright 호출(재생)은 이 핸들러 스레드가 아니라
                 # 메인 스레드가 처리한다(콜백 스레드 안에서 Playwright API
