@@ -747,7 +747,7 @@
 .result-link { font-size: 12px; font-weight: 730; color: var(--accent); }
 .result-link-disabled { font-size: 12px; color: var(--ink-softer); }
 
-.result-popup-row { margin-top: 10px; }
+.result-popup-row { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .btn-popup {
   padding: 5px 11px; background: oklch(0.55 0.09 195); color: #fff; border: none; border-radius: 8px;
   font-size: 11.5px; font-weight: 650; cursor: pointer;
@@ -3232,7 +3232,11 @@ document.addEventListener('DOMContentLoaded', function(){
       }
       card.appendChild(foot);
 
-      // 날씨/물때 팝업 버튼 (항구 단위라 대표 행 기준으로 하나만)
+      // 날씨/물때 팝업 버튼 (항구 단위라 대표 행 기준으로 하나만). 단일
+      // 선박(선단 아님)은 알림 토글을 별도 전체 너비 행으로 아래에 두지
+      // 않고 이 버튼과 같은 줄에 나란히 붙인다 - 예전엔 알림 토글이 그
+      // 아래로 떨어져 화면을 더 차지했다(실측 피드백, 스크린샷 화살표로
+      // "같은 선상"에 두라고 지적됨).
       const popupRow = document.createElement('div');
       popupRow.className = 'result-popup-row';
       const popupBtn = document.createElement('button');
@@ -3243,12 +3247,10 @@ document.addEventListener('DOMContentLoaded', function(){
       popupBtn.setAttribute('data-port', rep.port || '');
       popupBtn.setAttribute('data-date', formattedDate);
       popupRow.appendChild(popupBtn);
-      card.appendChild(popupRow);
-
-      // 단일 선박 배(선단 아님)는 기존 그대로 카드 하단에 전체 너비 알림 행 하나.
       if (!isFleet) {
-        card.appendChild(buildWatchToggle(rep, false));
+        popupRow.appendChild(buildWatchToggle(rep, true));
       }
+      card.appendChild(popupRow);
 
       frag.appendChild(card);
     }
