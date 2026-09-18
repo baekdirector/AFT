@@ -51,6 +51,8 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 from playwright.sync_api import sync_playwright
 
+from winutil import position_window, LEFT_BOUNDS, RIGHT_BOUNDS
+
 # 실제(합성 아님) click/change/keydown(Tab)만 감지해서 파이썬으로 보고한다.
 # change는 텍스트류 입력에서만 듣는다 - 체크박스/라디오는 change도 같이
 # 뜨는데, 그건 "클릭 자체"로 이미 완전히 설명되는 동작이라(체크 여부는
@@ -334,25 +336,6 @@ class Recorder:
         }
 
 
-def _position_window(page, left, top, width, height):
-    # browser.new_context(viewport=...)는 페이지 "내부" 렌더링 크기만
-    # 정하고, 실제 OS 창 위치/크기는 안 건드린다 - 그래서 메인 녹화
-    # 창과 단계 표시 창이 둘 다 화면 기본 위치(대개 좌상단 근처)에
-    # 겹쳐서 뜨고, 나중에 뜬 창이 먼저 뜬 창을 완전히 가려버리는 문제가
-    # 실제로 있었다("오른쪽 창이 안 보인다"). CDP의 Browser.setWindowBounds로
-    # 창을 명시적으로 좌/우로 떨어뜨려 놓는다 - 브라우저 자체 UI(주소창/탭)
-    # 높이만큼 요청한 height보다 살짝 크게 잡아야 안쪽 뷰포트가 안 줄어든다.
-    try:
-        cdp = page.context.new_cdp_session(page)
-        window_id = cdp.send('Browser.getWindowForTarget')['windowId']
-        cdp.send('Browser.setWindowBounds', {
-            'windowId': window_id,
-            'bounds': {'left': left, 'top': top, 'width': width, 'height': height},
-        })
-    except Exception as e:
-        print('창 위치 지정에 실패했습니다({}) - 창을 직접 옮겨 주세요.'.format(e))
-
-
 def _start_viewer_server(viewer_dir, finish_event):
     with open(os.path.join(viewer_dir, 'viewer.html'), 'w', encoding='utf-8') as f:
         f.write(_VIEWER_HTML)
@@ -406,7 +389,7 @@ def main():
         viewer_context = browser.new_context(viewport={'width': 560, 'height': 800})
         viewer_page = viewer_context.new_page()
         viewer_page.goto('http://127.0.0.1:{}/viewer.html'.format(port))
-        _position_window(viewer_page, left=1290, top=0, width=580, height=860)
+        position_window(viewer_page, **RIGHT_BOUNDS)
 
         recorder = Recorder(state_path)
 
@@ -418,7 +401,7 @@ def main():
         record_context.on('page', recorder.on_new_page)
 
         main_page.goto(args.url)
-        _position_window(main_page, left=0, top=0, width=1290, height=860)
+        position_window(main_page, **LEFT_BOUNDS)
 
         print('녹화 중입니다 - 대상 창에서 직접 조작하세요.')
         print('다 끝났으면 단계 표시 창의 "⏹ 녹화 종료 · 저장" 버튼을 누르거나, 여기서 Enter를 누르세요 ↵ ')

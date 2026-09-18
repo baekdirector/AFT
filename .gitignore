@@ -53,3 +53,9 @@ boat_list.xlsx
 
 # Phase A0 진단 도구 출력
 probe_boats*.csv
+
+# macro_runner 로컬 녹화/실행 산출물 - 예약자 이름·전화번호 같은
+# 개인정보와 클릭 좌표가 그대로 들어있어 서버/리포에 저장하지 않는다는
+# 원칙과 같은 이유로 커밋하지 않는다(fixtures/의 샘플 설정은 예외).
+macro_runner/*.json
+!macro_runner/fixtures/*.json

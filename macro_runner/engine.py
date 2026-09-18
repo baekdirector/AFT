@@ -19,13 +19,15 @@ JSON(내보내기 파일)을 그대로 읽어 Playwright로 재생한다.
 'manual: true'인 단계(기본값: 마지막 예약하기)에서는 자동 클릭을 하지
 않고 사람이 브라우저에서 직접 확인 후 누르도록 멈춘다 - 실제 결제/예약이
 확정되는 지점이기 때문이다."""
+import json
+import os
 import time
 
 from substitute import resolve_value
 
 
 class Runner:
-    def __init__(self, config, page, context, stepwise=False):
+    def __init__(self, config, page, context, stepwise=False, progress_path=None):
         self.config = config
         self.page = page
         self.context = context
@@ -34,19 +36,53 @@ class Runner:
         # 자리에서 진짜 Tab 이동/클릭/입력/팝업 전환이 일어나는 걸 한
         # 단계씩 눈으로 확인할 수 있다.
         self.stepwise = stepwise
+        # run.py가 오른쪽에 띄우는 진행 상황 창이 이 파일을 폴링한다 -
+        # 실행 중 어느 단계에서 멈췄는지 터미널 로그와 별개로 눈으로도
+        # 바로 확인할 수 있게 한다(실제로 팝업이 안 뜨는 실패가 나서
+        # "몇 번째 단계인지조차 알 수 없다"는 문제를 겪었다).
+        self.progress_path = progress_path
+        self._progress_steps = None
 
     def run(self):
         steps = self.config.get('steps', [])
         total = len(steps)
         for i, step in enumerate(steps):
-            if self.stepwise:
-                self._announce(i, total, step)
-                if not step.get('manual'):
-                    input('  Enter를 누르면 이 단계를 실행합니다 ↵ ')
-            self._execute(step)
+            # stepwise 여부와 무관하게 항상 어떤 단계를 실행하는지는
+            # 보여준다 - 예전엔 stepwise가 아니면(실전 실행) 아무 로그도
+            # 없어서 실패했을 때 몇 번째 단계였는지조차 알 수 없었다.
+            self._announce(i, total, step)
+            if self.stepwise and not step.get('manual'):
+                input('  Enter를 누르면 이 단계를 실행합니다 ↵ ')
+            self._write_progress(i, total, steps, '진행')
+            try:
+                self._execute(step)
+            except Exception as e:
+                self._write_progress(i, total, steps, '오류: {}'.format(e))
+                print('  → 오류: {}: {}'.format(type(e).__name__, e))
+                raise
+            self._write_progress(i, total, steps, '완료')
             if self.stepwise and not step.get('manual'):
                 print('  → 완료')
             time.sleep((step.get('sleep') or 0) / 1000)
+
+    def _write_progress(self, i, total, steps, status):
+        if not self.progress_path:
+            return
+        if self._progress_steps is None:
+            self._progress_steps = [{
+                'label': s.get('label') or '(라벨 없음)',
+                'target': self._describe_target(s['click']) if 'click' in s else self._describe_target(s),
+                'status': '대기',
+            } for s in steps]
+        self._progress_steps[i]['status'] = status
+        data = {'total': total, 'current': i, 'steps': self._progress_steps}
+        tmp = self.progress_path + '.tmp'
+        try:
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False)
+            os.replace(tmp, self.progress_path)
+        except OSError:
+            pass  # 진행 상황 창은 참고용 - 파일 쓰기 실패로 실행 자체를 막지 않는다
 
     def _announce(self, i, total, step):
         if 'click' in step:
@@ -174,13 +210,30 @@ class Runner:
         elif mode == 'coord':
             # 녹화 당시 스크롤돼 있던 위치까지 먼저 맞춰야 좌표가 같은
             # 지점을 가리킨다(record.py가 클릭 시점의 scrollX/scrollY도
-            # 같이 기록해 둔다).
+            # 같이 기록해 둔다). 다만 실제 사이트는 공지/배너 이미지
+            # 높이가 매번 달라질 수 있어(실제로 겪음 - 스크롤을 정확히
+            # 복원해도 그 사이 페이지 레이아웃 자체가 바뀌면 좌표가
+            # 어긋난다) 완벽히 보장되진 않는다 - 그래서 클릭 직전에
+            # 실제로 그 좌표에 뭐가 있는지 한 줄 출력해 둔다. 팝업이
+            # 안 뜨는 등 실패가 나면 이 로그로 "버튼이 아니라 엉뚱한
+            # 걸 클릭했다"를 바로 확인할 수 있다.
             if click.get('scrollX') is not None or click.get('scrollY') is not None:
                 self.page.evaluate(
                     '([x, y]) => window.scrollTo(x, y)',
                     [click.get('scrollX') or 0, click.get('scrollY') or 0],
                 )
-            self.page.mouse.click(int(click['x']), int(click['y']))
+            x, y = int(click['x']), int(click['y'])
+            hit = self.page.evaluate(
+                '''([x, y]) => {
+                    const el = document.elementFromPoint(x, y);
+                    if (!el) return '(요소 없음)';
+                    const txt = (el.textContent || '').trim().slice(0, 30);
+                    return el.tagName + (el.id ? '#' + el.id : '') + (txt ? ' "' + txt + '"' : '');
+                }''',
+                [x, y],
+            )
+            print('  좌표 ({}, {}) 대상 확인: {}'.format(x, y, hit))
+            self.page.mouse.click(x, y)
         else:
             self._resolve_locator(click.get('selector') or '').click()
 
