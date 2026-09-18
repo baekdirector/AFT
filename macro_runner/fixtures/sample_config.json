@@ -1,0 +1,33 @@
+{
+  "vendor": "sunsang24",
+  "url": "local:mock_list.html",
+  "date": "2026-09-23",
+  "party": 2,
+  "guestName": "홍기백",
+  "guestPhone1": "010",
+  "guestPhone2": "1234",
+  "guestPhone3": "5678",
+  "timeMode": "relative",
+  "startClock": "17:00:00",
+  "leadMs": "300",
+  "delaySec": "3",
+  "steps": [
+    { "label": "바로예약 버튼 클릭 → 팝업 전환", "action": "popup", "mode": "selector", "selector": "#reserve-btn", "x": "", "y": "", "tabCount": 1, "value": "", "sleep": 500, "manual": false },
+    { "label": "Tab 1 · 선사이름(이동만)", "action": "none", "mode": "tab", "selector": "", "x": "", "y": "", "tabCount": 1, "value": "", "sleep": 200, "manual": false },
+    { "label": "Tab 2 · 인원 \"−\" 버튼(이동만)", "action": "none", "mode": "tab", "selector": "", "x": "", "y": "", "tabCount": 1, "value": "", "sleep": 200, "manual": false },
+    { "label": "Tab 3 · 인원 \"+\" 버튼 클릭", "action": "clickTimes", "mode": "tab", "selector": "", "x": "", "y": "", "tabCount": 1, "value": "{인원}", "sleep": 300, "manual": false },
+    { "label": "Tab 4 · 예약자명 입력", "action": "input", "mode": "tab", "selector": "", "x": "", "y": "", "tabCount": 1, "value": "{이름}", "sleep": 200, "manual": false },
+    { "label": "Tab 5 · 입금자명(이동만)", "action": "none", "mode": "tab", "selector": "", "x": "", "y": "", "tabCount": 1, "value": "", "sleep": 200, "manual": false },
+    { "label": "Tab 6 · 휴대전화 첫번째 입력", "action": "input", "mode": "tab", "selector": "", "x": "", "y": "", "tabCount": 1, "value": "{전화1}", "sleep": 200, "manual": false },
+    { "label": "Tab 7 · 휴대전화 중간 입력", "action": "input", "mode": "tab", "selector": "", "x": "", "y": "", "tabCount": 1, "value": "{전화2}", "sleep": 200, "manual": false },
+    { "label": "Tab 8 · 휴대전화 마지막 입력", "action": "input", "mode": "tab", "selector": "", "x": "", "y": "", "tabCount": 1, "value": "{전화3}", "sleep": 200, "manual": false },
+    { "label": "Tab 9 · 전하실 말씀(이동만)", "action": "none", "mode": "tab", "selector": "", "x": "", "y": "", "tabCount": 1, "value": "", "sleep": 200, "manual": false },
+    { "label": "Tab 10 · 전체동의 체크", "action": "click", "mode": "tab", "selector": "", "x": "", "y": "", "tabCount": 1, "value": "", "sleep": 300, "manual": false },
+    { "label": "Tab 11 · 결제내용 동의(이동만)", "action": "none", "mode": "tab", "selector": "", "x": "", "y": "", "tabCount": 1, "value": "", "sleep": 200, "manual": false },
+    { "label": "Tab 12 · 개인정보 수집 동의(이동만)", "action": "none", "mode": "tab", "selector": "", "x": "", "y": "", "tabCount": 1, "value": "", "sleep": 200, "manual": false },
+    { "label": "Tab 13 · 개인정보 내용보기(이동만)", "action": "none", "mode": "tab", "selector": "", "x": "", "y": "", "tabCount": 1, "value": "", "sleep": 200, "manual": false },
+    { "label": "Tab 14 · 제3자 제공 동의(이동만)", "action": "none", "mode": "tab", "selector": "", "x": "", "y": "", "tabCount": 1, "value": "", "sleep": 200, "manual": false },
+    { "label": "Tab 15 · 제3자 제공 내용보기(이동만)", "action": "none", "mode": "tab", "selector": "", "x": "", "y": "", "tabCount": 1, "value": "", "sleep": 200, "manual": false },
+    { "label": "Tab 16 · 예약하기 (최종 확정)", "action": "click", "mode": "tab", "selector": "", "x": "", "y": "", "tabCount": 1, "value": "", "sleep": 0, "manual": true }
+  ]
+}

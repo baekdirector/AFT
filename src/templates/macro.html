@@ -399,6 +399,7 @@
         <div class="mc-ready-desc" id="mc-ready-desc"></div>
       </div>
       <button type="button" class="mc-save-btn" id="mc-save-config">설정 저장</button>
+      <button type="button" class="mc-save-btn" id="mc-export-config">⬇ 내보내기(JSON)</button>
       <button type="button" class="mc-start-btn" id="mc-start-btn"></button>
     </div>
   </div>
@@ -454,6 +455,7 @@
   const actionDefs = [
     { value: 'none', label: '동작 없음(이동만)', needsValue: false },
     { value: 'click', label: '클릭', needsValue: false },
+    { value: 'popup', label: '클릭 후 새 팝업 전환', needsValue: false },
     { value: 'clickTimes', label: 'N회 클릭', needsValue: true, ph: '클릭 횟수 (예: {인원})' },
     { value: 'input', label: '입력', needsValue: true, ph: '입력할 값 / {이름} {전화1} {전화2} {전화3} {인원}' },
     { value: 'select', label: '선택', needsValue: true, ph: '선택할 항목 (예: 2명)' },
@@ -473,8 +475,7 @@
       { label: '예약 페이지 진입 대기', action: 'waitFor', mode: 'selector', selector: 'text=예약하기', sleep: 200 },
       { label: '해당 날짜 일정 열기', action: 'click', mode: 'selector', selector: "td[data-date='{날짜}']", sleep: 400 },
       { label: '잔여석 있는 배 선택', action: 'click', mode: 'selector', selector: '.ship_list .available:first', sleep: 350 },
-      { label: '바로예약 버튼 클릭', action: 'click', mode: 'selector', selector: 'text=바로예약', sleep: 500 },
-      { label: '예약 팝업(새 창)으로 전환', action: 'wait', mode: 'selector', selector: '', sleep: 400 },
+      { label: '바로예약 버튼 클릭 → 팝업 전환', action: 'popup', mode: 'selector', selector: 'text=바로예약', sleep: 500 },
       { label: 'Tab 1 · 선사이름(이동만)', action: 'none', mode: 'tab', tabCount: 1, sleep: 100 },
       { label: 'Tab 2 · 인원 "−" 버튼(이동만)', action: 'none', mode: 'tab', tabCount: 1, sleep: 100 },
       { label: 'Tab 3 · 인원 "+" 버튼 클릭', action: 'clickTimes', mode: 'tab', tabCount: 1, value: '{인원}', sleep: 150 },
@@ -584,15 +585,43 @@
       }
     } catch (e) { /* 저장된 값이 손상됐으면 기본값으로 시작 */ }
   }
-  function saveConfig() {
-    const persistable = {
+  // saveConfig(로컬 저장)와 exportConfig(JSON 다운로드 - 로컬 실행
+  // 엔진에 넘길 설정 파일) 둘 다 같은 모양을 쓰므로 여기서 한 번만 만든다.
+  function buildPersistable() {
+    return {
       vendor: state.vendor, url: state.url, date: state.date, party: state.party,
       guestName: state.guestName, guestPhone1: state.guestPhone1, guestPhone2: state.guestPhone2, guestPhone3: state.guestPhone3,
       timeMode: state.timeMode, startClock: state.startClock, leadMs: state.leadMs, delaySec: state.delaySec,
       steps: state.steps.map(s => ({ label: s.label, action: s.action, mode: s.mode, selector: s.selector, x: s.x, y: s.y, tabCount: s.tabCount, value: s.value, sleep: s.sleep, manual: s.manual })),
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable));
+  }
+  function saveConfig() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(buildPersistable()));
     showToast('설정을 저장했습니다 · ' + currentVendor().label + ' / ' + state.date, { type: 'success' });
+  }
+
+  // 이름·전화번호·클릭 좌표 같은 민감한 값을 서버 DB에 새로 저장하지
+  // 않기 위해, 로컬 실행 엔진(macro_runner/)에 넘길 설정은 서버 API가
+  // 아니라 이 브라우저 다운로드로만 전달한다 - 이 화면은 실제 배포된
+  // 사이트라 <a download>가 정상 동작한다(Claude Artifact 미리보기의
+  // 다운로드 차단과는 무관).
+  function exportConfig() {
+    const problems = validationProblems();
+    if (problems.length) {
+      showToast('내보내기 전에 채워야 할 항목: ' + problems.join(', '), { type: 'error' });
+      return;
+    }
+    const json = JSON.stringify(buildPersistable(), null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'aft_macro_config.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast('aft_macro_config.json 파일을 내려받았습니다', { type: 'success' });
   }
 
   const $ = (id) => document.getElementById(id);
@@ -1253,6 +1282,7 @@
     $('mc-rec-canvas').addEventListener('click', captureClick);
     $('mc-rec-default-sleep-input').addEventListener('input', e => { state.recDefaultSleep = e.target.value; });
     $('mc-save-config').addEventListener('click', saveConfig);
+    $('mc-export-config').addEventListener('click', exportConfig);
     $('mc-start-btn').addEventListener('click', () => {
       if (state.running) { stopRun('사용자가 실행을 중지했습니다'); showToast('매크로를 중지했습니다', { type: 'info' }); return; }
       if (validationProblems().length) { showToast('아직 설정이 필요합니다: ' + validationProblems().join(', '), { type: 'error' }); return; }

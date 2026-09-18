@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>목업 팝업(테스트용)</title>
+<style>
+  body { font-family: sans-serif; padding: 16px; font-size: 14px; }
+  label { display: block; margin-top: 10px; font-weight: bold; }
+  input, textarea { font-size: 14px; padding: 4px; }
+  #result { margin-top: 16px; padding: 10px; background: #e8f5e9; display: none; }
+</style>
+</head>
+<body>
+  <!-- Tab 1: 선사이름 - 실제 사이트에서도 클릭/입력 동작은 없고 포커스만 거쳐가는 자리 -->
+  <span id="ship-name" tabindex="0">레드히어로(20인승) (남해안/돌산항)</span>
+
+  <div style="margin-top: 12px;">
+    인원선택:
+    <!-- Tab 2 -->
+    <button id="party-minus" type="button" onclick="setParty(party - 1)">−</button>
+    <span id="party-count">0</span>
+    <!-- Tab 3 -->
+    <button id="party-plus" type="button" onclick="setParty(party + 1)">＋</button>
+  </div>
+
+  <!-- Tab 4 -->
+  <label>예약자명 <input id="guest-name" type="text"></label>
+  <!-- Tab 5 -->
+  <label>입금자명 <input id="payer-name" type="text"></label>
+  <!-- Tab 6~8 -->
+  <label>휴대전화
+    <input id="phone1" type="text" size="3" value="010">
+    -
+    <input id="phone2" type="text" size="4">
+    -
+    <input id="phone3" type="text" size="4">
+  </label>
+  <!-- Tab 9 -->
+  <label>전하실 말씀 <textarea id="message"></textarea></label>
+
+  <!-- Tab 10 -->
+  <label><input id="agree-all" type="checkbox" onclick="cascadeAgree(this.checked)"> 전체동의</label>
+  <!-- Tab 11 -->
+  <label><input id="agree-payment" type="checkbox"> 결제내용 확인 후 위 내용에 동의</label>
+  <!-- Tab 12 -->
+  <label><input id="agree-collect" type="checkbox"> 개인정보 수집/이용동의</label>
+  <!-- Tab 13 -->
+  <a id="view-collect" href="#" tabindex="0" onclick="return false;">내용보기</a>
+  <!-- Tab 14 -->
+  <label><input id="agree-third-party" type="checkbox"> 개인정보 제 3자 제공 동의</label>
+  <!-- Tab 15 -->
+  <a id="view-third-party" href="#" tabindex="0" onclick="return false;">내용보기</a>
+
+  <!-- Tab 16 -->
+  <div style="margin-top: 16px;">
+    <button id="submit-btn" type="button" onclick="submitReservation()">예약하기</button>
+  </div>
+
+  <div id="result"></div>
+
+<script>
+  let party = 0;
+  function setParty(n) {
+    party = Math.max(0, n);
+    document.getElementById('party-count').textContent = party;
+  }
+  function cascadeAgree(checked) {
+    document.getElementById('agree-payment').checked = checked;
+    document.getElementById('agree-collect').checked = checked;
+    document.getElementById('agree-third-party').checked = checked;
+  }
+  function submitReservation() {
+    const el = document.getElementById('result');
+    el.style.display = 'block';
+    el.textContent = '예약 완료(테스트) · 인원 ' + party + '명 · 예약자 '
+      + document.getElementById('guest-name').value + ' · 전화 '
+      + document.getElementById('phone1').value + '-'
+      + document.getElementById('phone2').value + '-'
+      + document.getElementById('phone3').value;
+  }
+</script>
+</body>
+</html>
