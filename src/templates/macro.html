@@ -88,6 +88,41 @@
   .mc-rec-btn { display: inline-flex; align-items: center; gap: 8px; flex: none; height: 38px; padding: 0 14px; border-radius: 11px; border: 1px solid oklch(0.9 0.05 25); background: oklch(0.975 0.022 25); color: oklch(0.48 0.17 25); font-size: 12.5px; font-weight: 740; cursor: pointer; white-space: nowrap; }
   .mc-rec-dot { width: 8px; height: 8px; border-radius: 99px; background: oklch(0.55 0.19 25); flex: none; }
   .mc-rec-scope-note { text-align: right; font-size: 10.5px; font-weight: 700; color: oklch(0.58 0.015 250); margin: -8px 0 10px; }
+  .mc-localrec-btn { display: inline-flex; align-items: center; gap: 8px; flex: none; height: 38px; padding: 0 14px; border-radius: 11px; border: 1px solid oklch(0.85 0.06 248); background: oklch(0.965 0.025 248); color: oklch(0.42 0.15 248); font-size: 12.5px; font-weight: 740; cursor: pointer; white-space: nowrap; }
+  .mc-localrec-btn:hover { background: oklch(0.95 0.03 248); }
+
+  /* "로컬 브라우저로 녹화" 모달 - 기존 .mc-rec-overlay(전체화면, iframe
+     포함)와 달리 실제 브라우저를 이 화면 안에 띄우는 게 아니라 로컬
+     명령어 안내 + JSON 가져오기만 하므로 훨씬 작은 중앙 카드 하나면
+     충분하다. */
+  .mc-localrec-overlay { position: fixed; inset: 0; z-index: 90; background: oklch(0.15 0.01 250 / 0.5); display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .mc-localrec-overlay[hidden] { display: none; }
+  .mc-localrec-card { width: 100%; max-width: 480px; max-height: calc(100vh - 40px); overflow-y: auto; background: #fff; border-radius: 20px; padding: 22px clamp(16px, 3vw, 24px); box-shadow: 0 24px 60px oklch(0.2 0.03 250 / 0.28); }
+  .mc-localrec-head { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+  .mc-localrec-title { font-size: 15.5px; font-weight: 790; letter-spacing: -0.4px; flex: 1 1 auto; }
+  .mc-localrec-close { flex: none; width: 30px; height: 30px; border-radius: 10px; border: none; background: oklch(0.96 0.006 240); color: oklch(0.44 0.02 250); font-size: 15px; cursor: pointer; }
+  .mc-localrec-step { font-size: 12px; font-weight: 720; color: oklch(0.44 0.02 250); margin: 14px 0 7px; }
+  .mc-localrec-step:first-of-type { margin-top: 0; }
+  .mc-localrec-cmd-row { display: flex; gap: 7px; align-items: stretch; }
+  .mc-localrec-cmd { flex: 1 1 auto; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; line-height: 1.5; padding: 10px 11px; border-radius: 10px; background: oklch(0.16 0.01 250); color: oklch(0.9 0.01 140); white-space: pre-wrap; word-break: break-all; }
+  .mc-localrec-copy { flex: none; border-radius: 10px; border: 1px solid oklch(0.91 0.008 240); background: #fff; padding: 0 13px; font-size: 12px; font-weight: 730; color: oklch(0.42 0.02 250); cursor: pointer; }
+  .mc-localrec-copy:hover { border-color: oklch(0.8 0.02 240); }
+  .mc-localrec-setup { font-size: 10.5px; font-weight: 600; color: oklch(0.58 0.015 250); margin-top: 7px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .mc-localrec-hr { border: none; border-top: 1px solid oklch(0.93 0.008 240); margin: 16px 0; }
+  .mc-localrec-import-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .mc-localrec-file { flex: 1 1 160px; min-width: 0; font-size: 11.5px; }
+  .mc-localrec-import-btn { flex: none; height: 38px; padding: 0 15px; border-radius: 10px; border: none; background: oklch(0.46 0.12 248); color: #fff; font-size: 12.5px; font-weight: 740; cursor: pointer; }
+  .mc-localrec-import-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* 복합 단계(record.py로 로컬 녹화해 가져온 단계) 요약 카드 - 좌표/
+     선택자를 사람이 손으로 고치는 UI는 안 만든다(잘못됐으면 다시
+     녹화해서 다시 가져오는 게 맞다). 라벨/정렬/삭제/sleep/manual만
+     기존과 동일하게 계속 편집 가능하다. */
+  .mc-step-composite-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 740; padding: 2px 8px; border-radius: 99px; background: oklch(0.955 0.03 248); color: oklch(0.42 0.14 248); white-space: nowrap; }
+  .mc-step-composite-badge.popup { background: oklch(0.96 0.03 60); color: oklch(0.46 0.12 55); }
+  .mc-step-composite-inputs { font-size: 11.5px; color: oklch(0.5 0.015 250); margin: 7px 0 3px; line-height: 1.6; }
+  .mc-step-composite-click { font-size: 12px; font-weight: 700; color: oklch(0.3 0.02 250); }
+  .mc-step-composite-popup-tag { font-size: 10.5px; font-weight: 740; color: oklch(0.48 0.17 25); margin-left: 6px; }
   .mc-info-box { display: flex; align-items: flex-start; gap: 9px; padding: 12px 13px; border-radius: 13px; background: oklch(0.972 0.018 235); border: 1px solid oklch(0.92 0.03 238); margin-bottom: 13px; }
   .mc-info-box .txt { font-size: 11.5px; font-weight: 580; line-height: 1.65; color: oklch(0.4 0.035 242); }
 
@@ -366,12 +401,15 @@
         <span class="mc-section-title">매크로 단계</span>
         <span class="mc-step-badge" id="mc-step-badge"></span>
         <div class="mc-spacer"></div>
+        <button type="button" class="mc-localrec-btn" id="mc-start-localrec">
+          <span>🖥 로컬 브라우저로 녹화(전체 지원)</span>
+        </button>
         <button type="button" class="mc-rec-btn" id="mc-start-recording">
           <span class="mc-rec-dot"></span>
           <span>화면 레코딩으로 단계 만들기</span>
         </button>
       </div>
-      <div class="mc-rec-scope-note">메인 페이지 클릭 전용 — 팝업 안 필드는 Tab 이동으로 지정하세요</div>
+      <div class="mc-rec-scope-note">화면 레코딩은 메인 페이지 클릭 전용(팝업 안 필드는 Tab 이동으로 지정) — 팝업까지 전부 실제로 기록하려면 왼쪽의 "로컬 브라우저로 녹화"를 쓰세요</div>
 
       <div class="mc-info-box">
         <span style="font-size:13px; flex:none;">💡</span>
@@ -501,6 +539,40 @@
         <div class="mc-flow-list" id="mc-webrun-flow-list" style="flex:1 1 auto; min-height:0; overflow-y:auto; padding:0;"></div>
         <div id="mc-webrun-manual-banner"></div>
         <button type="button" class="mc-start-btn ready" id="mc-webrun-next" style="width:100%; flex:none;"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 로컬 브라우저로 녹화하기 - 웹페이지는 보안 정책상 사용자 PC에
+       실제 브라우저 창을 직접 띄울 수 없다. 그래서 이 모달은 진짜
+       브라우저를 여는 대신, 1단계 URL이 채워진 로컬 실행 명령어를
+       보여주고 복사하게 안내한 뒤(macro_runner/record.py), 로컬에서
+       녹화를 마치고 나온 JSON을 가져오기로 받는다. -->
+  <div class="mc-localrec-overlay" id="mc-localrec-overlay" hidden>
+    <div class="mc-localrec-card">
+      <div class="mc-localrec-head">
+        <span style="font-size:16px;">🖥</span>
+        <span class="mc-localrec-title">로컬 브라우저로 녹화하기</span>
+        <button type="button" class="mc-localrec-close" id="mc-localrec-close">✕</button>
+      </div>
+      <div class="mc-info-box" style="margin-bottom:0;">
+        <span style="font-size:13px; flex:none;">💡</span>
+        <div class="txt">웹페이지는 보안 정책상 이 PC에 실제 브라우저 창을 직접 열 수 없습니다. 아래 명령어를 터미널에 붙여넣으면 실제 사이트를 그대로 조작하며 팝업까지 전부 기록할 수 있는 로컬 도구가 실행됩니다.</div>
+      </div>
+
+      <div class="mc-localrec-step">1 · 터미널에서 이 명령어를 실행하세요</div>
+      <div class="mc-localrec-cmd-row">
+        <div class="mc-localrec-cmd" id="mc-localrec-cmd"></div>
+        <button type="button" class="mc-localrec-copy" id="mc-localrec-copy">복사</button>
+      </div>
+      <div class="mc-localrec-setup">최초 1회: cd macro_runner &amp;&amp; pip install -r requirements.txt &amp;&amp; playwright install chromium</div>
+
+      <hr class="mc-localrec-hr">
+
+      <div class="mc-localrec-step">2 · 녹화를 마쳤다면 저장된 JSON 파일을 가져오세요</div>
+      <div class="mc-localrec-import-row">
+        <input type="file" accept=".json,application/json" class="mc-localrec-file" id="mc-localrec-file">
+        <button type="button" class="mc-localrec-import-btn" id="mc-localrec-import" disabled>가져오기 · 매크로 단계 교체</button>
       </div>
     </div>
   </div>
@@ -662,7 +734,12 @@
       // recWidth/recHeight: macro_runner가 이 크기 그대로 브라우저를 열어야
       // 좌표(coord) 단계가 기록했을 때와 똑같이 재현된다.
       recWidth: state.recWidth, recHeight: state.recHeight,
-      steps: state.steps.map(s => ({ label: s.label, action: s.action, mode: s.mode, selector: s.selector, x: s.x, y: s.y, tabCount: s.tabCount, value: s.value, sleep: s.sleep, manual: s.manual })),
+      // record.py로 로컬 녹화해 가져온 "복합 단계"(click 키 보유)는
+      // 필드 모양이 완전히 달라서(context/inputs/click/opensPopup),
+      // 기존 평면 필드 목록으로 뽑으면 전부 사라진다 - 둘을 분기한다.
+      steps: state.steps.map(s => 'click' in s
+        ? { id: s.id, label: s.label, context: s.context, inputs: s.inputs, click: s.click, opensPopup: s.opensPopup, sleep: s.sleep, manual: s.manual }
+        : { label: s.label, action: s.action, mode: s.mode, selector: s.selector, x: s.x, y: s.y, tabCount: s.tabCount, value: s.value, sleep: s.sleep, manual: s.manual }),
     };
   }
   function saveConfig() {
@@ -899,6 +976,7 @@
     list.innerHTML = '';
     state.steps.forEach((s, i) => {
       const isLast = i === state.steps.length - 1;
+      const isComposite = 'click' in s;
       const mode = s.mode || 'selector';
       const act = actionDefs.find(a => a.value === s.action) || actionDefs[0];
 
@@ -911,9 +989,6 @@
       const label = document.createElement('input'); label.type = 'text'; label.className = 'mc-step-label';
       label.placeholder = '이 단계가 뭘 하는지 (예: 바로예약 버튼 클릭)'; label.value = s.label || '';
       label.addEventListener('input', e => { s.label = e.target.value; });
-      const actionSel = document.createElement('select'); actionSel.className = 'mc-step-action';
-      actionDefs.forEach(a => { const o = document.createElement('option'); o.value = a.value; o.textContent = a.label; if (a.value === s.action) o.selected = true; actionSel.appendChild(o); });
-      actionSel.addEventListener('change', e => { s.action = e.target.value; renderSteps(); });
       const miniBtns = document.createElement('div'); miniBtns.className = 'mc-step-mini-btns';
       const upBtn = document.createElement('button'); upBtn.type = 'button'; upBtn.className = 'mc-step-mini'; upBtn.title = '위로'; upBtn.textContent = '▲'; upBtn.disabled = i === 0;
       upBtn.addEventListener('click', () => { const j = i - 1; if (j < 0) return; const tmp = state.steps[i]; state.steps[i] = state.steps[j]; state.steps[j] = tmp; renderSteps(); });
@@ -922,10 +997,39 @@
       miniBtns.appendChild(upBtn); miniBtns.appendChild(downBtn);
       const delBtn = document.createElement('button'); delBtn.type = 'button'; delBtn.className = 'mc-step-del'; delBtn.title = '단계 삭제'; delBtn.textContent = '✕';
       delBtn.addEventListener('click', () => { state.steps = state.steps.filter(x => x.id !== s.id); renderSteps(); renderStepMeta(); renderHeader(); });
-      top.appendChild(num); top.appendChild(label); top.appendChild(actionSel); top.appendChild(miniBtns); top.appendChild(delBtn);
+      top.appendChild(num); top.appendChild(label);
+      if (!isComposite) {
+        const actionSel = document.createElement('select'); actionSel.className = 'mc-step-action';
+        actionDefs.forEach(a => { const o = document.createElement('option'); o.value = a.value; o.textContent = a.label; if (a.value === s.action) o.selected = true; actionSel.appendChild(o); });
+        actionSel.addEventListener('change', e => { s.action = e.target.value; renderSteps(); });
+        top.appendChild(actionSel);
+      }
+      top.appendChild(miniBtns); top.appendChild(delBtn);
       card.appendChild(top);
 
       const row2 = document.createElement('div'); row2.className = 'mc-step-row2';
+
+      // 복합 단계(record.py로 로컬 녹화해 가져온 단계) - 좌표/선택자를
+      // 사람이 손으로 고치는 UI는 만들지 않는다. 잘못됐으면 다시
+      // 녹화해서 다시 가져오는 게 맞다 - 여기서는 읽기 전용 요약만
+      // 보여준다.
+      if (isComposite) {
+        const badge = document.createElement('span'); badge.className = 'mc-step-composite-badge' + (s.context === 'popup' ? ' popup' : '');
+        badge.textContent = (s.context === 'popup' ? '팝업' : '메인') + ' · 복합 단계';
+        row2.appendChild(badge);
+        if (s.opensPopup) {
+          const popTag = document.createElement('span'); popTag.className = 'mc-step-composite-popup-tag'; popTag.textContent = '↗ 새 창 열림';
+          row2.appendChild(popTag);
+        }
+        if (s.inputs && s.inputs.length) {
+          const inputsBox = document.createElement('div'); inputsBox.className = 'mc-step-composite-inputs';
+          inputsBox.textContent = '입력: ' + s.inputs.map(inp => resolveValue(inp.value || '') || '(빈 값)').join(' · ');
+          row2.appendChild(inputsBox);
+        }
+        const clickBox = document.createElement('div'); clickBox.className = 'mc-step-composite-click';
+        clickBox.textContent = '클릭: ' + describeCompositeClick(s.click);
+        row2.appendChild(clickBox);
+      } else {
       const modeSeg = document.createElement('div'); modeSeg.className = 'mc-mode-seg';
       const selTab = document.createElement('button'); selTab.type = 'button'; selTab.className = 'mc-mode-btn' + (mode === 'selector' ? ' active' : ''); selTab.textContent = '선택자';
       selTab.addEventListener('click', () => { s.mode = 'selector'; renderSteps(); });
@@ -970,6 +1074,7 @@
         valInput.placeholder = act.ph || ''; valInput.value = s.value || '';
         valInput.addEventListener('input', e => { s.value = e.target.value; });
         row2.appendChild(valInput);
+      }
       }
 
       const sleepRow = document.createElement('div'); sleepRow.className = 'mc-sleep-row';
@@ -1018,7 +1123,18 @@
     renderLogs();
   }
 
+  // record.py가 만드는 복합 단계의 click 하위 객체도 같은 mode/x/y/
+  // selector/tabCount 모양이라 그대로 재사용한다(macro_runner/engine.py의
+  // _describe_target과 동일한 규칙).
+  function describeCompositeClick(click) {
+    const c = click || {};
+    if (c.mode === 'tab') return 'Tab ' + (c.tabCount || 0) + '회 이동';
+    if (c.mode === 'coord') return '좌표 (' + (c.x || '?') + ', ' + (c.y || '?') + ')';
+    return '선택자 ' + (c.selector || '?');
+  }
+
   function describeStepTarget(s) {
+    if ('click' in s) return describeCompositeClick(s.click);
     if (s.mode === 'coord') return '좌표 (' + (s.x || '?') + ', ' + (s.y || '?') + ')';
     if (s.mode === 'tab') return 'Tab ' + (s.tabCount || 1) + '회 이동';
     return '선택자 ' + (s.selector || '?');
@@ -1124,10 +1240,56 @@
     return true;
   }
 
+  // record.py로 로컬 녹화해 가져온 복합 단계(click 키 보유) 실행 -
+  // macro_runner/engine.py의 _execute_composite/_click_composite를
+  // 그대로 JS로 이식했다(팝업 캡처는 위 action==='popup' 분기와 같은
+  // webrunWin.open 가로채기 패턴 재사용).
+  function webClickComposite(click) {
+    const c = click || {};
+    const mode = c.mode || 'selector';
+    if (mode === 'tab') {
+      webTabTo(webrunWin, parseInt(c.tabCount, 10) || 0);
+      return webClickFocused();
+    }
+    if (mode === 'coord') {
+      if (!webrunWin) return false;
+      const el = webrunWin.document.elementFromPoint(parseInt(c.x, 10) || 0, parseInt(c.y, 10) || 0);
+      if (el) { el.click(); return true; }
+      return false;
+    }
+    return webClickTarget({ mode: 'selector', selector: c.selector });
+  }
+
+  function webExecuteComposite(step) {
+    (step.inputs || []).forEach(sub => {
+      const value = resolveValue(sub.value || '');
+      if ((sub.mode || 'selector') === 'tab') {
+        webTabTo(webrunWin, parseInt(sub.tabCount, 10) || 0);
+        webSetValue(webrunWin && webrunWin.document.activeElement, value);
+      } else {
+        webSetValue(webrunWin && webQuerySelector(webrunWin.document, sub.selector), value);
+      }
+    });
+
+    if (step.opensPopup) {
+      if (!webrunWin) return '실패';
+      const realOpen = webrunWin.open.bind(webrunWin);
+      let captured = null;
+      webrunWin.open = function () { captured = realOpen.apply(null, arguments); return captured; };
+      const ok = webClickComposite(step.click);
+      webrunWin.open = realOpen;
+      if (captured) { webrunWin = captured; return ok ? '성공' : '실패'; }
+      return '실패';
+    }
+    return webClickComposite(step.click) ? '성공' : '실패';
+  }
+
   // engine.py의 Runner._execute()와 동일한 분기 - manual 단계는 여기서
   // 다루지 않는다(advanceWebrun에서 실행 자체를 건너뛴다, Python 쪽과
   // 동일한 동작).
   function webExecuteStep(step) {
+    if ('click' in step) return webExecuteComposite(step);
+
     const action = step.action;
 
     if (action === 'popup') {
@@ -1312,10 +1474,18 @@
 
       runQueue.push(setTimeout(() => {
         const skip = mode === 'dry' && s.manual;
-        const bad = !s.manual && s.mode === 'selector' && !String(s.selector || '').trim();
-        const badCoord = !s.manual && s.mode === 'coord' && (!String(s.x).trim() || !String(s.y).trim());
-        const badTab = !s.manual && s.mode === 'tab' && (!String(s.tabCount != null ? s.tabCount : '').trim() || isNaN(parseInt(s.tabCount, 10)));
-        const result = skip ? '건너뜀' : s.manual ? '수동 대기' : (bad || badCoord || badTab) ? '실패' : '성공';
+        const isComposite = 'click' in s;
+        const bad = !s.manual && !isComposite && s.mode === 'selector' && !String(s.selector || '').trim();
+        const badCoord = !s.manual && !isComposite && s.mode === 'coord' && (!String(s.x).trim() || !String(s.y).trim());
+        const badTab = !s.manual && !isComposite && s.mode === 'tab' && (!String(s.tabCount != null ? s.tabCount : '').trim() || isNaN(parseInt(s.tabCount, 10)));
+        const badComposite = !s.manual && isComposite && (() => {
+          const c = s.click || {};
+          const m = c.mode || 'selector';
+          if (m === 'selector') return !String(c.selector || '').trim();
+          if (m === 'coord') return !String(c.x != null ? c.x : '').trim() || !String(c.y != null ? c.y : '').trim();
+          return isNaN(parseInt(c.tabCount, 10));
+        })();
+        const result = skip ? '건너뜀' : s.manual ? '수동 대기' : (bad || badCoord || badTab || badComposite) ? '실패' : '성공';
         state.runStates = Object.assign({}, state.runStates, { [s.id]: result });
         addLog(
           result === '실패' ? '오류' : result === '건너뜀' ? '건너뜀' : result === '수동 대기' ? '대기' : '완료',
@@ -1393,6 +1563,7 @@
     wrap.innerHTML = '';
     let activeRow = null;
     state.steps.forEach((s, i) => {
+      const isComposite = 'click' in s;
       const act = actionDefs.find(a => a.value === s.action) || actionDefs[0];
       const st = state.runStates[s.id] || '대기';
       const active = state.runIdx === i && state.running;
@@ -1407,17 +1578,22 @@
       const body = document.createElement('div'); body.style.minWidth = '0';
       const titleRow = document.createElement('div'); titleRow.className = 'mc-flow-title-row';
       const lbl = document.createElement('span'); lbl.className = 'mc-flow-label'; lbl.textContent = (i + 1) + '. ' + (s.label || '(라벨 없음)');
-      const actionTag = document.createElement('span'); actionTag.className = 'mc-flow-action-tag'; actionTag.textContent = act.label;
+      // 복합 단계(record.py로 로컬 녹화해 가져온 단계)는 action select가
+      // 없어 act.label이 의미가 없다 - "복합" 배지로 대체한다.
+      const actionTag = document.createElement('span'); actionTag.className = 'mc-flow-action-tag';
+      actionTag.textContent = isComposite ? ((s.context === 'popup' ? '팝업 ' : '') + '복합' + (s.opensPopup ? ' · 팝업열림' : '')) : act.label;
       titleRow.appendChild(lbl); titleRow.appendChild(actionTag);
       if (s.manual) { const mTag = document.createElement('span'); mTag.className = 'mc-flow-manual-tag'; mTag.textContent = '🖐 수동'; titleRow.appendChild(mTag); }
       const target = document.createElement('div'); target.className = 'mc-flow-target';
       // 선택자에 {날짜} 같은 변수가 남아있으면 실제 어떤 값으로
       // 찾아갈지 미리 보여준다(resolveValue 재사용) - 값이 안 바뀌면
       // 그대로 표시된다.
-      const targetBase = s.mode === 'coord' ? '(x ' + (s.x || '?') + ', y ' + (s.y || '?') + ')'
+      const targetBase = isComposite
+        ? ((s.inputs && s.inputs.length ? '입력 ' + s.inputs.length + '개 → ' : '') + describeCompositeClick(s.click))
+        : s.mode === 'coord' ? '(x ' + (s.x || '?') + ', y ' + (s.y || '?') + ')'
         : s.mode === 'tab' ? 'Tab ' + (s.tabCount || 1) + '회 이동'
         : (s.selector ? resolveValue(s.selector) : '선택자 미지정');
-      target.textContent = targetBase + (act.needsValue && s.value ? ' → ' + resolveValue(s.value) : '');
+      target.textContent = targetBase + (!isComposite && act.needsValue && s.value ? ' → ' + resolveValue(s.value) : '');
       body.appendChild(titleRow); body.appendChild(target);
       const time = document.createElement('span'); time.className = 'mc-flow-time'; time.textContent = (parseInt(s.sleep, 10) || 0) + 'ms';
       const status = document.createElement('span'); status.className = 'mc-flow-status'; status.textContent = st;
@@ -1501,6 +1677,74 @@
     const btn = $('mc-start-btn');
     btn.textContent = state.running ? '■ 중지' : state.timeMode === 'absolute' ? '▶ 예약 시각에 시작' : '▶ ' + state.delaySec + '초 뒤 시작';
     btn.className = 'mc-start-btn' + (state.running ? ' running' : ready ? ' ready' : '');
+  }
+
+  // ---- 로컬 브라우저 녹화(record.py) 연동 ----
+  // 웹페이지는 보안 정책상 이 PC에 실제 브라우저 창을 직접 띄울 수
+  // 없다 - 그래서 1단계 URL이 채워진 로컬 실행 명령어를 보여주고
+  // 복사하게 안내한 뒤, 로컬에서 녹화해 나온 JSON을 가져오기로 받는다.
+  function localRecCommand() {
+    const targetUrl = state.url || currentVendor().sample;
+    return 'python record.py --url "' + targetUrl + '" --out aft_macro_recording.json';
+  }
+
+  function openLocalRec() {
+    $('mc-localrec-cmd').textContent = localRecCommand();
+    $('mc-localrec-file').value = '';
+    $('mc-localrec-import').disabled = true;
+    $('mc-localrec-overlay').hidden = false;
+  }
+
+  function closeLocalRec() {
+    $('mc-localrec-overlay').hidden = true;
+  }
+
+  function copyLocalRecCommand() {
+    const text = localRecCommand();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => showToast('명령어를 복사했습니다', { type: 'success' }),
+        () => showToast('복사에 실패했습니다 - 직접 선택해 복사해 주세요', { type: 'error' })
+      );
+    } else {
+      showToast('이 브라우저는 자동 복사를 지원하지 않습니다 - 직접 선택해 복사해 주세요', { type: 'error' });
+    }
+  }
+
+  // record.py가 만드는 단계는 id가 1부터 다시 시작하므로, 기존
+  // withDefaults의 `{id: ++seed, ...}` 기본값이 그대로 살아남게
+  // id 속성 자체를 지운다 - `{id: undefined}`처럼 값만 지우면
+  // Object.assign 병합 순서상 undefined가 오히려 ++seed를 덮어써
+  // 버린다(이 프로젝트 기존 loadSaved()에 있던 것과 같은 함정).
+  function stripId(step) {
+    const clean = Object.assign({}, step);
+    delete clean.id;
+    return clean;
+  }
+
+  function importLocalRec() {
+    const file = $('mc-localrec-file').files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let data;
+      try { data = JSON.parse(reader.result); } catch (e) {
+        showToast('JSON 파일을 읽지 못했습니다', { type: 'error' }); return;
+      }
+      if (!data || !Array.isArray(data.steps) || !data.steps.length) {
+        showToast('이 파일에는 가져올 단계가 없습니다', { type: 'error' }); return;
+      }
+      state.steps = data.steps.map(s => withDefaults(stripId(s)));
+      if (data.url) { state.url = data.url; }
+      const recW = parseInt(state.recWidth, 10) || 1280, recH = parseInt(state.recHeight, 10) || 800;
+      if (data.recWidth && data.recHeight && (parseInt(data.recWidth, 10) !== recW || parseInt(data.recHeight, 10) !== recH)) {
+        showToast('레코딩 해상도(' + data.recWidth + '×' + data.recHeight + ')가 현재 설정과 달라 좌표 기반 단계가 어긋날 수 있습니다', { type: 'error' });
+      }
+      syncUrlField(); renderSteps(); renderStepMeta(); renderHeader(); renderBottomBar(); renderAllFlows();
+      closeLocalRec();
+      showToast(state.steps.length + '개 단계를 가져왔습니다', { type: 'success' });
+    };
+    reader.readAsText(file);
   }
 
   // ---- 레코딩 ----
@@ -1655,6 +1899,11 @@
       renderLogs(); renderRunSummary(); renderAllFlows();
     });
     $('mc-start-recording').addEventListener('click', startRecording);
+    $('mc-start-localrec').addEventListener('click', openLocalRec);
+    $('mc-localrec-close').addEventListener('click', closeLocalRec);
+    $('mc-localrec-copy').addEventListener('click', copyLocalRecCommand);
+    $('mc-localrec-file').addEventListener('change', e => { $('mc-localrec-import').disabled = !e.target.files.length; });
+    $('mc-localrec-import').addEventListener('click', importLocalRec);
     $('mc-rec-cancel').addEventListener('click', closeRecording);
     $('mc-rec-undo').addEventListener('click', () => { state.recMarks = state.recMarks.slice(0, -1); renderRecMarks(); renderRecList(); renderRecHeader(); });
     $('mc-rec-finish').addEventListener('click', finishRecording);
