@@ -28,6 +28,11 @@ playwright install chromium
 
 ## 사용법
 
+`/macro` 웹 화면 없이 **`record.py`로 직접 녹화한 파일을 바로
+실행**하는 게 더 간단하다 - 아래 "실제 브라우저 조작으로 단계
+녹화하기" 참고. 이 절은 `/macro` 화면에서 단계를 편집·저장해 온
+기존 방식이다:
+
 1. `/macro`에서 선사·날짜·인원·예약자 정보·실행 시각·단계를 설정한다.
 2. "⬇ 내보내기(JSON)" 버튼을 눌러 `aft_macro_config.json`을 내려받는다.
 3. 실행한다:
@@ -83,11 +88,22 @@ JSON 파일로 저장된다.
 `opensPopup: true`로 자동 표시되어 재생 시 `context.expect_page()`로
 감싸진다.
 
-이렇게 녹화한 JSON은 그대로 `run.py --config my_recording.json
---stepwise`로 재생해서 한 단계씩 확인할 수 있다(`engine.py`가
-`click` 키가 있는 단계를 복합 단계로 자동 인식한다). 단, `guestName`/
-`guestPhone1` 같은 사람 정보와 `sleep` 시각 등은 녹화에 담기지
-않으므로 재생 전에 직접 채워 넣어야 한다.
+이렇게 녹화한 JSON은 `/macro` 웹 화면을 거치지 않고 **곧바로**
+`run.py`로 실행할 수 있다 - 녹화 중 팝업에 실제로 타이핑한
+예약자명·전화번호는 이미 그 값 그대로 단계 안에 들어 있으므로(템플릿
+변수가 아니라 진짜 값), 따로 채워 넣을 게 없다:
+
+```bash
+python run.py --config my_recording.json --at 17:00:00     # 오늘 17시에 시작
+python run.py --config my_recording.json --at "2026-09-23 17:00:00"
+python run.py --config my_recording.json --now             # 지금 바로(테스트용)
+python run.py --config my_recording.json --stepwise --now  # 한 단계씩 확인하며 즉시 실행
+```
+
+`--at`/`--now`를 안 주면, 녹화 원본 JSON에는 실행 시각 정보가 아예
+없으므로 **명령을 실행한 바로 그 순간**을 실행 시각으로 삼는다("오늘
+17시"처럼 마음대로 가정하지 않는다 - 이미 지난 시각이면 다음날까지
+하염없이 기다리게 되어 "아무 반응 없다"고 오해하기 쉽다).
 
 ## 안전하게 미리 연습해보기 (실제 사이트 대신 로컬 목업으로)
 
