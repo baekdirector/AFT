@@ -210,7 +210,15 @@
   .mc-rec-info-link { flex: none; font-size: 11px; font-weight: 740; color: oklch(0.75 0.1 210); white-space: nowrap; }
   .mc-rec-info-link:hover { color: oklch(0.85 0.1 210); }
   .mc-rec-info-warn { flex: 1 1 200px; min-width: 0; font-size: 10.5px; font-weight: 600; color: oklch(0.75 0.03 60); }
-  .mc-rec-body { flex: 1; min-height: 0; display: flex; gap: 11px; padding: 11px clamp(14px, 2.6vw, 26px) clamp(14px, 2.6vw, 22px); flex-wrap: wrap; }
+  /* 참고: flex-wrap:wrap이었을 때 20단계 목록처럼 내용이 긴 사이드
+     패널이 있으면, wrap 모드의 각 줄 높이가 컨테이너 높이가 아니라
+     아이템의 "내용 기준" 높이로 계산돼(스펙상 그렇다 - 실측으로 확인,
+     항목에 min-height:0을 줘도 효과 없음) 오버레이 밖으로 넘쳐버렸다.
+     nowrap이면 한 줄의 교차축(높이) 크기가 항상 컨테이너 높이와
+     정확히 같아져서 자식이 정상적으로 그 안에서 스크롤된다 - 이
+     오버레이들은 관리자 전용 데스크톱 화면이라 좁은 화면 자동 줄바꿈은
+     포기해도 된다. */
+  .mc-rec-body { flex: 1; min-height: 0; display: flex; gap: 11px; padding: 11px clamp(14px, 2.6vw, 26px) clamp(14px, 2.6vw, 22px); }
   .mc-rec-canvas-wrap { flex: 1 1 420px; min-width: 0; min-height: 320px; border-radius: 16px; overflow: auto; background: oklch(0.3 0.01 250); border: 2px solid oklch(0.55 0.19 25); }
   .mc-rec-canvas { position: relative; background: #fff; cursor: crosshair; }
   .mc-rec-iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; background: #fff; }
@@ -218,7 +226,7 @@
   .mc-rec-mark { position: absolute; transform: translate(-50%, -50%); width: 34px; height: 34px; pointer-events: none; }
   .mc-rec-mark .ring { position: absolute; inset: 0; border-radius: 99px; border: 2px solid oklch(0.55 0.19 25); background: oklch(0.55 0.19 25 / 0.14); }
   .mc-rec-mark .num { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 20px; height: 20px; border-radius: 99px; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #fff; background: oklch(0.55 0.19 25); }
-  .mc-rec-side { flex: 1 1 280px; min-width: 0; max-width: 380px; display: flex; flex-direction: column; gap: 9px; background: #fff; border-radius: 16px; padding: 14px; overflow: hidden; }
+  .mc-rec-side { flex: 1 1 280px; min-width: 0; min-height: 0; max-width: 380px; display: flex; flex-direction: column; gap: 9px; background: #fff; border-radius: 16px; padding: 14px; overflow: hidden; }
   .mc-rec-side-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
   .mc-rec-side-head .t { font-size: 13px; font-weight: 780; letter-spacing: -0.4px; }
   .mc-rec-side-head .screen { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 99px; background: oklch(0.955 0.006 240); color: oklch(0.52 0.015 250); }
@@ -487,10 +495,12 @@
       </div>
       <div class="mc-rec-side">
         <div class="mc-rec-side-head">
-          <span class="t">현재 단계</span>
+          <span class="t">전체 단계</span>
+          <span class="screen" id="mc-webrun-side-count"></span>
         </div>
-        <div id="mc-webrun-step-card"></div>
-        <button type="button" class="mc-start-btn ready" id="mc-webrun-next" style="width:100%; margin-top:auto;"></button>
+        <div class="mc-flow-list" id="mc-webrun-flow-list" style="flex:1 1 auto; min-height:0; overflow-y:auto; padding:0;"></div>
+        <div id="mc-webrun-manual-banner"></div>
+        <button type="button" class="mc-start-btn ready" id="mc-webrun-next" style="width:100%; flex:none;"></button>
       </div>
     </div>
   </div>
@@ -1000,7 +1010,7 @@
     state.running = false;
     state.runIdx = -1;
     if (reason) addLog('중단', reason);
-    renderRunSummary(); renderFlow(); renderBottomBar(); renderHeader(); renderDryRunBtn();
+    renderRunSummary(); renderAllFlows(); renderBottomBar(); renderHeader(); renderDryRunBtn();
   }
 
   function addLog(tag, text, dur) {
@@ -1059,7 +1069,11 @@
   // 전혀 진행되지 않는다(실제로 겪은 버그). 그래서 여기서 항상
   // try/catch로 감싸고, text=/​:first 정도는 최소한으로 흉내 낸다.
   function webQuerySelector(doc, selector) {
-    const sel = String(selector || '').trim();
+    // {날짜} 같은 변수가 선택자에 남아있으면 실제 값으로 치환한 뒤
+    // 찾는다 - 예전엔 값 필드에만 resolveValue를 적용해서, 선택자
+    // 안의 {날짜}는 실제 사이트/목업 어디서도 절대 매칭될 수 없는
+    // 문자 그대로 남아있었다(실제 사용에도 영향 있던 버그).
+    const sel = String(resolveValue(selector) || '').trim();
     if (!sel) return null;
     try {
       if (sel.indexOf('text=') === 0) {
@@ -1171,14 +1185,14 @@
     webrunSteps.forEach(s => { states[s.id] = '대기'; });
     state.running = true; state.runMode = 'webrun'; state.runIdx = -1; state.runStates = states; state.runStart = Date.now();
     state.logs = [{ time: clockNow(), tag: '시작', text: '웹 리허설(목업) 시작 · ' + webrunSteps.length + '단계', dur: '' }];
-    renderRunSummary(); renderFlow(); renderLogs(); renderBottomBar(); renderHeader(); renderDryRunBtn();
+    renderRunSummary(); renderAllFlows(); renderLogs(); renderBottomBar(); renderHeader(); renderDryRunBtn();
 
     const canvas = $('mc-webrun-canvas');
     canvas.style.width = (parseInt(state.recWidth, 10) || 1280) + 'px';
     canvas.style.height = (parseInt(state.recHeight, 10) || 800) + 'px';
     const iframe = $('mc-webrun-iframe');
     iframe.onload = () => { webrunWin = iframe.contentWindow; };
-    iframe.src = '/macro/mock/mock_list.html';
+    iframe.src = '/macro/mock/mock_list.html?date=' + encodeURIComponent(state.date || '');
 
     $('mc-webrun-overlay').hidden = false;
     renderWebrunPanel();
@@ -1199,7 +1213,7 @@
     state.runStates = Object.assign({}, state.runStates, { [step.id]: '진행' });
     addLog('진행', (webrunIdx + 1) + '. ' + (step.label || '(라벨 없음)') + ' — ' + describeStepTarget(step) +
       (step.value ? ' · 값 ' + resolveValue(step.value) : ''));
-    renderFlow(); renderRunSummary();
+    renderAllFlows(); renderRunSummary();
 
     // webExecuteStep은 실제 DOM(팝업 차단, 요소 이탈 등 예측 못한 상황
     // 포함)을 다루므로, 여기서 던지는 예외를 절대 새어나가게 두지
@@ -1224,55 +1238,46 @@
           : '— 정상 처리'),
       (parseInt(step.sleep, 10) || 0) + 'ms'
     );
-    renderFlow(); renderRunSummary();
+    renderAllFlows(); renderRunSummary();
 
     webrunIdx += 1;
     renderWebrunPanel();
   }
 
+  // 오른쪽 패널은 전체 20단계를 한꺼번에 보여주고(#mc-webrun-flow-list -
+  // renderAllFlows()가 채움, 5번 섹션 #mc-flow-list와 같은 렌더러 공유)
+  // 현재 단계만 강조 표시한다 - "오른쪽에 단계가 전부 보이면 좋겠다"는
+  // 요청 그대로. 상세 카드는 따로 안 만들고, manual 단계일 때만 배너를
+  // 보여준다.
   function renderWebrunPanel() {
-    $('mc-webrun-count').textContent = Math.min(webrunIdx + 1, webrunSteps.length) + ' / ' + webrunSteps.length;
-    const card = $('mc-webrun-step-card');
     const nextBtn = $('mc-webrun-next');
-    card.innerHTML = '';
+    const banner = $('mc-webrun-manual-banner');
+    banner.innerHTML = '';
 
     if (webrunIdx >= webrunSteps.length) {
+      const doneText = webrunSteps.length + ' / ' + webrunSteps.length + ' · 완료';
+      $('mc-webrun-count').textContent = doneText;
+      $('mc-webrun-side-count').textContent = doneText;
       const fails = Object.keys(state.runStates).filter(k => state.runStates[k] === '실패').length;
       addLog(fails ? '오류' : '완료', fails ? ('흐름 종료 — 실패 ' + fails + '단계, 설정을 확인해 주세요') : '웹 리허설(목업) 정상 종료');
       showToast(fails ? ('실패 ' + fails + '단계 — 로그를 확인해 주세요') : '웹 리허설을 모두 확인했습니다', { type: fails ? 'error' : 'success' });
       stopRun(null);
-
-      const done = document.createElement('div');
-      done.style.cssText = 'text-align:center; padding:24px 10px; font-size:13px; font-weight:700; color:oklch(0.5 0.015 250);';
-      done.textContent = '모든 단계를 확인했습니다.';
-      card.appendChild(done);
       nextBtn.textContent = '닫기';
       return;
     }
 
+    const progressText = (webrunIdx + 1) + ' / ' + webrunSteps.length;
+    $('mc-webrun-count').textContent = progressText;
+    $('mc-webrun-side-count').textContent = progressText;
     const step = webrunSteps[webrunIdx];
-    const act = actionDefs.find(a => a.value === step.action) || actionDefs[0];
-    const num = document.createElement('div');
-    num.style.cssText = 'font-size:11px; font-weight:800; color:oklch(0.55 0.015 250);';
-    num.textContent = (webrunIdx + 1) + ' / ' + webrunSteps.length + '단계';
-    const label = document.createElement('div');
-    label.style.cssText = 'font-size:14px; font-weight:790; margin-top:4px; letter-spacing:-0.3px;';
-    label.textContent = step.label || '(라벨 없음)';
-    const target = document.createElement('div');
-    target.style.cssText = 'font-size:12px; font-weight:640; color:oklch(0.5 0.015 250); margin-top:6px; font-family:ui-monospace, Menlo, monospace; word-break:break-all;';
-    target.textContent = describeStepTarget(step) + (act.needsValue && step.value ? ' → ' + resolveValue(step.value) : '');
-    card.appendChild(num); card.appendChild(label); card.appendChild(target);
-
     if (step.manual) {
-      const banner = document.createElement('div');
-      banner.className = 'mc-manual-banner';
-      banner.style.marginTop = '10px';
       const hand = document.createElement('span'); hand.textContent = '🖐';
       const txt = document.createElement('span'); txt.className = 'txt'; txt.textContent = '목업 팝업에서 직접 확인 후 눌러보세요';
+      banner.className = 'mc-manual-banner';
       banner.appendChild(hand); banner.appendChild(txt);
-      card.appendChild(banner);
       nextBtn.textContent = '확인함 → 다음';
     } else {
+      banner.className = '';
       nextBtn.textContent = '다음 단계 ▶';
     }
   }
@@ -1288,7 +1293,7 @@
     steps.forEach(s => { states[s.id] = '대기'; });
     state.running = true; state.runMode = mode; state.runIdx = -1; state.runStates = states; state.runStart = Date.now();
     state.logs = [{ time: clockNow(), tag: '시작', text: (mode === 'dry' ? '테스트 실행(드라이런) 시작 — 최종 확정 단계는 건너뜁니다' : '실전 실행 시작') + ' · ' + steps.length + '단계', dur: '' }];
-    renderRunSummary(); renderFlow(); renderLogs(); renderBottomBar(); renderHeader(); renderDryRunBtn();
+    renderRunSummary(); renderAllFlows(); renderLogs(); renderBottomBar(); renderHeader(); renderDryRunBtn();
 
     runTimer = setInterval(() => { renderRunSummary(); }, 200);
 
@@ -1301,7 +1306,7 @@
         state.runStates = Object.assign({}, state.runStates, { [s.id]: '진행' });
         addLog('진행', (i + 1) + '. ' + (s.label || '(라벨 없음)') + ' — ' + describeStepTarget(s) +
           (s.value ? ' · 값 ' + resolveValue(s.value) : ''));
-        renderFlow(); renderRunSummary();
+        renderAllFlows(); renderRunSummary();
       }, t));
       t += wait;
 
@@ -1321,7 +1326,7 @@
               : '— 정상 처리'),
           (parseInt(s.sleep, 10) || 0) + 'ms'
         );
-        renderFlow(); renderRunSummary();
+        renderAllFlows(); renderRunSummary();
       }, t - 40));
     });
 
@@ -1334,7 +1339,7 @@
         fails ? '흐름 종료 — 실패 ' + fails + '단계, 설정을 확인해 주세요'
           : (mode === 'dry' ? '테스트 흐름 정상 종료' : '실행 종료') + ' · 단계 대기 합계 ' + (total / 1000).toFixed(1) + '초');
       showToast(fails ? '실패 ' + fails + '단계 — 로그를 확인해 주세요' : '흐름이 정상적으로 끝났습니다', { type: fails ? 'error' : 'success' });
-      renderRunSummary(); renderFlow(); renderBottomBar(); renderHeader(); renderDryRunBtn();
+      renderRunSummary(); renderAllFlows(); renderBottomBar(); renderHeader(); renderDryRunBtn();
     }, t + 200));
   }
 
@@ -1378,15 +1383,22 @@
     bar.className = 'mc-run-bar' + (fails ? ' failed' : state.running ? ' running' : '');
   }
 
-  function renderFlow() {
-    const wrap = $('mc-flow-list');
+  // containerId를 받게 해서 5번 섹션의 #mc-flow-list와 웹 리허설
+  // 오버레이의 #mc-webrun-flow-list가 같은 렌더링 로직을 공유한다 -
+  // 사용자가 "오른쪽에 20단계가 전부 보이면 좋겠다"고 요청한 게 바로
+  // 이 목록이라, 새로 만들지 않고 이미 검증된 렌더러를 재사용한다.
+  function renderFlow(containerId) {
+    const wrap = $(containerId || 'mc-flow-list');
+    if (!wrap) return;
     wrap.innerHTML = '';
+    let activeRow = null;
     state.steps.forEach((s, i) => {
       const act = actionDefs.find(a => a.value === s.action) || actionDefs[0];
       const st = state.runStates[s.id] || '대기';
       const active = state.runIdx === i && state.running;
       const row = document.createElement('div');
       row.className = 'mc-flow-row' + (active ? ' active' : '');
+      if (active) activeRow = row;
       const icon = document.createElement('span'); icon.className = 'mc-flow-icon';
       icon.textContent = st === '성공' ? '✓' : st === '실패' ? '!' : st === '건너뜀' ? '–' : st === '수동 대기' ? '🖐' : st === '진행' ? '▶' : String(i + 1);
       const colorMap = { '성공': 'oklch(0.48 0.12 168)', '실패': 'oklch(0.52 0.18 27)', '건너뜀': 'oklch(0.58 0.015 250)', '수동 대기': 'oklch(0.52 0.14 55)', '진행': 'oklch(0.44 0.12 245)', '대기': 'oklch(0.64 0.012 250)' };
@@ -1399,9 +1411,12 @@
       titleRow.appendChild(lbl); titleRow.appendChild(actionTag);
       if (s.manual) { const mTag = document.createElement('span'); mTag.className = 'mc-flow-manual-tag'; mTag.textContent = '🖐 수동'; titleRow.appendChild(mTag); }
       const target = document.createElement('div'); target.className = 'mc-flow-target';
+      // 선택자에 {날짜} 같은 변수가 남아있으면 실제 어떤 값으로
+      // 찾아갈지 미리 보여준다(resolveValue 재사용) - 값이 안 바뀌면
+      // 그대로 표시된다.
       const targetBase = s.mode === 'coord' ? '(x ' + (s.x || '?') + ', y ' + (s.y || '?') + ')'
         : s.mode === 'tab' ? 'Tab ' + (s.tabCount || 1) + '회 이동'
-        : (s.selector || '선택자 미지정');
+        : (s.selector ? resolveValue(s.selector) : '선택자 미지정');
       target.textContent = targetBase + (act.needsValue && s.value ? ' → ' + resolveValue(s.value) : '');
       body.appendChild(titleRow); body.appendChild(target);
       const time = document.createElement('span'); time.className = 'mc-flow-time'; time.textContent = (parseInt(s.sleep, 10) || 0) + 'ms';
@@ -1410,6 +1425,14 @@
       row.appendChild(icon); row.appendChild(body); row.appendChild(time); row.appendChild(status);
       wrap.appendChild(row);
     });
+    if (activeRow && typeof activeRow.scrollIntoView === 'function') {
+      activeRow.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  function renderAllFlows() {
+    renderFlow('mc-flow-list');
+    if ($('mc-webrun-flow-list')) renderFlow('mc-webrun-flow-list');
   }
 
   function renderLogFilters() {
@@ -1629,7 +1652,7 @@
     $('mc-webrun-close').addEventListener('click', () => closeWebrun('사용자가 리허설을 닫았습니다'));
     $('mc-clear-logs').addEventListener('click', () => {
       state.logs = []; state.runStates = {}; state.runMode = ''; state.runIdx = -1;
-      renderLogs(); renderRunSummary(); renderFlow();
+      renderLogs(); renderRunSummary(); renderAllFlows();
     });
     $('mc-start-recording').addEventListener('click', startRecording);
     $('mc-rec-cancel').addEventListener('click', closeRecording);
@@ -1670,7 +1693,7 @@
     renderSteps();
     renderDryRunBtn();
     renderRunSummary();
-    renderFlow();
+    renderAllFlows();
     renderLogFilters();
     renderLogs();
     renderBottomBar();

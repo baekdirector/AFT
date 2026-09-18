@@ -105,7 +105,19 @@ class Runner:
         # select/scroll/reload: 아직 실제 사용 사례가 없어 필요해지면 추가한다.
 
     def _locator(self, step):
-        return self.page.locator(step['selector'])
+        # 선택자에 {날짜} 같은 변수가 남아있으면 실제 값으로 치환한다 -
+        # 값(value) 필드만 치환하고 선택자는 그대로 두면 {날짜}가 문자
+        # 그대로 남아 어떤 실제 페이지에서도 절대 매칭되지 않는다
+        # (macro.html의 webQuerySelector와 동일한 이유로 고친 버그).
+        sel = resolve_value(step['selector'], self.config) or ''
+        # ':first'/':last'는 jQuery/Sizzle 전용 의사 선택자라 Playwright도
+        # 모른다(CSS 표준도 아님) - 그대로 넘기면 SyntaxError가 난다.
+        # 접미사를 떼어내고 Playwright의 .first/.last로 좁힌다.
+        if sel.endswith(':first'):
+            return self.page.locator(sel[:-len(':first')]).first
+        if sel.endswith(':last'):
+            return self.page.locator(sel[:-len(':last')]).last
+        return self.page.locator(sel)
 
     def _click_target(self, step):
         mode = step.get('mode') or 'selector'
