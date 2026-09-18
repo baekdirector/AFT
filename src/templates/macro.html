@@ -36,6 +36,9 @@
   .mc-hint.bad { color: oklch(0.55 0.16 45); }
 
   .mc-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+  .mc-rec-size-row { display: flex; align-items: center; gap: 8px; }
+  .mc-rec-size-row input { text-align: center; min-width: 0; }
+  .mc-rec-size-row span { flex: none; color: oklch(0.6 0.015 250); font-weight: 700; }
   .mc-grid-guest { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
   .mc-phone-row { display: flex; align-items: center; gap: 6px; }
   .mc-phone-row input { min-width: 0; text-align: center; font-variant-numeric: tabular-nums; }
@@ -84,6 +87,7 @@
   .mc-step-badge { font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 99px; background: oklch(0.955 0.006 240); color: oklch(0.5 0.015 250); white-space: nowrap; }
   .mc-rec-btn { display: inline-flex; align-items: center; gap: 8px; flex: none; height: 38px; padding: 0 14px; border-radius: 11px; border: 1px solid oklch(0.9 0.05 25); background: oklch(0.975 0.022 25); color: oklch(0.48 0.17 25); font-size: 12.5px; font-weight: 740; cursor: pointer; white-space: nowrap; }
   .mc-rec-dot { width: 8px; height: 8px; border-radius: 99px; background: oklch(0.55 0.19 25); flex: none; }
+  .mc-rec-scope-note { text-align: right; font-size: 10.5px; font-weight: 700; color: oklch(0.58 0.015 250); margin: -8px 0 10px; }
   .mc-info-box { display: flex; align-items: flex-start; gap: 9px; padding: 12px 13px; border-radius: 13px; background: oklch(0.972 0.018 235); border: 1px solid oklch(0.92 0.03 238); margin-bottom: 13px; }
   .mc-info-box .txt { font-size: 11.5px; font-weight: 580; line-height: 1.65; color: oklch(0.4 0.035 242); }
 
@@ -200,11 +204,16 @@
   .mc-rec-topbtn { flex: none; height: 36px; padding: 0 13px; border-radius: 11px; border: 1px solid oklch(1 0 0 / 0.26); background: oklch(1 0 0 / 0.1); color: #fff; font-size: 12.5px; font-weight: 720; cursor: pointer; white-space: nowrap; }
   .mc-rec-cancel { background: transparent; color: oklch(0.9 0.01 250); font-weight: 700; }
   .mc-rec-finish { border: none; background: #fff; color: oklch(0.24 0.02 250); font-size: 12.5px; font-weight: 780; padding: 0 16px; }
+  .mc-rec-info-bar { flex: none; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px clamp(14px, 2.6vw, 26px); background: oklch(0.24 0.02 250); border-top: 1px solid oklch(1 0 0 / 0.08); }
+  .mc-rec-info-url { font-size: 11px; font-weight: 700; color: oklch(0.85 0.01 250); font-family: ui-monospace, Menlo, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40%; }
+  .mc-rec-info-link { flex: none; font-size: 11px; font-weight: 740; color: oklch(0.75 0.1 210); white-space: nowrap; }
+  .mc-rec-info-link:hover { color: oklch(0.85 0.1 210); }
+  .mc-rec-info-warn { flex: 1 1 200px; min-width: 0; font-size: 10.5px; font-weight: 600; color: oklch(0.75 0.03 60); }
   .mc-rec-body { flex: 1; min-height: 0; display: flex; gap: 11px; padding: 11px clamp(14px, 2.6vw, 26px) clamp(14px, 2.6vw, 22px); flex-wrap: wrap; }
-  .mc-rec-canvas { position: relative; flex: 1 1 420px; min-width: 0; min-height: 320px; border-radius: 16px; overflow: hidden; background: #fff; border: 2px solid oklch(0.55 0.19 25); cursor: crosshair; }
-  .mc-rec-canvas-bg { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, oklch(0.97 0.004 240) 0 39px, oklch(0.94 0.006 240) 39px 40px), repeating-linear-gradient(90deg, transparent 0 39px, oklch(0.945 0.006 240) 39px 40px); }
-  .mc-rec-canvas-url { position: absolute; top: 11px; left: 11px; right: 11px; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-radius: 10px; background: oklch(0.965 0.006 240); border: 1px solid oklch(0.92 0.008 240); font-size: 11px; font-weight: 700; color: oklch(0.54 0.015 250); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .mc-rec-canvas-hint { position: absolute; top: 58px; left: 11px; right: 11px; bottom: 11px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; pointer-events: none; text-align: center; }
+  .mc-rec-canvas-wrap { flex: 1 1 420px; min-width: 0; min-height: 320px; border-radius: 16px; overflow: auto; background: oklch(0.3 0.01 250); border: 2px solid oklch(0.55 0.19 25); }
+  .mc-rec-canvas { position: relative; background: #fff; cursor: crosshair; }
+  .mc-rec-iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; background: #fff; }
+  .mc-rec-click-catcher { position: absolute; inset: 0; }
   .mc-rec-mark { position: absolute; transform: translate(-50%, -50%); width: 34px; height: 34px; pointer-events: none; }
   .mc-rec-mark .ring { position: absolute; inset: 0; border-radius: 99px; border: 2px solid oklch(0.55 0.19 25); background: oklch(0.55 0.19 25 / 0.14); }
   .mc-rec-mark .num { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 20px; height: 20px; border-radius: 99px; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #fff; background: oklch(0.55 0.19 25); }
@@ -265,6 +274,15 @@
         <div class="mc-field">
           <span class="mc-field-label">예약 인원</span>
           <div class="mc-chips" id="mc-party-options"></div>
+        </div>
+        <div class="mc-field">
+          <span class="mc-field-label">레코딩 해상도</span>
+          <div class="mc-rec-size-row">
+            <input type="text" class="mc-input" id="mc-rec-width" placeholder="1280">
+            <span>×</span>
+            <input type="text" class="mc-input" id="mc-rec-height" placeholder="800">
+          </div>
+          <span class="mc-hint">화면 레코딩 캔버스 크기이자, 실행 엔진이 열 브라우저 창 크기입니다 - 좌표가 어긋나지 않으려면 둘이 항상 같아야 합니다.</span>
         </div>
       </div>
     </section>
@@ -344,10 +362,11 @@
           <span>화면 레코딩으로 단계 만들기</span>
         </button>
       </div>
+      <div class="mc-rec-scope-note">메인 페이지 클릭 전용 — 팝업 안 필드는 Tab 이동으로 지정하세요</div>
 
       <div class="mc-info-box">
         <span style="font-size:13px; flex:none;">💡</span>
-        <div class="txt">각 단계는 <b>선택자</b>, <b>좌표(x, y)</b>, <b>Tab 이동</b> 중 하나로 동작 지점을 지정합니다. 선상24 팝업처럼 <b>뜨는 위치가 매번 달라지는 새 창</b>에는 좌표가 안 맞을 수 있는데, 이때는 <b>Tab 이동</b>이 강력합니다 — 팝업이 열린 자리에서 Tab을 정해진 횟수만큼 눌러 포커스를 옮기고, 그 위치에서 클릭/입력을 실행하므로 팝업 위치와 무관하게 항상 같은 필드에 도달합니다. 좌표는 <b>레코딩으로 기록한 보조 수단</b>(기록 화면 크기와 다르면 비율로 자동 보정)이고, 선택자는 페이지 구조가 안정적인 사이트에 적합합니다. 마지막 <b>예약하기</b> 단계는 실제 결제가 확정되는 지점이라 사람이 직접 누르도록 기본 설정돼 있습니다.</div>
+        <div class="txt">각 단계는 <b>선택자</b>, <b>좌표(x, y)</b>, <b>Tab 이동</b> 중 하나로 동작 지점을 지정합니다. 선상24 팝업처럼 <b>뜨는 위치가 매번 달라지는 새 창</b>에는 좌표가 안 맞을 수 있는데, 이때는 <b>Tab 이동</b>이 강력합니다 — 팝업이 열린 자리에서 Tab을 정해진 횟수만큼 눌러 포커스를 옮기고, 그 위치에서 클릭/입력을 실행하므로 팝업 위치와 무관하게 항상 같은 필드에 도달합니다. 좌표는 <b>레코딩으로 기록한 보조 수단</b>(레코딩 해상도와 실행 브라우저 창 크기가 정확히 같아야 어긋나지 않습니다)이고, 선택자는 페이지 구조가 안정적인 사이트에 적합합니다. <b>팝업 안 필드는 좌표로 기록할 수 없습니다</b>(브라우저 보안 정책상 새 창은 이 화면에서 들여다볼 수 없음) — 반드시 Tab 이동을 쓰세요. 마지막 <b>예약하기</b> 단계는 실제 결제가 확정되는 지점이라 사람이 직접 누르도록 기본 설정돼 있습니다.</div>
       </div>
 
       <div class="mc-step-list" id="mc-step-list"></div>
@@ -416,15 +435,18 @@
       <button type="button" class="mc-rec-topbtn mc-rec-cancel" id="mc-rec-cancel">취소</button>
       <button type="button" class="mc-rec-topbtn mc-rec-finish" id="mc-rec-finish">기록 완료 · 단계로 추가</button>
     </div>
+    <div class="mc-rec-info-bar">
+      <span class="mc-rec-info-url" id="mc-rec-url"></span>
+      <a class="mc-rec-info-link" id="mc-rec-open-tab" href="#" target="_blank" rel="noopener">새 탭에서 열기 ↗</a>
+      <span class="mc-rec-info-warn">참고용 미리보기입니다(클릭이 실제 사이트에 전달되지 않음) · 팝업 안은 이 화면에서 기록할 수 없습니다 — Tab 이동을 쓰세요</span>
+    </div>
     <div class="mc-rec-body">
-      <div class="mc-rec-canvas" id="mc-rec-canvas">
-        <div class="mc-rec-canvas-bg"></div>
-        <div class="mc-rec-canvas-url" id="mc-rec-url"></div>
-        <div class="mc-rec-canvas-hint">
-          <span style="font-size:30px;">🖱️</span>
-          <span style="font-size:13px; font-weight:740; color:oklch(0.42 0.02 250); padding:0 20px;">실제 예약 페이지가 이 영역에 표시됩니다.<br>클릭한 지점의 x · y 좌표와 클릭 이벤트가 순서대로 기록됩니다.</span>
+      <div class="mc-rec-canvas-wrap" id="mc-rec-canvas-wrap">
+        <div class="mc-rec-canvas" id="mc-rec-canvas">
+          <iframe id="mc-rec-iframe" class="mc-rec-iframe" title="레코딩 참고용 미리보기"></iframe>
+          <div class="mc-rec-click-catcher" id="mc-rec-click-catcher"></div>
+          <div id="mc-rec-marks"></div>
         </div>
-        <div id="mc-rec-marks"></div>
       </div>
       <div class="mc-rec-side">
         <div class="mc-rec-side-head">
@@ -565,8 +587,12 @@
     recMarks: [],
     recDefaultSleep: '300',
     recStart: 0,
-    screenW: window.innerWidth || 1440,
-    screenH: window.innerHeight || 900,
+    // 레코딩 캔버스 크기이자 macro_runner가 열 브라우저 뷰포트 크기 -
+    // 둘이 정확히 같아야 기록한 좌표가 실행 시점에 그대로 재현된다.
+    // /macro 창 크기(window.innerWidth)를 몰래 추정해 쓰던 과거 방식은
+    // 실행 브라우저 크기와 아무 상관이 없어 좌표가 항상 어긋났었다.
+    recWidth: '1280',
+    recHeight: '800',
   };
 
   function currentVendor() { return vendors.find(v => v.key === state.vendor) || vendors[0]; }
@@ -577,7 +603,7 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       const saved = JSON.parse(raw);
-      ['vendor', 'url', 'date', 'party', 'guestName', 'guestPhone1', 'guestPhone2', 'guestPhone3', 'timeMode', 'startClock', 'leadMs', 'delaySec'].forEach(k => {
+      ['vendor', 'url', 'date', 'party', 'guestName', 'guestPhone1', 'guestPhone2', 'guestPhone3', 'timeMode', 'startClock', 'leadMs', 'delaySec', 'recWidth', 'recHeight'].forEach(k => {
         if (saved[k] !== undefined) state[k] = saved[k];
       });
       if (Array.isArray(saved.steps) && saved.steps.length) {
@@ -592,6 +618,9 @@
       vendor: state.vendor, url: state.url, date: state.date, party: state.party,
       guestName: state.guestName, guestPhone1: state.guestPhone1, guestPhone2: state.guestPhone2, guestPhone3: state.guestPhone3,
       timeMode: state.timeMode, startClock: state.startClock, leadMs: state.leadMs, delaySec: state.delaySec,
+      // recWidth/recHeight: macro_runner가 이 크기 그대로 브라우저를 열어야
+      // 좌표(coord) 단계가 기록했을 때와 똑같이 재현된다.
+      recWidth: state.recWidth, recHeight: state.recHeight,
       steps: state.steps.map(s => ({ label: s.label, action: s.action, mode: s.mode, selector: s.selector, x: s.x, y: s.y, tabCount: s.tabCount, value: s.value, sleep: s.sleep, manual: s.manual })),
     };
   }
@@ -880,7 +909,7 @@
         const yInput = document.createElement('input'); yInput.type = 'text'; yInput.className = 'mc-coord-input'; yInput.placeholder = '0'; yInput.value = s.y;
         yInput.addEventListener('input', e => { s.y = e.target.value; });
         const meta = document.createElement('span'); meta.className = 'mc-coord-meta' + (s.x && s.y ? '' : ' warn');
-        meta.textContent = s.x && s.y ? '기준 ' + state.screenW + '×' + state.screenH : '레코딩 권장';
+        meta.textContent = s.x && s.y ? '기준 ' + state.recWidth + '×' + state.recHeight : '레코딩 권장';
         coordRow.appendChild(lx); coordRow.appendChild(xInput); coordRow.appendChild(ly); coordRow.appendChild(yInput); coordRow.appendChild(meta);
         row2.appendChild(coordRow);
       } else {
@@ -1152,11 +1181,25 @@
   // ---- 레코딩 ----
   let recTimer = null;
   function startRecording() {
+    const targetUrl = state.url || currentVendor().sample;
     state.recOpen = true; state.recMarks = []; state.recStart = Date.now();
     $('mc-rec-overlay').hidden = false;
-    $('mc-rec-url').textContent = state.url || currentVendor().sample;
-    $('mc-rec-screen').textContent = state.screenW + '×' + state.screenH;
+    $('mc-rec-url').textContent = targetUrl;
+    $('mc-rec-open-tab').href = targetUrl;
+    $('mc-rec-screen').textContent = state.recWidth + '×' + state.recHeight;
     $('mc-rec-default-sleep-input').value = state.recDefaultSleep;
+    // 캔버스를 레코딩 해상도 그대로 고정 픽셀 크기로 만들어야 여기서
+    // 기록한 좌표가 macro_runner가 그 크기로 띄우는 실제 브라우저와
+    // 1:1로 맞는다(반응형으로 줄이면 좌표가 어긋난다).
+    const canvas = $('mc-rec-canvas');
+    canvas.style.width = (parseInt(state.recWidth, 10) || 1280) + 'px';
+    canvas.style.height = (parseInt(state.recHeight, 10) || 800) + 'px';
+    // iframe은 실제 페이지를 참고용으로만 보여준다 - pointer-events:none
+    // 이라 클릭이 iframe에 전달되지 않고(실사이트 오조작 방지), 그 위
+    // 투명 캐처가 좌표만 읽어간다. src를 매번 새로 지정해 최신 URL을
+    // 반영한다(cross-origin이라 로드 성공 여부는 JS로 확인 불가 -
+    // 안내 바의 "새 탭에서 열기"가 대안).
+    $('mc-rec-iframe').src = targetUrl;
     renderRecHeader(); renderRecMarks(); renderRecList(); renderHeader();
     clearInterval(recTimer);
     recTimer = setInterval(renderRecHeader, 1000);
@@ -1165,6 +1208,7 @@
     clearInterval(recTimer);
     state.recOpen = false; state.recMarks = [];
     $('mc-rec-overlay').hidden = true;
+    $('mc-rec-iframe').src = 'about:blank';
     renderHeader();
   }
   function renderRecHeader() {
@@ -1197,7 +1241,7 @@
       const num = document.createElement('span'); num.className = 'num'; num.textContent = String(i + 1);
       const body = document.createElement('div'); body.className = 'body';
       const t1 = document.createElement('div'); t1.className = 't1'; t1.textContent = '클릭 · x ' + m.x + ' · y ' + m.y;
-      const t2 = document.createElement('div'); t2.className = 't2'; t2.textContent = '비율 ' + m.ratio + ' · 기준 ' + state.screenW + '×' + state.screenH;
+      const t2 = document.createElement('div'); t2.className = 't2'; t2.textContent = '비율 ' + m.ratio + ' · 기준 ' + state.recWidth + '×' + state.recHeight;
       body.appendChild(t1); body.appendChild(t2);
       const sleepInput = document.createElement('input'); sleepInput.type = 'text'; sleepInput.value = m.sleep;
       sleepInput.addEventListener('input', e => { m.sleep = e.target.value; });
@@ -1214,8 +1258,8 @@
     const py = Math.round(e.clientY - box.top);
     const ratioX = (px / box.width * 100).toFixed(1);
     const ratioY = (py / box.height * 100).toFixed(1);
-    const absX = Math.round(px / box.width * state.screenW);
-    const absY = Math.round(py / box.height * state.screenH);
+    const absX = Math.round(px / box.width * state.recWidth);
+    const absY = Math.round(py / box.height * state.recHeight);
     const now = Date.now();
     const prev = state.recMarks[state.recMarks.length - 1];
     const gap = prev ? Math.max(50, now - prev.at) : parseInt(state.recDefaultSleep, 10) || 300;
@@ -1234,6 +1278,7 @@
     })));
     state.recOpen = false; state.recMarks = [];
     $('mc-rec-overlay').hidden = true;
+    $('mc-rec-iframe').src = 'about:blank';
     renderSteps(); renderStepMeta(); renderHeader();
     showToast('클릭 ' + marks.length + '개를 단계로 추가했습니다', { type: 'success' });
   }
@@ -1250,6 +1295,10 @@
     $('mc-guest-phone2').addEventListener('input', e => { state.guestPhone2 = e.target.value; renderPhoneHint(); renderHeader(); renderBottomBar(); });
     $('mc-guest-phone3').value = state.guestPhone3;
     $('mc-guest-phone3').addEventListener('input', e => { state.guestPhone3 = e.target.value; renderPhoneHint(); renderHeader(); renderBottomBar(); });
+    $('mc-rec-width').value = state.recWidth;
+    $('mc-rec-width').addEventListener('input', e => { state.recWidth = e.target.value; });
+    $('mc-rec-height').value = state.recHeight;
+    $('mc-rec-height').addEventListener('input', e => { state.recHeight = e.target.value; });
     $('mc-start-clock').addEventListener('input', e => { state.startClock = e.target.value; renderPresetClocks(); renderHeader(); renderCountdown(); renderBottomBar(); });
     $('mc-lead-ms').addEventListener('input', e => { state.leadMs = e.target.value; renderBottomBar(); });
     $('mc-delay-sec').addEventListener('input', e => { state.delaySec = e.target.value; renderDelayOptions(); renderHeader(); renderCountdown(); renderBottomBar(); });
@@ -1279,7 +1328,7 @@
     $('mc-rec-cancel').addEventListener('click', closeRecording);
     $('mc-rec-undo').addEventListener('click', () => { state.recMarks = state.recMarks.slice(0, -1); renderRecMarks(); renderRecList(); renderRecHeader(); });
     $('mc-rec-finish').addEventListener('click', finishRecording);
-    $('mc-rec-canvas').addEventListener('click', captureClick);
+    $('mc-rec-click-catcher').addEventListener('click', captureClick);
     $('mc-rec-default-sleep-input').addEventListener('input', e => { state.recDefaultSleep = e.target.value; });
     $('mc-save-config').addEventListener('click', saveConfig);
     $('mc-export-config').addEventListener('click', exportConfig);

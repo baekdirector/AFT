@@ -10,6 +10,8 @@
   "timeMode": "relative",
   "startClock": "17:00:00",
   "leadMs": "300",
+  "recWidth": "1000",
+  "recHeight": "700",
   "delaySec": "3",
   "steps": [
     { "label": "바로예약 버튼 클릭 → 팝업 전환", "action": "popup", "mode": "selector", "selector": "#reserve-btn", "x": "", "y": "", "tabCount": 1, "value": "", "sleep": 500, "manual": false },

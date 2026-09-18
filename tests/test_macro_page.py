@@ -21,3 +21,6 @@ def test_macro_page_renders_when_admin_authed(client):
     assert '자동예약 매크로' in html
     assert 'sunsang24' in html
     assert 'mc-export-config' in html
+    assert 'mc-rec-width' in html
+    assert 'mc-rec-iframe' in html
+    assert 'Tab 이동' in html

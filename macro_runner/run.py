@@ -83,9 +83,17 @@ def main():
     wait_until(target)
     print('시작!')
 
+    # recWidth/recHeight는 /macro의 레코딩 캔버스와 정확히 같은 크기다 -
+    # 좌표(coord) 단계가 기록 시점과 다른 창 크기에서 재생되면 어긋나므로,
+    # 실행 브라우저를 반드시 이 크기로 강제한다.
+    viewport = {
+        'width': int(config.get('recWidth') or 1280),
+        'height': int(config.get('recHeight') or 800),
+    }
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
-        context = browser.new_context()
+        context = browser.new_context(viewport=viewport)
         page = context.new_page()
         page.goto(resolve_url(config['url'], args.config))
 
