@@ -1,12 +1,52 @@
 <!doctype html>
 <html lang="ko">
-<head><meta charset="utf-8"><title>목업 - 예약 현황(테스트용)</title></head>
-<body style="font-family: sans-serif; padding: 24px;">
-  <h1>레드히어로(20인승) - 테스트용 목업</h1>
-  <p>실제 sunsang24 사이트가 아니라, macro_runner를 안전하게 연습 실행하기 위한
-     로컬 정적 페이지입니다. "바로예약"을 누르면 mock_popup.html이 새 창으로 뜹니다.</p>
-  <button id="reserve-btn" onclick="window.open('mock_popup.html', 'popup', 'width=420,height=760')">
-    바로예약
-  </button>
+<head>
+<meta charset="utf-8">
+<title>목업 - 예약 현황(테스트용)</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Malgun Gothic", sans-serif; margin: 0; padding: 20px; color: #222; }
+  .banner { background: linear-gradient(135deg, #1a5fd6, #0b3f9e); color: #fff; padding: 14px 18px; border-radius: 6px; margin-bottom: 16px; }
+  .banner b { font-size: 15px; }
+  .banner p { margin: 4px 0 0; font-size: 12px; opacity: 0.9; }
+  .months { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .months span { padding: 6px 12px; border-radius: 4px; font-size: 13px; background: #f0f0f0; color: #666; }
+  .months span.active { background: #1a5fd6; color: #fff; font-weight: bold; }
+  .days { display: flex; gap: 4px; margin-bottom: 18px; flex-wrap: wrap; }
+  .days span { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 12.5px; color: #444; }
+  .days span.today { background: #1a5fd6; color: #fff; font-weight: bold; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { padding: 10px 8px; border-bottom: 1px solid #eee; text-align: left; }
+  th { color: #888; font-weight: normal; font-size: 12px; }
+  #reserve-btn { background: #1a5fd6; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; font-size: 13px; font-weight: bold; cursor: pointer; }
+</style>
+</head>
+<body>
+  <div class="banner">
+    <b>레드히어로(20인승) - 웹 리허설 목업</b>
+    <p>실제 sunsang24 사이트가 아니라, 자동예약 매크로를 안전하게 연습 실행하기 위한 같은 도메인 목업입니다.</p>
+  </div>
+
+  <div class="months"><span class="active">9월</span><span>10월</span><span>11월</span><span>12월</span></div>
+  <div class="days">
+    <span>16</span><span>17</span><span class="today">18</span><span>19</span><span>20</span><span>21</span><span>22</span><span>23</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>선박명</th><th>어종</th><th>출항 시간</th><th>잔여석</th><th></th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>레드히어로(20인승)</td>
+        <td>문어</td>
+        <td>05:00~17:00</td>
+        <td>18석</td>
+        <td>
+          <button id="reserve-btn" onclick="window.open('mock_popup.html', 'popup', 'width=480,height=820')">바로예약</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
 </body>
 </html>

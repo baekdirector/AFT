@@ -4,65 +4,149 @@
 <meta charset="utf-8">
 <title>목업 팝업(테스트용)</title>
 <style>
-  body { font-family: sans-serif; padding: 16px; font-size: 14px; }
-  label { display: block; margin-top: 10px; font-weight: bold; }
-  input, textarea { font-size: 14px; padding: 4px; }
-  #result { margin-top: 16px; padding: 10px; background: #e8f5e9; display: none; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Malgun Gothic", sans-serif; padding: 20px; font-size: 14px; color: #222; line-height: 1.5; }
+  h1 { font-size: 19px; margin: 0; }
+  .sub { display: inline-block; font-size: 13px; color: #666; margin-left: 4px; font-weight: normal; }
+  .price { float: right; font-size: 20px; font-weight: bold; color: #1a5fd6; }
+  .top-row { overflow: hidden; margin-bottom: 12px; }
+  .timebar { display: flex; align-items: center; justify-content: space-between; background: #2b2f36; color: #fff; padding: 12px 16px; border-radius: 4px; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  .timebar .badge { background: #e0332f; color: #fff; font-size: 12px; font-weight: bold; padding: 6px 10px; border-radius: 3px; white-space: nowrap; }
+  .info-line { font-size: 13px; color: #444; margin: 4px 0; }
+  hr { border: none; border-top: 1px solid #e5e5e5; margin: 18px 0; }
+  h2 { font-size: 15px; margin: 0 0 10px; display: flex; align-items: center; justify-content: space-between; }
+  .party-row { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-bottom: 12px; }
+  .party-row button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid #ccc; background: #fff; font-size: 16px; cursor: pointer; }
+  .party-row span#party-count { font-size: 17px; font-weight: bold; min-width: 22px; text-align: center; }
+  .totals { background: #2b2f36; color: #fff; border-radius: 6px; padding: 14px 16px; }
+  .totals .row { display: flex; justify-content: space-between; padding: 4px 0; }
+  .totals .row.total { font-weight: bold; color: #6fa8ff; border-bottom: 1px solid #454b55; padding-bottom: 10px; margin-bottom: 6px; }
+  .note { font-size: 11.5px; color: #888; margin-top: 8px; }
+  .field { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+  .field .tag { flex: none; background: #1a5fd6; color: #fff; font-size: 12.5px; font-weight: bold; padding: 8px 12px; border-radius: 4px; min-width: 76px; text-align: center; }
+  .field input, .field textarea { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+  .field textarea { resize: vertical; min-height: 54px; }
+  .phone-group { flex: 1; display: flex; align-items: center; gap: 6px; }
+  .phone-group input { width: 64px; flex: none; text-align: center; }
+  .required-note { font-size: 12px; color: #888; margin-bottom: 10px; }
+  .refund-box { background: #f7f7f8; border-radius: 6px; padding: 12px 14px; font-size: 12.5px; color: #555; }
+  .refund-box div { margin: 3px 0; }
+  .terms-check { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 13.5px; }
+  .terms-check a { font-size: 12px; color: #1a5fd6; margin-left: auto; }
+  .agree-all-row { display: flex; align-items: center; gap: 6px; font-weight: bold; font-size: 13.5px; }
+  .disclaimer { font-size: 11.5px; color: #888; margin: 8px 0 12px; }
+  #submit-btn { width: 100%; padding: 14px; margin-top: 18px; background: #1a5fd6; color: #fff; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
+  #result { margin-top: 16px; padding: 10px; background: #e8f5e9; border-radius: 4px; display: none; font-size: 13px; }
 </style>
 </head>
 <body>
-  <!-- Tab 1: 선사이름 - 실제 사이트에서도 클릭/입력 동작은 없고 포커스만 거쳐가는 자리 -->
-  <span id="ship-name" tabindex="0">레드히어로(20인승) (남해안/돌산항)</span>
+  <div class="top-row">
+    <!-- Tab 1: 선사이름 - 실제 사이트에서도 클릭/입력 동작은 없고 포커스만 거쳐가는 자리 -->
+    <h1 id="ship-name" tabindex="0" style="display:inline-block;">레드히어로(20인승) <span class="sub">(남해안/돌산항)</span></h1>
+    <span class="price">110,000원</span>
+  </div>
+  <div class="info-line">어종 : 문어 / 공략방법 : 선상</div>
 
-  <div style="margin-top: 12px;">
-    인원선택:
+  <div class="timebar">
+    <span>2026.9.23(수)05:00~17:00</span>
+    <span class="badge">출항 30분 전 도착 / 신분증 지참</span>
+  </div>
+  <div class="info-line">집결지 : 전남 여수시 돌산읍 남외길 24-1</div>
+  <div class="info-line">제공 서비스 : 점심 / 구명조끼 / 물 / 커피</div>
+  <div class="info-line">준비물 : 신분증</div>
+
+  <hr>
+  <h2>인원선택</h2>
+  <div class="party-row">
     <!-- Tab 2 -->
     <button id="party-minus" type="button" onclick="setParty(party - 1)">−</button>
     <span id="party-count">0</span>
     <!-- Tab 3 -->
     <button id="party-plus" type="button" onclick="setParty(party + 1)">＋</button>
   </div>
+  <div class="totals">
+    <div class="row total"><span>총 결제금액</span><span id="total-amount">0원</span></div>
+    <div class="row"><span>예약금(100%)</span><span id="deposit-amount">0원</span></div>
+  </div>
+  <div class="note">※ 예약자와 입금자가 다를경우 하단 [입금자명]에 기재해주세요.</div>
 
-  <!-- Tab 4 -->
-  <label>예약자명 <input id="guest-name" type="text"></label>
-  <!-- Tab 5 -->
-  <label>입금자명 <input id="payer-name" type="text"></label>
-  <!-- Tab 6~8 -->
-  <label>휴대전화
-    <input id="phone1" type="text" size="3" value="010">
-    -
-    <input id="phone2" type="text" size="4">
-    -
-    <input id="phone3" type="text" size="4">
-  </label>
+  <hr>
+  <h2>예약자 정보</h2>
+  <div class="required-note">※ 예약자명의 성함/휴대전화를 하단에 적어주세요(필수)</div>
+  <div class="field">
+    <span class="tag">예약자명</span>
+    <!-- Tab 4 -->
+    <input id="guest-name" type="text" placeholder="예약자명을 입력해주세요">
+  </div>
+  <div class="field">
+    <span class="tag">입금자명</span>
+    <!-- Tab 5 -->
+    <input id="payer-name" type="text" placeholder="예약자명과 다를경우에 입력해주세요">
+  </div>
+  <div class="field">
+    <span class="tag">휴대전화</span>
+    <div class="phone-group">
+      <!-- Tab 6~8 -->
+      <input id="phone1" type="text" value="010">
+      <span>-</span>
+      <input id="phone2" type="text">
+      <span>-</span>
+      <input id="phone3" type="text">
+    </div>
+  </div>
   <!-- Tab 9 -->
-  <label>전하실 말씀 <textarea id="message"></textarea></label>
+  <textarea id="message" placeholder="예약 시 전하실 말씀(선택)"></textarea>
 
-  <!-- Tab 10 -->
-  <label><input id="agree-all" type="checkbox" onclick="cascadeAgree(this.checked)"> 전체동의</label>
-  <!-- Tab 11 -->
-  <label><input id="agree-payment" type="checkbox"> 결제내용 확인 후 위 내용에 동의</label>
-  <!-- Tab 12 -->
-  <label><input id="agree-collect" type="checkbox"> 개인정보 수집/이용동의</label>
-  <!-- Tab 13 -->
-  <a id="view-collect" href="#" tabindex="0" onclick="return false;">내용보기</a>
-  <!-- Tab 14 -->
-  <label><input id="agree-third-party" type="checkbox"> 개인정보 제 3자 제공 동의</label>
-  <!-- Tab 15 -->
-  <a id="view-third-party" href="#" tabindex="0" onclick="return false;">내용보기</a>
+  <hr>
+  <h2>취소/환불규정</h2>
+  <div class="refund-box">
+    <div>※ 환불정책 안내</div>
+    <div>- 출항일 기준 7일전 : 100% 환불</div>
+    <div>- 출항일 기준 4~6일전 : 70% 환불</div>
+    <div>- 출항일 기준 2~3일전 : 50% 환불</div>
+    <div>- 출항일 기준 1일전 또는 당일 : 환불 불가</div>
+  </div>
+
+  <hr>
+  <h2>
+    약관동의
+    <span class="agree-all-row">
+      <!-- Tab 10 -->
+      <input id="agree-all" type="checkbox" onclick="cascadeAgree(this.checked)"> 전체동의
+    </span>
+  </h2>
+  <div class="disclaimer">※ 위 내용에 대한 결제 진행을 위해 약관 동의가 필요합니다.<br>(주)산다고 선상24는 통신판매 중개자로서 통신판매의 당사자가 아니며 상품의 예약, 이용 및 환불 등의 관련 의무와 책임은 각 판매자에게 있음을 안내드립니다.</div>
+  <label class="terms-check">
+    <!-- Tab 11 -->
+    <input id="agree-payment" type="checkbox"> 결제내용 확인 후 위 내용에 동의 (필수)
+  </label>
+  <label class="terms-check">
+    <!-- Tab 12 -->
+    <input id="agree-collect" type="checkbox"> 개인정보 수집/이용동의 (필수)
+    <!-- Tab 13 -->
+    <a id="view-collect" href="#" tabindex="0" onclick="return false;">내용보기</a>
+  </label>
+  <label class="terms-check">
+    <!-- Tab 14 -->
+    <input id="agree-third-party" type="checkbox"> 개인정보 제 3자 제공 동의 (필수)
+    <!-- Tab 15 -->
+    <a id="view-third-party" href="#" tabindex="0" onclick="return false;">내용보기</a>
+  </label>
 
   <!-- Tab 16 -->
-  <div style="margin-top: 16px;">
-    <button id="submit-btn" type="button" onclick="submitReservation()">예약하기</button>
-  </div>
+  <button id="submit-btn" type="button" onclick="submitReservation()">예약하기</button>
 
   <div id="result"></div>
 
 <script>
+  const UNIT_PRICE = 110000;
   let party = 0;
   function setParty(n) {
     party = Math.max(0, n);
     document.getElementById('party-count').textContent = party;
+    const amount = (party * UNIT_PRICE).toLocaleString('ko-KR') + '원';
+    document.getElementById('total-amount').textContent = amount;
+    document.getElementById('deposit-amount').textContent = amount;
   }
   function cascadeAgree(checked) {
     document.getElementById('agree-payment').checked = checked;
