@@ -25,15 +25,45 @@ from substitute import resolve_value
 
 
 class Runner:
-    def __init__(self, config, page, context):
+    def __init__(self, config, page, context, stepwise=False):
         self.config = config
         self.page = page
         self.context = context
+        # stepwise=True면 각 단계 실행 전에 무엇을 할지 예고하고 Enter로
+        # 승인받는다 - 실제 브라우저가 이미 떠 있으니, 승인 즉시 그
+        # 자리에서 진짜 Tab 이동/클릭/입력/팝업 전환이 일어나는 걸 한
+        # 단계씩 눈으로 확인할 수 있다.
+        self.stepwise = stepwise
 
     def run(self):
-        for step in self.config.get('steps', []):
+        steps = self.config.get('steps', [])
+        total = len(steps)
+        for i, step in enumerate(steps):
+            if self.stepwise:
+                self._announce(i, total, step)
+                if not step.get('manual'):
+                    input('  Enter를 누르면 이 단계를 실행합니다 ↵ ')
             self._execute(step)
+            if self.stepwise and not step.get('manual'):
+                print('  → 완료')
             time.sleep((step.get('sleep') or 0) / 1000)
+
+    def _announce(self, i, total, step):
+        target = self._describe_target(step)
+        value = step.get('value')
+        preview = ' → ' + resolve_value(value, self.config) if value else ''
+        print('\n[{}/{}] {}'.format(i + 1, total, step.get('label') or '(라벨 없음)'))
+        print('  ' + target + preview)
+
+    def _describe_target(self, step):
+        # src/templates/macro.html의 describeStepTarget()과 같은 규칙 -
+        # 화면 미리보기와 실제 실행이 같은 문구를 쓰도록 그대로 옮겼다.
+        mode = step.get('mode') or 'selector'
+        if mode == 'coord':
+            return '좌표 (' + str(step.get('x')) + ', ' + str(step.get('y')) + ')'
+        if mode == 'tab':
+            return 'Tab ' + str(step.get('tabCount') or 1) + '회 이동'
+        return '선택자 ' + str(step.get('selector') or '?')
 
     def _execute(self, step):
         if step.get('manual'):

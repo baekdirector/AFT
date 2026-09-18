@@ -11,6 +11,7 @@
     pip install -r requirements.txt
     playwright install chromium
     python run.py --config aft_macro_config.json
+    python run.py --config aft_macro_config.json --stepwise   # 한 단계씩 확인하며 실행
 """
 import argparse
 import json
@@ -73,6 +74,8 @@ def wait_until(target):
 def main():
     parser = argparse.ArgumentParser(description='AFT 자동예약 매크로 로컬 실행 엔진')
     parser.add_argument('--config', required=True, help='/macro에서 내려받은 설정 JSON 파일 경로')
+    parser.add_argument('--stepwise', action='store_true',
+                         help='각 단계 실행 전에 무엇을 할지 보여주고 Enter로 승인받은 뒤 실행한다')
     args = parser.parse_args()
 
     with open(args.config, encoding='utf-8') as f:
@@ -97,7 +100,7 @@ def main():
         page = context.new_page()
         page.goto(resolve_url(config['url'], args.config))
 
-        runner = Runner(config, page, context)
+        runner = Runner(config, page, context, stepwise=args.stepwise)
         runner.run()
 
         print('\n모든 단계를 마쳤습니다(마지막 단계가 수동이었다면 이미 처리하셨을 것입니다).')
@@ -106,4 +109,11 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        # Ctrl+C로 중단 - 실제 브라우저에서 이미 일어난 클릭/입력은 되돌릴
+        # 수 없으므로(부작용), 여기서는 트레이스백 대신 안내만 하고 조용히
+        # 종료한다. 열려 있던 브라우저 창은 사용자가 직접 닫으면 된다.
+        print('\n\n중단했습니다. 열려 있던 브라우저 창은 직접 닫아 주세요.')
+        sys.exit(1)
