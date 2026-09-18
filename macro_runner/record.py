@@ -749,4 +749,11 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        # Ctrl+C가 프로세스에 전달되면(터미널에서 선택된 텍스트 없이
+        # Ctrl+C를 누르면 복사 대신 이게 발생한다 - 실제로 겪음) 여기서
+        # 잡힌다. run.py와 같은 방식으로 트레이스백 대신 안내만 출력한다.
+        print('\n\n중단했습니다. 열려 있던 브라우저 창은 직접 닫아 주세요.')
+        sys.exit(1)
