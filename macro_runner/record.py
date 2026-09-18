@@ -242,6 +242,7 @@ class Recorder:
             }
             self.current_inputs.append(entry)
             self.tab_counter = carry
+            print('  · 입력 감지: {!r}'.format(entry['value']), flush=True)
             return
 
         if kind == 'click':
@@ -273,7 +274,20 @@ class Recorder:
             self.current_inputs = []
             self.tab_counter = 0
             self._write_state()
+            # 단계 표시 창이 안 보이는 상황(창이 겹쳐 가려짐 등)에서도
+            # 최소한 터미널에서 "지금 이 클릭이 잡혔다"를 바로 확인할 수
+            # 있어야 한다 - 실제로 사용자가 클릭을 여러 번 했는데도 0개
+            # 단계로 저장된 사례가 있어(원인 특정 전) 매 클릭마다 실시간
+            # 확인 가능하게 해 둔다.
+            print('  · [{}단계 기록] {} · {}'.format(len(self.steps), step['label'], self._describe_click(click)), flush=True)
             return
+
+    def _describe_click(self, click):
+        if click['mode'] == 'tab':
+            return 'Tab {}회 이동'.format(click['tabCount'])
+        if click['mode'] == 'coord':
+            return '좌표 ({}, {})'.format(click['x'], click['y'])
+        return '선택자 {}'.format(click['selector'] or '?')
 
     def _write_state(self):
         # 단계 표시 창은 이 파일을 자기 스스로(fetch) 폴링한다 - Python
@@ -291,6 +305,25 @@ class Recorder:
             'recHeight': 800,
             'steps': self.steps,
         }
+
+
+def _position_window(page, left, top, width, height):
+    # browser.new_context(viewport=...)는 페이지 "내부" 렌더링 크기만
+    # 정하고, 실제 OS 창 위치/크기는 안 건드린다 - 그래서 메인 녹화
+    # 창과 단계 표시 창이 둘 다 화면 기본 위치(대개 좌상단 근처)에
+    # 겹쳐서 뜨고, 나중에 뜬 창이 먼저 뜬 창을 완전히 가려버리는 문제가
+    # 실제로 있었다("오른쪽 창이 안 보인다"). CDP의 Browser.setWindowBounds로
+    # 창을 명시적으로 좌/우로 떨어뜨려 놓는다 - 브라우저 자체 UI(주소창/탭)
+    # 높이만큼 요청한 height보다 살짝 크게 잡아야 안쪽 뷰포트가 안 줄어든다.
+    try:
+        cdp = page.context.new_cdp_session(page)
+        window_id = cdp.send('Browser.getWindowForTarget')['windowId']
+        cdp.send('Browser.setWindowBounds', {
+            'windowId': window_id,
+            'bounds': {'left': left, 'top': top, 'width': width, 'height': height},
+        })
+    except Exception as e:
+        print('창 위치 지정에 실패했습니다({}) - 창을 직접 옮겨 주세요.'.format(e))
 
 
 def _start_viewer_server(viewer_dir):
@@ -333,6 +366,7 @@ def main():
         viewer_context = browser.new_context(viewport={'width': 560, 'height': 800})
         viewer_page = viewer_context.new_page()
         viewer_page.goto('http://127.0.0.1:{}/viewer.html'.format(port))
+        _position_window(viewer_page, left=1290, top=0, width=580, height=860)
 
         recorder = Recorder(state_path)
 
@@ -344,6 +378,7 @@ def main():
         record_context.on('page', recorder.on_new_page)
 
         main_page.goto(args.url)
+        _position_window(main_page, left=0, top=0, width=1290, height=860)
 
         print('녹화 중입니다 - 대상 창에서 직접 조작하세요.')
         print('다 끝났으면 여기서 Enter를 누르면 저장합니다 ↵ ')
