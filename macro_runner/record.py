@@ -446,6 +446,23 @@ def _sanitize_name(raw):
     return name.strip('_')[:60]
 
 
+def _atomic_replace(tmp, dest):
+    # 오른쪽 창(viewer.html)이 state.json을 0.4초마다 fetch로 폴링하는데,
+    # Windows는 다른 프로세스/핸들이 읽고 있는 파일을 rename으로
+    # 덮어쓰는 걸 거부할 수 있다(POSIX와 달리 - 실제로
+    # PermissionError [WinError 5]가 재생 도중 반복 발생했다). 그 잠금은
+    # 보통 요청 하나 처리하는 짧은 순간만 걸리므로, 몇 번 짧게 재시도
+    # 하면 대부분 풀린다.
+    for attempt in range(25):
+        try:
+            os.replace(tmp, dest)
+            return
+        except PermissionError:
+            if attempt == 24:
+                raise
+            time.sleep(0.03)
+
+
 class Recorder:
     """실제 브라우저 이벤트를 복합 단계로 조립한다. 이 클래스의 메서드는
     Playwright의 바인딩 콜백에서 호출되므로 **Playwright API를 절대
@@ -670,7 +687,7 @@ class Session:
         tmp = self.state_path + '.tmp'
         with open(tmp, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False)
-        os.replace(tmp, self.state_path)
+        _atomic_replace(tmp, self.state_path)
 
     def start(self, raw_name):
         name = _sanitize_name(raw_name)
@@ -692,7 +709,7 @@ class Session:
         tmp = self.out_path + '.tmp'
         with open(tmp, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-        os.replace(tmp, self.out_path)
+        _atomic_replace(tmp, self.out_path)
         print('{} 개 단계를 {} 에 저장했습니다.'.format(len(self.recorder.steps), self.out_path), flush=True)
         return True
 
@@ -747,6 +764,17 @@ def _prepare_replay(session, main_page, context, url, kind):
 
     try:
         main_page.goto(url)
+        # 실사이트는 공지/배너 이미지가 'load' 이벤트 이후에도 계속
+        # 불러와지면서 레이아웃을 밀어낸다 - 같은 좌표가 재생마다
+        # 어떤 땐 날짜 링크를, 어떤 땐 배너 DIV를 가리키는 걸 실측으로
+        # 반복 확인했다. 네트워크가 잠잠해질 때까지 조금 더 기다려
+        # 그 불안정한 창을 최대한 줄인다 - 그래도 완전히 없어지진
+        # 않을 수 있으니(광고 스크립트가 계속 폴링하는 사이트 등) 이
+        # 대기 자체가 실패해도 재생은 그냥 진행한다.
+        try:
+            main_page.wait_for_load_state('networkidle', timeout=4000)
+        except Exception:
+            pass
         session.replay_steps = steps
         session.replay_runner = Runner({'steps': steps}, main_page, context)
         session.replay_index = -1
