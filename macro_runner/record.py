@@ -211,6 +211,7 @@ function post(path, body) {
 
 const nameInput = document.getElementById('nameInput');
 const recToggleBtn = document.getElementById('recToggleBtn');
+let stopRequested = false;
 
 function renderBars(data) {
   const named = data.mode !== 'naming';
@@ -251,8 +252,14 @@ function renderBars(data) {
   document.getElementById('replayBtn').hidden = replaying;
   document.getElementById('replayBtn').disabled = !hasSteps;
   document.getElementById('replayNextBtn').hidden = !isStepReplay;
-  document.getElementById('replayStopBtn').hidden = !replaying;
-  document.getElementById('replayStopBtn').textContent = isStepReplay ? '■ 종료' : '⏸ 재생 중지';
+  const stopBtn2 = document.getElementById('replayStopBtn');
+  stopBtn2.hidden = !replaying;
+  if (!replaying) {
+    stopRequested = false;
+  } else if (!stopRequested) {
+    stopBtn2.disabled = false;
+    stopBtn2.textContent = isStepReplay ? '■ 종료' : '⏸ 재생 중지';
+  }
 }
 
 function renderSteps(data) {
@@ -316,7 +323,15 @@ document.getElementById('replayBtn').addEventListener('click', function () {
   post('/replay', { delayMs: delay, mode: replayMode });
 });
 document.getElementById('replayNextBtn').addEventListener('click', function () { post('/replay-next'); });
-document.getElementById('replayStopBtn').addEventListener('click', function () { post('/replay-stop'); });
+document.getElementById('replayStopBtn').addEventListener('click', function () {
+  // 지금 실행 중인 단계가 막혀 있으면(예: 팝업이 안 뜸) 그 단계의
+  // 대기가 끝나야 실제로 멈춘다(최대 몇 초) - 누른 게 먹혔다는 걸
+  // 바로 보여준다.
+  stopRequested = true;
+  this.disabled = true;
+  this.textContent = '중지 중...';
+  post('/replay-stop');
+});
 document.getElementById('quitBtn').addEventListener('click', function () {
   // 네이티브 confirm() 대신 - 종료해도 이름이 정해져 있으면 지금까지
   // 기록된 내용을 자동으로 한 번 더 저장한 뒤 끝나므로 안전하다.
@@ -793,6 +808,15 @@ def main():
 
         # 녹화 대상 창 - 실제 사용자가 직접 조작한다(자동 조작 아님).
         record_context = browser.new_context(viewport={'width': 1280, 'height': 800})
+        # 테스트 재생 중 클릭이 엉뚱한 곳을 눌러 팝업이 안 열리면
+        # context.expect_page()가 기본 30초를 그대로 기다려 버린다 -
+        # 그동안은 "⏸ 재생 중지"를 눌러도 지금 실행 중인 단계의 대기가
+        # 끝나야만 멈출 수 있어(단계 사이에서만 중지 신호를 확인하므로)
+        # 사실상 안 먹히는 것처럼 보인다(실제로 겪음). 녹화 자체는
+        # 사람이 직접 조작하는 것이라 이 타임아웃과 무관하니, 재생에서
+        # 쓰는 이 컨텍스트의 기본 타임아웃을 짧게 낮춰 막힌 단계가 훨씬
+        # 빨리 실패하고 다음 정지 확인 지점으로 넘어가게 한다.
+        record_context.set_default_timeout(6000)
 
         # 제어판 창 - 완전히 별도 컨텍스트라 녹화 스크립트가 안 심어진다
         # (여기서 클릭해도 기록되지 않음 - 이 창 자체가 기록 대상이 되면
