@@ -106,7 +106,8 @@ class Runner:
         if mode == 'coord':
             return '좌표 (' + str(step.get('x')) + ', ' + str(step.get('y')) + ')'
         if mode == 'tab':
-            return 'Tab ' + str(step.get('tabCount') or 1) + '회 이동'
+            suffix = ' 후 Enter' if step.get('useKey') == 'Enter' else ''
+            return 'Tab ' + str(step.get('tabCount') or 1) + '회 이동' + suffix
         return '선택자 ' + str(step.get('selector') or '?')
 
     def _execute(self, step):
@@ -206,7 +207,13 @@ class Runner:
         if mode == 'tab':
             for _ in range(int(click.get('tabCount') or 0)):
                 self.page.keyboard.press('Tab')
-            self._click_focused()
+            if click.get('useKey') == 'Enter':
+                # 녹화할 때 마우스 클릭이 아니라 Enter로 확정한
+                # 단계다 - 좌표가 아예 필요 없어 스크롤/레이아웃
+                # 드리프트와 무관하다.
+                self.page.keyboard.press('Enter')
+            else:
+                self._click_focused()
         elif mode == 'coord':
             # 녹화 당시 스크롤돼 있던 위치까지 먼저 맞춰야 좌표가 같은
             # 지점을 가리킨다(record.py가 클릭 시점의 scrollX/scrollY도

@@ -1128,7 +1128,7 @@
   // _describe_target과 동일한 규칙).
   function describeCompositeClick(click) {
     const c = click || {};
-    if (c.mode === 'tab') return 'Tab ' + (c.tabCount || 0) + '회 이동';
+    if (c.mode === 'tab') return 'Tab ' + (c.tabCount || 0) + '회 이동' + (c.useKey === 'Enter' ? ' 후 Enter' : '');
     if (c.mode === 'coord') return '좌표 (' + (c.x || '?') + ', ' + (c.y || '?') + ')';
     return '선택자 ' + (c.selector || '?');
   }
@@ -1248,6 +1248,11 @@
     const c = click || {};
     const mode = c.mode || 'selector';
     if (mode === 'tab') {
+      // useKey:'Enter'(녹화 시 클릭 대신 Enter로 확정한 단계)도 여기선
+      // 그냥 포커스된 요소를 합성 클릭한다 - 이 웹 리허설 엔진은 진짜
+      // 신뢰된 키 입력을 만들 수 없어(iframe 안 순수 JS), 실제 Enter
+      // 키를 흉내내는 macro_runner/engine.py와 달리 Tab 클릭과
+      // 동일하게 처리해도 결과가 같다.
       webTabTo(webrunWin, parseInt(c.tabCount, 10) || 0);
       return webClickFocused();
     }

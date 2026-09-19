@@ -129,7 +129,14 @@ _RECORDER_INIT_SCRIPT = r"""
   // 먼저 등록해 두면(같은 대상에 등록된 capturing 리스너는 등록
   // "순서"대로 실행된다) 사이트 스크립트가 나중에 stopPropagation을
   // 불러도 이미 우리 리스너는 실행된 뒤라 절대 못 막는다.
+  var lastEnterAt = 0;
   window.addEventListener('click', function (e) {
+    // 포커스된 <button>/<a>에서 Enter를 누르면 브라우저가 표준 동작으로
+    // click 이벤트를 자체적으로 만들어낸다 - 그러면 아래 keydown
+    // 리스너가 이미 'enter' 이벤트로 같은 동작을 기록했는데 여기서
+    // 또 'click'으로 중복 기록하게 된다. 방금(50ms 이내) Enter가
+    // 있었다면 그 결과물이므로 건너뛴다.
+    if (Date.now() - lastEnterAt < 50) return;
     showClickMarker(e.clientX, e.clientY);
     window.__aftRecordEvent({ type: 'click', x: e.clientX, y: e.clientY, scrollX: window.scrollX, scrollY: window.scrollY, selector: describeSelector(e.target) });
   }, true);
@@ -145,36 +152,64 @@ _RECORDER_INIT_SCRIPT = r"""
 
   window.addEventListener('keydown', function (e) {
     if (e.key === 'Tab') window.__aftRecordEvent({ type: 'tab' });
+    // Enter로 포커스된 버튼/링크를 "누르는"것도 하나의 단계로
+    // 기록한다 - 마우스 좌표 없이 Tab 이동 + Enter만으로 진행할 수
+    // 있는 구간은 좌표/스크롤 드리프트와 완전히 무관해진다(요청:
+    // "계속 바뀌는 x,y 문제를 해결"). document.activeElement가 지금
+    // 포커스된, 곧 Enter로 활성화될 요소다.
+    if (e.key === 'Enter') {
+      lastEnterAt = Date.now();
+      window.__aftRecordEvent({ type: 'enter', selector: describeSelector(document.activeElement) });
+    }
   }, true);
+
+  // 🎯 좌표 인식기 - 날짜 클릭 등으로 페이지가 새로 불러와지면(완전한
+  // 재로딩) 그때그때 주입한 스크립트는 같이 사라져 버린다(실제로
+  // 겪음 - "계속 표시해달라"는 요청). 이 스크립트는 add_init_script로
+  // 모든 새 문서에서 항상 다시 실행되므로, 배지 자체를 여기 아예
+  // 심어두고 켜져 있었는지만 localStorage로 페이지 이동 너머까지
+  // 기억한다.
+  var coordBadge = document.createElement('div');
+  coordBadge.id = '__aftCoordBadge';
+  coordBadge.style.cssText = 'position:fixed;top:8px;left:8px;background:rgba(0,0,0,0.78);' +
+    'color:#5fd08a;font:bold 13px monospace;padding:5px 10px;border-radius:7px;' +
+    'z-index:2147483647;pointer-events:none;display:none;';
+  coordBadge.textContent = 'x: -, y: -';
+  function attachCoordBadge() {
+    if (document.body && !document.getElementById('__aftCoordBadge')) {
+      document.body.appendChild(coordBadge);
+      try {
+        if (localStorage.getItem('aftCoordTrackerOn') === '1') coordBadge.style.display = 'block';
+      } catch (e) { /* 스토리지 접근이 막혀 있으면 그냥 꺼진 채로 둔다 */ }
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', attachCoordBadge);
+  } else {
+    attachCoordBadge();
+  }
+  window.addEventListener('mousemove', function (e) {
+    coordBadge.textContent = 'x: ' + e.clientX + ', y: ' + e.clientY;
+  }, true);
+  window.__aftCoordBadge = coordBadge;
 })();
 """
 
-# "🎯 좌표 인식기" - 좌표(coord) 모드 단계를 만들 때 실제 화면 어디가
-# x, y인지 눈으로 바로 확인하고 싶다는 요청으로 추가했다. 녹화 스크립트와
-# 달리 이건 main_page에만, 켜고 끌 때 딱 한 번씩만 주입하면 되는
-# 일회성 evaluate라 add_init_script로 항상 심어둘 필요는 없다.
+# "🎯 좌표 인식기" 켜고 끄기 - 배지 자체는 _RECORDER_INIT_SCRIPT 안에
+# 항상 심어져 있다(페이지 이동에도 살아남게). 여기서는 지금 열려 있는
+# 페이지의 배지를 즉시 보이거나/숨기고, localStorage 플래그도 같이
+# 갱신해 다음 페이지 이동 뒤에도 상태가 이어지게 한다.
 _COORD_TRACKER_START_JS = r"""
 (function () {
-  if (window.__aftCoordTracker) return;
-  var badge = document.createElement('div');
-  badge.id = '__aftCoordBadge';
-  badge.style.cssText = 'position:fixed;top:8px;left:8px;background:rgba(0,0,0,0.78);' +
-    'color:#5fd08a;font:bold 13px monospace;padding:5px 10px;border-radius:7px;' +
-    'z-index:2147483647;pointer-events:none;';
-  badge.textContent = 'x: -, y: -';
-  document.body.appendChild(badge);
-  function onMove(e) { badge.textContent = 'x: ' + e.clientX + ', y: ' + e.clientY; }
-  document.addEventListener('mousemove', onMove, true);
-  window.__aftCoordTracker = { badge: badge, onMove: onMove };
+  try { localStorage.setItem('aftCoordTrackerOn', '1'); } catch (e) {}
+  if (window.__aftCoordBadge) window.__aftCoordBadge.style.display = 'block';
 })();
 """
 
 _COORD_TRACKER_STOP_JS = r"""
 (function () {
-  if (!window.__aftCoordTracker) return;
-  document.removeEventListener('mousemove', window.__aftCoordTracker.onMove, true);
-  window.__aftCoordTracker.badge.remove();
-  delete window.__aftCoordTracker;
+  try { localStorage.setItem('aftCoordTrackerOn', '0'); } catch (e) {}
+  if (window.__aftCoordBadge) window.__aftCoordBadge.style.display = 'none';
 })();
 """
 
@@ -459,7 +494,8 @@ class Recorder:
                 self.on_change()
 
     def _label_for(self, step):
-        base = ('입력 {}개 → 클릭'.format(len(step['inputs'])) if step['inputs'] else '클릭')
+        finish = 'Enter' if step['click'].get('useKey') == 'Enter' else '클릭'
+        base = ('입력 {}개 → {}'.format(len(step['inputs']), finish) if step['inputs'] else finish)
         if step['context'] == 'popup':
             base = '(팝업) ' + base
         if step['opensPopup']:
@@ -517,7 +553,12 @@ class Recorder:
 
         if kind == 'click':
             selector = payload.get('selector') or ''
-            mode = 'tab' if role == 'popup' else self._pick_main_mode(selector)
+            # 팝업은 항상 그렇듯 Tab 모드. 메인 창도 이 클릭 직전에
+            # 실제로 Tab을 눌러 이동해 왔다면(tab_counter > 0) 좌표/
+            # 선택자 대신 Tab 모드로 기록한다 - 반복 재생할수록 좌표가
+            # 잘 안 맞는다는 문제(스크롤·레이아웃 드리프트)를 키보드
+            # 내비게이션이 가능한 구간에서는 아예 우회한다.
+            mode = 'tab' if (role == 'popup' or self.tab_counter > 0) else self._pick_main_mode(selector)
             click = {
                 'mode': mode,
                 'tabCount': self.tab_counter,
@@ -530,31 +571,49 @@ class Recorder:
                 'scrollX': payload.get('scrollX'),
                 'scrollY': payload.get('scrollY'),
             }
-            self.seed += 1
-            step = {
-                'id': self.seed,
-                'label': '',
-                'context': role,
-                'inputs': self.current_inputs,
-                'click': click,
-                # 이 클릭이 실제로 팝업을 띄웠는지는 아직 모른다 - 다음
-                # 이벤트가 들어올 때 _maybe_apply_pending_popup이 이
-                # 자리를 True로 고쳐 쓴다.
-                'opensPopup': False,
-                'sleep': 300,
-                'manual': False,
-            }
-            step['label'] = self._label_for(step)
-            self.steps.append(step)
-            self.current_inputs = []
-            self.tab_counter = 0
-            print('  · [{}단계 기록] {} · {}'.format(len(self.steps), step['label'], self._describe_click(click)), flush=True)
-            self.on_change()
+            self._finalize_step(role, click)
             return
+
+        if kind == 'enter':
+            # Tab으로 이동한 뒤 마우스 클릭 대신 Enter로 확정한 것도
+            # 하나의 단계다 - 좌표가 전혀 필요 없어 드리프트 문제와
+            # 완전히 무관하다.
+            click = {
+                'mode': 'tab',
+                'tabCount': self.tab_counter,
+                'selector': payload.get('selector') or '',
+                'x': None, 'y': None, 'scrollX': None, 'scrollY': None,
+                'useKey': 'Enter',
+            }
+            self._finalize_step(role, click)
+            return
+
+    def _finalize_step(self, role, click):
+        self.seed += 1
+        step = {
+            'id': self.seed,
+            'label': '',
+            'context': role,
+            'inputs': self.current_inputs,
+            'click': click,
+            # 이 클릭(또는 Enter)이 실제로 팝업을 띄웠는지는 아직
+            # 모른다 - 다음 이벤트가 들어올 때 _maybe_apply_pending_popup이
+            # 이 자리를 True로 고쳐 쓴다.
+            'opensPopup': False,
+            'sleep': 300,
+            'manual': False,
+        }
+        step['label'] = self._label_for(step)
+        self.steps.append(step)
+        self.current_inputs = []
+        self.tab_counter = 0
+        print('  · [{}단계 기록] {} · {}'.format(len(self.steps), step['label'], self._describe_click(click)), flush=True)
+        self.on_change()
 
     def _describe_click(self, click):
         if click['mode'] == 'tab':
-            return 'Tab {}회 이동'.format(click['tabCount'])
+            suffix = ' 후 Enter' if click.get('useKey') == 'Enter' else ''
+            return 'Tab {}회 이동{}'.format(click['tabCount'], suffix)
         if click['mode'] == 'coord':
             return '좌표 ({}, {})'.format(click['x'], click['y'])
         return '선택자 {}'.format(click['selector'] or '?')
