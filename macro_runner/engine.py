@@ -71,7 +71,8 @@ class Runner:
         if self._progress_steps is None:
             self._progress_steps = [{
                 'label': s.get('label') or '(라벨 없음)',
-                'target': self._describe_target(s['click']) if 'click' in s else self._describe_target(s),
+                'target': self._describe_target(s['click']) if s.get('click') else
+                          ('(입력만 - 클릭 없음)' if 'click' in s else self._describe_target(s)),
                 'status': '대기',
             } for s in steps]
         self._progress_steps[i]['status'] = status
@@ -89,7 +90,9 @@ class Runner:
             print('\n[{}/{}] {}'.format(i + 1, total, step.get('label') or '(라벨 없음)'))
             for sub in step.get('inputs', []):
                 print('  입력: ' + resolve_value(sub.get('value') or '', self.config))
-            print('  클릭: ' + self._describe_target(step['click']))
+            click = step.get('click')
+            if click:
+                print('  클릭: ' + self._describe_target(click))
             return
         target = self._describe_target(step)
         value = step.get('value')
@@ -193,7 +196,12 @@ class Runner:
             else:
                 self._resolve_locator(sub.get('selector') or '').fill(value)
 
-        click = step.get('click') or {}
+        click = step.get('click')
+        if click is None:
+            # 클릭/Enter 없이 "입력만" 있는 단계 - Tab으로 필드를
+            # 벗어나며 값만 커밋된 경우라 여기서 더 할 일이 없다(다음
+            # 단계가 이어서 Tab으로 진행한다).
+            return
         if step.get('opensPopup'):
             with self.context.expect_page() as popup_info:
                 self._click_composite(click)

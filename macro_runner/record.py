@@ -141,23 +141,43 @@ _RECORDER_INIT_SCRIPT = r"""
     window.__aftRecordEvent({ type: 'click', x: e.clientX, y: e.clientY, scrollX: window.scrollX, scrollY: window.scrollY, selector: describeSelector(e.target) });
   }, true);
 
+  function isTextLike(t) {
+    return !!(t && (t.tagName === 'TEXTAREA' ||
+      (t.tagName === 'INPUT' && ['text', 'tel', 'email', 'search', 'password', 'number', ''].indexOf((t.type || '').toLowerCase()) !== -1)));
+  }
+
+  // change가 뜬 게 방금 Tab 때문인지(포커스가 이미 다음 칸으로
+  // 넘어간 상태) 아닌지 Python에 같이 알려준다 - 텍스트 입력칸에서
+  // Enter를 누르면(버튼 활성화가 아니라 이 칸에서), 포커스는 그
+  // 칸에 그대로 있는데도 브라우저가 change를 발화한다는 걸 실측으로
+  // 확인했다(Tab처럼 다음 칸으로 넘어가는 게 아님). Tab이 원인일
+  // 때만 "그 Tab 자체가 다음 칸으로의 첫 이동이기도 하다"는 보정이
+  // 맞다 - Enter가 원인이면 포커스가 안 움직였으니 그 보정을 하면
+  // 안 된다(실제로 겪음 - 첫 번째 필드 값이 엉뚱한 tabCount로 기록됨).
+  var lastKeyWasTab = false;
   window.addEventListener('change', function (e) {
-    var t = e.target;
-    var textLike = t && (t.tagName === 'TEXTAREA' ||
-      (t.tagName === 'INPUT' && ['text', 'tel', 'email', 'search', 'password', 'number', ''].indexOf((t.type || '').toLowerCase()) !== -1));
-    if (textLike) {
-      window.__aftRecordEvent({ type: 'input', value: t.value, selector: describeSelector(t) });
+    if (isTextLike(e.target)) {
+      window.__aftRecordEvent({ type: 'input', value: e.target.value, selector: describeSelector(e.target), viaTab: lastKeyWasTab });
     }
   }, true);
 
   window.addEventListener('keydown', function (e) {
-    if (e.key === 'Tab') window.__aftRecordEvent({ type: 'tab' });
+    if (e.key === 'Tab') {
+      lastKeyWasTab = true;
+      window.__aftRecordEvent({ type: 'tab' });
+      return;
+    }
+    lastKeyWasTab = false;
     // Enter로 포커스된 버튼/링크를 "누르는"것도 하나의 단계로
     // 기록한다 - 마우스 좌표 없이 Tab 이동 + Enter만으로 진행할 수
     // 있는 구간은 좌표/스크롤 드리프트와 완전히 무관해진다(요청:
     // "계속 바뀌는 x,y 문제를 해결"). document.activeElement가 지금
-    // 포커스된, 곧 Enter로 활성화될 요소다.
-    if (e.key === 'Enter') {
+    // 포커스된, 곧 Enter로 활성화될 요소다. 단, 텍스트 입력칸에
+    // 포커스가 있을 때 누른 Enter는 기록하지 않는다 - 타이핑 도중
+    // 습관적으로/실수로 누르는 경우가 많고, 그게 하나의 "단계"로
+    // 잘못 끼어들면 그 뒤 모든 Tab 카운트가 밀려버리는 걸 실측으로
+    // 확인했다(값이 엉뚱한 필드에 들어가는 문제로 이어짐).
+    if (e.key === 'Enter' && !isTextLike(document.activeElement)) {
       lastEnterAt = Date.now();
       window.__aftRecordEvent({ type: 'enter', selector: describeSelector(document.activeElement) });
     }
@@ -285,7 +305,8 @@ _VIEWER_HTML = """<!doctype html>
 <script>
 function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
 function describeClick(c) {
-  if (c.mode === 'tab') return 'Tab ' + c.tabCount + '회 이동';
+  if (!c) return '(입력만 - 클릭 없음)';
+  if (c.mode === 'tab') return 'Tab ' + c.tabCount + '회 이동' + (c.useKey === 'Enter' ? ' 후 Enter' : '');
   if (c.mode === 'coord') return '좌표 (' + c.x + ', ' + c.y + ')';
   return c.selector || '?';
 }
@@ -511,8 +532,13 @@ class Recorder:
                 self.on_change()
 
     def _label_for(self, step):
-        finish = 'Enter' if step['click'].get('useKey') == 'Enter' else '클릭'
-        base = ('입력 {}개 → {}'.format(len(step['inputs']), finish) if step['inputs'] else finish)
+        click = step['click']
+        if click is None:
+            # Tab으로 필드를 벗어나며 값만 커밋된, 클릭/Enter 없는 단계.
+            base = '입력'
+        else:
+            finish = 'Enter' if click.get('useKey') == 'Enter' else '클릭'
+            base = ('입력 {}개 → {}'.format(len(step['inputs']), finish) if step['inputs'] else finish)
         if step['context'] == 'popup':
             base = '(팝업) ' + base
         if step['opensPopup']:
@@ -541,17 +567,27 @@ class Recorder:
 
         if kind == 'input':
             # change 이벤트는 필드에서 포커스가 빠져나갈 때(blur) 뜬다 -
-            # 그런데 그 blur를 일으킨 Tab 키 입력의 기본 동작(포커스 이동)이
-            # change 발화보다 먼저 끝나 있으므로, change가 뜨는 시점엔
-            # 이미 포커스가 "다음" 필드로 넘어가 있다. 즉 방금 센 Tab
-            # 카운트의 마지막 1회는 이 필드에 "도달"한 것과 무관하고
-            # 다음 필드를 향한 첫 이동이다 - 그걸 그대로 이 필드의
-            # tabCount로 쓰면 재생 시 한 칸씩 밀려서 엉뚱한 필드에
-            # 값이 들어간다(실제로 겪음). 그래서 이 필드용 tabCount는
-            # (지금까지 센 값 - 1)로 기록하고, 방금 뺀 1회는 다음
-            # 필드 카운트의 시작값으로 넘긴다.
-            is_tab_mode = (role == 'popup')
-            if is_tab_mode:
+            # 그런데 그 blur를 일으킨 게 Tab이었다면, Tab 키 입력의
+            # 기본 동작(포커스 이동)이 change 발화보다 먼저 끝나 있으므로
+            # change가 뜨는 시점엔 이미 포커스가 "다음" 필드로 넘어가
+            # 있다. 즉 방금 센 Tab 카운트의 마지막 1회는 이 필드에
+            # "도달"한 것과 무관하고 다음 필드를 향한 첫 이동이다 -
+            # 그걸 그대로 이 필드의 tabCount로 쓰면 재생 시 한 칸씩
+            # 밀려서 엉뚱한 필드에 값이 들어간다(실제로 겪음). 그래서
+            # 이 필드용 tabCount는 (지금까지 센 값 - 1)로 기록하고,
+            # 방금 뺀 1회는 다음 필드 카운트의 시작값으로 넘긴다.
+            #
+            # 단, 이 blur가 Tab이 아니라 Enter 때문이면 얘기가 다르다 -
+            # 텍스트 입력칸에서 Enter를 누르면 포커스가 그 칸에 그대로
+            # 있는 채로 change가 뜬다는 걸 실측으로 확인했다(Tab처럼
+            # 다음 칸으로 넘어가는 게 아님). 이때 위 "-1" 보정을 그대로
+            # 적용하면 tabCount가 실제보다 1 적게 기록돼 첫 필드부터
+            # 어긋난다 - viaTab이 False면 보정 없이 지금까지 센 값을
+            # 그대로 쓰고, carry도 0으로 둔다(포커스가 안 움직였으니
+            # 다음 이동에 넘겨줄 "이미 지나온 한 칸"이 없다).
+            caused_by_tab = bool(payload.get('viaTab'))
+            is_tab_mode = (role == 'popup' or self.tab_counter > 0)
+            if is_tab_mode and caused_by_tab:
                 tab_count = max(0, self.tab_counter - 1)
                 carry = 1
             else:
@@ -563,9 +599,22 @@ class Recorder:
                 'selector': payload.get('selector') or '',
                 'value': payload.get('value') or '',
             }
-            self.current_inputs.append(entry)
-            self.tab_counter = carry
             print('  · 입력 감지: {!r}'.format(entry['value']), flush=True)
+            if is_tab_mode:
+                # Tab으로 이 필드를 벗어나며 값이 커밋된 것도 그 자체로
+                # 하나의 완결된 단계로 즉시 마감한다(클릭/Enter 없음) -
+                # 여러 필드를 한 클릭이 마감하는 큰 단계로 묶어두면,
+                # 중간에 엉뚱한 이벤트(예: 타이핑 도중 실수로 누른
+                # Enter) 하나가 끼어드는 순간 그 뒤로 tabCount 계산이
+                # 전부 밀려버리는 걸 실측으로 확인했다 - 필드 하나마다
+                # 독립된 단계면 그런 연쇄 오류가 안 생기고, 어느 필드가
+                # 잘못됐는지도 단계 목록에서 바로 짚을 수 있다.
+                self._finalize_step(role, click=None, inputs=[entry])
+            else:
+                # 클릭으로(Tab 없이) 필드를 벗어나는 경우는 기존처럼
+                # 이어질 클릭이 함께 확정할 때까지 모아둔다.
+                self.current_inputs.append(entry)
+            self.tab_counter = carry
             return
 
         if kind == 'click':
@@ -605,13 +654,17 @@ class Recorder:
             self._finalize_step(role, click)
             return
 
-    def _finalize_step(self, role, click):
+    def _finalize_step(self, role, click, inputs=None):
+        # click이 None이면 "입력만 있고 클릭/Enter는 없는" 단계다(Tab으로
+        # 필드를 벗어나며 값만 커밋된 경우) - inputs를 따로 안 주면
+        # 그동안 모아둔 self.current_inputs를 쓴다(기존 클릭/Enter 확정
+        # 방식과 동일).
         self.seed += 1
         step = {
             'id': self.seed,
             'label': '',
             'context': role,
-            'inputs': self.current_inputs,
+            'inputs': self.current_inputs if inputs is None else inputs,
             'click': click,
             # 이 클릭(또는 Enter)이 실제로 팝업을 띄웠는지는 아직
             # 모른다 - 다음 이벤트가 들어올 때 _maybe_apply_pending_popup이
@@ -628,6 +681,8 @@ class Recorder:
         self.on_change()
 
     def _describe_click(self, click):
+        if click is None:
+            return '(입력만 - 클릭 없음)'
         if click['mode'] == 'tab':
             suffix = ' 후 Enter' if click.get('useKey') == 'Enter' else ''
             return 'Tab {}회 이동{}'.format(click['tabCount'], suffix)

@@ -1127,10 +1127,10 @@
   // selector/tabCount 모양이라 그대로 재사용한다(macro_runner/engine.py의
   // _describe_target과 동일한 규칙).
   function describeCompositeClick(click) {
-    const c = click || {};
-    if (c.mode === 'tab') return 'Tab ' + (c.tabCount || 0) + '회 이동' + (c.useKey === 'Enter' ? ' 후 Enter' : '');
-    if (c.mode === 'coord') return '좌표 (' + (c.x || '?') + ', ' + (c.y || '?') + ')';
-    return '선택자 ' + (c.selector || '?');
+    if (!click) return '(입력만 - 클릭 없음)';
+    if (click.mode === 'tab') return 'Tab ' + (click.tabCount || 0) + '회 이동' + (click.useKey === 'Enter' ? ' 후 Enter' : '');
+    if (click.mode === 'coord') return '좌표 (' + (click.x || '?') + ', ' + (click.y || '?') + ')';
+    return '선택자 ' + (click.selector || '?');
   }
 
   function describeStepTarget(s) {
@@ -1280,6 +1280,10 @@
         webSetValue(webrunWin && webQuerySelector(webrunWin.document, sub.selector), value);
       }
     });
+
+    // 클릭/Enter 없이 "입력만" 있는 단계(Tab으로 필드를 벗어나며 값만
+    // 커밋된 경우) - record.py가 이런 단계를 만든다. 더 할 일이 없다.
+    if (!step.click) return '성공';
 
     if (step.opensPopup) {
       if (!webrunWin) return '실패';
@@ -1488,8 +1492,12 @@
         const bad = !s.manual && !isComposite && s.mode === 'selector' && !String(s.selector || '').trim();
         const badCoord = !s.manual && !isComposite && s.mode === 'coord' && (!String(s.x).trim() || !String(s.y).trim());
         const badTab = !s.manual && !isComposite && s.mode === 'tab' && (!String(s.tabCount != null ? s.tabCount : '').trim() || isNaN(parseInt(s.tabCount, 10)));
-        const badComposite = !s.manual && isComposite && (() => {
-          const c = s.click || {};
+        // click이 없는 복합 단계는 "입력만" 하는 단계라 클릭 대상이
+        // 없어도 정상이다(record.py가 Tab으로 필드를 벗어나며 값만
+        // 커밋된 경우 이렇게 만든다) - 클릭이 있을 때만 대상이 비어
+        // 있는지 검사한다.
+        const badComposite = !s.manual && isComposite && !!s.click && (() => {
+          const c = s.click;
           const m = c.mode || 'selector';
           if (m === 'selector') return !String(c.selector || '').trim();
           if (m === 'coord') return !String(c.x != null ? c.x : '').trim() || !String(c.y != null ? c.y : '').trim();
