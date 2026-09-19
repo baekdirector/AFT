@@ -225,6 +225,21 @@ class Runner:
             x, y = int(click['x']), int(click['y'])
             hit = self.page.evaluate(
                 '''([x, y]) => {
+                    // 클릭 직전 그 자리에 실제로 눈에 보이는 표시(빨간 점)를
+                    // 잠깐 찍어둔다 - 좌표가 어긋났는지 화면으로 바로 확인할
+                    // 수 있다(콘솔 로그만으로는 실제 화면 위치를 가늠하기
+                    // 어렵다는 피드백).
+                    var old = document.getElementById('__aftClickMarker');
+                    if (old) old.remove();
+                    var marker = document.createElement('div');
+                    marker.id = '__aftClickMarker';
+                    marker.style.cssText = 'position:fixed;left:' + (x - 9) + 'px;top:' + (y - 9) + 'px;' +
+                        'width:18px;height:18px;border-radius:50%;background:rgba(255,0,0,0.45);' +
+                        'border:2px solid #ff0000;box-shadow:0 0 6px rgba(255,0,0,0.8);' +
+                        'z-index:2147483647;pointer-events:none;';
+                    document.body.appendChild(marker);
+                    setTimeout(function () { if (marker.parentNode) marker.remove(); }, 2500);
+
                     const el = document.elementFromPoint(x, y);
                     if (!el) return '(요소 없음)';
                     const txt = (el.textContent || '').trim().slice(0, 30);

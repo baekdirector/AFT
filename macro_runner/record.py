@@ -130,6 +130,35 @@ _RECORDER_INIT_SCRIPT = r"""
 })();
 """
 
+# "🎯 좌표 인식기" - 좌표(coord) 모드 단계를 만들 때 실제 화면 어디가
+# x, y인지 눈으로 바로 확인하고 싶다는 요청으로 추가했다. 녹화 스크립트와
+# 달리 이건 main_page에만, 켜고 끌 때 딱 한 번씩만 주입하면 되는
+# 일회성 evaluate라 add_init_script로 항상 심어둘 필요는 없다.
+_COORD_TRACKER_START_JS = r"""
+(function () {
+  if (window.__aftCoordTracker) return;
+  var badge = document.createElement('div');
+  badge.id = '__aftCoordBadge';
+  badge.style.cssText = 'position:fixed;top:8px;left:8px;background:rgba(0,0,0,0.78);' +
+    'color:#5fd08a;font:bold 13px monospace;padding:5px 10px;border-radius:7px;' +
+    'z-index:2147483647;pointer-events:none;';
+  badge.textContent = 'x: -, y: -';
+  document.body.appendChild(badge);
+  function onMove(e) { badge.textContent = 'x: ' + e.clientX + ', y: ' + e.clientY; }
+  document.addEventListener('mousemove', onMove, true);
+  window.__aftCoordTracker = { badge: badge, onMove: onMove };
+})();
+"""
+
+_COORD_TRACKER_STOP_JS = r"""
+(function () {
+  if (!window.__aftCoordTracker) return;
+  document.removeEventListener('mousemove', window.__aftCoordTracker.onMove, true);
+  window.__aftCoordTracker.badge.remove();
+  delete window.__aftCoordTracker;
+})();
+"""
+
 _VIEWER_HTML = """<!doctype html>
 <html><head><meta charset="utf-8"><title>매크로 녹화 · 재생 제어판</title>
 <style>
@@ -181,6 +210,7 @@ _VIEWER_HTML = """<!doctype html>
     <button type="button" class="btn-ghost" id="undoBtn">↩ 마지막 단계 취소</button>
     <button type="button" class="btn-primary" id="saveBtn">💾 저장</button>
     <button type="button" class="btn-danger" id="clearBtn">🗑 처음부터</button>
+    <button type="button" class="btn-ghost" id="coordTrackerBtn">🎯 좌표 인식기</button>
   </div>
 
   <h1 id="title">기록된 단계 (0개)</h1>
@@ -244,6 +274,11 @@ function renderBars(data) {
   document.getElementById('saveBtn').disabled = !hasSteps || replaying;
   document.getElementById('clearBtn').disabled = !named || replaying;
 
+  const trackerBtn = document.getElementById('coordTrackerBtn');
+  trackerBtn.textContent = data.coordTracker ? '⏹ 좌표 인식기 중지' : '🎯 좌표 인식기';
+  trackerBtn.className = data.coordTracker ? 'btn-rec-active' : 'btn-ghost';
+  trackerBtn.disabled = replaying;
+
   const replayKind = data.replay && data.replay.kind;
   const isStepReplay = replaying && replayKind === 'step';
   document.getElementById('delayInput').disabled = replaying || !hasSteps;
@@ -306,6 +341,10 @@ document.getElementById('stopBtn').addEventListener('click', function () { post(
 document.getElementById('undoBtn').addEventListener('click', function () { post('/undo'); });
 document.getElementById('saveBtn').addEventListener('click', function () { post('/save'); });
 document.getElementById('clearBtn').addEventListener('click', function () { post('/clear'); });
+document.getElementById('coordTrackerBtn').addEventListener('click', function () {
+  const on = this.textContent.indexOf('중지') !== -1;
+  post(on ? '/coord-tracker/stop' : '/coord-tracker/start');
+});
 
 let replayMode = 'auto';
 document.getElementById('modeAutoBtn').addEventListener('click', function () {
@@ -532,6 +571,7 @@ class Session:
         self.replay_runner = None
         self.replay_steps = None
         self.replay_index = -1
+        self.coord_tracker_on = False
         self._write_state()
 
     def _write_state(self):
@@ -539,6 +579,7 @@ class Session:
             'mode': self.mode,
             'name': self.name,
             'steps': self.recorder.steps,
+            'coordTracker': self.coord_tracker_on,
             'replay': None if self.replay_statuses is None else {
                 'current': self.replay_current,
                 'total': len(self.recorder.steps),
@@ -784,6 +825,18 @@ def _start_control_server(viewer_dir, session, url):
                 session.quit_event.set()
                 return self._reply(200, {'ok': True})
 
+            if self.path == '/coord-tracker/start':
+                session.coord_tracker_on = True
+                session._write_state()
+                session.replay_queue.put({'kind': 'coord-tracker-start'})
+                return self._reply(200, {'ok': True})
+
+            if self.path == '/coord-tracker/stop':
+                session.coord_tracker_on = False
+                session._write_state()
+                session.replay_queue.put({'kind': 'coord-tracker-stop'})
+                return self._reply(200, {'ok': True})
+
             self.send_error(404)
 
     server = ThreadingHTTPServer(('127.0.0.1', 0), ControlHandler)
@@ -866,6 +919,16 @@ def main():
                 run_replay_step_start(session, main_page, record_context, args.url)
             elif kind == 'step-next':
                 run_replay_step_next(session)
+            elif kind == 'coord-tracker-start':
+                try:
+                    main_page.evaluate(_COORD_TRACKER_START_JS)
+                except Exception:
+                    pass  # 페이지 전환 중 등 - 다음에 다시 켜면 된다
+            elif kind == 'coord-tracker-stop':
+                try:
+                    main_page.evaluate(_COORD_TRACKER_STOP_JS)
+                except Exception:
+                    pass
 
         # 아직 저장 안 한 녹화 중 상태로 종료하는 경우를 대비해 마지막으로
         # 한 번 더 저장해 둔다(이름이 정해져 있을 때만).
