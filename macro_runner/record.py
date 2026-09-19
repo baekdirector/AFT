@@ -100,6 +100,24 @@ _RECORDER_INIT_SCRIPT = r"""
     return path.join(' > ');
   }
 
+  // 녹화 중 클릭한 자리에도 재생 때(engine.py)와 똑같은 빨간 점을
+  // 잠깐 찍어둔다 - "녹화할 때 위치와 재생할 때 위치가 다른가?"를
+  // 직접 눈으로 비교할 수 있게(둘 다 같은 e.clientX/clientY 좌표계를
+  // 쓰므로 마커가 뜨는 화면 픽셀 위치 자체는 항상 같다 - 다만 그 사이
+  // 스크롤/레이아웃이 바뀌면 그 자리의 "내용"이 달라질 수 있다).
+  function showClickMarker(x, y) {
+    var old = document.getElementById('__aftClickMarker');
+    if (old) old.remove();
+    var marker = document.createElement('div');
+    marker.id = '__aftClickMarker';
+    marker.style.cssText = 'position:fixed;left:' + (x - 9) + 'px;top:' + (y - 9) + 'px;' +
+      'width:18px;height:18px;border-radius:50%;background:rgba(0,140,255,0.45);' +
+      'border:2px solid #008cff;box-shadow:0 0 6px rgba(0,140,255,0.8);' +
+      'z-index:2147483647;pointer-events:none;';
+    document.body.appendChild(marker);
+    setTimeout(function () { if (marker.parentNode) marker.remove(); }, 1200);
+  }
+
   // document가 아니라 window에 붙인다 - 실제 선상24 팝업에서 클릭은
   // 잡히는데 Tab/텍스트 입력만 하나도 안 잡히는 문제가 실측됐다. 많은
   // 실사이트 팝업/모달은 포커스를 가두려고(포커스 트랩) 자기 스크립트
@@ -112,6 +130,7 @@ _RECORDER_INIT_SCRIPT = r"""
   // "순서"대로 실행된다) 사이트 스크립트가 나중에 stopPropagation을
   // 불러도 이미 우리 리스너는 실행된 뒤라 절대 못 막는다.
   window.addEventListener('click', function (e) {
+    showClickMarker(e.clientX, e.clientY);
     window.__aftRecordEvent({ type: 'click', x: e.clientX, y: e.clientY, scrollX: window.scrollX, scrollY: window.scrollY, selector: describeSelector(e.target) });
   }, true);
 
@@ -274,10 +293,12 @@ function renderBars(data) {
   document.getElementById('saveBtn').disabled = !hasSteps || replaying;
   document.getElementById('clearBtn').disabled = !named || replaying;
 
+  // 재생(특히 "한 단계씩") 중에도 좌표를 계속 확인하고 싶다는 요청 -
+  // 재생 자체를 방해하지 않으므로(수동 마우스 이동을 그냥 화면에
+  // 표시만 함) 막을 이유가 없다.
   const trackerBtn = document.getElementById('coordTrackerBtn');
   trackerBtn.textContent = data.coordTracker ? '⏹ 좌표 인식기 중지' : '🎯 좌표 인식기';
   trackerBtn.className = data.coordTracker ? 'btn-rec-active' : 'btn-ghost';
-  trackerBtn.disabled = replaying;
 
   const replayKind = data.replay && data.replay.kind;
   const isStepReplay = replaying && replayKind === 'step';
@@ -641,7 +662,12 @@ def _prepare_replay(session, main_page, context, url, kind):
     똑같이 매번 깨끗한 상태에서 시작), engine.py의 Runner 생성. 이
     Runner를 Session에 보관해 두어야 "한 단계씩" 모드에서 여러 번의
     /replay-next 요청에 걸쳐 같은 실행 상태(팝업 전환으로 바뀐
-    self.page 등)를 이어갈 수 있다."""
+    self.page 등)를 이어갈 수 있다.
+
+    준비 단계(특히 main_page.goto)가 실패하면(예: 이전 재생이 열어둔
+    팝업 정리 도중 대상 페이지가 이미 닫혀 있는 등) 여기서 예외가
+    새어나가 메인 루프 전체가 죽고 브라우저가 통째로 닫히는 사고가
+    실제로 있었다 - 그래서 여기서 잡아 재생만 조용히 취소한다."""
     steps = list(session.recorder.steps)
 
     for page, role in list(session.recorder.page_roles.items()):
@@ -660,10 +686,16 @@ def _prepare_replay(session, main_page, context, url, kind):
     session.replay_statuses = ['대기'] * len(steps)
     session._write_state()
 
-    main_page.goto(url)
-    session.replay_steps = steps
-    session.replay_runner = Runner({'steps': steps}, main_page, context)
-    session.replay_index = -1
+    try:
+        main_page.goto(url)
+        session.replay_steps = steps
+        session.replay_runner = Runner({'steps': steps}, main_page, context)
+        session.replay_index = -1
+    except Exception as e:
+        print('  → 재생 준비 실패: {}'.format(e), flush=True)
+        _finish_replay(session)
+        return False
+    return True
 
 
 def _finish_replay(session):
@@ -713,7 +745,8 @@ def run_replay_auto(session, main_page, context, url, delay_ms):
     sleep을 그대로 쓰지 않음) 직접 루프를 돈다."""
     if not session.recorder.steps:
         return
-    _prepare_replay(session, main_page, context, url, 'auto')
+    if not _prepare_replay(session, main_page, context, url, 'auto'):
+        return
     while True:
         if session.replay_stop.is_set():
             _finish_replay(session)
@@ -728,7 +761,8 @@ def run_replay_step_start(session, main_page, context, url):
     /replay-next가 한 단계씩 이어간다."""
     if not session.recorder.steps:
         return
-    _prepare_replay(session, main_page, context, url, 'step')
+    if not _prepare_replay(session, main_page, context, url, 'step'):
+        return
     _execute_replay_step(session)
 
 
@@ -913,22 +947,27 @@ def main():
             except queue.Empty:
                 continue
             kind = cmd.get('kind')
-            if kind == 'auto':
-                run_replay_auto(session, main_page, record_context, args.url, cmd.get('delayMs') or 300)
-            elif kind == 'step-start':
-                run_replay_step_start(session, main_page, record_context, args.url)
-            elif kind == 'step-next':
-                run_replay_step_next(session)
-            elif kind == 'coord-tracker-start':
-                try:
+            # 이 블록 안 어디서든 예상 못 한 예외가 새어나가면 while
+            # 루프 자체가 끝나버리고 곧바로 browser.close()로 떨어져
+            # 재생 도중 브라우저가 통째로 꺼져버린다(실제로 겪음) -
+            # 명령 하나 처리 실패가 전체 세션을 죽이지 않도록 여기서
+            # 한 번에 막는다(_prepare_replay 안쪽에도 별도로 방어가
+            # 있지만, 그걸로 못 잡는 경우까지 대비한 마지막 방어선).
+            try:
+                if kind == 'auto':
+                    run_replay_auto(session, main_page, record_context, args.url, cmd.get('delayMs') or 300)
+                elif kind == 'step-start':
+                    run_replay_step_start(session, main_page, record_context, args.url)
+                elif kind == 'step-next':
+                    run_replay_step_next(session)
+                elif kind == 'coord-tracker-start':
                     main_page.evaluate(_COORD_TRACKER_START_JS)
-                except Exception:
-                    pass  # 페이지 전환 중 등 - 다음에 다시 켜면 된다
-            elif kind == 'coord-tracker-stop':
-                try:
+                elif kind == 'coord-tracker-stop':
                     main_page.evaluate(_COORD_TRACKER_STOP_JS)
-                except Exception:
-                    pass
+            except Exception as e:
+                print('  → 처리 중 오류({}): {}'.format(kind, e), flush=True)
+                if session.mode == 'replaying':
+                    _finish_replay(session)
 
         # 아직 저장 안 한 녹화 중 상태로 종료하는 경우를 대비해 마지막으로
         # 한 번 더 저장해 둔다(이름이 정해져 있을 때만).
