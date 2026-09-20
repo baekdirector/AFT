@@ -3,7 +3,7 @@ import io
 import os
 import openpyxl
 from datetime import date, datetime, timedelta, timezone
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, Response, stream_with_context, session, abort
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, Response, stream_with_context, session
 from flask import send_from_directory
 from forms import BoatRegistrationForm, StatusCheckForm, BoatEditForm, AdminLoginForm
 from db import add_boat_instance, get_all_boats, delete_boat, get_boat_by_id, update_boat, upsert_port_coordinate
@@ -1474,44 +1474,6 @@ def pwa_service_worker():
 def offline_page():
     """Offline fallback page served when navigation fails in PWA."""
     return render_template('offline.html')
-
-
-@views.route('/macro')
-def macro_page():
-    """선사 예약 자동화("매크로") 설정 화면. GNB 어디에도 링크를 두지 않는다
-    (/admin 과 같은 이유 - "URL을 아는 사람만"). /admin 로그인 세션을 그대로
-    재사용한다 - 실제 예약자 이름·전화번호·자동 클릭 좌표 같은 민감한 설정을
-    다루는 화면이라 별도 로그인 폼을 새로 만드는 대신 이미 있는 보호막을
-    그대로 쓴다.
-
-    이번 단계는 화면(설정 UI)만이다 - 실제로 브라우저를 띄워 클릭을
-    실행하는 엔진은 아직 없다. "시작" 버튼은 설정을 저장하고 예약 시각까지
-    카운트다운을 보여주는 데까지만 한다(사용자와 합의한 범위 - 실행 엔진은
-    별도로 설계·구현하기로 함)."""
-    if not session.get('admin_authed'):
-        flash('매크로 설정 화면은 관리자 로그인이 필요합니다.', 'warning')
-        return redirect(url_for('views.admin_page'))
-    return render_template('macro.html')
-
-
-_MACRO_MOCK_FILES = {'mock_list.html', 'mock_popup.html'}
-
-
-@views.route('/macro/mock/<name>')
-def macro_mock_page(name):
-    """/macro "웹 리허설(목업)" 전용 - 실제 선사 사이트 대신 같은
-    도메인에서 제공하는 레드히어로 구조 목업이다(macro_runner/fixtures와
-    소스 공유 - macro_runner --stepwise 로 이미 검증한 것과 같은 파일).
-    같은 도메인이라 /macro 의 JS가 이 안에서 진짜로 Tab 이동·클릭·입력·
-    팝업 전환을 실행할 수 있다(cross-origin iframe이면 동일 출처
-    정책 때문에 절대 불가능 - 그래서 실제 선사 사이트는 여기서 못
-    다루고, 로컬 macro_runner만 최종 확인을 담당한다)."""
-    if not session.get('admin_authed'):
-        abort(404)
-    if name not in _MACRO_MOCK_FILES:
-        abort(404)
-    mock_dir = os.path.join(current_app.root_path, '..', 'macro_runner', 'fixtures')
-    return send_from_directory(mock_dir, name)
 
 
 @views.route('/admin', methods=['GET', 'POST'])
