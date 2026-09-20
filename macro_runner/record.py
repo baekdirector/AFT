@@ -63,6 +63,7 @@ from playwright.sync_api import sync_playwright
 
 from winutil import position_window, LEFT_BOUNDS, RIGHT_BOUNDS
 from engine import Runner
+import steps_edit
 
 # 실제(합성 아님) click/change/keydown(Tab)만 감지해서 파이썬으로 보고한다.
 # change는 텍스트류 입력에서만 듣는다 - 체크박스/라디오는 change도 같이
@@ -269,6 +270,21 @@ _VIEWER_HTML = """<!doctype html>
   .rstatus{font-size:10.5px;font-weight:bold;margin-top:4px;}
   .rstatus.done{color:#5fd08a;} .rstatus.running{color:#4f9bff;} .rstatus.error{color:#e2554f;}
   .empty{color:#888;font-size:12px;}
+  .step .body{flex:1;min-width:0;}
+  .actions{flex:none;display:flex;gap:4px;align-items:flex-start;}
+  .icon-btn{background:#333c4d;color:#cfd6e4;padding:0;width:26px;height:26px;border-radius:6px;font-size:12px;line-height:1;}
+  .icon-btn.del{color:#ff8a85;}
+  .icon-btn:hover:not(:disabled){background:#414c62;}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:20;}
+  .modal-card{background:#242a38;border-radius:12px;padding:16px;width:min(460px,92vw);max-height:80vh;overflow:auto;}
+  .modal-title{font-size:14px;font-weight:bold;color:#9fc4ff;margin-bottom:10px;}
+  .modal-msg{font-size:12.5px;line-height:1.5;margin-bottom:12px;}
+  .modal-btns{display:flex;gap:8px;justify-content:flex-end;}
+  .file-item{display:block;width:100%;text-align:left;background:#2b3245;color:#eee;margin-bottom:7px;font-weight:normal;}
+  .file-item:hover{background:#354060;}
+  .file-name{font-size:13px;font-weight:bold;}
+  .file-meta{font-size:11px;color:#9fb0c8;margin-top:3px;}
+  .file-url{font-size:10.5px;color:#7fd6a0;margin-top:2px;font-family:monospace;overflow:hidden;text-overflow:ellipsis;}
 </style></head>
 <body>
   <button type="button" class="btn-quit" id="quitBtn">🔚 완전히 종료</button>
@@ -281,6 +297,7 @@ _VIEWER_HTML = """<!doctype html>
   </div>
 
   <div class="bar" id="editBar">
+    <button type="button" class="btn-ghost" id="loadBtn">📂 불러오기</button>
     <button type="button" class="btn-ghost" id="undoBtn">↩ 마지막 단계 취소</button>
     <button type="button" class="btn-primary" id="saveBtn">💾 저장</button>
     <button type="button" class="btn-danger" id="clearBtn">🗑 처음부터</button>
@@ -302,6 +319,14 @@ _VIEWER_HTML = """<!doctype html>
   </div>
 
   <div id="list" class="empty">대상 창에서 클릭하면 여기 단계가 하나씩 쌓입니다.</div>
+
+  <div class="modal" id="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-title" id="modalTitle">저장된 녹화 불러오기</div>
+      <div id="modalBody"></div>
+      <div class="modal-btns" id="modalBtns"><button type="button" class="btn-ghost" id="modalClose">닫기</button></div>
+    </div>
+  </div>
 <script>
 function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
 function describeClick(c) {
@@ -345,6 +370,7 @@ function renderBars(data) {
   }
 
   document.getElementById('stopBtn').hidden = !recording;
+  document.getElementById('loadBtn').disabled = recording || replaying;
   document.getElementById('undoBtn').disabled = !hasSteps || replaying;
   document.getElementById('saveBtn').disabled = !hasSteps || replaying;
   document.getElementById('clearBtn').disabled = !named || replaying;
@@ -374,9 +400,16 @@ function renderBars(data) {
   }
 }
 
+// 0.4초마다 다시 그리면 ▲▼✕ 버튼을 누르는 도중(마우스 누름~뗌 사이)에
+// 요소가 교체돼 클릭이 씹힐 수 있다 - 내용이 바뀌었을 때만 다시 그린다.
+let lastStepsSig = null;
 function renderSteps(data) {
   const wrap = document.getElementById('list');
   const steps = data.steps || [];
+  const sig = JSON.stringify([data.name, data.mode, steps, data.replay]);
+  if (sig === lastStepsSig) return;
+  lastStepsSig = sig;
+  const locked = data.mode === 'replaying';
   document.getElementById('title').textContent = (data.name ? data.name + ' · ' : '') + '기록된 단계 (' + steps.length + '개)';
   if (!steps.length) {
     wrap.className = 'empty';
@@ -396,11 +429,85 @@ function renderSteps(data) {
       const cls = st === '완료' ? 'done' : st === '진행' ? 'running' : 'error';
       statusHtml = '<div class="rstatus ' + cls + '">' + esc(st) + '</div>';
     }
+    const actionsHtml = '<div class="actions">' +
+      '<button type="button" class="icon-btn" data-act="up" data-idx="' + i + '" title="위로"' + (locked || i === 0 ? ' disabled' : '') + '>▲</button>' +
+      '<button type="button" class="icon-btn" data-act="down" data-idx="' + i + '" title="아래로"' + (locked || i === steps.length - 1 ? ' disabled' : '') + '>▼</button>' +
+      '<button type="button" class="icon-btn del" data-act="del" data-idx="' + i + '" title="이 단계 삭제"' + (locked ? ' disabled' : '') + '>✕</button></div>';
     return '<div class="step' + (isCurrent ? ' current' : '') + '"><div class="num">' + (i + 1) + '</div><div class="body">' +
       '<div class="label">' + esc(s.label) + '</div>' + inputsHtml +
-      '<div class="target">' + esc(describeClick(s.click)) + '</div>' + statusHtml + '</div></div>';
+      '<div class="target">' + esc(describeClick(s.click)) + '</div>' + statusHtml + '</div>' + actionsHtml + '</div>';
   }).join('');
 }
+
+// 단계 목록은 다시 그려질 때마다 요소가 새로 만들어지므로 위임으로 듣는다.
+document.getElementById('list').addEventListener('click', function (e) {
+  const btn = e.target.closest('[data-act]');
+  if (!btn || btn.disabled) return;
+  const index = parseInt(btn.getAttribute('data-idx'), 10);
+  const act = btn.getAttribute('data-act');
+  if (act === 'del') post('/step/delete', { index: index });
+  else post('/step/move', { index: index, delta: act === 'up' ? -1 : 1 });
+});
+
+// ---- 저장된 녹화 불러오기 (커스텀 모달 - 브라우저 기본 다이얼로그 안 씀) ----
+const modal = document.getElementById('modal');
+const modalBody = document.getElementById('modalBody');
+const modalTitle = document.getElementById('modalTitle');
+let savedFiles = [];
+function closeModal() { modal.hidden = true; }
+function showModalMessage(title, msgHtml, buttonsHtml) {
+  modalTitle.textContent = title;
+  modalBody.innerHTML = '<div class="modal-msg">' + msgHtml + '</div>';
+  document.getElementById('modalBtns').innerHTML = buttonsHtml + '<button type="button" class="btn-ghost" id="modalClose">닫기</button>';
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+}
+async function openLoadModal() {
+  modal.hidden = false;
+  modalTitle.textContent = '저장된 녹화 불러오기';
+  modalBody.innerHTML = '<div class="empty">불러오는 중...</div>';
+  document.getElementById('modalBtns').innerHTML = '<button type="button" class="btn-ghost" id="modalClose">닫기</button>';
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  savedFiles = [];
+  try {
+    const res = await fetch('/saved?_=' + Date.now(), { cache: 'no-store' });
+    savedFiles = (await res.json()).files || [];
+  } catch (e) { /* 아래에서 빈 목록으로 처리 */ }
+  if (!savedFiles.length) {
+    modalBody.innerHTML = '<div class="empty">저장된 녹화 파일이 없습니다.</div>';
+    return;
+  }
+  modalBody.innerHTML = savedFiles.map(function (f, i) {
+    return '<button type="button" class="file-item" data-idx="' + i + '">' +
+      '<div class="file-name">' + esc(f.file) + '</div>' +
+      '<div class="file-meta">' + f.stepCount + '단계 · ' + esc(f.modified) + '</div>' +
+      '<div class="file-url">' + esc(f.url) + '</div></button>';
+  }).join('');
+}
+async function loadFile(file, force) {
+  let res;
+  try {
+    res = await fetch('/load', { method: 'POST', body: JSON.stringify({ file: file, force: !!force }) });
+  } catch (e) { return; }
+  if (res.ok) { closeModal(); return; }
+  let info = {};
+  try { info = await res.json(); } catch (e) { /* 본문 없음 */ }
+  if (res.status === 409) {
+    showModalMessage('저장 안 된 변경이 있습니다',
+      '지금 편집 중인 단계에 저장하지 않은 변경이 있습니다.<br>불러오면 그 변경은 사라집니다.',
+      '<button type="button" class="btn-danger" id="forceLoadBtn">덮어쓰고 불러오기</button>');
+    document.getElementById('forceLoadBtn').addEventListener('click', function () { loadFile(file, true); });
+    return;
+  }
+  showModalMessage('불러오지 못했습니다', esc(info.reason === 'busy' ? '녹화 중이거나 재생 중에는 불러올 수 없습니다.' : (info.reason || '알 수 없는 오류')), '');
+}
+document.getElementById('loadBtn').addEventListener('click', openLoadModal);
+modalBody.addEventListener('click', function (e) {
+  const item = e.target.closest('.file-item');
+  if (!item) return;
+  const f = savedFiles[parseInt(item.getAttribute('data-idx'), 10)];
+  if (f) loadFile(f.file, false);
+});
+document.getElementById('modalClose').addEventListener('click', closeModal);
 
 async function refresh() {
   try {
@@ -519,6 +626,29 @@ class Recorder:
         self.current_inputs = []
         self.tab_counter = 0
         self.seed = 0
+        self.pending_popup = False
+        self.on_change()
+
+    def delete_step(self, index):
+        if steps_edit.delete_step(self.steps, index):
+            self.seed = len(self.steps)
+            self.on_change()
+            return True
+        return False
+
+    def move_step(self, index, delta):
+        if steps_edit.move_step(self.steps, index, delta):
+            self.on_change()
+            return True
+        return False
+
+    def load_steps(self, steps):
+        """저장된 녹화의 단계를 통째로 바꿔 끼운다 - 이어붙일 게 남아 있으면
+        안 되므로 입력 대기·Tab 카운트·팝업 대기 상태도 함께 초기화한다."""
+        self.steps = steps
+        self.current_inputs = []
+        self.tab_counter = 0
+        self.seed = steps_edit.renumber(self.steps)
         self.pending_popup = False
         self.on_change()
 
@@ -704,10 +834,19 @@ class Session:
     바꾸고 파일 I/O만 하며(둘 다 스레드에 안전), 실제 Playwright 호출이
     필요한 "재생"만 큐에 넣어 메인 스레드가 처리한다."""
 
-    def __init__(self, state_path):
+    def __init__(self, state_path, url='', save_dir=None):
         self.recorder = Recorder()
-        self.recorder.on_change = self._write_state
+        self.recorder.on_change = self._on_recorder_change
         self.state_path = state_path
+        # 재생·저장이 쓰는 대상 URL - 저장된 녹화를 불러오면 그 파일의
+        # URL로 바뀐다(다른 배 녹화를 불러왔는데 저장 때 엉뚱한 URL로
+        # 덮어쓰는 걸 막는다).
+        self.url = url
+        # 녹화 파일은 실행한 폴더(현재 작업 디렉터리)에 저장/조회한다.
+        self.save_dir = save_dir or os.getcwd()
+        # 마지막 저장/불러오기 이후 바뀐 게 있는지 - 불러오기로 작업 중이던
+        # 내용을 덮어쓰기 전에 확인을 받는 데 쓴다.
+        self.dirty = False
         self.mode = 'naming'  # naming | recording | stopped | replaying
         self.name = ''
         self.out_path = None
@@ -726,10 +865,16 @@ class Session:
         self.coord_tracker_on = False
         self._write_state()
 
+    def _on_recorder_change(self):
+        self.dirty = True
+        self._write_state()
+
     def _write_state(self):
         data = {
             'mode': self.mode,
             'name': self.name,
+            'url': self.url,
+            'dirty': self.dirty,
             'steps': self.recorder.steps,
             'coordTracker': self.coord_tracker_on,
             'replay': None if self.replay_statuses is None else {
@@ -755,16 +900,18 @@ class Session:
         self._write_state()
         return True
 
-    def save(self, url):
+    def save(self):
         # 저장은 "지금까지를 파일에 남긴다"는 뜻일 뿐, 녹화 중이든
         # 멈춰 있든 언제든 부를 수 있다 - 녹화를 멈추는 건 stop()의 몫.
         if not self.out_path:
             return False
-        data = self.recorder.to_json(url)
+        data = self.recorder.to_json(self.url)
         tmp = self.out_path + '.tmp'
         with open(tmp, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         _atomic_replace(tmp, self.out_path)
+        self.dirty = False
+        self._write_state()
         print('{} 개 단계를 {} 에 저장했습니다.'.format(len(self.recorder.steps), self.out_path), flush=True)
         return True
 
@@ -784,6 +931,27 @@ class Session:
         self.mode = 'recording'
         self.replay_statuses = None
         self.replay_current = -1
+        self._write_state()
+
+    def list_saved(self):
+        return steps_edit.list_saved(self.save_dir)
+
+    def load(self, filename):
+        """저장된 녹화를 불러와 현재 단계를 통째로 바꾼다. 불러온 직후엔
+        "멈춘 녹화"와 같은 상태(stopped)라 바로 재생하거나 "이어서 녹화"로
+        더 붙일 수 있다. 실패하면 ValueError."""
+        data = steps_edit.load_saved(self.save_dir, filename)
+        self.recorder.enabled = False
+        self.recorder.load_steps(data['steps'])
+        self.name = filename[:-5]
+        # 저장 위치는 실행한 폴더 기준이라 경로 없이 파일명만 쓴다.
+        self.out_path = filename
+        if data.get('url'):
+            self.url = data['url']
+        self.mode = 'stopped'
+        self.replay_statuses = None
+        self.replay_current = -1
+        self.dirty = False
         self._write_state()
 
 
@@ -914,7 +1082,7 @@ def run_replay_step_next(session):
     _execute_replay_step(session)
 
 
-def _start_control_server(viewer_dir, session, url):
+def _start_control_server(viewer_dir, session):
     with open(os.path.join(viewer_dir, 'viewer.html'), 'w', encoding='utf-8') as f:
         f.write(_VIEWER_HTML)
 
@@ -941,6 +1109,11 @@ def _start_control_server(viewer_dir, session, url):
             except json.JSONDecodeError:
                 return {}
 
+        def do_GET(self):
+            if self.path.split('?')[0] == '/saved':
+                return self._reply(200, {'files': session.list_saved()})
+            return super().do_GET()
+
         def do_POST(self):
             body = self._read_body()
 
@@ -949,7 +1122,7 @@ def _start_control_server(viewer_dir, session, url):
                 return self._reply(200 if ok else 400, {'ok': ok})
 
             if self.path == '/save':
-                ok = session.save(url)
+                ok = session.save()
                 return self._reply(200 if ok else 400, {'ok': ok})
 
             if self.path == '/stop':
@@ -958,6 +1131,30 @@ def _start_control_server(viewer_dir, session, url):
 
             if self.path == '/undo':
                 session.recorder.undo()
+                return self._reply(200, {'ok': True})
+
+            if self.path in ('/step/delete', '/step/move'):
+                # 재생 중엔 단계 번호 기준으로 진행 상태를 그리고 있어서 손대면 안 된다.
+                if session.mode == 'replaying':
+                    return self._reply(400, {'ok': False})
+                index = body.get('index')
+                if self.path == '/step/delete':
+                    ok = session.recorder.delete_step(index)
+                else:
+                    ok = session.recorder.move_step(index, body.get('delta'))
+                return self._reply(200 if ok else 400, {'ok': ok})
+
+            if self.path == '/load':
+                # 녹화 중/재생 중엔 불러오지 않는다 - 진행 중인 기록이 섞인다.
+                if session.mode in ('recording', 'replaying'):
+                    return self._reply(400, {'ok': False, 'reason': 'busy'})
+                if session.dirty and session.recorder.steps and not body.get('force'):
+                    return self._reply(409, {'ok': False, 'reason': 'dirty'})
+                try:
+                    session.load(body.get('file'))
+                except ValueError as e:
+                    return self._reply(400, {'ok': False, 'reason': str(e)})
+                session.replay_queue.put({'kind': 'goto'})
                 return self._reply(200, {'ok': True})
 
             if self.path == '/clear':
@@ -1028,8 +1225,8 @@ def main():
 
     viewer_dir = tempfile.mkdtemp(prefix='aft_macro_record_')
     state_path = os.path.join(viewer_dir, 'state.json')
-    session = Session(state_path)
-    server = _start_control_server(viewer_dir, session, args.url)
+    session = Session(state_path, url=args.url)
+    server = _start_control_server(viewer_dir, session)
     port = server.server_address[1]
 
     with sync_playwright() as p:
@@ -1097,11 +1294,14 @@ def main():
             # 있지만, 그걸로 못 잡는 경우까지 대비한 마지막 방어선).
             try:
                 if kind == 'auto':
-                    run_replay_auto(session, main_page, record_context, args.url, cmd.get('delayMs') or 300)
+                    run_replay_auto(session, main_page, record_context, session.url, cmd.get('delayMs') or 300)
                 elif kind == 'step-start':
-                    run_replay_step_start(session, main_page, record_context, args.url)
+                    run_replay_step_start(session, main_page, record_context, session.url)
                 elif kind == 'step-next':
                     run_replay_step_next(session)
+                elif kind == 'goto':
+                    # 저장된 녹화를 불러오면 그 녹화의 URL을 왼쪽 창에도 띄운다.
+                    main_page.goto(session.url)
                 elif kind == 'coord-tracker-start':
                     main_page.evaluate(_COORD_TRACKER_START_JS)
                 elif kind == 'coord-tracker-stop':
@@ -1114,7 +1314,7 @@ def main():
         # 아직 저장 안 한 녹화 중 상태로 종료하는 경우를 대비해 마지막으로
         # 한 번 더 저장해 둔다(이름이 정해져 있을 때만).
         if session.out_path and session.recorder.steps:
-            session.save(args.url)
+            session.save()
 
         browser.close()
 
