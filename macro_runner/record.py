@@ -76,30 +76,86 @@ _RECORDER_INIT_SCRIPT = r"""
   if (window.__aftRecorderInstalled) return;
   window.__aftRecorderInstalled = true;
 
-  function describeSelector(el) {
-    if (!el || el.nodeType !== 1) return '';
-    if (el.id) return '#' + CSS.escape(el.id);
-    if (el.getAttribute && el.getAttribute('name')) {
-      return el.tagName.toLowerCase() + '[name="' + el.getAttribute('name') + '"]';
-    }
-    var path = [];
-    var node = el;
-    for (var i = 0; i < 4 && node && node.nodeType === 1 && node !== document.body; i++) {
-      var seg = node.tagName.toLowerCase();
-      if (typeof node.className === 'string' && node.className.trim()) {
-        var cls = node.className.trim().split(/\s+/).filter(Boolean).slice(0, 2);
-        if (cls.length) seg += '.' + cls.map(function (c) { return CSS.escape(c); }).join('.');
-      }
-      var parent = node.parentElement;
-      if (parent) {
-        var siblings = Array.prototype.filter.call(parent.children, function (c) { return c.tagName === node.tagName; });
-        if (siblings.length > 1) seg += ':nth-of-type(' + (siblings.indexOf(node) + 1) + ')';
-      }
-      path.unshift(seg);
-      node = parent;
-    }
-    return path.join(' > ');
+  // ---- 선택자 만들기 ----
+  // 재생 때 좌표 대신 이 선택자로 요소를 찾아 누를 수 있으려면 (1) 페이지에서
+  // 딱 그 요소 하나만 가리켜야 하고 (2) 내일 페이지가 조금 달라져도 안
+  // 깨지는 것(id·이름·날짜 같은 식별 클래스)에 매여 있어야 한다. 예전엔
+  // 부모를 4단계까지만 올라가 nth-of-type 경로를 만들고 유일한지도 안
+  // 봐서(레드헌터 예약 페이지에 editor_memo_pc가 33개) 좌표로만 재생할
+  // 수 있었다.
+  //
+  // 우선순위: 안정적 id → name → data-schedule_no → 날짜/긴 숫자가 든
+  // 식별 클래스(a.d2026-09-23) → 가장 가까운 안정적 id 조상(예:
+  // table#d2026-09-23)을 앵커로 한 경로 → (앵커가 없으면) 유일해질 때까지
+  // 올라간 경로. 앵커가 있으면 "지금 우연히 유일한" 짧은 경로에서 멈추지
+  // 않고 반드시 앵커까지 올라간다 - 내일 다른 날짜에 같은 모양이 생기면
+  // 깨질 선택자이기 때문이다.
+  var STATE_CLASS = /(^|[_-])(select(ed)?|active|on|off|current|today|hover|focus(ed)?|open(ed)?|checked|show(n)?|hide|hidden|disabled|over)($|[_-])/i;
+  var IDENTIFYING_CLASS = /\d{4}-\d{2}-\d{2}|\d{4,}/;
+
+  function stableId(el) {
+    return !!el.id && !/^(__aft|ui-id-|ember|react-|:r)/i.test(el.id);
   }
+  function matchCount(sel) {
+    try { return document.querySelectorAll(sel).length; } catch (e) { return 0; }
+  }
+  function usableClasses(el) {
+    if (typeof el.className !== 'string') return [];
+    var cls = el.className.trim().split(/\s+/).filter(function (c) { return c && !STATE_CLASS.test(c); });
+    // 식별 클래스를 앞으로 - 2개까지만 쓰므로 밀려나면 안 된다.
+    return cls.filter(function (c) { return IDENTIFYING_CLASS.test(c); })
+      .concat(cls.filter(function (c) { return !IDENTIFYING_CLASS.test(c); }));
+  }
+  function segment(el, withPosition) {
+    var seg = el.tagName.toLowerCase();
+    var cls = usableClasses(el).slice(0, 2);
+    if (cls.length) seg += '.' + cls.map(function (c) { return CSS.escape(c); }).join('.');
+    var parent = el.parentElement;
+    if (withPosition && parent) {
+      var siblings = Array.prototype.filter.call(parent.children, function (c) { return c.tagName === el.tagName; });
+      if (siblings.length > 1) seg += ':nth-of-type(' + (siblings.indexOf(el) + 1) + ')';
+    }
+    return seg;
+  }
+  function describeTarget(el) {
+    if (!el || el.nodeType !== 1) return { selector: '', selectorUnique: false };
+    function done(sel) { return { selector: sel, selectorUnique: matchCount(sel) === 1 }; }
+    var sel;
+    if (stableId(el)) {
+      sel = '#' + CSS.escape(el.id);
+      if (matchCount(sel) === 1) return done(sel);
+    }
+    var tag = el.tagName.toLowerCase();
+    var name = el.getAttribute && el.getAttribute('name');
+    if (name) {
+      sel = tag + '[name="' + name + '"]';
+      if (matchCount(sel) === 1) return done(sel);
+    }
+    var scheduleNo = el.getAttribute && el.getAttribute('data-schedule_no');
+    if (scheduleNo) {
+      sel = tag + '[data-schedule_no="' + scheduleNo + '"]';
+      if (matchCount(sel) === 1) return done(sel);
+    }
+    if (usableClasses(el).some(function (c) { return IDENTIFYING_CLASS.test(c); })) {
+      sel = segment(el, false);
+      if (matchCount(sel) === 1) return done(sel);
+    }
+    var chain = [];
+    var anchor = null;
+    var node = el;
+    for (var i = 0; i < 12 && node && node.nodeType === 1 && node !== document.documentElement; i++) {
+      if (i > 0 && stableId(node)) { anchor = node; break; }
+      chain.unshift(segment(node, true));
+      node = node.parentElement;
+    }
+    if (anchor) return done('#' + CSS.escape(anchor.id) + ' > ' + chain.join(' > '));
+    for (var k = 1; k <= chain.length; k++) {
+      sel = chain.slice(-k).join(' > ');
+      if (matchCount(sel) === 1) return done(sel);
+    }
+    return done(chain.join(' > '));
+  }
+  function describeSelector(el) { return describeTarget(el).selector; }
 
   // 녹화 중 클릭한 자리에도 재생 때(engine.py)와 똑같은 빨간 점을
   // 잠깐 찍어둔다 - "녹화할 때 위치와 재생할 때 위치가 다른가?"를
@@ -139,7 +195,8 @@ _RECORDER_INIT_SCRIPT = r"""
     // 있었다면 그 결과물이므로 건너뛴다.
     if (Date.now() - lastEnterAt < 50) return;
     showClickMarker(e.clientX, e.clientY);
-    window.__aftRecordEvent({ type: 'click', x: e.clientX, y: e.clientY, scrollX: window.scrollX, scrollY: window.scrollY, selector: describeSelector(e.target) });
+    var target = describeTarget(e.target);
+    window.__aftRecordEvent({ type: 'click', x: e.clientX, y: e.clientY, scrollX: window.scrollX, scrollY: window.scrollY, selector: target.selector, selectorUnique: target.selectorUnique });
   }, true);
 
   function isTextLike(t) {
@@ -180,7 +237,8 @@ _RECORDER_INIT_SCRIPT = r"""
     // 확인했다(값이 엉뚱한 필드에 들어가는 문제로 이어짐).
     if (e.key === 'Enter' && !isTextLike(document.activeElement)) {
       lastEnterAt = Date.now();
-      window.__aftRecordEvent({ type: 'enter', selector: describeSelector(document.activeElement) });
+      var focused = describeTarget(document.activeElement);
+      window.__aftRecordEvent({ type: 'enter', selector: focused.selector, selectorUnique: focused.selectorUnique });
     }
   }, true);
 
@@ -675,12 +733,17 @@ class Recorder:
             base += ' · 새 창 열림'
         return base
 
-    def _pick_main_mode(self, selector):
-        # id나 name처럼 비교적 안정적인 선택자만 "선택자 우선"으로 쓰고,
-        # 그 외(자동 추정한 nth-of-type 경로)는 좌표를 기본으로 삼는다.
-        if selector and (selector.startswith('#') or '[name=' in selector):
-            return 'selector'
-        return 'coord'
+    def _pick_main_mode(self, selector, unique=None):
+        # 녹화기 JS가 "페이지에서 그 요소 하나만 가리킨다"고 확인해 준(unique)
+        # 선택자만 selector 모드로 쓴다 - 재생 때 스크롤·배너 높이 같은
+        # 레이아웃 변화와 무관하다(Playwright가 알아서 스크롤해서 누름).
+        # 유일하지 않으면 좌표로 남긴다. unique가 없는 예전 이벤트는 옛 규칙
+        # (id/name만 신뢰)을 그대로 따른다.
+        if not selector:
+            return 'coord'
+        if unique is None:
+            return 'selector' if (selector.startswith('#') or '[name=' in selector) else 'coord'
+        return 'selector' if unique else 'coord'
 
     def handle_event(self, source, payload):
         if not self.enabled:
@@ -754,7 +817,7 @@ class Recorder:
             # 선택자 대신 Tab 모드로 기록한다 - 반복 재생할수록 좌표가
             # 잘 안 맞는다는 문제(스크롤·레이아웃 드리프트)를 키보드
             # 내비게이션이 가능한 구간에서는 아예 우회한다.
-            mode = 'tab' if (role == 'popup' or self.tab_counter > 0) else self._pick_main_mode(selector)
+            mode = 'tab' if (role == 'popup' or self.tab_counter > 0) else self._pick_main_mode(selector, payload.get('selectorUnique'))
             click = {
                 'mode': mode,
                 'tabCount': self.tab_counter,

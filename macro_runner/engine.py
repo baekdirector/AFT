@@ -265,14 +265,41 @@ class Runner:
             print('  좌표 ({}, {}) 대상 확인: {}'.format(x, y, hit))
             self.page.mouse.click(x, y)
         else:
-            self._resolve_locator(click.get('selector') or '').click()
+            self._click_selector(click.get('selector') or '')
+
+    def _click_selector(self, raw_selector):
+        """선택자로 요소를 찾아 누른다 - 못 찾거나 여러 개면 좌표로 얼버무리지
+        않고 즉시 실패한다(엉뚱한 곳을 조용히 누르는 것보다 낫다). 실패하면
+        그 순간 화면을 스크린샷으로 남겨 무엇이 달랐는지 바로 볼 수 있게 한다.
+        Playwright가 요소를 스크롤해 보이게 하고 클릭 가능해질 때까지 기다리므로
+        녹화 때의 스크롤 위치·배너 높이와 무관하다."""
+        locator = self._resolve_locator(raw_selector)
+        try:
+            hit = locator.first.evaluate(
+                '''el => {
+                    const txt = (el.textContent || '').trim().slice(0, 30);
+                    return el.tagName + (el.id ? '#' + el.id : '') + (txt ? ' "' + txt + '"' : '');
+                }''')
+            print('  선택자 대상 확인({}개 일치): {}'.format(locator.count(), hit))
+            locator.click()
+        except Exception:
+            self._save_failure_screenshot()
+            raise
+
+    def _save_failure_screenshot(self):
+        path = 'macro_fail_{}.png'.format(time.strftime('%Y%m%d_%H%M%S'))
+        try:
+            self.page.screenshot(path=path)
+            print('  → 실패 시점 화면을 저장했습니다: {}'.format(os.path.abspath(path)))
+        except Exception as e:
+            print('  → 실패 화면 저장도 실패했습니다: {}'.format(e))
 
     def _click_target(self, step):
         mode = step.get('mode') or 'selector'
         if mode == 'coord':
             self.page.mouse.click(int(step['x']), int(step['y']))
         elif mode == 'selector':
-            self._locator(step).click()
+            self._click_selector(step['selector'])
         else:
             self._click_focused()
 

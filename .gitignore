@@ -59,3 +59,6 @@ probe_boats*.csv
 # 원칙과 같은 이유로 커밋하지 않는다(fixtures/의 샘플 설정은 예외).
 macro_runner/*.json
 !macro_runner/fixtures/*.json
+
+# macro_runner 재생 실패 스크린샷
+macro_fail_*.png
