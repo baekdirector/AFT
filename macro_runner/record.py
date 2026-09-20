@@ -863,7 +863,7 @@ class Recorder:
             # 모른다 - 다음 이벤트가 들어올 때 _maybe_apply_pending_popup이
             # 이 자리를 True로 고쳐 쓴다.
             'opensPopup': False,
-            'sleep': 300,
+            'sleep': 600,
             'manual': False,
         }
         step['label'] = self._label_for(step)
