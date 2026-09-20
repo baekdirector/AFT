@@ -370,7 +370,7 @@ _VIEWER_HTML = """<!doctype html>
       <button type="button" class="seg-btn" id="modeStepBtn">한 단계씩</button>
     </div>
     <span class="hint" style="width:auto;">지연(ms)</span>
-    <input type="number" id="delayInput" value="300" min="0" step="50">
+    <input type="number" id="delayInput" value="600" min="0" step="50">
     <button type="button" class="btn-primary" id="replayBtn">▶ 테스트 재생</button>
     <button type="button" class="btn-primary" id="replayNextBtn" hidden>다음 단계 ▶</button>
     <button type="button" class="btn-danger" id="replayStopBtn" hidden>⏸ 재생 중지</button>
@@ -1238,7 +1238,7 @@ def _start_control_server(viewer_dir, session):
                 if (body.get('mode') or 'auto') == 'step':
                     session.replay_queue.put({'kind': 'step-start'})
                 else:
-                    session.replay_queue.put({'kind': 'auto', 'delayMs': int(body.get('delayMs') or 300)})
+                    session.replay_queue.put({'kind': 'auto', 'delayMs': int(body.get('delayMs') or 600)})
                 return self._reply(200, {'ok': True})
 
             if self.path == '/replay-next':
@@ -1310,7 +1310,7 @@ def main():
         # 제어판 창 - 완전히 별도 컨텍스트라 녹화 스크립트가 안 심어진다
         # (여기서 클릭해도 기록되지 않음 - 이 창 자체가 기록 대상이 되면
         # 안 되므로).
-        viewer_context = browser.new_context(viewport={'width': 560, 'height': 800})
+        viewer_context = browser.new_context(viewport={'width': 560, 'height': 1000})
         viewer_page = viewer_context.new_page()
         viewer_page.goto('http://127.0.0.1:{}/viewer.html'.format(port))
         position_window(viewer_page, **RIGHT_BOUNDS)
@@ -1357,7 +1357,7 @@ def main():
             # 있지만, 그걸로 못 잡는 경우까지 대비한 마지막 방어선).
             try:
                 if kind == 'auto':
-                    run_replay_auto(session, main_page, record_context, session.url, cmd.get('delayMs') or 300)
+                    run_replay_auto(session, main_page, record_context, session.url, cmd.get('delayMs') or 600)
                 elif kind == 'step-start':
                     run_replay_step_start(session, main_page, record_context, session.url)
                 elif kind == 'step-next':
