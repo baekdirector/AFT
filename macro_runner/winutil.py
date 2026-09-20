@@ -10,7 +10,7 @@
 명시적으로 좌/우로 떨어뜨려 놓는다."""
 
 LEFT_BOUNDS = {'left': 0, 'top': 0, 'width': 1290, 'height': 860}
-RIGHT_BOUNDS = {'left': 1290, 'top': 0, 'width': 580, 'height': 860}
+RIGHT_BOUNDS = {'left': 1290, 'top': 0, 'width': 580, 'height': 1060}
 
 
 def position_window(page, left, top, width, height):

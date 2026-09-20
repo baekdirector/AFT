@@ -215,7 +215,7 @@ def main():
 
         # 오른쪽 진행 상황 창 - record.py의 단계 표시 창과 같은 자리에
         # 같은 크기로 뜬다.
-        viewer_context = browser.new_context(viewport={'width': 560, 'height': 800})
+        viewer_context = browser.new_context(viewport={'width': 560, 'height': 1000})
         viewer_page = viewer_context.new_page()
         viewer_page.goto('http://127.0.0.1:{}/viewer.html'.format(port))
         position_window(viewer_page, **RIGHT_BOUNDS)
