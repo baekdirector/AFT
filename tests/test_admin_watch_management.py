@@ -193,6 +193,43 @@ def test_admin_device_check_log_route_requires_login_and_404s_unknown(app, clien
     assert client.get('/admin/data/watch/999999/check-log').status_code == 404
 
 
+def test_admin_data_watch_route_never_calls_external_ip_api(app, client, monkeypatch):
+    """사용자 지적: "알림 목록만 먼저 가져오자고 했는데 왜 이렇게 느리냐" - 이
+    라우트는 외부 IP 위치 API를 절대 부르면 안 된다(캐시에 없으면
+    place_pending으로만 표시하고, 위치는 /places 가 뒤늦게 채운다)."""
+    import services.ip_location as ip_location
+
+    def boom(*args, **kwargs):
+        raise AssertionError('외부 IP 위치 조회를 하면 안 된다')
+    monkeypatch.setattr(ip_location, 'resolve_missing', boom)
+    monkeypatch.setattr(ip_location.requests, 'post', boom)
+
+    _seed_watch(app, ip='8.8.8.8')
+    _login(client, monkeypatch)
+
+    devices = _dashboard_data(client)['devices']
+    assert devices[0]['ip'] == '8.8.8.8'
+    assert devices[0]['place_pending'] is True
+
+
+def test_admin_data_watch_places_route_resolves_and_requires_login(app, client, monkeypatch):
+    assert client.get('/admin/data/watch/places?ips=8.8.8.8').status_code == 403
+    _login(client, monkeypatch)
+
+    import services.ip_location as ip_location
+
+    class FakeResp:
+        def raise_for_status(self): pass
+        def json(self):
+            return [{'query': '8.8.8.8', 'status': 'success', 'city': 'Suwon',
+                     'regionName': 'Gyeonggi-do', 'country': 'South Korea', 'hosting': False}]
+    monkeypatch.setattr(ip_location.requests, 'post', lambda *a, **k: FakeResp())
+
+    rv = client.get('/admin/data/watch/places?ips=8.8.8.8')
+    assert rv.status_code == 200
+    assert rv.get_json()['data']['places'] == {'8.8.8.8': '수원 (경기도)'}
+
+
 # ---- services.watch_service.admin_release_watches ----
 
 def test_admin_release_watches_deactivates_only_given_ids(app):

@@ -1339,7 +1339,7 @@
           '<span class="device-ip">' + esc(primaryLabel) + '</span>' +
           (secondaryIp ? '<span class="device-ip-secondary">' + esc(secondaryIp) + '</span>' : '') +
           '<span class="device-kind' + (isMobile ? ' mobile' : '') + '">' + esc(d.device_label) + '</span>' +
-          '<span class="device-place">' + esc(d.place || '-') + '</span>' +
+          '<span class="device-place">' + esc(d.place_pending ? '위치 확인 중…' : (d.place || '-')) + '</span>' +
           (d.ip_estimated ? '<span class="device-estimated" title="구독 직전 접속 이력으로 추정한 값 - 정확하지 않을 수 있습니다">추정</span>' : '') +
         '</div>' +
         '<div class="device-agent">' + esc(d.user_agent || '') + '</div>';
@@ -1638,11 +1638,34 @@
       checkLogCache.clear();
       state.devices = body.data.devices;
       render();
+      resolvePendingPlaces();
     } catch (err) {
       showToast(err.message || '알림 등록 정보를 불러오지 못했습니다.', { type: 'error' });
     } finally {
       if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
     }
+  }
+
+  // 목록이 먼저 뜬 뒤, 위치를 아직 모르는 기기 IP만 외부 조회(느릴 수 있음)로
+  // 채운다. 실패해도 위치가 '-' 로 남을 뿐이라 조용히 넘어간다.
+  async function resolvePendingPlaces() {
+    const ips = [...new Set(state.devices.filter(d => d.place_pending && d.ip).map(d => d.ip))];
+    if (!ips.length) return;
+    try {
+      const resp = await fetch('/admin/data/watch/places?ips=' + encodeURIComponent(ips.join(',')), { cache: 'no-store' });
+      const body = await resp.json();
+      if (!resp.ok || body.status !== 'success') return;
+      const places = body.data.places || {};
+      let changed = false;
+      state.devices.forEach(d => {
+        if (d.place_pending && places[d.ip] != null) {
+          d.place = places[d.ip];
+          d.place_pending = false;
+          changed = true;
+        }
+      });
+      if (changed) render();
+    } catch (err) { /* 위치는 부가 정보 - 실패해도 목록엔 영향 없다 */ }
   }
 
   function loadTabData(tab) {

@@ -1513,12 +1513,15 @@ def _admin_data_guard():
     return None
 
 
-def _admin_recent_visit_logs():
+def _admin_recent_visit_logs(resolve: bool = True):
     """최근(보관 기간 내) 방문 기록 + IP 위치 캐시. "접속 이력" 탭과 "알림
     등록" 탭(기기 IP 추정 백필)이 둘 다 이 원시 데이터가 필요해서 공용으로
     뺐다 - resolve_missing()은 이미 캐시에 있는 IP는 외부 API를 다시 안
     부르므로(services.ip_location 참고), 두 탭을 연달아 열어도 실제 외부
-    호출은 처음 여는 탭에서 한 번만 일어난다."""
+    호출은 처음 여는 탭에서 한 번만 일어난다.
+
+    `resolve=False`면 외부 API를 아예 안 부르고 이미 캐시된 위치만 쓴다 -
+    "알림 등록" 탭은 목록을 막힘없이 먼저 보여줘야 해서 이쪽을 쓴다."""
     from models import IpLocation, VisitLog
     from services.ip_location import resolve_missing
     from services.snapshot_repository import VISIT_LOG_RETENTION_DAYS
@@ -1527,10 +1530,11 @@ def _admin_recent_visit_logs():
     logs = (VisitLog.query.filter(VisitLog.visited_at >= cutoff)
             .order_by(VisitLog.visited_at.desc()).limit(1000).all())
 
-    try:
-        resolve_missing([row.ip for row in logs])
-    except Exception as e:
-        current_app.logger.error('IP 위치 조회 중 오류: %s', e, exc_info=e)
+    if resolve:
+        try:
+            resolve_missing([row.ip for row in logs])
+        except Exception as e:
+            current_app.logger.error('IP 위치 조회 중 오류: %s', e, exc_info=e)
 
     ips = {row.ip for row in logs if row.ip}
     locations = {row.ip: row for row in IpLocation.query.filter(IpLocation.ip.in_(ips)).all()} if ips else {}
@@ -1627,20 +1631,24 @@ def admin_data_access_route():
 @views.route('/admin/data/watch')
 def admin_data_watch_route():
     """관리자 콘솔 "알림 등록" 탭 전용 데이터 - 그 탭을 처음 열 때만 부른다
-    (위 admin_data_ports_route 설명 참고). 기기(구독자) IP 위치 조회 +
-    IP/기기 추정 백필용 최근 방문 기록 조회, 둘 다 외부 API를 동기로 탈
-    수 있어 느리다."""
+    (위 admin_data_ports_route 설명 참고). DB만 읽어 즉시 응답한다 - 외부
+    IP 위치 조회는 여기서 하지 않고 admin_data_watch_places_route 가 뒤늦게
+    채운다."""
     guard = _admin_data_guard()
     if guard:
         return guard
 
     from models import IpLocation
-    from services.ip_location import format_location, resolve_missing
+    from services.ip_location import format_location
     from services.watch_service import admin_list_devices
 
-    logs, locations = _admin_recent_visit_logs()
-
-    # 기기별 체크 기록 로그는 여기서 안 싣는다 - 펼칠 때 아래
+    # 기기 목록(DB만)을 먼저 만든다 - 이 라우트는 외부 IP 위치 API를 절대
+    # 부르지 않는다(사용자 지적: "알림 목록만 먼저 가져오자고 했는데 왜
+    # 이렇게 느리냐" - 예전엔 방문 기록 최대 1000건의 IP + 기기 IP를 ip-api.com
+    # 에 동기 조회하느라 목록이 그만큼 늦게 떴다). 이미 캐시된 위치만 붙이고,
+    # 아직 없는 기기는 place_pending=True 로 표시해 화면이 뜬 뒤
+    # /admin/data/watch/places 로 따로 채운다.
+    # 기기별 체크 기록 로그도 여기서 안 싣는다 - 펼칠 때 아래
     # admin_data_device_check_log_route 로 그 기기 것만 따로 불러온다.
     devices = admin_list_devices(include_check_log=False)
 
@@ -1652,7 +1660,12 @@ def admin_data_watch_route():
     # 페이지를 열어야 하므로, 구독 직전(1시간 이내) 가장 가까운 접속 기록의
     # IP/기기 종류를 빌려 쓰고 "추정" 표시를 달아 실제 값과 구분한다.
     # 클라우드/봇 추정 접속은 후보에서 제외한다(실제 방문자가 아닐 가능성이
-    # 커서 추정 근거로 부적절).
+    # 커서 추정 근거로 부적절). 방문 기록은 추정이 필요한 기기가 있을 때만
+    # 읽고, 위치는 캐시된 것만 쓴다(캐시에 없는 IP는 봇 여부를 모르므로 후보로
+    # 남는다).
+    needs_backfill = any(not d['ip'] and d['created_at'] for d in devices)
+    logs, locations = _admin_recent_visit_logs(resolve=False) if needs_backfill else ([], {})
+
     for d in devices:
         d['ip_estimated'] = False
         if d['ip'] or not d['created_at']:
@@ -1670,19 +1683,16 @@ def admin_data_watch_route():
                 d['ip_estimated'] = True
                 break
 
-    # 기기(구독자) IP도 접속이력과 같은 IpLocation 캐시로 위치를 붙인다 -
-    # 같은 사람이 예전에 화면을 본 적 있으면 이미 캐시돼 있어 바로 나온다.
+    # 기기(구독자) IP의 위치는 접속이력과 같은 IpLocation 캐시에서만 읽는다.
     device_ips = [d['ip'] for d in devices if d['ip']]
-    try:
-        resolve_missing(device_ips)
-    except Exception as e:
-        current_app.logger.error('기기 IP 위치 조회 중 오류: %s', e, exc_info=e)
     device_locations = (
         {row.ip: row for row in IpLocation.query.filter(IpLocation.ip.in_(device_ips)).all()}
         if device_ips else {}
     )
     for d in devices:
-        d['place'] = format_location(device_locations.get(d['ip']))
+        loc = device_locations.get(d['ip'])
+        d['place'] = format_location(loc)
+        d['place_pending'] = bool(d['ip']) and loc is None
         d['device_label'] = DEVICE_LABELS.get(d['device_type'], d['device_type'] or '알 수 없음')
 
     total_watches = sum(len(d['watches']) for d in devices)
@@ -1698,6 +1708,34 @@ def admin_data_watch_route():
         'watch_date_count': len(watch_dates),
         'device_type_counts': device_type_counts,
     }))
+
+
+@views.route('/admin/data/watch/places')
+def admin_data_watch_places_route():
+    """"알림 등록" 탭이 먼저 뜬 뒤, 위치를 아직 모르는 기기 IP(place_pending)만
+    골라 외부 API로 조회해서 채우는 후속 호출. ?ips=a,b,c (기기 수만큼이라
+    많아야 수십 개). 실패해도 목록 자체엔 영향이 없다 - 위치가 '-' 로 남을 뿐."""
+    guard = _admin_data_guard()
+    if guard:
+        return guard
+
+    from models import IpLocation
+    from services.ip_location import format_location, resolve_missing
+
+    ips = []
+    for raw in (request.args.get('ips') or '').split(','):
+        raw = raw.strip()
+        if raw and raw not in ips:
+            ips.append(raw)
+    ips = ips[:50]
+
+    try:
+        resolve_missing(ips)
+    except Exception as e:
+        current_app.logger.error('기기 IP 위치 조회 중 오류: %s', e, exc_info=e)
+
+    rows = {row.ip: row for row in IpLocation.query.filter(IpLocation.ip.in_(ips)).all()} if ips else {}
+    return _no_store(success_response({'places': {ip: format_location(rows.get(ip)) for ip in ips if ip in rows}}))
 
 
 @views.route('/admin/data/watch/<int:subscriber_id>/check-log')
