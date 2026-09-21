@@ -311,9 +311,14 @@ def watches_for(boat_id: int, target_date: str, ship_name: str) -> list[Watch]:
             .all())
 
 
-def admin_list_devices() -> list[dict]:
+def admin_list_devices(include_check_log: bool = True) -> list[dict]:
     """관리자 콘솔 "알림 등록" 탭용 - 활성 감시가 있는 구독자(기기)별로 묶어
     돌려준다.
+
+    `include_check_log=False`면 기기별 확인 이력(`check_log`)을 빼고 돌려준다 -
+    탭을 여는 데 꼭 필요하지 않은 WatchCheckLog 쿼리를 기기 수만큼 날리지
+    않기 위해서다. 화면은 사용자가 "체크 기록 로그"를 펼칠 때 그 기기 것만
+    `admin_device_check_log()`로 따로 불러온다.
 
     한 Subscriber = 브라우저 푸시 구독 하나 = 실제 기기 한 대이므로, 이걸
     그룹 키로 쓴다(IP로 묶으면 같은 공유기 아래 다른 사람이 섞일 수 있다).
@@ -351,16 +356,29 @@ def admin_list_devices() -> list[dict]:
             'created_at': sub.created_at.isoformat() if sub.created_at else None,
             'last_seen_at': sub.last_seen_at.isoformat() if sub.last_seen_at else None,
             'watches': serialize_watches(sub_watches),
+        })
+        if include_check_log:
             # 이 기기가 지금 감시 중인 것들의 확인 이력(최근 2일) - 사용자
             # 요청: "어드민에서도 기기별 로그 정보를 확인하고 싶어". 이미
             # /watches 화면이 쓰는 것과 같은 함수를 구독자만 바꿔 그대로
             # 재사용한다(로직 중복 없음). sub_watches를 넘겨 check_log_history가
             # 같은 활성 감시를 또 쿼리하지 않게 한다(위 by_subscriber 그룹핑에서
             # 이미 읽어둔 것과 동일한 데이터).
-            'check_log': check_log_history(sub, days=2, watches=sub_watches),
-        })
+            devices[-1]['check_log'] = check_log_history(sub, days=2, watches=sub_watches)
     devices.sort(key=lambda d: d['last_seen_at'] or '', reverse=True)
     return devices
+
+
+def admin_device_check_log(subscriber_id: int) -> list[dict] | None:
+    """관리자 콘솔에서 기기 하나의 확인 이력(최근 2일)만 지연 조회한다.
+
+    구독자가 없으면 None(404 판단용), 있으면 - 활성 감시가 없어도 - 목록(빈
+    목록일 수 있음)을 돌려준다. 기기 목록 조회(admin_list_devices)가 이걸
+    미리 다 채우던 걸 "체크 기록 로그"를 펼칠 때로 미룬 것이다."""
+    sub = Subscriber.query.get(subscriber_id)
+    if sub is None:
+        return None
+    return check_log_history(sub, days=2)
 
 
 def admin_release_watches(watch_ids: list[int]) -> int:

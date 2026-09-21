@@ -1640,7 +1640,9 @@ def admin_data_watch_route():
 
     logs, locations = _admin_recent_visit_logs()
 
-    devices = admin_list_devices()
+    # 기기별 체크 기록 로그는 여기서 안 싣는다 - 펼칠 때 아래
+    # admin_data_device_check_log_route 로 그 기기 것만 따로 불러온다.
+    devices = admin_list_devices(include_check_log=False)
 
     # ip/device_type 컬럼이 생기기 전에 만들어진 구독자는 계속 NULL로 남는다
     # (구독은 "알림 켜기"를 처음 누를 때만 서버를 부르지, 그 뒤 방문마다
@@ -1696,6 +1698,24 @@ def admin_data_watch_route():
         'watch_date_count': len(watch_dates),
         'device_type_counts': device_type_counts,
     }))
+
+
+@views.route('/admin/data/watch/<int:subscriber_id>/check-log')
+def admin_data_device_check_log_route(subscriber_id):
+    """"알림 등록" 탭에서 기기 하나의 "체크 기록 로그"를 펼칠 때만 부르는
+    지연 조회(위 admin_data_watch_route 는 이걸 빼고 기기 목록만 내려준다 -
+    사용자 요청: 기기 정보/알림 건 배 정보만 먼저 보이고 로그는 눌렀을 때
+    그 기기 것만 로딩)."""
+    guard = _admin_data_guard()
+    if guard:
+        return guard
+
+    from services.watch_service import admin_device_check_log
+
+    check_log = admin_device_check_log(subscriber_id)
+    if check_log is None:
+        return jsonify({'error': '기기를 찾을 수 없습니다.'}), 404
+    return _no_store(success_response({'subscriber_id': subscriber_id, 'check_log': check_log}))
 
 
 @views.route('/admin/logout', methods=['POST'])

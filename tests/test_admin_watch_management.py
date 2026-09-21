@@ -138,6 +138,61 @@ def test_admin_list_devices_includes_per_device_check_log(app):
     assert by_sub[sub2_id]['check_log'] == [], '다른 기기의 확인 이력이 섞이면 안 된다'
 
 
+def test_admin_list_devices_can_skip_check_log(app):
+    """탭 진입을 가볍게 하려고 기기 목록에서 체크 기록을 뺄 수 있어야 한다
+    (사용자 요청: 로그는 펼칠 때 그 기기 것만 로딩). 기본값은 기존처럼
+    포함이라 이미 있는 호출부/테스트는 그대로 동작한다."""
+    _seed_watch(app, ip='1.1.1.1')
+
+    with app.app_context():
+        from services.watch_service import admin_list_devices
+        without = admin_list_devices(include_check_log=False)
+        with_default = admin_list_devices()
+
+    assert 'check_log' not in without[0]
+    assert 'check_log' in with_default[0]
+
+
+def test_admin_data_watch_route_does_not_include_check_log(app, client, monkeypatch):
+    _seed_watch(app, ip='1.1.1.1')
+    _login(client, monkeypatch)
+
+    data = _dashboard_data(client)
+
+    assert data['devices'], '기기 자체는 내려와야 한다'
+    assert all('check_log' not in d for d in data['devices'])
+
+
+def test_admin_device_check_log_route_returns_only_that_devices_log(app, client, monkeypatch):
+    sub1_id, _ = _seed_watch(app, ip='1.1.1.1', ship_name='내배', target_date='2026-12-25')
+    sub2_id, _ = _seed_watch(app, ip='2.2.2.2', ship_name='남의배', target_date='2026-12-25')
+    with app.app_context():
+        from datetime import datetime
+        from models import Boat, WatchCheckLog
+        boat = Boat.query.filter_by(name='테스트선단').first()
+        db.session.add(WatchCheckLog(boat_id=boat.id, ship_name='내배', target_date='2026-12-25',
+                                     checked_at=datetime.utcnow(), available=3, changed=True))
+        db.session.commit()
+    _login(client, monkeypatch)
+
+    rv = client.get(f'/admin/data/watch/{sub1_id}/check-log')
+    assert rv.status_code == 200
+    log = rv.get_json()['data']['check_log']
+    assert [r['ship_name'] for r in log] == ['내배']
+
+    rv2 = client.get(f'/admin/data/watch/{sub2_id}/check-log')
+    assert rv2.get_json()['data']['check_log'] == [], '다른 기기의 확인 이력이 섞이면 안 된다'
+
+
+def test_admin_device_check_log_route_requires_login_and_404s_unknown(app, client, monkeypatch):
+    sub_id, _ = _seed_watch(app, ip='1.1.1.1')
+
+    assert client.get(f'/admin/data/watch/{sub_id}/check-log').status_code == 403
+
+    _login(client, monkeypatch)
+    assert client.get('/admin/data/watch/999999/check-log').status_code == 404
+
+
 # ---- services.watch_service.admin_release_watches ----
 
 def test_admin_release_watches_deactivates_only_given_ids(app):

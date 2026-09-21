@@ -1054,50 +1054,98 @@
 
   // 기기별 체크 기록 로그 - watches.html의 체크 기록 로그 패널을 그대로
   // 이식했다(사용자 요청: "어드민에서도 기기별 로그 정보를 확인하고
-  // 싶어"). 데이터는 admin_list_devices()가 이미 내려준 d.check_log를
-  // 그대로 쓴다 - 별도 fetch가 필요 없다.
-  function buildDeviceCheckLog(d) {
-    const details = document.createElement('details');
-    details.className = 'device-checklog';
-    const summary = document.createElement('summary');
-    summary.className = 'device-checklog-toggle';
-    summary.innerHTML = '<span>체크 기록 로그' + (d.check_log && d.check_log.length ? ' (' + d.check_log.length + ')' : '') + '</span>' +
-      '<span class="device-checklog-toggle-icon">▾</span>';
-    details.appendChild(summary);
+  // 싶어"). 기기 목록(/admin/data/watch)에는 로그를 안 싣고, 이 패널을
+  // 처음 펼칠 때 그 기기 것만 /admin/data/watch/<id>/check-log 로 불러온다
+  // (사용자 요청 - 탭 진입이 느려서). 한 번 불러온 건 checkLogCache 에 두어
+  // 카드가 다시 그려져도(render) 재요청하지 않고, 새로고침 버튼이 비운다.
+  const checkLogCache = new Map();
 
-    const body = document.createElement('div');
-    body.className = 'device-checklog-body';
-    const logs = d.check_log || [];
+  function renderCheckLogRows(body, logs) {
+    body.innerHTML = '';
     if (!logs.length) {
       const empty = document.createElement('div');
       empty.className = 'device-checklog-empty';
       empty.textContent = '체크 기록이 없습니다';
       body.appendChild(empty);
-    } else {
-      const header = document.createElement('div');
-      header.className = 'device-checklog-header';
-      header.innerHTML =
-        '<span>체크 시간</span><span>배 이름</span><span>날짜</span>' +
-        '<span class="device-checklog-col-available">남은 자리</span><span class="device-checklog-col-changed">변경</span>';
-      body.appendChild(header);
-
-      logs.slice().sort((a, b) => (b.checked_at || '').localeCompare(a.checked_at || '')).forEach(h => {
-        const row = document.createElement('div');
-        row.className = 'device-checklog-row' + (h.changed ? ' is-changed' : '');
-        row.innerHTML =
-          '<span class="device-checklog-time">' + esc(fmtLogTime(h.checked_at)) + '</span>' +
-          '<span class="device-checklog-what">' + esc(h.boat_name || h.ship_name || '-') + '</span>' +
-          '<span class="device-checklog-date" title="' + esc(h.target_date || '') + '">' +
-            esc(h.target_date ? h.target_date.slice(5).replace('-', '/') : '-') +
-          '</span>' +
-          '<span class="device-checklog-available">' + (h.available == null ? '확인 전' : esc(h.available)) + '</span>' +
-          '<span class="device-checklog-changed' + (h.changed ? ' is-changed' : '') + '" title="' + (h.changed ? '이 확인에서 변화 감지(알림 발송됨)' : '변화 없음') + '">' +
-            (h.changed ? '✅' : '–') +
-          '</span>';
-        body.appendChild(row);
-      });
+      return;
     }
+    const header = document.createElement('div');
+    header.className = 'device-checklog-header';
+    header.innerHTML =
+      '<span>체크 시간</span><span>배 이름</span><span>날짜</span>' +
+      '<span class="device-checklog-col-available">남은 자리</span><span class="device-checklog-col-changed">변경</span>';
+    body.appendChild(header);
+
+    logs.slice().sort((a, b) => (b.checked_at || '').localeCompare(a.checked_at || '')).forEach(h => {
+      const row = document.createElement('div');
+      row.className = 'device-checklog-row' + (h.changed ? ' is-changed' : '');
+      row.innerHTML =
+        '<span class="device-checklog-time">' + esc(fmtLogTime(h.checked_at)) + '</span>' +
+        '<span class="device-checklog-what">' + esc(h.boat_name || h.ship_name || '-') + '</span>' +
+        '<span class="device-checklog-date" title="' + esc(h.target_date || '') + '">' +
+          esc(h.target_date ? h.target_date.slice(5).replace('-', '/') : '-') +
+        '</span>' +
+        '<span class="device-checklog-available">' + (h.available == null ? '확인 전' : esc(h.available)) + '</span>' +
+        '<span class="device-checklog-changed' + (h.changed ? ' is-changed' : '') + '" title="' + (h.changed ? '이 확인에서 변화 감지(알림 발송됨)' : '변화 없음') + '">' +
+          (h.changed ? '✅' : '–') +
+        '</span>';
+      body.appendChild(row);
+    });
+  }
+
+  function buildDeviceCheckLog(d) {
+    const details = document.createElement('details');
+    details.className = 'device-checklog';
+    const summary = document.createElement('summary');
+    summary.className = 'device-checklog-toggle';
+    const label = document.createElement('span');
+    summary.appendChild(label);
+    const icon = document.createElement('span');
+    icon.className = 'device-checklog-toggle-icon';
+    icon.textContent = '▾';
+    summary.appendChild(icon);
+    details.appendChild(summary);
+
+    const body = document.createElement('div');
+    body.className = 'device-checklog-body';
     details.appendChild(body);
+
+    const setLabel = (logs) => {
+      label.textContent = '체크 기록 로그' + (logs && logs.length ? ' (' + logs.length + ')' : '');
+    };
+    setLabel(checkLogCache.get(d.subscriber_id));
+
+    let loading = false;
+    async function load() {
+      if (checkLogCache.has(d.subscriber_id)) {
+        renderCheckLogRows(body, checkLogCache.get(d.subscriber_id));
+        return;
+      }
+      if (loading) return;
+      loading = true;
+      body.innerHTML = '<div class="device-checklog-empty">불러오는 중…</div>';
+      try {
+        const resp = await fetch('/admin/data/watch/' + encodeURIComponent(d.subscriber_id) + '/check-log', { cache: 'no-store' });
+        const data = await resp.json();
+        if (!resp.ok || data.status !== 'success') throw new Error(data.error || '체크 기록을 불러오지 못했습니다.');
+        checkLogCache.set(d.subscriber_id, data.data.check_log);
+        setLabel(data.data.check_log);
+        renderCheckLogRows(body, data.data.check_log);
+      } catch (err) {
+        body.innerHTML = '';
+        const fail = document.createElement('div');
+        fail.className = 'device-checklog-empty';
+        fail.textContent = (err.message || '체크 기록을 불러오지 못했습니다.') + ' 다시 펼쳐서 재시도하세요.';
+        body.appendChild(fail);
+      } finally {
+        loading = false;
+      }
+    }
+
+    if (checkLogCache.has(d.subscriber_id)) renderCheckLogRows(body, checkLogCache.get(d.subscriber_id));
+    details.addEventListener('toggle', () => {
+      if (details.open) load();
+    });
     return details;
   }
 
@@ -1110,6 +1158,9 @@
       .map(d => ({ ...d, watches: d.watches.filter(w => !idSet.has(w.id)) }))
       .filter(d => d.watches.length > 0);
     ids.forEach(id => state.checked.delete(id));
+    // 해제한 감시는 그 기기 체크 기록 로그에서도 빠져야 하므로 캐시를 비워
+    // 다음에 펼칠 때 다시 불러오게 한다.
+    checkLogCache.clear();
   }
 
   async function releaseIds(ids, confirmMsg, successMsg) {
@@ -1584,6 +1635,7 @@
       const resp = await fetch('/admin/data/watch', { cache: 'no-store' });
       const body = await resp.json();
       if (!resp.ok || body.status !== 'success') throw new Error(body.error || '알림 등록 정보를 불러오지 못했습니다.');
+      checkLogCache.clear();
       state.devices = body.data.devices;
       render();
     } catch (err) {
