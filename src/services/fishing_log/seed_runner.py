@@ -59,7 +59,32 @@ def _add_purchases(result):
             category=seed.category, price=seed.price))
 
 
+def length_problems(result):
+    """모델 String(n) 길이를 넘는 값. SQLite(테스트·로컬)는 길이를 강제하지 않고
+    Postgres(운영)만 강제하므로, 미리보기에서 미리 잡아 --commit 을 막는다."""
+    checks = (
+        (FishingShip, 'name', [s.name for s in result.ships]),
+        (FishingShip, 'region', [s.region for s in result.ships]),
+        (FishingShip, 'port', [s.port for s in result.ships]),
+        (FishingShip, 'travel_time', [s.travel_time for s in result.ships]),
+        (FishingTrip, 'companions', [t.companions for t in result.trips]),
+        (GearPurchase, 'shop', [p.shop for p in result.purchases]),
+        (GearPurchase, 'category', [p.category for p in result.purchases]),
+        (GearItem, 'name', [g.name for g in result.gear_items]),
+    )
+    problems = []
+    for model, column, values in checks:
+        limit = model.__table__.c[column].type.length
+        for value in values:
+            if value and len(value) > limit:
+                problems.append(f'{model.__tablename__}.{column} 최대 {limit}자 초과({len(value)}자): {value[:30]}')
+    return problems
+
+
 def commit_seed(result):
+    problems = length_problems(result)
+    if problems:
+        raise SeedRefused(f'길이 초과 값 {len(problems)}개 - 미리보기의 "길이 초과" 목록을 --ship-map 이나 엑셀에서 고친 뒤 다시 실행하세요.')
     if not tables_are_empty():
         raise SeedRefused('낚시 기록 테이블에 이미 데이터가 있어 이관하지 않습니다.')
     try:
@@ -89,6 +114,9 @@ def format_report(result):
     for trip in result.trips:
         catches = ', '.join(f"{c['who']} {c['species']} {c['count']}" for c in trip.catches) or '-'
         lines.append(f'{trip.trip_date} [{trip.status}] {trip.source_text} → {trip.ship_name} | 조과: {catches}')
+    problems = length_problems(result)
+    lines += ['', f'--- 길이 초과 {len(problems)} (있으면 --commit 거부) ---']
+    lines += problems
     lines += ['', f'--- 경고 {len(result.warnings)} ---']
     lines += [f'[{w.sheet} {w.row}행] {w.reason}: {w.text}' for w in result.warnings]
     lines += ['', f'--- 제외 {len(result.skipped)} ---']

@@ -152,11 +152,11 @@ def test_script_commit_inserts_and_second_run_is_refused(app, tmp_path):
     script = _load_script()
     path = str(_xlsx(tmp_path))
 
-    assert script.main([path, '--commit', '--today', '2026-06-15'], app=app, out=io.StringIO()) == 0
+    assert script.main([path, '--commit', '--allow-sqlite', '--today', '2026-06-15'], app=app, out=io.StringIO()) == 0
     assert FishingTrip.query.one().ship.name == '가나다호'
 
     out = io.StringIO()
-    assert script.main([path, '--commit', '--today', '2026-06-15'], app=app, out=out) == 1
+    assert script.main([path, '--commit', '--allow-sqlite', '--today', '2026-06-15'], app=app, out=out) == 1
     assert '이미 데이터가 있어' in out.getvalue()
     assert FishingTrip.query.count() == 1
 
@@ -170,3 +170,30 @@ def test_script_applies_ship_map(app, tmp_path):
                         app=app, out=out)
 
     assert '가나다호 오전배 → 가나다 오전호' in out.getvalue()
+
+
+def test_long_values_are_reported_and_block_commit(app):
+    """Postgres 는 String(n) 길이를 강제하고 SQLite 는 안 한다 - 미리보기에서
+    잡지 않으면 운영 --commit 에서야 실패한다(최종 리뷰 지적)."""
+    from services.fishing_log.seed_runner import SeedRefused, commit_seed, format_report, tables_are_empty
+    result = _result()
+    result.ships[1].name = '가' * 101
+    result.trips[1].ship_name = '가' * 101
+
+    assert '길이 초과 1' in format_report(result)
+    with pytest.raises(SeedRefused):
+        commit_seed(result)
+    assert tables_are_empty() is True
+
+
+def test_script_commit_shows_target_db_and_refuses_sqlite_without_flag(app, tmp_path):
+    """DATABASE_URL 이 빠지면 조용히 로컬 SQLite 에 넣고 '완료'라고 할 수 있다 -
+    대상 DB 를 보여주고, postgres 가 아니면 --allow-sqlite 없이는 거부한다."""
+    from services.fishing_log.seed_runner import tables_are_empty
+    out = io.StringIO()
+
+    code = _load_script().main([str(_xlsx(tmp_path)), '--commit', '--today', '2026-06-15'], app=app, out=out)
+
+    assert code == 1
+    assert '대상 DB: sqlite' in out.getvalue()
+    assert tables_are_empty() is True

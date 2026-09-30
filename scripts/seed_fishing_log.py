@@ -31,6 +31,8 @@ def _args(argv):
     parser.add_argument('path', help='엑셀 파일 경로')
     parser.add_argument('--commit', action='store_true', help='실제로 DB에 넣는다(없으면 미리보기)')
     parser.add_argument('--ship-map', help='{"원문": "선사명"} JSON 보정표 경로')
+    parser.add_argument('--allow-sqlite', action='store_true',
+                        help='Postgres 가 아닌 DB(로컬 SQLite)에 넣는 것을 허용')
     parser.add_argument('--today', help='예정/완료 판단 기준일 YYYY-MM-DD (기본: 오늘)')
     return parser.parse_args(argv)
 
@@ -54,6 +56,15 @@ def main(argv=None, app=None, out=None):
     if app is None:
         from src.app import create_app
         app = create_app()
+    # DATABASE_URL 이 빠지면 create_app() 이 조용히 로컬 SQLite 를 쓴다 - 어디에
+    # 넣는지 보여주고, 운영(Postgres)이 아니면 명시적으로 허용했을 때만 넣는다.
+    from sqlalchemy.engine import make_url
+    target = make_url(app.config['SQLALCHEMY_DATABASE_URI'])
+    print(f'\n대상 DB: {target.render_as_string(hide_password=True)}', file=out)
+    if target.get_backend_name() != 'postgresql' and not args.allow_sqlite:
+        print('운영(Postgres) DB가 아니라 넣지 않았습니다. DATABASE_URL 을 확인하거나, '
+              '로컬에 넣으려면 --allow-sqlite 를 붙이세요.', file=out)
+        return 1
     with app.app_context():
         try:
             counts = commit_seed(result)
