@@ -518,6 +518,25 @@
     }, over || {});
   }
   function replaceTrip(updated) { const i = state.data.trips.findIndex(x => x.id === updated.id); if (i >= 0) state.data.trips[i] = updated; }
+  // 저장·삭제 뒤 목록 전체를 다시 불러오지 않고, 바뀐 한 건만 반영한 뒤 정렬·합계만 다시 계산한다.
+  function inCurrentYear(t) { return state.year === 'all' || t.trip_date.slice(0, 4) === state.year; }
+  function resortAndSummarize() {
+    const trips = state.data.trips;
+    const planned = trips.filter(t => t.status === 'planned').sort((a, b) => a.trip_date.localeCompare(b.trip_date) || a.id - b.id);
+    const others = trips.filter(t => t.status !== 'planned').sort((a, b) => b.trip_date.localeCompare(a.trip_date) || b.id - a.id);
+    state.data.trips = planned.concat(others);
+    const count = (st) => trips.filter(t => t.status === st).length;
+    state.data.summary = { planned: count('planned'), done: count('done'), cancelled: count('cancelled'),
+                           cost_total: trips.filter(t => t.status !== 'cancelled').reduce((a, t) => a + (t.cost || 0), 0) };
+  }
+  function upsertTrip(trip) {
+    state.data.trips = state.data.trips.filter(x => x.id !== trip.id);
+    if (inCurrentYear(trip)) state.data.trips.push(trip);
+    const y = Number(trip.trip_date.slice(0, 4));
+    if (!state.data.years.includes(y)) state.data.years = state.data.years.concat(y).sort((a, b) => b - a);
+    resortAndSummarize();
+  }
+  function dropTrip(id) { state.data.trips = state.data.trips.filter(x => x.id !== id); resortAndSummarize(); }
 
   // ---------- 겹치는 화면 + 뒤로가기 ----------
   const stack = [];
@@ -747,7 +766,8 @@
       showToast('삭제했어요', { type: 'success' });
       state.openId = null;
       if (stack.includes('ft-editor')) { editor.dirty = false; draftDel(editor.key); closeOverlay('ft-editor', false); }
-      load();
+      dropTrip(t.id);
+      render();
     } catch (err) { busy(false); showToast(err.message, { type: 'error' }); }
   }
 
@@ -1067,12 +1087,13 @@
       const body = await api(editor.trip ? API + '/' + editor.trip.id : API, { method: editor.trip ? 'PUT' : 'POST', body: payload });
       draftDel(editor.key); editor.dirty = false;
       closeOverlay('ft-editor', false);
-      showToast(editor.trip ? '수정했어요' : '출조 기록을 추가했어요', { type: 'success' });
-      const y = body.trip.trip_date.slice(0, 4);
-      if (state.year !== 'all' && state.year !== y) state.year = y;
-      // 전체 수정 저장 뒤에는 펼쳐 둔 행을 접는다(사용자 요청)
+      showToast((editor.trip ? '수정했어요' : '출조 기록을 추가했어요') +
+        (inCurrentYear(body.trip) ? '' : ' · ' + body.trip.trip_date.slice(0, 4) + '년 목록에 있어요'), { type: 'success' });
+      // 전체 수정 저장 뒤에는 펼쳐 둔 행을 접고, 목록은 다시 불러오지 않고 이 한 건만 바꿔 그린다.
+      // (다른 연도로 옮긴 기록은 그 연도를 골랐을 때 보인다 - 선택한 연도를 억지로 바꾸지 않는다)
       state.openId = null;
-      load();
+      upsertTrip(body.trip);
+      render();
     } catch (err) {
       if (err.field) {
         const el = document.querySelector('#ft-form [data-field="' + err.field + '"]');
