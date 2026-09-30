@@ -216,7 +216,7 @@
           <div class="gr-suggest" id="gr-shop-list" hidden></div></div>
       </div>
       <div class="gr-field" data-field="items">
-        <span class="gr-label">품목 <span class="req">*</span> <span style="font-weight:600;color:oklch(0.56 0.015 250)">품목명 · 카테고리 · 가격 · 내 장비(선택)</span></span>
+        <span class="gr-label">품목 <span class="req">*</span> <span style="font-weight:600;color:oklch(0.56 0.015 250)">품목명 · 카테고리 · 가격</span></span>
         <div class="gr-lines" id="gr-lines"></div>
         <button type="button" class="gr-add" id="gr-add-line">+ 품목 추가</button>
       </div>
@@ -504,8 +504,22 @@
     renderLines(); openOverlay('gr-editor');
     if (!order && !draft) setTimeout(() => { const f = document.querySelector('#gr-lines .i-item'); if (f) f.focus(); }, 80);
   }
+  // 직접 입력한 카테고리를 목록에 바로 넣는다(저장 후 전체 재조회를 안 하므로 서버 목록만으론 안 보임)
+  function addCategory(v) {
+    v = (v || '').trim();
+    if (!v || !state.data || state.data.categories.includes(v)) return false;
+    state.data.categories.push(v);
+    return true;
+  }
+  function catOptions() { return (state.data ? state.data.categories : []).map(c => ({ value: c, label: c })); }
+  function refreshCatWidgets() {
+    const opts = catOptions();
+    ed.widgets.concat(cleanupWidgets).forEach(w => w.setOptions(opts));
+    fCat.setOptions([{ value: '', label: '카테고리 전체' }].concat(opts));
+  }
   function renderLines() {
     ed.widgets.forEach(w => w.destroy()); ed.widgets = [];
+    ed.lines.forEach(l => addCategory(l.category));
     const cats = state.data ? state.data.categories : [];
     $('gr-lines').innerHTML = ed.lines.map((l, i) => '<div class="gr-line" data-i="' + i + '">' +
       '<input class="gr-input i-item" data-k="item" value="' + esc(l.item) + '" placeholder="품목명 (예: 요즈리 틴셀 3호 수박 2개)" aria-label="품목명">' +
@@ -515,7 +529,7 @@
     document.querySelectorAll('#gr-lines .gr-line').forEach(row => {
       const l = ed.lines[Number(row.dataset.i)];
       ed.widgets.push(AdmUI.select(row.querySelector('.i-cat'), { options: cats.map(c => ({ value: c, label: c })), value: l.category, placeholder: '카테고리',
-        allowCustom: true, customPrompt: '카테고리를 입력하세요', ariaLabel: '카테고리', onChange: v => { l.category = v; touched(); } }));
+        allowCustom: true, customPrompt: '카테고리를 입력하세요', ariaLabel: '카테고리', onChange: v => { l.category = v; if (addCategory(v)) refreshCatWidgets(); touched(); } }));
     });
     paintTotal();
   }
@@ -594,12 +608,12 @@
                          : '<small>카테고리 제안 · 현재 기타</small>' + esc(s.item) + '<div class="gr-sug-to"><span>바꿀 카테고리</span><div class="to-dd"></div></div>') +
       '</div><div class="acts"><button type="button" class="gr-ghost" data-ignore="' + i + '">무시</button><button type="button" class="gr-ghost" data-apply="' + i + '" style="color:oklch(0.4 0.12 248);border-color:oklch(0.85 0.05 248)">적용</button></div></div>').join('')
       : '<div class="gr-mini-loading">남은 제안이 없어요</div>';
-    const cats = (state.data ? state.data.categories : []).map(c => ({ value: c, label: c }));
+    const cats = catOptions();
     document.querySelectorAll('#gr-cl-body .gr-sug').forEach(row => {
       const s = list[Number(row.dataset.i)], host = row.querySelector('.to-dd');
       if (!host) return;
       cleanupWidgets.push(AdmUI.select(host, { options: cats, value: s.to, ariaLabel: '바꿀 카테고리', allowCustom: true,
-        customPrompt: '카테고리를 입력하세요', onChange: v => { s.to = v; } }));
+        customPrompt: '카테고리를 입력하세요', onChange: v => { s.to = v; if (addCategory(v)) refreshCatWidgets(); } }));
     });
     $('gr-cl-all').disabled = !list.length;
   }
