@@ -370,3 +370,109 @@ class IpLocation(db.Model):
 
     def __repr__(self):
         return f'<IpLocation {self.ip} {self.city}>'
+
+
+# ---------------------------------------------------------------------------
+# 낚시 기록 (admin 전용 개인 기록) - docs/superpowers/specs/
+# 2026-09-30-fishing-log-data-model-design.md. 새 테이블만 추가하므로
+# db.create_all() 이 만든다(ALTER 보정 불필요). 데이터가 작아 통계용
+# 테이블은 두지 않고 화면에서 필요할 때 파이썬으로 집계한다.
+# ---------------------------------------------------------------------------
+
+TRIP_STATUSES = ('planned', 'done', 'cancelled')
+TRIP_RATINGS = ('again', 'maybe', 'never')
+
+
+class FishingShip(db.Model):
+    """선사(선사 노트의 기준). 출조는 항상 선사 하나를 가리킨다 - 선사별
+    집계("이 배 몇 번 탔나")의 기준이라 이름을 UNIQUE로 둔다. AFT 배 목록과는
+    boat_id 로 선택적으로 연결한다(연결되면 예약현황·빈자리 알림으로 이동)."""
+    __tablename__ = 'fishing_ships'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    region = db.Column(db.String(50), nullable=True)
+    port = db.Column(db.String(100), nullable=True)
+    fleet = db.Column(db.String(100), nullable=True)
+    travel_time = db.Column(db.String(50), nullable=True)
+    memo = db.Column(db.Text, nullable=True)
+    boat_id = db.Column(db.Integer, db.ForeignKey('boats.id', ondelete='SET NULL'),
+                        nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow,
+                           onupdate=datetime.utcnow)
+
+    boat = db.relationship('Boat')
+
+    def __repr__(self):
+        return f'<FishingShip {self.name}>'
+
+
+class FishingTrip(db.Model):
+    """출조 한 건. 항구·지역은 선사에만 둔다. 어종/태그/조과는 JSON 목록 -
+    조과는 [{"who": "나", "species": "쭈꾸미", "count": 12}] 모양이고,
+    catch_raw 에는 원문(엑셀 이관 시 조과 문장)을 그대로 보관한다."""
+    __tablename__ = 'fishing_trips'
+
+    id = db.Column(db.Integer, primary_key=True)
+    trip_date = db.Column(db.Date, nullable=False, index=True)
+    status = db.Column(db.String(16), nullable=False, default='done')
+    # 출조가 있는 선사는 지울 수 없다 - ORM 이 ship_id 를 NULL 로 바꾸려다
+    # NOT NULL 에 걸려 IntegrityError 가 난다(SQLite/Postgres 공통).
+    ship_id = db.Column(db.Integer, db.ForeignKey('fishing_ships.id', ondelete='RESTRICT'),
+                        nullable=False, index=True)
+    cost = db.Column(db.Integer, nullable=True)
+    companions = db.Column(db.String(100), nullable=True)
+    rating = db.Column(db.String(16), nullable=True)
+    species = db.Column(db.JSON, nullable=False, default=list)
+    tags = db.Column(db.JSON, nullable=False, default=list)
+    catches = db.Column(db.JSON, nullable=False, default=list)
+    catch_raw = db.Column(db.Text, nullable=True)
+    memo = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow,
+                           onupdate=datetime.utcnow)
+
+    ship = db.relationship('FishingShip', backref=db.backref('trips'))
+
+    def __repr__(self):
+        return f'<FishingTrip {self.trip_date} ship={self.ship_id}>'
+
+
+class GearItem(db.Model):
+    """내 장비 노트(예: 릴·로드 한 대에 대한 메모)."""
+    __tablename__ = 'gear_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    kind = db.Column(db.String(50), nullable=True)
+    memo = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<GearItem {self.name}>'
+
+
+class GearPurchase(db.Model):
+    """장비 구매 품목 1개 = 1행. "주문"은 테이블로 두지 않고 같은
+    purchase_date + shop 으로 묶어 보여준다. 장비 노트를 지워도 구매 기록은
+    남고 gear_id 만 NULL 이 된다."""
+    __tablename__ = 'gear_purchases'
+
+    id = db.Column(db.Integer, primary_key=True)
+    purchase_date = db.Column(db.Date, nullable=False, index=True)
+    shop = db.Column(db.String(100), nullable=True)
+    item = db.Column(db.Text, nullable=False)
+    category = db.Column(db.String(50), nullable=False, default='기타')
+    price = db.Column(db.Integer, nullable=True)
+    memo = db.Column(db.Text, nullable=True)
+    gear_id = db.Column(db.Integer, db.ForeignKey('gear_items.id', ondelete='SET NULL'),
+                        nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow,
+                           onupdate=datetime.utcnow)
+
+    gear = db.relationship('GearItem', backref=db.backref('purchases'))
+
+    def __repr__(self):
+        return f'<GearPurchase {self.purchase_date} {self.item[:20]}>'
