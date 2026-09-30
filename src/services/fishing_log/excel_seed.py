@@ -5,6 +5,8 @@ DB·Flask 를 모른다(파싱/IO 분리 원칙). 엑셀은 초기값 설정에 
 2026-09-30-fishing-log-data-model-design.md §3.
 """
 import re
+from dataclasses import dataclass, field
+from datetime import date, datetime
 
 SHOP_ALIASES = {
     '테무': 'Temu',
@@ -115,3 +117,229 @@ def parse_catches(text):
         pos = match.end()
     leftovers.append(text[pos:])
     return catches, bool(re.search(r'\d', ''.join(leftovers)))
+
+
+YEAR_HEADER = ['일자', '함께', '항구', '지역', '내용', '어종', '품목', '비고', '가격', '조과']
+TRIP_KINDS = {'선비', '배'}
+CANCEL_WORDS = ('취소', '최소')  # '최소'는 실제 엑셀에 있던 오타
+SHIPS_SHEET = '낚시배'
+IGNORED_SHEETS = {'지도'}
+_TRAVEL_RE = re.compile(r'\d+시간(\s*\d+분)?|\d+분')
+
+
+@dataclass
+class SeedIssue:
+    sheet: str
+    row: int
+    reason: str
+    text: str = ''
+
+
+@dataclass
+class ShipSeed:
+    name: str
+    region: str | None = None
+    port: str | None = None
+    travel_time: str | None = None
+    memo: str | None = None
+
+
+@dataclass
+class TripSeed:
+    trip_date: date
+    status: str
+    ship_name: str
+    cost: int | None
+    companions: str | None
+    species: list
+    catches: list
+    catch_raw: str | None
+    memo: str | None
+    source_text: str
+
+
+@dataclass
+class PurchaseSeed:
+    purchase_date: date
+    shop: str | None
+    item: str
+    category: str
+    price: int | None
+
+
+@dataclass
+class GearItemSeed:
+    name: str
+    memo: str
+
+
+@dataclass
+class SeedResult:
+    ships: list = field(default_factory=list)
+    trips: list = field(default_factory=list)
+    purchases: list = field(default_factory=list)
+    gear_items: list = field(default_factory=list)
+    warnings: list = field(default_factory=list)
+    skipped: list = field(default_factory=list)
+
+
+def _to_date(value):
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return None
+
+
+def _join(*parts):
+    kept = [p for p in parts if p]
+    return '\n'.join(kept) or None
+
+
+def _split_species(value):
+    text = _text(value)
+    if text is None:
+        return []
+    return [s.strip() for s in re.split(r'[,/]', text) if s.strip()]
+
+
+def _parse_year_sheet(ws, today, ship_map, result, trip_ship_hints):
+    sheet = ws.title
+    rows = list(ws.iter_rows(values_only=True))
+    header = [_text(c) for c in (list(rows[0])[:10] if rows else [])]
+    if header != YEAR_HEADER:
+        result.warnings.append(SeedIssue(sheet, 1, '헤더가 예상과 달라 시트를 건너뜀', ' '.join(filter(None, header))))
+        return
+
+    last_date = None
+    for row_no, raw in enumerate(rows[1:], start=2):
+        cells = list(raw)[:10]
+        cells += [None] * (10 - len(cells))
+        if all(_text(c) is None for c in cells):
+            continue
+        d_cell, who, port, region, content, species, kind, note, price, catch = cells
+        content, kind, note = _text(content), _text(kind), _text(note)
+
+        if _text(d_cell) == '합계' or (content is None and kind is None):
+            result.skipped.append(SeedIssue(sheet, row_no, '합계 또는 금액만 있는 줄', _text(price) or ''))
+            continue
+
+        row_date = _to_date(d_cell)
+        if row_date is None:
+            if _text(d_cell) is not None:
+                result.warnings.append(SeedIssue(sheet, row_no, '일자를 날짜로 읽지 못함 - 건너뜀', _text(d_cell)))
+                continue
+            if last_date is None:
+                result.warnings.append(SeedIssue(sheet, row_no, '이어받을 일자가 없음 - 건너뜀', content or ''))
+                continue
+            row_date = last_date
+        else:
+            last_date = row_date
+
+        if kind in TRIP_KINDS:
+            status = 'planned' if row_date > today else 'done'
+        elif kind is None and note and any(w in note for w in CANCEL_WORDS):
+            status = 'cancelled'
+        else:
+            status = None
+
+        if status is None:
+            if kind is None:
+                result.warnings.append(SeedIssue(sheet, row_no, '품목 칸이 비어 기타로 분류', content))
+            result.purchases.append(PurchaseSeed(
+                purchase_date=row_date, shop=normalize_shop(note), item=content,
+                category=normalize_category(kind), price=to_int(price)))
+            continue
+
+        if content is None:
+            result.warnings.append(SeedIssue(sheet, row_no, '출조인데 내용(선사) 칸이 비어 건너뜀'))
+            continue
+        if ship_map and content in ship_map:
+            ship_name, rest = ship_map[content], None
+        else:
+            ship_name, rest = extract_ship_name(content)
+        catch_raw = _text(catch)
+        catches, leftover_digits = parse_catches(catch_raw)
+        if leftover_digits:
+            result.warnings.append(SeedIssue(sheet, row_no, '조과 문장에 인식 못 한 숫자가 있음 - 원문만 보관', catch_raw))
+        result.trips.append(TripSeed(
+            trip_date=row_date, status=status, ship_name=ship_name, cost=to_int(price),
+            companions=_text(who), species=_split_species(species), catches=catches,
+            catch_raw=catch_raw, memo=_join(rest, note), source_text=content))
+        trip_ship_hints.setdefault(ship_match_key(ship_name), ShipSeed(
+            name=ship_name, region=_text(region), port=_text(port)))
+
+
+def _parse_ships_sheet(ws, result, ships):
+    region = port = None
+    for row_no, raw in enumerate(ws.iter_rows(values_only=True), start=1):
+        cells = [_text(c) for c in raw]
+        if not any(cells):
+            continue
+        cells += [None] * (4 - len(cells))
+        if cells[0]:
+            region, port = cells[0], cells[2]
+        elif cells[2]:
+            port = cells[2]
+        name = cells[3]
+        if not name:
+            result.warnings.append(SeedIssue(ws.title, row_no, '선사명(3열)이 비어 건너뜀', ' '.join(filter(None, cells))))
+            continue
+        travel_time = None
+        memos = []
+        for value in cells[4:]:
+            if not value:
+                continue
+            if travel_time is None and _TRAVEL_RE.fullmatch(value):
+                travel_time = value
+            else:
+                memos.append(value)
+        key = ship_match_key(name)
+        memo = ' '.join(memos) or None
+        if key in ships:
+            ship = ships[key]
+            ship.memo = _join(ship.memo, memo)
+            ship.travel_time = ship.travel_time or travel_time
+        else:
+            ships[key] = ShipSeed(name=name, region=region, port=port,
+                                  travel_time=travel_time, memo=memo)
+
+
+def _parse_gear_sheet(ws, result):
+    lines = []
+    for raw in ws.iter_rows(values_only=True):
+        values = [v for v in (_text(c) for c in raw) if v]
+        if values:
+            lines.append(' '.join(values))
+    if lines:
+        result.gear_items.append(GearItemSeed(name=ws.title.strip(), memo='\n'.join(lines)))
+
+
+def parse_workbook(wb, today, ship_map=None):
+    """워크북 전체를 SeedResult 로 바꾼다. 줄 단위로 격리 - 해석 못 한 줄은
+    warnings/skipped 에 남기고 계속한다."""
+    result = SeedResult()
+    sheet_ships = {}
+    trip_ship_hints = {}
+    for ws in wb.worksheets:
+        title = ws.title.strip()
+        if re.fullmatch(r'\d{4}', title):
+            _parse_year_sheet(ws, today, ship_map, result, trip_ship_hints)
+        elif title == SHIPS_SHEET:
+            _parse_ships_sheet(ws, result, sheet_ships)
+        elif title in IGNORED_SHEETS:
+            continue
+        else:
+            _parse_gear_sheet(ws, result)
+
+    for key, hint in trip_ship_hints.items():
+        if key in sheet_ships:
+            ship = sheet_ships[key]
+            ship.region = ship.region or hint.region
+            ship.port = ship.port or hint.port
+        else:
+            sheet_ships[key] = hint
+    for trip in result.trips:
+        trip.ship_name = sheet_ships[ship_match_key(trip.ship_name)].name
+    result.ships = list(sheet_ships.values())
+    return result
