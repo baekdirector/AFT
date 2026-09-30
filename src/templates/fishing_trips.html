@@ -114,7 +114,7 @@
   /* ---- 출조 목록(월별 묶음) ---- */
   .ft-table { border-radius: 18px; background: #fff; border: 1px solid var(--line); overflow: hidden; box-shadow: 0 1px 2px oklch(0.4 0.02 240 / 0.04); }
   .ft-row-head, .ft-row { display: grid; grid-template-columns: 64px minmax(0, 1.35fr) 150px 84px minmax(0, 1.6fr) 96px 92px 34px; gap: 12px; align-items: center; padding: 12px 18px; }
-  .ft-row-head { background: oklch(0.978 0.004 240); font-size: 10.5px; font-weight: 740; letter-spacing: 0.2px; color: oklch(0.54 0.015 250); padding-top: 9px; padding-bottom: 9px; }
+  .ft-row-head { background: oklch(0.975 0.005 240); font-size: 12.5px; font-weight: 760; letter-spacing: -0.1px; color: oklch(0.42 0.015 250); padding-top: 9px; padding-bottom: 9px; }
   .ft-month { display: flex; align-items: baseline; gap: 10px; padding: 12px 18px 8px; border-top: 1px solid var(--line-soft); background: oklch(0.99 0.003 240); }
   .ft-month b { font-size: 14px; font-weight: 800; letter-spacing: -0.3px; }
   .ft-month span { font-size: 11.5px; font-weight: 650; color: var(--muted); }
@@ -138,6 +138,16 @@
   .ft-pill { display: inline-flex; align-items: baseline; gap: 4px; padding: 3px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 700; background: oklch(0.96 0.006 240); color: oklch(0.42 0.015 250); white-space: nowrap; }
   .ft-pill b { font-size: 13.5px; font-weight: 800; }
   .ft-none { color: oklch(0.7 0.01 250); font-weight: 600; }
+  .ft-pill.skunk { background: oklch(0.93 0.01 250); color: oklch(0.38 0.02 250); font-weight: 800; letter-spacing: 0.5px; }
+  .ft-paid, .ft-unpaid { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 760; white-space: nowrap; }
+  .ft-paid { background: oklch(0.94 0.05 160); color: oklch(0.38 0.11 160); }
+  .ft-unpaid { background: oklch(0.96 0.04 75); color: oklch(0.5 0.11 65); }
+  .ft-check { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 14px; border-radius: 12px; border: 1px solid oklch(0.88 0.01 240); background: #fff; font-size: 14px; font-weight: 700; color: oklch(0.36 0.02 250); cursor: pointer; box-sizing: border-box; }
+  .ft-check input { width: 20px; height: 20px; accent-color: oklch(0.5 0.13 160); }
+  .ft-check.on { border-color: oklch(0.75 0.09 160); background: oklch(0.97 0.03 160); color: oklch(0.36 0.1 160); }
+  .ft-catch-row select.ft-select { height: 44px; min-width: 0; width: 100%; font-size: 14px; font-weight: 700; padding-right: 30px; background-position: right 8px center; border-color: oklch(0.88 0.01 240); border-radius: 11px; }
+  .ft-skunk-btn { height: 32px; padding: 0 11px; border-radius: 99px; border: 1px dashed oklch(0.8 0.01 250); background: #fff; font-size: 12px; font-weight: 740; color: oklch(0.4 0.02 250); }
+  .ft-catch-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .ft-cost { text-align: right; font-size: 13.5px; font-weight: 760; }
   .ft-rate { justify-self: start; display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 740; white-space: nowrap; }
   .ft-rate::before { content: ''; width: 6px; height: 6px; border-radius: 99px; background: currentColor; }
@@ -348,6 +358,7 @@
         <label class="ft-field" data-field="cost"><span class="ft-label">비용 (원)</span>
           <input class="ft-input" type="text" inputmode="numeric" id="ed-cost" placeholder="0" style="text-align:right"></label>
       </div>
+      <label class="ft-check" id="ed-prepaid-wrap"><input type="checkbox" id="ed-prepaid"> 선비 입금 완료 <span style="font-weight:600;color:oklch(0.56 0.015 250)">(예약금·선비를 미리 보냈으면 체크)</span></label>
       <div class="ft-field" data-field="ship_name">
         <label class="ft-label" for="ed-ship">선사 · 배 이름 <span class="req">*</span><span class="hint" id="ed-ship-hint"></span></label>
         <input class="ft-input" type="text" id="ed-ship" placeholder="예: 가나다호 (AFT 배 목록에서 찾기)" role="combobox" aria-expanded="false" aria-controls="ed-ship-list">
@@ -366,7 +377,8 @@
         <div class="ft-pick" id="ed-species"></div>
       </div>
       <div class="ft-field" data-field="catches">
-        <span class="ft-label">조과 <span style="font-weight:600;color:oklch(0.56 0.015 250)">사람별 · 어종별 잡은 마릿수</span></span>
+        <div class="ft-catch-head"><span class="ft-label">조과 <span style="font-weight:600;color:oklch(0.56 0.015 250)">사람별 · 어종별 잡은 마릿수</span></span>
+          <button type="button" class="ft-skunk-btn" id="ed-skunk">꽝 (한 마리도 못 잡음)</button></div>
         <div class="ft-catch" id="ed-catches"></div>
         <button type="button" class="ft-add-row" id="ed-add-catch">+ 조과 줄 추가</button>
       </div>
@@ -463,8 +475,13 @@
       g.items.push(c);
     });
     const showWho = groups.length > 1 || groups[0].who !== '나';
-    return '<span class="ft-catches">' + groups.map(g => (showWho ? '<span class="ft-who">' + esc(g.who) + '</span>' : '') +
-      g.items.map(c => '<span class="ft-pill ' + spClass(c.species) + '">' + esc(short(c.species)) + ' <b>' + esc(c.count) + '</b></span>').join('')).join('') + '</span>';
+    // 마릿수가 전부 0인 사람은 "꽝"으로(진짜 꽝과 미입력을 구분)
+    return '<span class="ft-catches">' + groups.map(g => {
+      const caught = g.items.filter(c => Number(c.count) > 0);
+      return (showWho ? '<span class="ft-who">' + esc(g.who) + '</span>' : '') + (caught.length
+        ? caught.map(c => '<span class="ft-pill ' + spClass(c.species) + '">' + esc(short(c.species)) + ' <b>' + esc(c.count) + '</b></span>').join('')
+        : '<span class="ft-pill skunk">꽝</span>');
+    }).join('') + '</span>';
   }
   function tagClass(t) {
     const tones = (state.data && state.data.tag_tones) || { positive: [], negative: [] };
@@ -497,7 +514,7 @@
   function payloadOf(t, over) {
     return Object.assign({
       trip_date: t.trip_date, status: t.status, ship_name: t.ship.name, ship_region: t.ship.region, ship_port: t.ship.port,
-      cost: t.cost, companions: t.companions, species: t.species, tags: t.tags, catches: t.catches, rating: t.rating, memo: t.memo,
+      cost: t.cost, companions: t.companions, species: t.species, tags: t.tags, catches: t.catches, rating: t.rating, memo: t.memo, prepaid: t.prepaid,
     }, over || {});
   }
   function replaceTrip(updated) { const i = state.data.trips.findIndex(x => x.id === updated.id); if (i >= 0) state.data.trips[i] = updated; }
@@ -599,7 +616,9 @@
       '<span class="ft-ship">' + esc(t.ship.name) + '</span>' +
       '<span class="ft-where">' + esc([t.ship.region, t.ship.port].filter(Boolean).join(' · ') || '지역 미입력') + (t.companions ? ' · ' + esc(t.companions) : '') + '</span>' +
       '<span class="ft-chips">' + speciesChips(t.species) + '</span>' +
-      '<span class="ft-card-foot"><span>' + (t.cost != null ? won(t.cost) + '원' : '비용 미입력') + '</span></span></button>';
+      '<span class="ft-card-foot"><span>' + (t.cost != null ? won(t.cost) + '원' : '비용 미입력') + '</span>' +
+      (t.prepaid ? '<span class="ft-paid"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>입금 완료</span>'
+                 : '<span class="ft-unpaid">입금 전</span>') + '</span></button>';
   }
   function rateHtml(t) { return '<span class="ft-rate rate-' + (t.rating || 'none') + '">' + (t.rating ? RATE_LABEL[t.rating] : '미평가') + '</span>'; }
   function dateTile(t) {
@@ -829,10 +848,10 @@
       v = { trip_date: trip.trip_date, status: trip.status, ship_name: trip.ship.name, ship_region: trip.ship.region || '',
             ship_port: trip.ship.port || '', cost: trip.cost == null ? '' : won(trip.cost), companions: trip.companions || '',
             species: trip.species.slice(), tags: trip.tags.slice(), catches: trip.catches.map(c => Object.assign({}, c)),
-            rating: trip.rating, memo: noteOf(trip), shipLocked: true };
+            rating: trip.rating, memo: noteOf(trip), prepaid: !!trip.prepaid, shipLocked: true };
     } else {
       v = { trip_date: '', status: 'planned', ship_name: '', ship_region: '', ship_port: '', cost: '', companions: '',
-            species: [], tags: [], catches: [], rating: null, memo: '', shipLocked: false };
+            species: [], tags: [], catches: [], rating: null, memo: '', prepaid: false, shipLocked: false };
     }
     const draft = draftGet(editor.key);
     if (draft) { v = draft; setTimeout(() => showToast('임시저장된 내용을 불러왔어요', { type: 'info' }), 60); }
@@ -857,6 +876,8 @@
     $('ed-region').value = v.ship_region || '';
     $('ed-port').value = v.ship_port || '';
     $('ed-memo').value = v.memo || '';
+    $('ed-prepaid').checked = !!v.prepaid;
+    $('ed-prepaid-wrap').classList.toggle('on', !!v.prepaid);
     applyShipLock();
     renderEditorBits();
   }
@@ -869,7 +890,7 @@
     return { trip_date: $('ed-date').value, status: editor.status, ship_name: $('ed-ship').value, ship_region: $('ed-region').value,
              ship_port: $('ed-port').value, boat_id: editor.ship && editor.ship.boat_id || null, cost: $('ed-cost').value,
              companions: editor.companions, species: editor.species, tags: editor.tags, catches: editor.catches,
-             rating: editor.rating, memo: $('ed-memo').value, shipLocked: !!(editor.ship && editor.ship.locked) };
+             rating: editor.rating, memo: $('ed-memo').value, prepaid: $('ed-prepaid').checked, shipLocked: !!(editor.ship && editor.ship.locked) };
   }
   let draftTimer = null;
   function touched() {
@@ -895,25 +916,56 @@
     $('ed-tags').innerHTML = pickHtml([...new Set(sug.tags.concat(editor.tags))], editor.tags, tagClass);
     renderCatches();
   }
+  function catchPeople() {
+    const sug = (state.data && state.data.suggestions && state.data.suggestions.people) || ['나'];
+    const fromWith = editor.companions && editor.companions !== '솔로' ? editor.companions.split(/[,\s·+]+/).filter(Boolean) : [];
+    return [...new Set(['나'].concat(fromWith, sug, editor.catches.map(c => c.who).filter(Boolean)))];
+  }
+  function catchSpecies() {
+    const sug = state.data ? state.data.suggestions.species : [];
+    return [...new Set(editor.species.concat(sug, editor.catches.map(c => c.species).filter(Boolean)))];
+  }
+  function selectHtml(key, value, options) {
+    const label = key === 'who' ? '누구' : '어종';
+    return '<select class="ft-select" data-k="' + key + '" aria-label="' + label + '">' +
+      (value ? '' : '<option value="" selected>' + label + '</option>') +
+      options.map(o => '<option value="' + esc(o) + '"' + (o === value ? ' selected' : '') + '>' + esc(o) + '</option>').join('') +
+      '<option value="__custom">직접 입력…</option></select>';
+  }
   function renderCatches() {
-    const people = [...new Set(['나'].concat(editor.companions && editor.companions !== '솔로' ? editor.companions.split(/[,\s]+/).filter(Boolean) : []))];
-    const species = editor.species.length ? editor.species : ['쭈꾸미', '갑오징어', '문어'];
     if (!editor.catches.length && editor.status === 'done' && !(editor.trip && editor.trip.catch_raw)) {
-      editor.catches = species.slice(0, 2).map(s => ({ who: '나', species: s, count: '' }));
+      const sp = editor.species.length ? editor.species : ['쭈꾸미', '갑오징어'];
+      editor.catches = sp.slice(0, 2).map(x => ({ who: '나', species: x, count: '' }));
     }
+    const people = catchPeople(), species = catchSpecies();
     $('ed-catches').innerHTML = editor.catches.length ? editor.catches.map((c, i) =>
       '<div class="ft-catch-row" data-i="' + i + '">' +
-      '<input type="text" list="ft-people" value="' + esc(c.who) + '" data-k="who" aria-label="누구">' +
-      '<input type="text" list="ft-species-list" value="' + esc(c.species) + '" data-k="species" aria-label="어종">' +
+      selectHtml('who', c.who, people) + selectHtml('species', c.species, species) +
       '<button type="button" class="step" data-step="-1" aria-label="한 마리 빼기">−</button>' +
       '<input type="text" inputmode="numeric" class="num" value="' + esc(c.count) + '" data-k="count" aria-label="마릿수">' +
       '<button type="button" class="step" data-step="1" aria-label="한 마리 더하기">+</button>' +
       '<button type="button" class="rm" data-rm="1" aria-label="이 줄 지우기">×</button></div>').join('')
       : '<div class="ft-raw" style="margin:0">아직 조과가 없어요. 아래 버튼으로 추가하세요.</div>';
-    $('ed-catches').insertAdjacentHTML('beforeend',
-      '<datalist id="ft-people">' + people.map(p => '<option value="' + esc(p) + '">').join('') + '</datalist>' +
-      '<datalist id="ft-species-list">' + [...new Set(species.concat(state.data ? state.data.suggestions.species : []))].map(p => '<option value="' + esc(p) + '">').join('') + '</datalist>');
   }
+  $('ed-catches').addEventListener('change', async (e) => {
+    const sel = e.target.closest('select'); const row = e.target.closest('[data-i]'); if (!sel || !row) return;
+    const c = editor.catches[Number(row.dataset.i)], key = sel.dataset.k;
+    if (sel.value === '__custom') {
+      const v = await askText(key === 'who' ? '누가 잡았나요? (예: 마눌)' : '어종을 입력하세요');
+      if (v && v.trim()) c[key] = v.trim().slice(0, 20);
+      renderCatches();
+    } else { c[key] = sel.value; }
+    touched();
+  });
+  $('ed-skunk').addEventListener('click', () => {
+    const sp = editor.species[0] || (editor.catches[0] && editor.catches[0].species) || '기타';
+    if (editor.catches.length) editor.catches.forEach(c => { c.count = 0; if (!c.species) c.species = sp; if (!c.who) c.who = '나'; });
+    else editor.catches = catchPeople().filter(p => p === '나' || (editor.companions || '').includes(p)).map(p => ({ who: p, species: sp, count: 0 }));
+    editor.status = 'done';
+    renderEditorBits(); touched();
+    showToast('꽝으로 기록했어요 (마릿수 0)', { type: 'info' });
+  });
+  $('ed-prepaid').addEventListener('change', () => { $('ed-prepaid-wrap').classList.toggle('on', $('ed-prepaid').checked); touched(); });
 
   $('ed-status').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (!b) return; editor.status = b.dataset.v; renderEditorBits(); touched(); });
   $('ed-rating').addEventListener('click', (e) => {
@@ -941,7 +993,7 @@
   }
   bindPick('ed-with', 'companions', true); bindPick('ed-species', 'species', false); bindPick('ed-tags', 'tags', false);
   $('ed-catches').addEventListener('input', (e) => {
-    const row = e.target.closest('[data-i]'); if (!row) return;
+    const row = e.target.closest('[data-i]'); if (!row || e.target.tagName === 'SELECT') return;
     editor.catches[Number(row.dataset.i)][e.target.dataset.k] = e.target.value; touched();
   });
   $('ed-catches').addEventListener('click', (e) => {

@@ -220,3 +220,23 @@ def test_search_ships_limit_and_empty_query(app):
     results = search_ships('')
     assert len(results) == 10
     assert results[0]['name'] == '배00호'
+
+
+# ---- 선비 입금 여부 · 조과 사람 추천 ----
+
+def test_prepaid_defaults_false_and_round_trips(app):
+    from services.fishing_log.trip_service import create_trip, serialize_trip, update_trip
+    trip = create_trip(_data(status='planned', trip_date='2026-07-01'))
+    assert trip.prepaid is False
+    update_trip(trip, _data(status='planned', trip_date='2026-07-01', prepaid=True))
+    assert trip.prepaid is True
+    assert serialize_trip(trip, TODAY)['prepaid'] is True
+
+
+def test_suggestions_include_people_from_past_catches(app):
+    from services.fishing_log.trip_service import create_trip, list_trips
+    create_trip(_data(catches=[{'who': '마눌', 'species': '문어', 'count': 3}, {'who': '나', 'species': '문어', 'count': 1}]))
+    create_trip(_data(catches=[{'who': '마눌', 'species': '문어', 'count': 0}]))
+    people = list_trips(2026, TODAY)['suggestions']['people']
+    assert people[0] == '나'
+    assert '마눌' in people

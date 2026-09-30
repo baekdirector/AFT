@@ -148,6 +148,7 @@ def _clean(data):
         'catches': _clean_catches(data.get('catches')),
         'rating': rating,
         'memo': _clean_text(data, 'memo', 2000, '메모'),
+        'prepaid': bool(data.get('prepaid')),
     }
 
 
@@ -194,7 +195,7 @@ def _apply(trip, cleaned):
     trip.status = cleaned['status']
     trip.ship = resolve_ship(cleaned['ship_name'], cleaned['ship_region'],
                              cleaned['ship_port'], cleaned['boat_id'])
-    for field in ('cost', 'companions', 'species', 'tags', 'catches', 'rating', 'memo'):
+    for field in ('cost', 'companions', 'species', 'tags', 'catches', 'rating', 'memo', 'prepaid'):
         setattr(trip, field, cleaned[field])
 
 
@@ -242,6 +243,7 @@ def serialize_trip(trip, today):
         'catches': trip.catches or [],
         'catch_raw': trip.catch_raw,
         'memo': trip.memo,
+        'prepaid': bool(trip.prepaid),
         'needs_result': planned and trip.trip_date < today,
         'd_day': (trip.trip_date - today).days if planned and trip.trip_date >= today else None,
     }
@@ -279,6 +281,9 @@ def list_trips(year, today):
             'companions': _ranked([t.companions for t in all_trips if t.companions]),
             'species': _ranked([s for t in all_trips for s in (t.species or [])], DEFAULT_SPECIES),
             'tags': _ranked([s for t in all_trips for s in (t.tags or [])], POSITIVE_TAGS + NEGATIVE_TAGS),
+            # 조과 "누구" 선택지 - 항상 '나'가 먼저, 그다음 예전에 조과를 적은 사람들
+            'people': ['나'] + [p for p in _ranked([c.get('who') for t in all_trips for c in (t.catches or [])
+                                                     if c.get('who')]) if p != '나'],
         },
         'tag_tones': {'positive': POSITIVE_TAGS, 'negative': NEGATIVE_TAGS},
     }

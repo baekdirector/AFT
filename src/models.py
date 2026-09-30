@@ -429,6 +429,9 @@ class FishingTrip(db.Model):
     catches = db.Column(db.JSON, nullable=False, default=list)
     catch_raw = db.Column(db.Text, nullable=True)
     memo = db.Column(db.Text, nullable=True)
+    # 선비를 미리 입금했는지(다가오는 출조 카드에 표시). 기존 운영 테이블에는
+    # app._ensure_fishing_trip_prepaid_column 이 ALTER 로 보정한다.
+    prepaid = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow,
                            onupdate=datetime.utcnow)

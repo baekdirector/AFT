@@ -88,3 +88,17 @@ def test_allowed_value_constants():
     import models
     assert models.TRIP_STATUSES == ('planned', 'done', 'cancelled')
     assert models.TRIP_RATINGS == ('again', 'maybe', 'never')
+
+
+def test_prepaid_column_is_added_back_when_missing(app):
+    """운영 DB 의 fishing_trips 는 prepaid 컬럼 없이 먼저 만들어졌다 - 앱 기동 시
+    없으면 ALTER 로 보정한다(기존 _ensure_* 패턴)."""
+    from sqlalchemy import inspect, text
+    from db import db
+    from src.app import _ensure_fishing_trip_prepaid_column
+    with db.engine.begin() as conn:
+        conn.execute(text('ALTER TABLE fishing_trips DROP COLUMN prepaid'))
+    assert 'prepaid' not in {c['name'] for c in inspect(db.engine).get_columns('fishing_trips')}
+    _ensure_fishing_trip_prepaid_column(app)
+    _ensure_fishing_trip_prepaid_column(app)  # 두 번 불러도 안전
+    assert 'prepaid' in {c['name'] for c in inspect(db.engine).get_columns('fishing_trips')}
