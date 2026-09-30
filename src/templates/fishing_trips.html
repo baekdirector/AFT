@@ -2,42 +2,100 @@
 {% block title %}출조 기록 · AFT 관리자{% endblock %}
 {#
   내 낚시 기록 > 출조 기록 - docs/superpowers/specs/2026-09-30-fishing-log-trips-design.md §4.
-  PC: 목록 표 + 오른쪽 입력 패널. 모바일: 카드 목록 + 전체 화면 상세/입력 + 필터 바텀시트.
+  PC: 월별로 묶은 목록 + 오른쪽 입력 패널. 모바일: 카드 목록 + 전체 화면 상세/입력 + 필터 바텀시트.
   겹치는 화면은 history 한 칸을 쌓아 안드로이드 뒤로가기로 닫는다.
+  달력(date-btn/cal-popover)·드롭다운(weather-select)·로딩(admin-spinner)은 예약현황/날씨/admin
+  화면의 기존 컴포넌트 모양을 그대로 옮겨 왔다(사용자 요청: look & feel 통일).
 #}
 {% block admin_content %}
 <style>
   /* 입력 패널·상세·필터 시트는 .ft 밖(body 직속)에 있으므로 변수를 함께 정의한다 */
-  .ft, .ft-overlay { --ink: oklch(0.22 0.02 250); --muted: oklch(0.52 0.015 250); --line: oklch(0.925 0.008 240); --soft: oklch(0.97 0.005 240);
-        --accent: oklch(0.46 0.12 248); --accent-soft: oklch(0.955 0.03 248); --grad: linear-gradient(145deg, oklch(0.5 0.13 248), oklch(0.4 0.11 238)); color: oklch(0.22 0.02 250); }
+  .ft, .ft-overlay, .ft-busy-overlay {
+    --ink: oklch(0.22 0.02 250); --muted: oklch(0.52 0.015 250); --line: oklch(0.925 0.008 240); --line-soft: oklch(0.95 0.006 240);
+    --soft: oklch(0.97 0.005 240); --accent: oklch(0.46 0.12 248); --accent-soft: oklch(0.955 0.03 248);
+    --grad: linear-gradient(145deg, oklch(0.5 0.13 248), oklch(0.4 0.11 238)); color: oklch(0.22 0.02 250);
+  }
   .ft { font-feature-settings: 'tnum' 1; padding: 24px clamp(14px, 2.4vw, 32px) 120px; max-width: 1240px; box-sizing: border-box; }
   .ft button, .ft-overlay button { font: inherit; cursor: pointer; }
-  .ft-raw-cell { display: block; color: var(--muted); font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ft-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
   .ft-head h1 { margin: 0; font-size: clamp(22px, 2.8vw, 27px); font-weight: 800; letter-spacing: -1px; }
   .ft-head p { margin: 5px 0 0; font-size: 12.5px; font-weight: 560; color: var(--muted); }
   .ft-head-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .ft-year { height: 34px; padding: 0 13px; border-radius: 99px; border: 1px solid oklch(0.92 0.008 240); background: #fff; font-size: 12.5px; font-weight: 700; color: oklch(0.4 0.02 250); }
+  .ft-year { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 13px; border-radius: 99px; border: 1px solid oklch(0.92 0.008 240); background: #fff; font-size: 12.5px; font-weight: 700; color: oklch(0.4 0.02 250); }
   .ft-year.on { background: var(--accent); border-color: transparent; color: #fff; box-shadow: 0 3px 10px oklch(0.46 0.12 248 / 0.26); }
+  .ft-year:disabled { cursor: default; }
   .ft-primary { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 40px; padding: 0 16px; border-radius: 12px; border: none;
                 background: var(--grad); color: #fff; font-size: 13px; font-weight: 740; box-shadow: 0 6px 16px oklch(0.45 0.12 248 / 0.28); white-space: nowrap; }
-  .ft-primary:disabled { opacity: 0.6; cursor: default; }
-  .ft-ghost { height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 12.5px; font-weight: 700; color: oklch(0.38 0.02 250); }
+  .ft-primary:disabled { opacity: 0.75; cursor: default; }
+  .ft-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 12.5px; font-weight: 700; color: oklch(0.38 0.02 250); }
 
-  .ft-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; background: #fff; border: 1px solid var(--line); border-radius: 13px; margin-bottom: 16px; }
-  .ft-search { flex: 1 1 220px; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 10px; background: var(--soft); min-width: 0; }
+  /* ---- 기존 컴포넌트: 로딩 스피너(admin-spinner) ---- */
+  .ft-loading { display: flex; align-items: center; justify-content: center; gap: 9px; padding: 56px 20px; color: oklch(0.56 0.015 250);
+                font-size: 13.5px; background: #fff; border: 1px dashed oklch(0.88 0.01 240); border-radius: 18px; }
+  .ft-spin { display: inline-block; width: 15px; height: 15px; flex: none; border-radius: 99px; border: 2px solid oklch(0.85 0.01 250);
+             border-top-color: oklch(0.46 0.12 248); animation: ftSpin 0.7s linear infinite; vertical-align: -2px; box-sizing: border-box; }
+  .ft-spin.on-dark { border-color: oklch(1 0 0 / 0.35); border-top-color: #fff; }
+  @keyframes ftSpin { to { transform: rotate(360deg); } }
+  .ft-busy-overlay { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; background: oklch(1 0 0 / 0.55); }
+  .ft-busy-overlay[hidden] { display: none; }
+  .ft-busy-overlay > div { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-radius: 14px; background: #fff; border: 1px solid var(--line);
+                           box-shadow: 0 16px 36px oklch(0.2 0.02 250 / 0.14); font-size: 13.5px; font-weight: 700; color: oklch(0.38 0.02 250); }
+
+  /* ---- 기존 컴포넌트: 드롭다운(weather-select) ---- */
+  .ft-select { height: 44px; padding: 0 38px 0 14px; border-radius: 14px; border: 1px solid var(--line); background-color: #fff; outline: none;
+               font: inherit; font-size: 13.5px; font-weight: 650; color: var(--ink); appearance: none; -webkit-appearance: none; cursor: pointer;
+               background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+               background-position: right 12px center; background-repeat: no-repeat; background-size: 16px; }
+  .ft-select:focus { border-color: oklch(0.6 0.13 245); }
+
+  /* ---- 기존 컴포넌트: 날짜 버튼 + 달력 팝오버(date-btn / cal-popover) ---- */
+  .date-picker-wrap { position: relative; }
+  .date-btn { display: inline-flex; align-items: center; gap: 9px; height: 46px; padding: 0 16px; border-radius: 15px; cursor: pointer; font-size: 14.5px;
+              font-weight: 700; letter-spacing: -0.3px; white-space: nowrap; border: 1px solid var(--line); background: #fff; color: oklch(0.28 0.02 255);
+              box-shadow: 0 2px 8px oklch(0.5 0.02 250 / 0.05); transition: all 0.18s ease; width: 100%; box-sizing: border-box; }
+  .date-btn #ed-date-label { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; }
+  .date-btn.is-open { border-color: transparent; color: #fff; background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225)); box-shadow: 0 8px 20px oklch(0.55 0.14 245 / 0.3); }
+  .date-btn-icon { font-size: 16px; line-height: 1; }
+  .date-btn-caret { font-size: 13px; line-height: 1; opacity: 0.6; transition: transform 0.2s ease; }
+  .date-btn.is-open .date-btn-caret { transform: rotate(180deg); }
+  .cal-popover { position: absolute; top: calc(100% + 10px); left: 0; z-index: 70; width: min(324px, calc(100vw - 44px)); padding: 16px; border-radius: 22px;
+                 background: oklch(0.995 0.002 250); border: 1px solid var(--line); box-shadow: 0 18px 44px oklch(0.35 0.03 255 / 0.16); animation: calPopIn 0.2s cubic-bezier(0.2, 0.9, 0.3, 1); box-sizing: border-box; }
+  @keyframes calPopIn { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: none; } }
+  .cal-popover-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .cal-nav-btn { width: 34px; height: 34px; border-radius: 12px; border: none; background: oklch(0.96 0.006 250); color: oklch(0.4 0.02 255); font-size: 15px; cursor: pointer; }
+  .cal-nav-btn:hover { background: oklch(0.92 0.01 250); }
+  .cal-month-label { font-size: 15px; font-weight: 770; letter-spacing: -0.4px; color: var(--ink); }
+  .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 4px; }
+  .cal-weekday { text-align: center; padding: 6px 0; font-size: 11.5px; font-weight: 700; color: oklch(0.62 0.012 255); }
+  .cal-weekday-sun { color: oklch(0.62 0.15 25); }
+  .cal-weekday-sat { color: oklch(0.58 0.11 250); }
+  .cal-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .cal-day { height: 40px; border-radius: 13px; cursor: pointer; font-size: 14px; font-weight: 620; border: 1px solid transparent; background: transparent; color: oklch(0.3 0.02 255); transition: all 0.15s ease; }
+  .cal-day:disabled { visibility: hidden; pointer-events: none; }
+  .cal-day.cal-day-sun { color: oklch(0.6 0.15 25); }
+  .cal-day.cal-day-sat { color: oklch(0.55 0.11 250); }
+  .cal-day.cal-day-today { font-weight: 760; border-color: oklch(0.8 0.07 245); background: oklch(0.97 0.015 245); color: oklch(0.42 0.13 245); }
+  .cal-day.cal-day-selected { font-weight: 780; border-color: transparent; color: #fff; background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225)); box-shadow: 0 6px 14px oklch(0.55 0.14 245 / 0.32); }
+  .cal-popover-foot { display: flex; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+  .cal-foot-btn { flex: 1; height: 40px; border-radius: 13px; border: 1px solid var(--line); background: #fff; font-size: 13px; font-weight: 700; color: oklch(0.42 0.02 255); cursor: pointer; }
+  .cal-foot-btn-primary { border: none; color: #fff; font-weight: 740; background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225)); }
+
+  /* ---- 도구줄 ---- */
+  .ft-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; background: #fff; border: 1px solid var(--line); border-radius: 16px; margin-bottom: 16px; }
+  .ft-search { flex: 1 1 220px; display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; border-radius: 14px; background: var(--soft); min-width: 0; box-sizing: border-box; }
   .ft-search input { flex: 1; min-width: 0; border: none; background: transparent; outline: none; font: inherit; font-size: 13.5px; font-weight: 560; }
-  .ft-seg { display: flex; gap: 3px; padding: 3px; background: oklch(0.955 0.006 240); border-radius: 10px; }
-  .ft-seg button { height: 32px; padding: 0 11px; border-radius: 8px; border: none; background: transparent; font-size: 12.5px; font-weight: 680; color: var(--muted); white-space: nowrap; }
+  .ft-seg { display: flex; gap: 3px; padding: 3px; background: oklch(0.955 0.006 240); border-radius: 12px; }
+  .ft-seg button { height: 38px; padding: 0 12px; border-radius: 9px; border: none; background: transparent; font-size: 12.5px; font-weight: 680; color: var(--muted); white-space: nowrap; }
   .ft-seg button.on { background: #fff; color: var(--ink); font-weight: 760; box-shadow: 0 1px 3px oklch(0.3 0.02 250 / 0.12); }
-  .ft-select { height: 38px; padding: 0 10px; border-radius: 10px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font: inherit; font-size: 12.5px; font-weight: 680; color: oklch(0.38 0.02 250); }
   .ft-filter-btn { display: none; }
 
+  /* ---- 다가오는 출조 ---- */
   .ft-section-title { display: flex; align-items: baseline; gap: 10px; margin: 18px 0 10px; }
   .ft-section-title h2 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -0.4px; }
   .ft-section-title span { font-size: 12px; font-weight: 600; color: var(--muted); }
   .ft-upcoming { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
-  .ft-card { padding: 14px 15px; border-radius: 16px; background: #fff; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 7px; text-align: left; color: inherit; }
+  .ft-card { padding: 14px 15px; border-radius: 16px; background: #fff; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 7px; text-align: left; color: inherit; transition: box-shadow 0.15s, border-color 0.15s; }
+  .ft-card:hover { border-color: oklch(0.82 0.05 248); box-shadow: 0 6px 16px oklch(0.46 0.12 248 / 0.1); }
   .ft-card.soon { border-color: oklch(0.8 0.07 248); box-shadow: 0 8px 20px oklch(0.46 0.12 248 / 0.14); }
   .ft-card-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
   .ft-dday { font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 99px; background: oklch(0.955 0.02 248); color: oklch(0.4 0.12 248); }
@@ -45,41 +103,71 @@
   .ft-date { font-size: 12px; font-weight: 700; color: var(--muted); }
   .ft-ship { font-size: 17px; font-weight: 800; letter-spacing: -0.5px; }
   .ft-where { font-size: 12.5px; font-weight: 620; color: oklch(0.48 0.015 250); }
-  .ft-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid oklch(0.95 0.006 240); padding-top: 8px; font-size: 13px; font-weight: 760; }
+  .ft-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--line-soft); padding-top: 8px; font-size: 13px; font-weight: 760; }
   .ft-chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 7px; font-size: 11.5px; font-weight: 720; background: oklch(0.96 0.006 240); color: oklch(0.42 0.015 250); white-space: nowrap; }
-  .ft-chip.sp-octo { background: oklch(0.95 0.035 320); color: oklch(0.42 0.12 320); }
-  .ft-chip.sp-jju { background: oklch(0.96 0.04 55); color: oklch(0.47 0.13 50); }
-  .ft-chip.sp-gap { background: oklch(0.95 0.03 200); color: oklch(0.4 0.08 200); }
+  .ft-chip.sp-octo, .ft-pill.sp-octo { background: oklch(0.95 0.035 320); color: oklch(0.42 0.12 320); }
+  .ft-chip.sp-jju, .ft-pill.sp-jju { background: oklch(0.96 0.04 55); color: oklch(0.47 0.13 50); }
+  .ft-chip.sp-gap, .ft-pill.sp-gap { background: oklch(0.95 0.03 200); color: oklch(0.4 0.08 200); }
   .ft-chips { display: flex; flex-wrap: wrap; gap: 5px; }
   .ft-empty { padding: 26px; border-radius: 16px; border: 1px dashed oklch(0.88 0.01 240); text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); background: #fff; }
 
-  .ft-table { border-radius: 18px; background: #fff; border: 1px solid var(--line); overflow: hidden; }
-  .ft-row-head, .ft-row { display: grid; grid-template-columns: 104px minmax(0, 1.3fr) 130px 70px minmax(0, 1.5fr) 96px 104px 34px; gap: 12px; align-items: center; padding: 11px 18px; }
-  .ft-row-head { background: oklch(0.978 0.004 240); font-size: 10.5px; font-weight: 740; color: oklch(0.54 0.015 250); padding-top: 9px; padding-bottom: 9px; }
-  .ft-item { border-top: 1px solid oklch(0.965 0.006 240); }
-  .ft-item.open { background: oklch(0.975 0.012 248); }
-  .ft-row { cursor: pointer; font-size: 13px; width: 100%; box-sizing: border-box; border: none; background: transparent; text-align: left; color: inherit; }
-  .ft-row b { font-weight: 780; }
-  .ft-row .sub { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+  /* ---- 출조 목록(월별 묶음) ---- */
+  .ft-table { border-radius: 18px; background: #fff; border: 1px solid var(--line); overflow: hidden; box-shadow: 0 1px 2px oklch(0.4 0.02 240 / 0.04); }
+  .ft-row-head, .ft-row { display: grid; grid-template-columns: 64px minmax(0, 1.35fr) 150px 84px minmax(0, 1.6fr) 96px 92px 34px; gap: 12px; align-items: center; padding: 12px 18px; }
+  .ft-row-head { background: oklch(0.978 0.004 240); font-size: 10.5px; font-weight: 740; letter-spacing: 0.2px; color: oklch(0.54 0.015 250); padding-top: 9px; padding-bottom: 9px; }
+  .ft-month { display: flex; align-items: baseline; gap: 10px; padding: 12px 18px 8px; border-top: 1px solid var(--line-soft); background: oklch(0.99 0.003 240); }
+  .ft-month b { font-size: 14px; font-weight: 800; letter-spacing: -0.3px; }
+  .ft-month span { font-size: 11.5px; font-weight: 650; color: var(--muted); }
+  .ft-month .amt { margin-left: auto; font-size: 12.5px; font-weight: 760; color: oklch(0.36 0.02 250); }
+  .ft-item { border-top: 1px solid var(--line-soft); box-shadow: inset 3px 0 0 transparent; }
+  .ft-item.open { background: oklch(0.975 0.012 248); box-shadow: inset 3px 0 0 var(--accent); }
+  .ft-item.need { box-shadow: inset 3px 0 0 oklch(0.72 0.14 70); }
+  .ft-row { cursor: pointer; font-size: 13px; width: 100%; box-sizing: border-box; border: none; background: transparent; text-align: left; color: inherit; transition: background 0.12s; }
+  .ft-row:hover { background: oklch(0.985 0.008 248); }
+  .ft-dtile { width: 52px; height: 52px; border-radius: 14px; background: oklch(0.965 0.01 248); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; }
+  .ft-dtile b { font-size: 19px; font-weight: 800; letter-spacing: -0.6px; color: oklch(0.3 0.04 250); }
+  .ft-dtile small { font-size: 10.5px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+  .ft-dtile.sat b { color: oklch(0.48 0.13 250); }
+  .ft-dtile.sun b { color: oklch(0.55 0.17 25); }
+  .ft-row .c-ship b { font-size: 14.5px; font-weight: 800; letter-spacing: -0.3px; }
+  .ft-row .sub { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+  .ft-with { font-weight: 650; color: oklch(0.4 0.015 250); }
+  .ft-catches { display: flex; flex-wrap: wrap; gap: 5px 6px; align-items: center; }
+  .ft-who { font-size: 11px; font-weight: 700; color: var(--muted); }
+  .ft-who:not(:first-child) { margin-left: 4px; }
+  .ft-pill { display: inline-flex; align-items: baseline; gap: 4px; padding: 3px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 700; background: oklch(0.96 0.006 240); color: oklch(0.42 0.015 250); white-space: nowrap; }
+  .ft-pill b { font-size: 13.5px; font-weight: 800; }
+  .ft-none { color: oklch(0.7 0.01 250); font-weight: 600; }
+  .ft-cost { text-align: right; font-size: 13.5px; font-weight: 760; }
   .ft-rate { justify-self: start; display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 740; white-space: nowrap; }
   .ft-rate::before { content: ''; width: 6px; height: 6px; border-radius: 99px; background: currentColor; }
   .rate-again { background: oklch(0.95 0.04 160); color: oklch(0.42 0.11 160); }
   .rate-maybe { background: oklch(0.96 0.045 80); color: oklch(0.5 0.11 70); }
   .rate-never { background: oklch(0.96 0.03 25); color: oklch(0.5 0.17 25); }
   .rate-none { background: oklch(0.955 0.006 240); color: oklch(0.55 0.015 250); }
-  .ft-badge-need { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 780; background: oklch(0.96 0.05 80); color: oklch(0.48 0.12 60); }
-  .ft-badge-cancel { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 760; background: oklch(0.955 0.006 240); color: oklch(0.5 0.015 250); }
+  .ft-badge-need { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 780; background: oklch(0.96 0.05 80); color: oklch(0.48 0.12 60); vertical-align: 2px; }
   .ft-chev { width: 30px; height: 30px; border-radius: 9px; border: 1px solid oklch(0.92 0.008 240); display: grid; place-items: center; color: oklch(0.45 0.015 250); background: #fff; }
-  .ft-expand { margin: 0 18px 16px 134px; padding: 14px 16px; border-radius: 13px; background: #fff; border: 1px solid oklch(0.9 0.03 248); display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 18px; }
-  .ft-memo { margin: 0 0 10px; font-size: 13px; font-weight: 560; line-height: 1.65; color: oklch(0.32 0.02 250); white-space: pre-line; }
-  .ft-raw { font-size: 12px; font-weight: 580; color: var(--muted); margin: 0 0 10px; white-space: pre-line; }
+
+  /* 취소된 출조 - 줄무늬 배경 · 취소선 · 빨간 "취소됨" 배지로 한눈에 구분 */
+  .ft-item.cancelled { box-shadow: inset 3px 0 0 oklch(0.6 0.18 25); }
+  .ft-item.cancelled .ft-row { background: repeating-linear-gradient(135deg, oklch(0.99 0.004 25) 0 10px, oklch(0.975 0.012 25) 10px 20px); }
+  .ft-item.cancelled .c-ship b { text-decoration: line-through; text-decoration-color: oklch(0.6 0.18 25); color: oklch(0.5 0.02 250); }
+  .ft-item.cancelled .ft-dtile { background: oklch(0.96 0.02 25); }
+  .ft-item.cancelled .ft-dtile b, .ft-item.cancelled .c-species, .ft-item.cancelled .ft-with { opacity: 0.55; }
+  .ft-badge-cancel { display: inline-flex; align-items: center; margin-left: 6px; padding: 2px 8px; border-radius: 6px; font-size: 10.5px; font-weight: 800;
+                     background: oklch(0.55 0.18 25); color: #fff; vertical-align: 2px; letter-spacing: 0.2px; }
+  .ft-cancel-cost { font-size: 12px; font-weight: 760; color: oklch(0.5 0.17 25); }
+
+  .ft-expand { margin: 0 18px 16px 94px; padding: 14px 16px; border-radius: 14px; background: #fff; border: 1px solid oklch(0.9 0.03 248); display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 16px; }
+  .ft-note-label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 760; color: oklch(0.45 0.015 250); }
+  .ft-raw { font-size: 12px; font-weight: 580; color: var(--muted); margin: 8px 0 0; white-space: pre-line; }
   .ft-tag { padding: 4px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 700; background: oklch(0.96 0.006 240); color: oklch(0.42 0.015 250); }
   .ft-tag.pos { background: oklch(0.95 0.04 160); color: oklch(0.4 0.1 160); }
   .ft-tag.neg { background: oklch(0.96 0.03 25); color: oklch(0.48 0.15 25); }
-  .ft-actions { display: flex; flex-direction: column; gap: 6px; }
-  .ft-actions button { height: 36px; border-radius: 10px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 12.5px; font-weight: 700; color: oklch(0.38 0.02 250); }
-  .ft-actions .edit { border-color: oklch(0.88 0.05 248); background: oklch(0.97 0.02 248); color: oklch(0.4 0.12 248); font-weight: 740; }
-  .ft-actions .del { border-color: oklch(0.93 0.02 25); color: oklch(0.5 0.17 25); }
+  .ft-actions { display: flex; flex-direction: column; gap: 6px; justify-content: flex-end; }
+  .ft-actions button { height: 40px; border-radius: 11px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 13px; font-weight: 700; color: oklch(0.38 0.02 250); display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+  .ft-actions .save { border: none; background: var(--grad); color: #fff; font-weight: 740; box-shadow: 0 4px 12px oklch(0.45 0.12 248 / 0.24); }
+  .ft-actions button:disabled { opacity: 0.75; cursor: default; }
   .ft-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 16px; padding: 14px 20px; border-radius: 14px; background: var(--accent-soft); color: oklch(0.32 0.1 248); font-size: 13px; font-weight: 700; }
   .ft-sum b { margin-left: auto; font-size: 15px; font-weight: 800; }
 
@@ -102,8 +190,8 @@
   .ft-input { height: 46px; padding: 0 13px; border-radius: 12px; border: 1px solid oklch(0.88 0.01 240); font: inherit; font-size: 15px; font-weight: 650; color: var(--ink); background: #fff; box-sizing: border-box; width: 100%; }
   .ft-input:focus, .ft-textarea:focus { outline: none; border-color: oklch(0.55 0.12 248); box-shadow: 0 0 0 4px oklch(0.55 0.12 248 / 0.12); }
   .ft-input[readonly] { background: oklch(0.975 0.005 240); color: oklch(0.4 0.02 250); }
-  .ft-input.err, .ft-field.err .ft-input { border-color: oklch(0.6 0.18 25); box-shadow: 0 0 0 4px oklch(0.6 0.18 25 / 0.12); }
-  .ft-textarea { resize: vertical; min-height: 96px; padding: 11px 13px; border-radius: 12px; border: 1px solid oklch(0.88 0.01 240); font: inherit; font-size: 14px; font-weight: 560; line-height: 1.6; box-sizing: border-box; width: 100%; }
+  .ft-field.err .ft-input, .ft-field.err .date-btn { border-color: oklch(0.6 0.18 25); box-shadow: 0 0 0 4px oklch(0.6 0.18 25 / 0.12); }
+  .ft-textarea { resize: vertical; min-height: 96px; padding: 11px 13px; border-radius: 12px; border: 1px solid oklch(0.88 0.01 240); font: inherit; font-size: 14px; font-weight: 560; line-height: 1.6; box-sizing: border-box; width: 100%; color: var(--ink); }
   .ft-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .ft-radio3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; background: oklch(0.955 0.006 240); border-radius: 12px; }
   .ft-radio3 button { height: 40px; border-radius: 9px; border: none; background: transparent; font-size: 13.5px; font-weight: 700; color: var(--muted); }
@@ -128,7 +216,7 @@
   .ft-add-row { height: 44px; border-radius: 12px; border: 1px dashed oklch(0.82 0.03 248); background: oklch(0.985 0.008 248); font-size: 13.5px; font-weight: 740; color: oklch(0.42 0.12 248); }
   .ft-suggest { position: absolute; top: 76px; left: 0; right: 0; z-index: 5; background: #fff; border: 1px solid oklch(0.9 0.01 240); border-radius: 13px; box-shadow: 0 16px 36px oklch(0.2 0.02 250 / 0.16); padding: 6px; max-height: 320px; overflow-y: auto; }
   .ft-suggest[hidden] { display: none; }
-  .ft-suggest .grp { padding: 6px 10px 4px; font-size: 10.5px; font-weight: 760; color: oklch(0.56 0.015 250); }
+  .ft-suggest .grp { display: flex; align-items: center; gap: 8px; padding: 6px 10px 4px; font-size: 10.5px; font-weight: 760; color: oklch(0.56 0.015 250); }
   .ft-suggest button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 42px; padding: 0 10px; border-radius: 9px; border: none; background: transparent; text-align: left; }
   .ft-suggest button:hover, .ft-suggest button.kb { background: oklch(0.965 0.02 248); }
   .ft-suggest b { font-size: 14px; font-weight: 760; }
@@ -138,6 +226,7 @@
   .ft-sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 85vh; background: #fff; border-radius: 22px 22px 0 0; display: flex; flex-direction: column; }
   .ft-sheet .grip { display: flex; justify-content: center; padding-top: 8px; }
   .ft-sheet .grip span { width: 40px; height: 5px; border-radius: 99px; background: oklch(0.88 0.008 240); }
+  .ft-sheet .ft-pick button { min-height: 44px; }
 
   /* ---- 모바일 ---- */
   @media (max-width: 767px) {
@@ -146,24 +235,25 @@
     .ft-head .ft-primary.add-top { display: none; }
     .ft-toolbar { padding: 0; background: transparent; border: none; }
     .ft-toolbar .ft-seg, .ft-toolbar .ft-select { display: none; }
-    .ft-search { background: #fff; border: 1px solid var(--line); height: 44px; }
-    .ft-filter-btn { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 13px; border-radius: 12px; background: #fff; border: 1px solid var(--line); font-size: 13.5px; font-weight: 720; color: oklch(0.35 0.02 250); }
+    .ft-search { background: #fff; border: 1px solid var(--line); }
+    .ft-filter-btn { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 13px; border-radius: 14px; background: #fff; border: 1px solid var(--line); font-size: 13.5px; font-weight: 720; color: oklch(0.35 0.02 250); }
     .ft-filter-btn .n[hidden] { display: none; }
     .ft-filter-btn .n { min-width: 18px; height: 18px; border-radius: 99px; background: var(--accent); color: #fff; font-size: 11px; display: grid; place-items: center; }
     .ft-upcoming { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 2px 16px 6px; }
     .ft-upcoming .ft-card { flex: none; width: 236px; scroll-snap-align: start; }
     .ft-row-head { display: none; }
-    .ft-table { background: transparent; border: none; border-radius: 0; display: flex; flex-direction: column; gap: 8px; }
-    .ft-item { border: 1px solid var(--line); border-radius: 15px; background: #fff; }
-    .ft-row { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; padding: 13px 14px; }
-    .ft-row .c-date { grid-column: 1; font-size: 12px; font-weight: 720; color: var(--muted); }
-    .ft-row .c-rate { grid-column: 2; grid-row: 1; justify-self: end; }
-    .ft-row .c-ship { grid-column: 1 / -1; }
+    .ft-table { background: transparent; border: none; border-radius: 0; box-shadow: none; display: flex; flex-direction: column; gap: 8px; overflow: visible; }
+    .ft-month { background: transparent; border: none; padding: 10px 2px 0; }
+    .ft-item { border: 1px solid var(--line); border-radius: 16px; background: #fff; overflow: hidden; }
+    .ft-row { grid-template-columns: 52px minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 6px 12px; padding: 12px 14px; }
+    .ft-row .c-date { grid-column: 1; grid-row: 1 / span 2; align-self: start; }
+    .ft-row .c-ship { grid-column: 2; grid-row: 1; min-width: 0; }
     .ft-row .c-ship b { font-size: 16px; }
-    .ft-row .c-ship .sub { display: inline; margin-left: 6px; }
-    .ft-row .c-catch { grid-column: 1; font-weight: 720; }
-    .ft-row .c-cost { grid-column: 2; justify-self: end; font-weight: 760; }
+    .ft-row .c-rate { grid-column: 3; grid-row: 1; justify-self: end; }
+    .ft-row .c-catch { grid-column: 2; grid-row: 2; min-width: 0; }
+    .ft-row .c-cost { grid-column: 3; grid-row: 2; justify-self: end; align-self: end; }
     .ft-row .c-species, .ft-row .c-with, .ft-row .c-chev { display: none; }
+    .ft-dtile { width: 48px; height: 50px; }
     .ft-expand { display: none; }
     .ft-sum b { margin-left: 0; width: 100%; }
     .ft-fab { position: fixed; left: 16px; right: 16px; bottom: 18px; z-index: 50; height: 52px; border-radius: 15px; font-size: 15px; }
@@ -195,7 +285,7 @@
   <div class="ft-toolbar">
     <label class="ft-search">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.6 0.015 250)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-      <input type="search" id="ft-q" placeholder="선사 · 항구 · 메모 검색" aria-label="검색">
+      <input type="search" id="ft-q" placeholder="선사 · 항구 · 비고 검색" aria-label="검색">
     </label>
     <div class="ft-seg" id="ft-status" role="group" aria-label="상태"></div>
     <select class="ft-select" id="ft-f-species" aria-label="어종"></select>
@@ -205,11 +295,14 @@
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M7 12h10M10 18h4"></path></svg>필터<span class="n" id="ft-filter-n" hidden></span></button>
   </div>
 
-  <div id="ft-list"><div class="ft-empty">불러오는 중…</div></div>
+  <div id="ft-list"><div class="ft-loading"><span class="ft-spin"></span> 불러오는 중…</div></div>
 
   <button type="button" class="ft-primary ft-fab" data-act="new">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>출조 기록 추가</button>
 </div>
+
+<!-- 서버 작업(삭제 등) 중 전체 화면 스피너 -->
+<div class="ft-busy-overlay" id="ft-busy" hidden><div><span class="ft-spin"></span><span id="ft-busy-msg">처리 중…</span></div></div>
 
 <!-- 입력 · 수정 패널 (PC: 오른쪽 패널 / 모바일: 전체 화면) -->
 <div class="ft-overlay" id="ft-editor" hidden>
@@ -228,8 +321,30 @@
         </div>
       </div>
       <div class="ft-two">
-        <label class="ft-field" data-field="trip_date"><span class="ft-label">날짜 <span class="req">*</span></span>
-          <input class="ft-input" type="date" id="ed-date" required></label>
+        <div class="ft-field" data-field="trip_date"><span class="ft-label">날짜 <span class="req">*</span></span>
+          <div class="date-picker-wrap">
+            <button type="button" id="ed-date-btn" class="date-btn" aria-expanded="false" aria-haspopup="true">
+              <span class="date-btn-icon">📅</span><span id="ed-date-label">날짜 선택</span><span class="date-btn-caret">⌄</span>
+            </button>
+            <div id="ed-cal" class="cal-popover" style="display:none;" role="dialog" aria-label="날짜 선택 달력">
+              <div class="cal-popover-header">
+                <button type="button" id="ed-cal-prev" class="cal-nav-btn" aria-label="이전 달">‹</button>
+                <div id="ed-cal-month" class="cal-month-label"></div>
+                <button type="button" id="ed-cal-next" class="cal-nav-btn" aria-label="다음 달">›</button>
+              </div>
+              <div class="cal-weekdays">
+                <div class="cal-weekday cal-weekday-sun">일</div><div class="cal-weekday">월</div><div class="cal-weekday">화</div>
+                <div class="cal-weekday">수</div><div class="cal-weekday">목</div><div class="cal-weekday">금</div><div class="cal-weekday cal-weekday-sat">토</div>
+              </div>
+              <div id="ed-cal-days" class="cal-days"></div>
+              <div class="cal-popover-foot">
+                <button type="button" id="ed-cal-today" class="cal-foot-btn">오늘로</button>
+                <button type="button" id="ed-cal-ok" class="cal-foot-btn cal-foot-btn-primary">확인</button>
+              </div>
+            </div>
+          </div>
+          <input type="hidden" id="ed-date">
+        </div>
         <label class="ft-field" data-field="cost"><span class="ft-label">비용 (원)</span>
           <input class="ft-input" type="text" inputmode="numeric" id="ed-cost" placeholder="0" style="text-align:right"></label>
       </div>
@@ -251,10 +366,9 @@
         <div class="ft-pick" id="ed-species"></div>
       </div>
       <div class="ft-field" data-field="catches">
-        <span class="ft-label">조과 <span style="font-weight:600;color:oklch(0.56 0.015 250)">사람별 · 어종별 마릿수</span></span>
+        <span class="ft-label">조과 <span style="font-weight:600;color:oklch(0.56 0.015 250)">사람별 · 어종별 잡은 마릿수</span></span>
         <div class="ft-catch" id="ed-catches"></div>
         <button type="button" class="ft-add-row" id="ed-add-catch">+ 조과 줄 추가</button>
-        <div class="ft-raw" id="ed-raw" hidden></div>
       </div>
       <div class="ft-field" data-field="rating">
         <span class="ft-label">이 배, 또 탈까요?</span>
@@ -268,8 +382,8 @@
         <span class="ft-label">빠른 태그</span>
         <div class="ft-pick tags" id="ed-tags"></div>
       </div>
-      <label class="ft-field" data-field="memo"><span class="ft-label">후기 메모</span>
-        <textarea class="ft-textarea" id="ed-memo" rows="4" placeholder="배 상태, 선장, 식사, 포인트 등"></textarea></label>
+      <label class="ft-field" data-field="memo"><span class="ft-label">비고</span>
+        <textarea class="ft-textarea" id="ed-memo" rows="4" placeholder="배 상태, 선장, 식사, 포인트 등 이 배에 대한 메모"></textarea></label>
     </form>
     <div class="ft-panel-foot">
       <button type="button" class="ft-danger" id="ed-delete" hidden>삭제</button>
@@ -289,8 +403,8 @@
     </div>
     <div class="ft-panel-body" id="ft-dt-body"></div>
     <div class="ft-panel-foot">
-      <button type="button" class="ft-danger" id="dt-delete">삭제</button>
-      <button type="button" class="ft-primary" id="dt-edit" style="flex:1">수정</button>
+      <button type="button" class="ft-ghost" id="dt-memo-save" style="height:52px;flex:1">비고 저장</button>
+      <button type="button" class="ft-primary" id="dt-edit" style="flex:1">전체 수정</button>
     </div>
   </section>
 </div>
@@ -315,48 +429,54 @@
   const API = '/admin/api/fishing/trips';
   const SHIP_API = '/admin/api/fishing/ships';
   const csrf = document.getElementById('csrf_token').value;
-  const STATUS_LABEL = { planned: '예정', done: '완료', cancelled: '취소' };
+  const STATUS_LABEL = { planned: '예정', done: '완료', cancelled: '취소됨' };
   const RATE_LABEL = { again: '또 탈래요', maybe: '글쎄요', never: '안 탈래요' };
   const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
   const DRAFT_PREFIX = 'aft-trip-draft:';
+  const SPIN = '<span class="ft-spin"></span>';
+  const SPIN_DARK = '<span class="ft-spin on-dark"></span>';
+  const THIS_YEAR = new Date().getFullYear();
   const isMobile = () => window.matchMedia('(max-width: 767px)').matches;
+  const $ = (id) => document.getElementById(id);
 
   const state = {
-    year: String(new Date().getFullYear()), data: null, openId: null,
+    year: String(THIS_YEAR), data: null, openId: null, loading: false,
     f: { status: 'all', species: '', with: '', rating: '', q: '' },
   };
 
   // ---------- 유틸 ----------
   function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
   function won(n) { return n == null ? '-' : Number(n).toLocaleString('ko-KR'); }
-  function fmtDate(iso, withYear) {
-    const [y, m, d] = iso.split('-').map(Number);
-    const wd = WEEK[new Date(y, m - 1, d).getDay()];
-    return (withYear ? y + '년 ' : '') + m + '월 ' + d + '일 (' + wd + ')';
-  }
+  function parts(iso) { const [y, m, d] = iso.split('-').map(Number); return { y, m, d, dow: new Date(y, m - 1, d).getDay() }; }
+  function fmtDate(iso, withYear) { const p = parts(iso); return (withYear ? p.y + '년 ' : '') + p.m + '월 ' + p.d + '일 (' + WEEK[p.dow] + ')'; }
+  function todayIso() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function spClass(s) { return s.includes('문어') ? 'sp-octo' : (s.includes('쭈') || s.includes('주꾸')) ? 'sp-jju' : s.includes('갑') ? 'sp-gap' : ''; }
   function speciesChips(list) { return list.map(s => '<span class="ft-chip ' + spClass(s) + '">' + esc(s) + '</span>').join(''); }
   function short(sp) { return sp === '쭈꾸미' ? '쭈' : sp === '갑오징어' ? '갑' : sp; }
-  function catchText(catches) {
-    if (!catches || !catches.length) return '';
-    const byWho = [];
+  // 조과 = 사람별 · 어종별 잡은 마릿수만 보여준다(글 형태의 후기는 비고로).
+  function catchPills(catches) {
+    if (!catches || !catches.length) return '<span class="ft-none">-</span>';
+    const groups = [];
     catches.forEach(c => {
-      let g = byWho.find(x => x.who === c.who);
-      if (!g) { g = { who: c.who, items: [] }; byWho.push(g); }
-      g.items.push(short(c.species) + ' ' + c.count);
+      let g = groups.find(x => x.who === c.who);
+      if (!g) { g = { who: c.who, items: [] }; groups.push(g); }
+      g.items.push(c);
     });
-    const multi = byWho.length > 1;
-    return byWho.map(g => (multi || g.who !== '나' ? g.who + ' ' : '') + g.items.join(' · ')).join(' / ');
+    const showWho = groups.length > 1 || groups[0].who !== '나';
+    return '<span class="ft-catches">' + groups.map(g => (showWho ? '<span class="ft-who">' + esc(g.who) + '</span>' : '') +
+      g.items.map(c => '<span class="ft-pill ' + spClass(c.species) + '">' + esc(short(c.species)) + ' <b>' + esc(c.count) + '</b></span>').join('')).join('') + '</span>';
   }
   function tagClass(t) {
     const tones = (state.data && state.data.tag_tones) || { positive: [], negative: [] };
     return tones.positive.includes(t) ? 'pos' : tones.negative.includes(t) ? 'neg' : '';
   }
+  function noteOf(t) { return t.memo || t.catch_raw || ''; }
   async function api(url, opts) {
     const o = Object.assign({ headers: {} }, opts || {});
     if (o.body && typeof o.body !== 'string') { o.body = JSON.stringify(o.body); o.headers['Content-Type'] = 'application/json'; }
     if (o.method && o.method !== 'GET') o.headers['X-CSRFToken'] = csrf;
-    const resp = await fetch(url, Object.assign({ cache: 'no-store' }, o));
+    let resp;
+    try { resp = await fetch(url, Object.assign({ cache: 'no-store' }, o)); } catch (e) { throw new Error('네트워크 연결을 확인해 주세요.'); }
     let body = {};
     try { body = await resp.json(); } catch (e) { /* 빈 응답 */ }
     if (resp.status === 403) {
@@ -366,34 +486,37 @@
     if (!resp.ok) { const err = new Error(body.error || '요청을 처리하지 못했습니다.'); err.field = body.field; throw err; }
     return body;
   }
+  function busy(on, msg) { $('ft-busy-msg').textContent = msg || '처리 중…'; $('ft-busy').hidden = !on; }
+  function setBtnBusy(btn, on, label, dark) {
+    if (on) { btn.dataset.label = btn.innerHTML; btn.disabled = true; btn.innerHTML = (dark ? SPIN_DARK : SPIN) + ' ' + label; }
+    else { btn.disabled = false; if (btn.dataset.label) btn.innerHTML = btn.dataset.label; }
+  }
   function draftGet(key) { try { const v = localStorage.getItem(DRAFT_PREFIX + key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
   function draftSet(key, v) { try { localStorage.setItem(DRAFT_PREFIX + key, JSON.stringify(v)); } catch (e) { /* 저장 불가 무시 */ } }
   function draftDel(key) { try { localStorage.removeItem(DRAFT_PREFIX + key); } catch (e) { /* 무시 */ } }
+  function payloadOf(t, over) {
+    return Object.assign({
+      trip_date: t.trip_date, status: t.status, ship_name: t.ship.name, ship_region: t.ship.region, ship_port: t.ship.port,
+      cost: t.cost, companions: t.companions, species: t.species, tags: t.tags, catches: t.catches, rating: t.rating, memo: t.memo,
+    }, over || {});
+  }
+  function replaceTrip(updated) { const i = state.data.trips.findIndex(x => x.id === updated.id); if (i >= 0) state.data.trips[i] = updated; }
 
   // ---------- 겹치는 화면 + 뒤로가기 ----------
   const stack = [];
-  function openOverlay(id) {
-    const el = document.getElementById(id);
-    el.hidden = false;
-    document.body.style.overflow = 'hidden';
-    stack.push(id);
-    history.pushState({ ftOverlay: id }, '');
-  }
+  function openOverlay(id) { $(id).hidden = false; document.body.style.overflow = 'hidden'; stack.push(id); history.pushState({ ftOverlay: id }, ''); }
   function closeOverlay(id, fromPop) {
     const idx = stack.lastIndexOf(id);
     if (idx < 0) return;
     stack.splice(idx, 1);
-    document.getElementById(id).hidden = true;
+    $(id).hidden = true;
     if (!stack.length) document.body.style.overflow = '';
     if (!fromPop && history.state && history.state.ftOverlay === id) history.back();
   }
   window.addEventListener('popstate', () => {
     const top = stack[stack.length - 1];
     if (!top) return;
-    if (top === 'ft-editor' && editor.dirty) {
-      // 뒤로가기로 입력을 닫아도 임시저장은 남는다 - 다시 열면 이어서 쓸 수 있다.
-      showToast('작성 중인 내용은 임시저장됐어요', { type: 'info' });
-    }
+    if (top === 'ft-editor' && editor.dirty) showToast('작성 중인 내용은 임시저장됐어요', { type: 'info' });
     closeOverlay(top, true);
   });
   document.querySelectorAll('.ft-overlay').forEach(ov => {
@@ -413,11 +536,18 @@
 
   // ---------- 목록 ----------
   async function load() {
+    state.loading = true;
+    renderYears();
+    $('ft-list').innerHTML = '<div class="ft-loading">' + SPIN + ' 불러오는 중…</div>';
     try {
       state.data = await api(API + '?year=' + encodeURIComponent(state.year));
+      state.loading = false;
       render();
     } catch (err) {
-      document.getElementById('ft-list').innerHTML = '<div class="ft-empty">' + esc(err.message) + '</div>';
+      state.loading = false;
+      renderYears();
+      $('ft-list').innerHTML = '<div class="ft-empty">' + esc(err.message) + ' <button type="button" class="ft-ghost" id="ft-retry" style="margin-left:8px">다시 시도</button></div>';
+      $('ft-retry').onclick = load;
     }
   }
 
@@ -435,29 +565,30 @@
       return true;
     });
   }
-  function activeFilterCount() {
-    const f = state.f;
-    return (f.status !== 'all') + !!f.species + !!f.with + !!f.rating;
-  }
+  function activeFilterCount() { const f = state.f; return (f.status !== 'all') + !!f.species + !!f.with + !!f.rating; }
+  // 과거 연도에는 "다가오는 출조"가 있을 수 없으니 영역 자체를 보여주지 않는다.
+  function showUpcoming() { return state.year === 'all' || Number(state.year) >= THIS_YEAR; }
 
   function renderYears() {
-    const box = document.getElementById('ft-years');
-    const years = (state.data.years || []).map(String).concat('all');
-    box.innerHTML = years.map(y => '<button type="button" class="ft-year' + (y === state.year ? ' on' : '') + '" data-year="' + y + '"' +
-      (y === state.year ? ' aria-pressed="true"' : '') + '>' + (y === 'all' ? '전체' : y) + '</button>').join('');
+    const years = [...new Set(((state.data && state.data.years) || [THIS_YEAR]).map(String).concat(state.year === 'all' ? [] : [state.year]))]
+      .sort((a, b) => b.localeCompare(a)).concat('all');
+    $('ft-years').innerHTML = years.map(y => {
+      const on = y === state.year;
+      return '<button type="button" class="ft-year' + (on ? ' on' : '') + '" data-year="' + y + '"' + (on ? ' aria-pressed="true"' : '') +
+        (state.loading ? ' disabled' : '') + '>' + (on && state.loading ? SPIN_DARK : '') + (y === 'all' ? '전체' : y) + '</button>';
+    }).join('');
   }
   function renderFilters() {
     const s = state.data.summary, total = s.planned + s.done + s.cancelled;
-    const seg = [['all', '전체 ' + total], ['planned', '예정 ' + s.planned], ['done', '완료 ' + s.done], ['cancelled', '취소 ' + s.cancelled]];
-    document.getElementById('ft-status').innerHTML = seg.map(([v, l]) =>
-      '<button type="button" data-status="' + v + '" class="' + (state.f.status === v ? 'on' : '') + '">' + l + '</button>').join('');
+    const seg = [['all', '전체 ' + total], ['planned', '예정 ' + s.planned], ['done', '완료 ' + s.done], ['cancelled', '취소 ' + s.cancelled]]
+      .filter(([v]) => v !== 'planned' || showUpcoming());
+    $('ft-status').innerHTML = seg.map(([v, l]) => '<button type="button" data-status="' + v + '" class="' + (state.f.status === v ? 'on' : '') + '">' + l + '</button>').join('');
     const used = (key) => [...new Set(state.data.trips.flatMap(t => key === 'species' ? t.species : (t.companions ? [t.companions] : [])))];
     const opt = (v, l, cur) => '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>';
-    document.getElementById('ft-f-species').innerHTML = opt('', '어종 전체', state.f.species) + used('species').map(v => opt(v, v, state.f.species)).join('');
-    document.getElementById('ft-f-with').innerHTML = opt('', '동행 전체', state.f.with) + used('with').map(v => opt(v, v, state.f.with)).join('');
-    document.getElementById('ft-f-rating').innerHTML = opt('', '재이용 전체', state.f.rating) +
-      ['again', 'maybe', 'never'].map(v => opt(v, RATE_LABEL[v], state.f.rating)).join('') + opt('none', '미평가', state.f.rating);
-    const n = activeFilterCount(), badge = document.getElementById('ft-filter-n');
+    $('ft-f-species').innerHTML = opt('', '어종 전체', state.f.species) + used('species').map(v => opt(v, v, state.f.species)).join('');
+    $('ft-f-with').innerHTML = opt('', '동행 전체', state.f.with) + used('with').map(v => opt(v, v, state.f.with)).join('');
+    $('ft-f-rating').innerHTML = opt('', '재이용 전체', state.f.rating) + ['again', 'maybe', 'never'].map(v => opt(v, RATE_LABEL[v], state.f.rating)).join('') + opt('none', '미평가', state.f.rating);
+    const n = activeFilterCount(), badge = $('ft-filter-n');
     badge.hidden = !n; badge.textContent = n;
   }
 
@@ -470,47 +601,56 @@
       '<span class="ft-chips">' + speciesChips(t.species) + '</span>' +
       '<span class="ft-card-foot"><span>' + (t.cost != null ? won(t.cost) + '원' : '비용 미입력') + '</span></span></button>';
   }
-  function rateHtml(t) {
-    return '<span class="ft-rate rate-' + (t.rating || 'none') + '">' + (t.rating ? RATE_LABEL[t.rating] : '미평가') + '</span>';
+  function rateHtml(t) { return '<span class="ft-rate rate-' + (t.rating || 'none') + '">' + (t.rating ? RATE_LABEL[t.rating] : '미평가') + '</span>'; }
+  function dateTile(t) {
+    const p = parts(t.trip_date);
+    return '<span class="ft-dtile' + (p.dow === 0 ? ' sun' : p.dow === 6 ? ' sat' : '') + '"><b>' + p.d + '</b><small>' +
+      (state.year === 'all' ? String(p.y).slice(2) + '.' : '') + p.m + '월 · ' + WEEK[p.dow] + '</small></span>';
+  }
+  function tagsHtml(t) { return t.tags && t.tags.length ? '<div class="ft-chips" style="margin-bottom:10px">' + t.tags.map(x => '<span class="ft-tag ' + tagClass(x) + '">' + esc(x) + '</span>').join('') + '</div>' : ''; }
+  function noteEditor(t, id) {
+    return '<label class="ft-note-label" for="' + id + '">비고</label>' +
+      '<textarea class="ft-textarea" id="' + id + '" rows="3" placeholder="이 배에 대한 메모를 남겨 보세요 (비우고 저장하면 지워집니다)">' + esc(noteOf(t)) + '</textarea>' +
+      (t.memo && t.catch_raw && t.memo !== t.catch_raw ? '<p class="ft-raw">엑셀 원문 · ' + esc(t.catch_raw) + '</p>' : '');
   }
   function rowHtml(t) {
     const open = state.openId === t.id;
-    const badge = t.needs_result ? '<span class="ft-badge-need">결과 입력 필요</span>' : t.status === 'cancelled' ? '<span class="ft-badge-cancel">취소</span>' : '';
-    // 숫자로 인식 못 한 엑셀 조과는 원문 앞부분을 흐리게 보여준다(상세에서 전문)
-    const parsed = catchText(t.catches);
-    const catchCell = parsed ? esc(parsed) : (t.catch_raw && t.status !== 'cancelled'
-      ? '<span class="ft-raw-cell" title="' + esc(t.catch_raw) + '">' + esc(t.catch_raw.length > 28 ? t.catch_raw.slice(0, 28) + '…' : t.catch_raw) + '</span>' : '-');
-    let html = '<div class="ft-item' + (open ? ' open' : '') + '">' +
+    const cancelled = t.status === 'cancelled';
+    const badge = cancelled ? '<span class="ft-badge-cancel">취소됨</span>' : t.needs_result ? '<span class="ft-badge-need">결과 입력 필요</span>' : '';
+    const cls = 'ft-item' + (open ? ' open' : '') + (cancelled ? ' cancelled' : '') + (t.needs_result ? ' need' : '');
+    let html = '<div class="' + cls + '">' +
       '<button type="button" class="ft-row" data-row="' + t.id + '" aria-expanded="' + open + '">' +
-      '<span class="c-date">' + fmtDate(t.trip_date, state.year === 'all') + '</span>' +
-      '<span class="c-ship"><b>' + esc(t.ship.name) + '</b>' + badge + '<span class="sub">' + esc([t.ship.region, t.ship.port].filter(Boolean).join(' · ')) + '</span></span>' +
+      '<span class="c-date">' + dateTile(t) + '</span>' +
+      '<span class="c-ship"><b>' + esc(t.ship.name) + '</b>' + badge + '<span class="sub">' + esc([t.ship.region, t.ship.port].filter(Boolean).join(' · ') || '지역 미입력') + '</span></span>' +
       '<span class="c-species ft-chips">' + speciesChips(t.species) + '</span>' +
-      '<span class="c-with">' + esc(t.companions || '-') + '</span>' +
-      '<span class="c-catch" style="min-width:0">' + catchCell + '</span>' +
-      '<span class="c-cost" style="text-align:right">' + won(t.cost) + '</span>' +
-      '<span class="c-rate">' + rateHtml(t) + '</span>' +
+      '<span class="c-with"><span class="ft-with">' + esc(t.companions || '-') + '</span></span>' +
+      '<span class="c-catch">' + (cancelled ? '<span class="ft-none">-</span>' : catchPills(t.catches)) + '</span>' +
+      '<span class="c-cost ft-cost">' + (cancelled ? '<span class="ft-cancel-cost">취소</span>' : won(t.cost)) + '</span>' +
+      '<span class="c-rate">' + (cancelled ? '' : rateHtml(t)) + '</span>' +
       '<span class="c-chev ft-chev" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="' + (open ? 'm18 15-6-6-6 6' : 'm6 9 6 6 6-6') + '"></path></svg></span>' +
       '</button>';
-    if (open) html += '<div class="ft-expand">' + detailInner(t, false) + '<div class="ft-actions">' +
-      '<button type="button" class="edit" data-edit="' + t.id + '">수정</button>' +
-      '<button type="button" data-next="' + t.id + '">이 배로 다음 출조 추가</button>' +
-      '<button type="button" class="del" data-del="' + t.id + '">삭제</button></div></div>';
+    if (open) html += '<div class="ft-expand"><div>' + tagsHtml(t) + noteEditor(t, 'memo-' + t.id) + '</div>' +
+      '<div class="ft-actions"><button type="button" class="save" data-memo-save="' + t.id + '">비고 저장</button>' +
+      '<button type="button" data-edit="' + t.id + '">전체 수정</button></div></div>';
     return html + '</div>';
   }
-  function detailInner(t, full) {
-    let h = '<div>';
-    if (full) {
-      h += '<div class="ft-chips" style="margin-bottom:10px">' + speciesChips(t.species) + '</div>' +
-        '<p class="ft-where" style="margin:0 0 12px">' + esc([t.ship.region, t.ship.port].filter(Boolean).join(' · ') || '지역 미입력') +
-        (t.companions ? ' · ' + esc(t.companions) : '') + ' · ' + (t.cost != null ? won(t.cost) + '원' : '비용 미입력') + '</p>';
-      const c = catchText(t.catches);
-      if (c) h += '<p class="ft-memo" style="font-size:15px;font-weight:760">조과 · ' + esc(c) + '</p>';
-      h += '<p style="margin:0 0 10px">' + rateHtml(t) + '</p>';
-    }
-    h += t.memo ? '<p class="ft-memo">' + esc(t.memo) + '</p>' : (full ? '' : '<p class="ft-raw">후기 메모 없음</p>');
-    if (t.catch_raw) h += '<p class="ft-raw">엑셀 원문 · ' + esc(t.catch_raw) + '</p>';
-    if (t.tags && t.tags.length) h += '<div class="ft-chips">' + t.tags.map(x => '<span class="ft-tag ' + tagClass(x) + '">' + esc(x) + '</span>').join('') + '</div>';
-    return h + '</div>';
+  function monthGroups(list) {
+    const groups = [];
+    list.forEach(t => {
+      const key = t.trip_date.slice(0, 7);
+      let g = groups[groups.length - 1];
+      if (!g || g.key !== key) { g = { key, trips: [] }; groups.push(g); }
+      g.trips.push(t);
+    });
+    return groups;
+  }
+  function monthHead(g) {
+    const [y, m] = g.key.split('-').map(Number);
+    const done = g.trips.filter(t => t.status !== 'cancelled');
+    const cancelled = g.trips.length - done.length;
+    const cost = done.reduce((a, t) => a + (t.cost || 0), 0);
+    return '<div class="ft-month"><b>' + (state.year === 'all' ? y + '년 ' : '') + m + '월</b><span>출조 ' + done.length + '회' +
+      (cancelled ? ' · 취소 ' + cancelled + '회' : '') + '</span><span class="amt">' + (cost ? won(cost) + '원' : '') + '</span></div>';
   }
 
   function render() {
@@ -520,39 +660,39 @@
     const rest = list.filter(t => !(t.status === 'planned' && !t.needs_result));
     const s = state.data.summary;
     let html = '';
-    if (state.f.status === 'all' || state.f.status === 'planned') {
+    if (showUpcoming() && (state.f.status === 'all' || state.f.status === 'planned')) {
       html += '<div class="ft-section-title"><h2>다가오는 출조 <span style="color:oklch(0.46 0.12 248)">' + upcoming.length + '</span></h2>' +
-        '<span>' + (isMobile() ? '옆으로 넘겨 보기' : '다녀오면 조과와 후기를 채워 완료로 바꿔 주세요') + '</span></div>';
-      html += upcoming.length ? '<div class="ft-upcoming">' + upcoming.map(upcomingCard).join('') + '</div>'
-        : '<div class="ft-empty">예정된 출조가 없어요</div>';
+        '<span>' + (isMobile() ? '옆으로 넘겨 보기' : '다녀오면 조과와 비고를 채워 완료로 바꿔 주세요') + '</span></div>';
+      html += upcoming.length ? '<div class="ft-upcoming">' + upcoming.map(upcomingCard).join('') + '</div>' : '<div class="ft-empty">예정된 출조가 없어요</div>';
     }
     html += '<div class="ft-section-title"><h2>다녀온 출조 <span style="color:oklch(0.55 0.015 250)">' + rest.length + '</span></h2>' +
-      '<span>' + (isMobile() ? '눌러서 자세히 보기' : '행을 누르면 후기 전문과 태그가 펼쳐집니다') + '</span></div>';
-    html += rest.length ? '<div class="ft-table"><div class="ft-row-head"><span>날짜</span><span>선사 · 항구</span><span>어종</span><span>동행</span><span>조과</span><span style="text-align:right">비용</span><span>재이용</span><span></span></div>' +
-      rest.map(rowHtml).join('') + '</div>' : '<div class="ft-empty">' + (state.data.trips.length ? '조건에 맞는 출조가 없어요' : '아직 기록이 없어요') + '</div>';
+      '<span>' + (isMobile() ? '눌러서 자세히 보기' : '행을 누르면 비고를 보고 바로 고칠 수 있어요') + '</span></div>';
+    html += rest.length
+      ? '<div class="ft-table"><div class="ft-row-head"><span>날짜</span><span>선사 · 항구</span><span>어종</span><span>동행</span><span>조과 (마릿수)</span><span style="text-align:right">비용</span><span>재이용</span><span></span></div>' +
+        monthGroups(rest).map(g => monthHead(g) + g.trips.map(rowHtml).join('')).join('') + '</div>'
+      : '<div class="ft-empty">' + (state.data.trips.length ? '조건에 맞는 출조가 없어요' : '아직 기록이 없어요') + '</div>';
     const yearLabel = state.year === 'all' ? '전체' : state.year + '년';
-    html += '<div class="ft-sum"><span>' + yearLabel + ' 합계</span><span>완료 ' + s.done + '회</span><span>예정 ' + s.planned + '회</span><span>취소 ' + s.cancelled + '회</span><b>' + won(s.cost_total) + '원</b></div>';
-    document.getElementById('ft-list').innerHTML = html;
+    html += '<div class="ft-sum"><span>' + yearLabel + ' 합계</span><span>완료 ' + s.done + '회</span>' + (showUpcoming() ? '<span>예정 ' + s.planned + '회</span>' : '') +
+      '<span>취소 ' + s.cancelled + '회</span><b>' + won(s.cost_total) + '원</b></div>';
+    $('ft-list').innerHTML = html;
   }
 
   // ---------- 목록 이벤트 ----------
-  document.getElementById('ft-years').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-year]'); if (!b) return;
-    state.year = b.dataset.year; state.openId = null; load();
+  $('ft-years').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-year]'); if (!b || state.loading || b.dataset.year === state.year) return;
+    state.year = b.dataset.year; state.openId = null;
+    if (state.f.status === 'planned' && !showUpcoming()) state.f.status = 'all';
+    load();
   });
-  document.getElementById('ft-status').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-status]'); if (!b) return;
-    state.f.status = b.dataset.status; render();
-  });
+  $('ft-status').addEventListener('click', (e) => { const b = e.target.closest('[data-status]'); if (!b) return; state.f.status = b.dataset.status; render(); });
   [['ft-f-species', 'species'], ['ft-f-with', 'with'], ['ft-f-rating', 'rating']].forEach(([id, k]) =>
-    document.getElementById(id).addEventListener('change', (e) => { state.f[k] = e.target.value; render(); }));
-  document.getElementById('ft-q').addEventListener('input', (e) => { state.f.q = e.target.value; render(); });
-  document.getElementById('ft-list').addEventListener('click', (e) => {
+    $(id).addEventListener('change', (e) => { state.f[k] = e.target.value; render(); }));
+  $('ft-q').addEventListener('input', (e) => { state.f.q = e.target.value; render(); });
+  $('ft-list').addEventListener('click', (e) => {
     const t = (id) => state.data.trips.find(x => x.id === Number(id));
     let b;
+    if ((b = e.target.closest('[data-memo-save]'))) return saveNote(t(b.dataset.memoSave), $('memo-' + b.dataset.memoSave).value, b);
     if ((b = e.target.closest('[data-edit]'))) return openEditor(t(b.dataset.edit));
-    if ((b = e.target.closest('[data-next]'))) return openEditor(null, t(b.dataset.next));
-    if ((b = e.target.closest('[data-del]'))) return removeTrip(t(b.dataset.del));
     if ((b = e.target.closest('[data-open]'))) return isMobile() ? openDetail(t(b.dataset.open)) : openEditor(t(b.dataset.open));
     if ((b = e.target.closest('[data-row]'))) {
       const id = Number(b.dataset.row);
@@ -563,65 +703,81 @@
   document.querySelectorAll('[data-act="new"]').forEach(b => b.addEventListener('click', () => openEditor(null)));
   document.querySelector('[data-act="filter"]').addEventListener('click', openFilter);
 
+  // 비고만 바로 저장(비우고 저장하면 지워진다)
+  async function saveNote(t, text, btn) {
+    const memo = (text || '').trim();
+    setBtnBusy(btn, true, '저장 중…', btn.classList.contains('save'));
+    try {
+      const body = await api(API + '/' + t.id, { method: 'PUT', body: payloadOf(t, { memo }) });
+      replaceTrip(body.trip);
+      showToast(memo ? '비고를 저장했어요' : '비고를 지웠어요', { type: 'success' });
+      if (stack.includes('ft-detail')) openDetailBody(body.trip);
+      setBtnBusy(btn, false);
+      render();
+    } catch (err) {
+      showToast(err.message, { type: 'error' });
+      setBtnBusy(btn, false);
+    }
+  }
+
   async function removeTrip(t) {
     const ok = await showConfirm(fmtDate(t.trip_date, true) + ' ' + t.ship.name + ' 기록을 삭제할까요? 되돌릴 수 없어요.', { confirmText: '삭제', danger: true });
     if (!ok) return;
+    busy(true, '삭제하는 중…');
     try {
       await api(API + '/' + t.id, { method: 'DELETE' });
+      busy(false);
       showToast('삭제했어요', { type: 'success' });
       state.openId = null;
-      if (stack.includes('ft-detail')) closeOverlay('ft-detail', false);
       if (stack.includes('ft-editor')) { editor.dirty = false; draftDel(editor.key); closeOverlay('ft-editor', false); }
       load();
-    } catch (err) { showToast(err.message, { type: 'error' }); }
+    } catch (err) { busy(false); showToast(err.message, { type: 'error' }); }
   }
 
   // ---------- 상세 (모바일) ----------
   let detailTrip = null;
-  function openDetail(t) {
+  function openDetailBody(t) {
     detailTrip = t;
-    document.getElementById('ft-dt-title').textContent = t.ship.name;
-    const head = '<p class="ft-date" style="margin:0">' + fmtDate(t.trip_date, true) + ' · ' + STATUS_LABEL[t.status] +
-      (t.needs_result ? '<span class="ft-badge-need">결과 입력 필요</span>' : '') + (t.d_day != null ? ' · D-' + t.d_day : '') + '</p>';
-    document.getElementById('ft-dt-body').innerHTML = head + detailInner(t, true) +
-      '<button type="button" class="ft-ghost" id="dt-next" style="height:48px;margin-top:4px">이 배로 다음 출조 추가</button>';
-    document.getElementById('dt-next').onclick = () => { closeOverlay('ft-detail', false); setTimeout(() => openEditor(null, t), 30); };
-    openOverlay('ft-detail');
+    $('ft-dt-title').textContent = t.ship.name;
+    const cancelled = t.status === 'cancelled';
+    $('ft-dt-body').innerHTML =
+      '<p class="ft-date" style="margin:0">' + fmtDate(t.trip_date, true) + ' · ' + STATUS_LABEL[t.status] +
+      (cancelled ? '<span class="ft-badge-cancel">취소됨</span>' : '') + (t.needs_result ? '<span class="ft-badge-need">결과 입력 필요</span>' : '') +
+      (t.d_day != null ? ' · D-' + t.d_day : '') + '</p>' +
+      '<div class="ft-chips">' + speciesChips(t.species) + '</div>' +
+      '<p class="ft-where" style="margin:0">' + esc([t.ship.region, t.ship.port].filter(Boolean).join(' · ') || '지역 미입력') +
+      (t.companions ? ' · ' + esc(t.companions) : '') + ' · ' + (t.cost != null ? won(t.cost) + '원' : '비용 미입력') + '</p>' +
+      (cancelled ? '' : '<div><span class="ft-note-label">조과 (마릿수)</span>' + catchPills(t.catches) + '</div><div>' + rateHtml(t) + '</div>') +
+      '<div>' + tagsHtml(t) + noteEditor(t, 'dt-memo') + '</div>';
   }
-  document.getElementById('dt-edit').addEventListener('click', () => {
-    const t = detailTrip; closeOverlay('ft-detail', false); setTimeout(() => openEditor(t), 30);
-  });
-  document.getElementById('dt-delete').addEventListener('click', () => removeTrip(detailTrip));
+  function openDetail(t) { openDetailBody(t); openOverlay('ft-detail'); }
+  $('dt-edit').addEventListener('click', () => { const t = detailTrip; closeOverlay('ft-detail', false); setTimeout(() => openEditor(t), 30); });
+  $('dt-memo-save').addEventListener('click', (e) => saveNote(detailTrip, $('dt-memo').value, e.currentTarget));
 
   // ---------- 필터 시트 (모바일) ----------
   let pendingF = null, pendingYear = null;
-  function openFilter() {
-    pendingF = Object.assign({}, state.f); pendingYear = state.year;
-    renderFilterSheet(); openOverlay('ft-filter');
-  }
+  function openFilter() { pendingF = Object.assign({}, state.f); pendingYear = state.year; renderFilterSheet(); openOverlay('ft-filter'); }
   function renderFilterSheet() {
     const used = (fn) => [...new Set(state.data.trips.flatMap(fn))];
     const group = (label, key, opts) => '<div class="ft-field"><span class="ft-label">' + label + '</span><div class="ft-pick">' +
       opts.map(([v, l]) => '<button type="button" data-k="' + key + '" data-v="' + esc(v) + '" class="' + ((key === 'year' ? pendingYear : pendingF[key]) === v ? 'on' : '') + '">' + esc(l) + '</button>').join('') + '</div></div>';
     const years = (state.data.years || []).map(y => [String(y), String(y)]).concat([['all', '전체']]);
-    document.getElementById('ft-fl-body').innerHTML =
+    $('ft-fl-body').innerHTML =
       group('연도', 'year', years) +
       group('상태', 'status', [['all', '전체'], ['planned', '예정'], ['done', '완료'], ['cancelled', '취소']]) +
       group('어종', 'species', [['', '전체']].concat(used(t => t.species).map(v => [v, v]))) +
       group('동행', 'with', [['', '전체']].concat(used(t => t.companions ? [t.companions] : []).map(v => [v, v]))) +
       group('재이용', 'rating', [['', '전체'], ['again', '또 탈래요'], ['maybe', '글쎄요'], ['never', '안 탈래요'], ['none', '미평가']]);
-    document.getElementById('fl-apply').textContent = pendingYear === state.year ? '출조 ' + countWith(pendingF) + '건 보기' : '적용';
+    $('fl-apply').textContent = pendingYear === state.year ? '출조 ' + countWith(pendingF) + '건 보기' : (pendingYear === 'all' ? '전체 연도 보기' : pendingYear + '년 보기');
   }
   function countWith(f) { const saved = state.f; state.f = Object.assign({}, f, { q: saved.q }); const n = filtered().length; state.f = saved; return n; }
-  document.getElementById('ft-fl-body').addEventListener('click', (e) => {
+  $('ft-fl-body').addEventListener('click', (e) => {
     const b = e.target.closest('[data-k]'); if (!b) return;
     if (b.dataset.k === 'year') pendingYear = b.dataset.v; else pendingF[b.dataset.k] = b.dataset.v;
     renderFilterSheet();
   });
-  document.getElementById('fl-reset').addEventListener('click', () => {
-    pendingF = { status: 'all', species: '', with: '', rating: '', q: state.f.q }; renderFilterSheet();
-  });
-  document.getElementById('fl-apply').addEventListener('click', () => {
+  $('fl-reset').addEventListener('click', () => { pendingF = { status: 'all', species: '', with: '', rating: '', q: state.f.q }; renderFilterSheet(); });
+  $('fl-apply').addEventListener('click', () => {
     const yearChanged = pendingYear !== state.year;
     state.f = Object.assign({}, pendingF, { q: state.f.q }); state.year = pendingYear;
     closeOverlay('ft-filter', false);
@@ -631,11 +787,41 @@
   // ---------- 입력 · 수정 ----------
   const editor = { trip: null, key: 'new', dirty: false, ship: null, status: 'done', rating: null,
                    companions: '', species: [], tags: [], catches: [], saving: false };
-  const $ = (id) => document.getElementById(id);
 
-  function todayIso() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  // 날짜: 예약현황 화면의 달력 팝오버와 같은 컴포넌트(모양·동작)를 쓴다.
+  const cal = (function () {
+    const btn = $('ed-date-btn'), pop = $('ed-cal'), input = $('ed-date'), label = $('ed-date-label'), days = $('ed-cal-days'), month = $('ed-cal-month');
+    let ym = todayIso().slice(0, 7);
+    function shift(n) { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); ym = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); render(); }
+    function updateLabel() { label.textContent = input.value ? fmtDate(input.value, true) : '날짜 선택'; }
+    function render() {
+      const [y, m] = ym.split('-').map(Number);
+      month.textContent = y + '년 ' + m + '월';
+      const first = new Date(y, m - 1, 1).getDay(), len = new Date(y, m, 0).getDate(), today = todayIso();
+      let html = '';
+      for (let i = 0; i < first; i++) html += '<button type="button" class="cal-day" disabled></button>';
+      for (let d = 1; d <= len; d++) {
+        const iso = y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0'), dow = (first + d - 1) % 7;
+        html += '<button type="button" class="cal-day' + (dow === 0 ? ' cal-day-sun' : dow === 6 ? ' cal-day-sat' : '') + (iso === today ? ' cal-day-today' : '') +
+          (iso === input.value ? ' cal-day-selected' : '') + '" data-iso="' + iso + '">' + d + '</button>';
+      }
+      days.innerHTML = html;
+    }
+    function open() { ym = (input.value || todayIso()).slice(0, 7); render(); pop.style.display = ''; btn.classList.add('is-open'); btn.setAttribute('aria-expanded', 'true'); }
+    function close() { pop.style.display = 'none'; btn.classList.remove('is-open'); btn.setAttribute('aria-expanded', 'false'); }
+    function pick(iso) { input.value = iso; updateLabel(); render(); dateChanged(); }
+    btn.addEventListener('click', (e) => { e.stopPropagation(); pop.style.display === 'none' ? open() : close(); });
+    $('ed-cal-prev').addEventListener('click', () => shift(-1));
+    $('ed-cal-next').addEventListener('click', () => shift(1));
+    $('ed-cal-today').addEventListener('click', () => { ym = todayIso().slice(0, 7); pick(todayIso()); });
+    $('ed-cal-ok').addEventListener('click', close);
+    days.addEventListener('click', (e) => { const d = e.target.closest('[data-iso]'); if (d) { pick(d.dataset.iso); close(); } });
+    pop.addEventListener('click', (e) => e.stopPropagation());
+    document.addEventListener('click', close);
+    return { set(v) { input.value = v || ''; updateLabel(); close(); }, close };
+  })();
 
-  function openEditor(trip, basedOn) {
+  function openEditor(trip) {
     editor.trip = trip || null;
     editor.key = trip ? String(trip.id) : 'new';
     let v;
@@ -643,26 +829,21 @@
       v = { trip_date: trip.trip_date, status: trip.status, ship_name: trip.ship.name, ship_region: trip.ship.region || '',
             ship_port: trip.ship.port || '', cost: trip.cost == null ? '' : won(trip.cost), companions: trip.companions || '',
             species: trip.species.slice(), tags: trip.tags.slice(), catches: trip.catches.map(c => Object.assign({}, c)),
-            rating: trip.rating, memo: trip.memo || '', shipLocked: true };
+            rating: trip.rating, memo: noteOf(trip), shipLocked: true };
     } else {
-      const base = basedOn ? basedOn.ship : null;
-      v = { trip_date: '', status: 'planned', ship_name: base ? base.name : '', ship_region: base ? base.region || '' : '',
-            ship_port: base ? base.port || '' : '', cost: '', companions: basedOn ? basedOn.companions || '' : '',
-            species: basedOn ? basedOn.species.slice() : [], tags: [], catches: [], rating: null, memo: '', shipLocked: !!base };
+      v = { trip_date: '', status: 'planned', ship_name: '', ship_region: '', ship_port: '', cost: '', companions: '',
+            species: [], tags: [], catches: [], rating: null, memo: '', shipLocked: false };
     }
     const draft = draftGet(editor.key);
-    if (draft && !basedOn) { v = draft; setTimeout(() => showToast('임시저장된 내용을 불러왔어요', { type: 'info' }), 60); }
+    if (draft) { v = draft; setTimeout(() => showToast('임시저장된 내용을 불러왔어요', { type: 'info' }), 60); }
     fillEditor(v);
-    editor.dirty = !!(draft && !basedOn);
+    editor.dirty = !!draft;
     $('ft-ed-kind').textContent = trip ? '출조 기록 수정' : '출조 기록 추가';
-    $('ft-ed-title').textContent = trip ? fmtDate(trip.trip_date) + ' · ' + trip.ship.name : (basedOn ? basedOn.ship.name + ' 다음 출조' : '새 출조');
+    $('ft-ed-title').textContent = trip ? fmtDate(trip.trip_date) + ' · ' + trip.ship.name : '새 출조';
     $('ed-delete').hidden = !trip;
-    $('ed-raw').hidden = !(trip && trip.catch_raw);
-    $('ed-raw').textContent = trip && trip.catch_raw ? '엑셀 원문 · ' + trip.catch_raw : '';
     $('ed-draft-note').textContent = '';
     clearErrors();
     openOverlay('ft-editor');
-    if (!trip && !v.trip_date) setTimeout(() => $('ed-date').focus(), 80);
   }
 
   function fillEditor(v) {
@@ -670,7 +851,7 @@
     editor.companions = v.companions || ''; editor.species = v.species || []; editor.tags = v.tags || [];
     editor.catches = (v.catches || []).map(c => Object.assign({}, c));
     editor.ship = v.shipLocked ? { locked: true, boat_id: v.boat_id || null } : (v.boat_id ? { locked: false, boat_id: v.boat_id } : null);
-    $('ed-date').value = v.trip_date || '';
+    cal.set(v.trip_date || '');
     $('ed-cost').value = v.cost == null ? '' : v.cost;
     $('ed-ship').value = v.ship_name || '';
     $('ed-region').value = v.ship_region || '';
@@ -696,6 +877,10 @@
     clearTimeout(draftTimer);
     draftTimer = setTimeout(() => { draftSet(editor.key, snapshot()); $('ed-draft-note').textContent = '임시저장됨'; }, 400);
   }
+  function dateChanged() {
+    if (!editor.trip) editor.status = $('ed-date').value > todayIso() ? 'planned' : 'done';
+    renderEditorBits(); touched();
+  }
 
   function pickHtml(values, selected, extraClass) {
     return values.map(v => '<button type="button" data-v="' + esc(v) + '" class="' + (selected.includes(v) ? 'on ' : '') + (extraClass ? extraClass(v) : '') + '"' +
@@ -705,12 +890,9 @@
     const sug = (state.data && state.data.suggestions) || { companions: [], species: [], tags: [] };
     document.querySelectorAll('#ed-status button').forEach(b => { const on = b.dataset.v === editor.status; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
     document.querySelectorAll('#ed-rating button').forEach(b => { const on = b.dataset.v === editor.rating; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
-    const withOpts = [...new Set(['솔로'].concat(sug.companions, editor.companions ? [editor.companions] : []))];
-    $('ed-with').innerHTML = pickHtml(withOpts, editor.companions ? [editor.companions] : []);
-    const spOpts = [...new Set(sug.species.concat(editor.species))];
-    $('ed-species').innerHTML = pickHtml(spOpts, editor.species);
-    const tagOpts = [...new Set(sug.tags.concat(editor.tags))];
-    $('ed-tags').innerHTML = pickHtml(tagOpts, editor.tags, tagClass);
+    $('ed-with').innerHTML = pickHtml([...new Set(['솔로'].concat(sug.companions, editor.companions ? [editor.companions] : []))], editor.companions ? [editor.companions] : []);
+    $('ed-species').innerHTML = pickHtml([...new Set(sug.species.concat(editor.species))], editor.species);
+    $('ed-tags').innerHTML = pickHtml([...new Set(sug.tags.concat(editor.tags))], editor.tags, tagClass);
     renderCatches();
   }
   function renderCatches() {
@@ -733,13 +915,13 @@
       '<datalist id="ft-species-list">' + [...new Set(species.concat(state.data ? state.data.suggestions.species : []))].map(p => '<option value="' + esc(p) + '">').join('') + '</datalist>');
   }
 
-  // 상태 · 재이용
   $('ed-status').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (!b) return; editor.status = b.dataset.v; renderEditorBits(); touched(); });
   $('ed-rating').addEventListener('click', (e) => {
     const b = e.target.closest('[data-v]'); if (!b) return;
     editor.rating = editor.rating === b.dataset.v ? null : b.dataset.v; renderEditorBits(); touched();
   });
-  // 칩 선택(동행은 하나, 어종·태그는 여러 개)
+  // base_design.html 의 공용 커스텀 입력 모달(브라우저 기본 prompt 금지 규칙)
+  function askText(msg) { return window.showPrompt(msg, { confirmText: '추가' }); }
   function bindPick(id, key, single) {
     $(id).addEventListener('click', async (e) => {
       const b = e.target.closest('button'); if (!b) return;
@@ -758,9 +940,6 @@
     });
   }
   bindPick('ed-with', 'companions', true); bindPick('ed-species', 'species', false); bindPick('ed-tags', 'tags', false);
-  // base_design.html 의 공용 커스텀 입력 모달(브라우저 기본 prompt 금지 규칙)
-  function askText(msg) { return window.showPrompt(msg, { confirmText: '추가' }); }
-  // 조과
   $('ed-catches').addEventListener('input', (e) => {
     const row = e.target.closest('[data-i]'); if (!row) return;
     editor.catches[Number(row.dataset.i)][e.target.dataset.k] = e.target.value; touched();
@@ -777,15 +956,11 @@
     editor.catches.push({ who: last ? last.who : '나', species: editor.species[0] || '', count: '' });
     renderCatches(); touched();
   });
-  ['ed-date', 'ed-cost', 'ed-region', 'ed-port', 'ed-memo'].forEach(id => $(id).addEventListener('input', touched));
+  ['ed-cost', 'ed-region', 'ed-port', 'ed-memo'].forEach(id => $(id).addEventListener('input', touched));
   $('ed-cost').addEventListener('blur', () => { const n = $('ed-cost').value.replace(/[^\d]/g, ''); $('ed-cost').value = n ? Number(n).toLocaleString('ko-KR') : ''; });
-  $('ed-date').addEventListener('change', () => {
-    if (!editor.trip) editor.status = $('ed-date').value > todayIso() ? 'planned' : 'done';
-    renderEditorBits();
-  });
 
-  // 선사 자동완성
-  let shipTimer = null, shipResults = [], kb = -1;
+  // 선사 자동완성(조회 중 스피너)
+  let shipTimer = null, shipResults = [], kb = -1, shipSeq = 0;
   $('ed-ship').addEventListener('input', () => {
     editor.ship = null; applyShipLock(); touched();
     clearTimeout(shipTimer);
@@ -799,10 +974,13 @@
   });
   document.addEventListener('click', (e) => { if (!e.target.closest('[data-field="ship_name"]')) $('ed-ship-list').hidden = true; });
   async function searchShips() {
+    const seq = ++shipSeq, list = $('ed-ship-list');
+    list.innerHTML = '<div class="grp">' + SPIN + ' 찾는 중…</div>'; list.hidden = false;
     try {
       const body = await api(SHIP_API + '?q=' + encodeURIComponent($('ed-ship').value));
+      if (seq !== shipSeq) return;
       shipResults = body.ships; kb = -1; paintShips();
-    } catch (err) { /* 자동완성 실패는 입력을 막지 않는다 */ }
+    } catch (err) { if (seq === shipSeq) list.hidden = true; }
   }
   function paintShips() {
     const list = $('ed-ship-list');
@@ -823,7 +1001,6 @@
     $('ed-ship-list').hidden = true; applyShipLock(); touched();
   }
 
-  // 저장 · 삭제
   function clearErrors() { document.querySelectorAll('#ft-form .err').forEach(el => el.classList.remove('err')); }
   $('ed-save').addEventListener('click', save);
   async function save() {
@@ -835,7 +1012,7 @@
       catches: v.catches.filter(c => String(c.count).trim() !== '').map(c => ({ who: c.who, species: c.species, count: Number(c.count) })),
     });
     delete payload.shipLocked;
-    editor.saving = true; $('ed-save').disabled = true; $('ed-save').textContent = '저장 중…';
+    editor.saving = true; setBtnBusy($('ed-save'), true, '저장 중…', true);
     try {
       const body = await api(editor.trip ? API + '/' + editor.trip.id : API, { method: editor.trip ? 'PUT' : 'POST', body: payload });
       draftDel(editor.key); editor.dirty = false;
@@ -852,12 +1029,13 @@
       }
       showToast(err.message, { type: 'error' });
     } finally {
-      editor.saving = false; $('ed-save').disabled = false; $('ed-save').textContent = '저장';
+      editor.saving = false; setBtnBusy($('ed-save'), false);
     }
   }
   $('ed-delete').addEventListener('click', () => editor.trip && removeTrip(editor.trip));
 
-  window.addEventListener('resize', () => { if (state.data) render(); });
+  let resizeTimer = null;
+  window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (state.data && !state.loading) render(); }, 150); });
   load();
 })();
 </script>
