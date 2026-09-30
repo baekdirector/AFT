@@ -56,7 +56,6 @@
   .gr-gear-item .kind { flex: none; padding: 1px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 760; background: #fff; border: 1px solid var(--line); color: oklch(0.45 0.015 250); }
   .gr-gear-item .name { font-size: 13px; font-weight: 780; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .gr-gear-item .memo { font-size: 12px; font-weight: 580; color: oklch(0.45 0.015 250); line-height: 1.45; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-  .gr-gear-item .stat { font-size: 11.5px; font-weight: 700; color: var(--accent); }
   .gr-mini-loading { display: flex; align-items: center; gap: 8px; padding: 10px 2px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
 
   .gr-table { border-radius: 18px; background: #fff; border: 1px solid var(--line); overflow: hidden; }
@@ -87,7 +86,6 @@
   .gr-items .ir:first-child { border-top: none; }
   .gr-items .ir .n { font-weight: 620; color: oklch(0.3 0.02 250); }
   .gr-items .ir .p { text-align: right; font-weight: 740; }
-  .gr-link { padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 740; background: var(--accent-soft); color: oklch(0.4 0.12 248); white-space: nowrap; }
   .gr-items .foot { display: flex; justify-content: flex-end; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--line-soft); background: oklch(0.99 0.003 240); }
   .gr-empty { padding: 26px; border-radius: 16px; border: 1px dashed oklch(0.88 0.01 240); text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); background: #fff; }
   .gr-cat.c-에기 { background: oklch(0.96 0.045 55); color: oklch(0.47 0.13 50); }
@@ -122,9 +120,9 @@
   .gr-suggest button { display: flex; width: 100%; min-height: 40px; align-items: center; padding: 0 10px; border: none; border-radius: 9px; background: transparent; font-size: 13.5px; font-weight: 650; text-align: left; }
   .gr-suggest button:hover { background: oklch(0.965 0.02 248); }
   .gr-lines { display: flex; flex-direction: column; gap: 10px; }
-  .gr-line { display: grid; grid-template-columns: minmax(0, 1fr) 130px 110px 36px; grid-template-areas: "item cat price rm" "gear gear gear ."; gap: 8px; padding: 12px; border-radius: 14px; border: 1px solid oklch(0.92 0.008 240); background: oklch(0.99 0.002 240); }
+  .gr-line { display: grid; grid-template-columns: minmax(0, 1fr) 130px 110px 36px; grid-template-areas: "item cat price rm"; gap: 8px; padding: 12px; border-radius: 14px; border: 1px solid oklch(0.92 0.008 240); background: oklch(0.99 0.002 240); }
   .gr-line .i-item { grid-area: item; } .gr-line .i-cat { grid-area: cat; min-width: 0; } .gr-line .i-price { grid-area: price; text-align: right; }
-  .gr-line .i-gear { grid-area: gear; min-width: 0; } .gr-line .i-rm { grid-area: rm; align-self: center; height: 36px; border: none; background: none; font-size: 18px; color: oklch(0.55 0.015 250); }
+  .gr-line .i-rm { grid-area: rm; align-self: center; height: 36px; border: none; background: none; font-size: 18px; color: oklch(0.55 0.015 250); }
   .gr-add { height: 44px; border-radius: 12px; border: 1px dashed oklch(0.82 0.03 248); background: oklch(0.985 0.008 248); font-size: 13.5px; font-weight: 740; color: oklch(0.42 0.12 248); }
   .gr-sum { display: flex; align-items: baseline; justify-content: space-between; padding: 12px 14px; border-radius: 13px; background: var(--accent-soft); color: oklch(0.32 0.1 248); font-size: 13px; font-weight: 700; }
   .gr-sum b { font-size: 19px; font-weight: 800; }
@@ -133,9 +131,10 @@
   .gr-sug .d small { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
   .gr-sug .acts { display: flex; gap: 6px; }
   .gr-sug.done { opacity: 0.45; }
-  .gr-purchases { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 13px; overflow: hidden; }
-  .gr-purchases div { display: grid; grid-template-columns: 90px minmax(0, 1fr) auto; gap: 8px; padding: 9px 12px; border-top: 1px solid var(--line-soft); font-size: 12.5px; font-weight: 620; }
-  .gr-purchases div:first-child { border-top: none; }
+  .gr-sug-to { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .gr-sug-to span { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+  .gr-sug-to .to-dd { width: 150px; }
+  .gr-sug-to .adm-dd-btn { height: 38px; border-radius: 11px; font-size: 13px; }
 
   @media (max-width: 1023px) {
     .gr-body { grid-template-columns: minmax(0, 1fr); grid-template-areas: "side" "list"; }
@@ -164,7 +163,7 @@
     .gr-pfoot { padding: 12px 16px 18px; }
     .gr-pfoot .gr-primary { flex: 1; height: 52px; font-size: 15px; }
     .gr-two { grid-template-columns: minmax(0, 1fr); }
-    .gr-line { grid-template-columns: minmax(0, 1fr) 110px 30px; grid-template-areas: "item item rm" "cat price price" "gear gear gear"; }
+    .gr-line { grid-template-columns: minmax(0, 1fr) 110px 30px; grid-template-areas: "item item rm" "cat price price"; }
   }
   @media (min-width: 768px) { .gr-fab { display: none; } }
 </style>
@@ -261,7 +260,6 @@
         <div class="gr-field" data-field="kind"><span class="gr-label">종류</span><div id="gr-gd-kind"></div></div>
       </div>
       <label class="gr-field" data-field="memo"><span class="gr-label">메모</span><textarea class="gr-textarea" id="gr-gd-memo" rows="4" placeholder="기어비, 합사 호수, 쓰기 좋은 상황 등"></textarea></label>
-      <div class="gr-field"><span class="gr-label">연결된 구매</span><div id="gr-gd-purchases"></div></div>
     </div>
     <div class="gr-pfoot">
       <button type="button" class="gr-danger" id="gr-gd-delete" hidden>삭제</button>
@@ -411,7 +409,7 @@
       '<span class="c-chev gr-chev" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="' + (open ? 'm18 15-6-6-6 6' : 'm6 9 6 6 6-6') + '"></path></svg></span></button>';
     if (open) html += '<div class="gr-items">' + o.items.map(i => '<div class="ir">' + catChip(i.category) + '<span class="n">' + esc(i.item) +
       (i.memo ? ' <span style="color:oklch(0.56 0.015 250);font-weight:560">· ' + esc(i.memo) + '</span>' : '') + '</span>' +
-      (i.gear_name ? '<span class="gr-link">' + esc(i.gear_name) + '</span>' : '<span></span>') + '<span class="p">' + won(i.price) + '</span></div>').join('') +
+'<span></span><span class="p">' + won(i.price) + '</span></div>').join('') +
       '<div class="foot"><button type="button" class="gr-ghost" data-edit="' + esc(keyOf(o)) + '">주문 수정</button></div></div>';
     return html + '</div>';
   }
@@ -446,7 +444,7 @@
     $('gr-gear').innerHTML = list.length ? list.map(g => '<button type="button" class="gr-gear-item" data-gear="' + g.id + '"><span class="top">' +
       (g.kind ? '<span class="kind">' + esc(g.kind) + '</span>' : '') + '<span class="name">' + esc(g.name) + '</span></span>' +
       (g.memo ? '<span class="memo">' + esc(g.memo) + '</span>' : '') +
-      '<span class="stat">' + (g.purchase_count ? '연결된 구매 ' + g.purchase_count + '건 · ' + won(g.purchase_total) + '원' : '연결된 구매 없음') + '</span></button>').join('')
+      '</button>').join('')
       : '<div class="gr-mini-loading">아직 등록한 장비가 없어요</div>';
   }
   // 목록을 다시 불러오지 않고 바뀐 주문만 반영(합계·요약은 화면에서 다시 계산)
@@ -509,19 +507,15 @@
   function renderLines() {
     ed.widgets.forEach(w => w.destroy()); ed.widgets = [];
     const cats = state.data ? state.data.categories : [];
-    const gears = [{ value: '', label: '내 장비 연결 안 함' }].concat((state.data ? state.data.gear_items : []).map(g => ({ value: String(g.id), label: g.name, hint: g.kind || '' })));
     $('gr-lines').innerHTML = ed.lines.map((l, i) => '<div class="gr-line" data-i="' + i + '">' +
       '<input class="gr-input i-item" data-k="item" value="' + esc(l.item) + '" placeholder="품목명 (예: 요즈리 틴셀 3호 수박 2개)" aria-label="품목명">' +
       '<div class="i-cat"></div>' +
       '<input class="gr-input i-price" data-k="price" inputmode="numeric" value="' + esc(l.price) + '" placeholder="가격" aria-label="가격">' +
-      '<button type="button" class="i-rm" data-rm="1" aria-label="이 품목 지우기"' + (ed.lines.length === 1 ? ' disabled' : '') + '>×</button>' +
-      '<div class="i-gear"></div></div>').join('');
+      '<button type="button" class="i-rm" data-rm="1" aria-label="이 품목 지우기"' + (ed.lines.length === 1 ? ' disabled' : '') + '>×</button></div>').join('');
     document.querySelectorAll('#gr-lines .gr-line').forEach(row => {
       const l = ed.lines[Number(row.dataset.i)];
       ed.widgets.push(AdmUI.select(row.querySelector('.i-cat'), { options: cats.map(c => ({ value: c, label: c })), value: l.category, placeholder: '카테고리',
         allowCustom: true, customPrompt: '카테고리를 입력하세요', ariaLabel: '카테고리', onChange: v => { l.category = v; touched(); } }));
-      ed.widgets.push(AdmUI.select(row.querySelector('.i-gear'), { options: gears, value: String(l.gear_id || ''), placeholder: '내 장비 연결 안 함',
-        ariaLabel: '내 장비', onChange: v => { l.gear_id = v; touched(); } }));
     });
     paintTotal();
   }
@@ -589,14 +583,24 @@
 
   // ---------- 정리 제안 ----------
   $('gr-cleanup').addEventListener('click', () => { if (!state.cleanup || !state.cleanup.length) return; renderCleanup(); openOverlay('gr-clean'); });
+  // 카테고리 제안은 바꿀 카테고리를 드롭다운으로 직접 고를 수 있다(제안이 틀린 경우 - 예: 에기 → 기타 유지/다른 값)
+  let cleanupWidgets = [];
   function renderCleanup() {
+    cleanupWidgets.forEach(w => w.destroy()); cleanupWidgets = [];
     const list = state.cleanup;
     $('gr-cl-note').textContent = list.length + '건';
     $('gr-cl-body').innerHTML = list.length ? list.map((s, i) => '<div class="gr-sug" data-i="' + i + '"><div class="d">' +
       (s.kind === 'shop' ? '<small>구매처 표기 통일 · ' + s.count + '개 품목</small>' + s.from.map(esc).join(', ') + ' → <b>' + esc(s.to) + '</b>'
-                         : '<small>카테고리 제안</small>' + esc(s.item) + ' · 기타 → <b>' + esc(s.to) + '</b>') +
+                         : '<small>카테고리 제안 · 현재 기타</small>' + esc(s.item) + '<div class="gr-sug-to"><span>바꿀 카테고리</span><div class="to-dd"></div></div>') +
       '</div><div class="acts"><button type="button" class="gr-ghost" data-ignore="' + i + '">무시</button><button type="button" class="gr-ghost" data-apply="' + i + '" style="color:oklch(0.4 0.12 248);border-color:oklch(0.85 0.05 248)">적용</button></div></div>').join('')
       : '<div class="gr-mini-loading">남은 제안이 없어요</div>';
+    const cats = (state.data ? state.data.categories : []).map(c => ({ value: c, label: c }));
+    document.querySelectorAll('#gr-cl-body .gr-sug').forEach(row => {
+      const s = list[Number(row.dataset.i)], host = row.querySelector('.to-dd');
+      if (!host) return;
+      cleanupWidgets.push(AdmUI.select(host, { options: cats, value: s.to, ariaLabel: '바꿀 카테고리', allowCustom: true,
+        customPrompt: '카테고리를 입력하세요', onChange: v => { s.to = v; } }));
+    });
     $('gr-cl-all').disabled = !list.length;
   }
   function payloadFor(list) {
@@ -640,14 +644,8 @@
     $('gr-gd-title').textContent = g ? g.name : '새 장비';
     $('gr-gd-name').value = g ? g.name : ''; gdKind.set(g ? g.kind : ''); $('gr-gd-memo').value = g ? (g.memo || '') : '';
     $('gr-gd-delete').hidden = !id;
-    $('gr-gd-purchases').innerHTML = id ? '<div class="gr-mini-loading"><span class="adm-spin"></span> 연결된 구매 불러오는 중…</div>' : '<div class="gr-mini-loading">저장한 뒤 주문 입력 화면에서 품목을 이 장비에 연결할 수 있어요</div>';
     openOverlay('gr-gear-ed');
-    if (!id) { setTimeout(() => $('gr-gd-name').focus(), 60); return; }
-    try {
-      const item = (await api(API + '/items/' + id)).item;
-      $('gr-gd-purchases').innerHTML = item.purchases.length ? '<div class="gr-purchases">' + item.purchases.map(p => '<div><span>' + esc(p.date) + '</span><span>' +
-        esc((p.shop ? p.shop + ' · ' : '') + p.item) + '</span><b>' + won(p.price) + '</b></div>').join('') + '</div>' : '<div class="gr-mini-loading">연결된 구매가 없어요</div>';
-    } catch (err) { $('gr-gd-purchases').innerHTML = '<div class="gr-mini-loading">' + esc(err.message) + '</div>'; }
+    if (!id) setTimeout(() => $('gr-gd-name').focus(), 60);
   }
   $('gr-gd-save').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
