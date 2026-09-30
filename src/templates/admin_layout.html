@@ -125,8 +125,8 @@
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="M7 15l4-4 3 3 5-6"></path></svg>개요<span class="adm-soon-pill">준비 중</span></span>
     <a href="{{ url_for('fishing_views.trips_page') }}" class="{{ 'active' if active_menu == 'fishing_trips' }}"{% if active_menu == 'fishing_trips' %} aria-current="page"{% endif %}>
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 12c.94-3.46 4.94-6 8.5-6 3.56 0 6.06 2.54 7 6-.94 3.47-3.44 6-7 6s-7.56-2.53-8.5-6Z"></path><path d="M7 10.67C7 8 5.58 5.97 2.73 5.5c-1 1.5-1 5 .23 6.5-1.24 1.5-1.24 5-.23 6.5C5.58 18.03 7 16 7 13.33"></path></svg>출조 기록</a>
-    <span class="adm-lnb-soon">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path><path d="M3 6h18M16 10a4 4 0 0 1-8 0"></path></svg>장비 구매<span class="adm-soon-pill">준비 중</span></span>
+    <a href="{{ url_for('fishing_views.gear_page') }}" class="{{ 'active' if active_menu == 'fishing_gear' }}"{% if active_menu == 'fishing_gear' %} aria-current="page"{% endif %}>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path><path d="M3 6h18M16 10a4 4 0 0 1-8 0"></path></svg>장비 구매</a>
     <span class="adm-lnb-soon">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"></path><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.94 5.34 2.81 7.76"></path></svg>선사 노트<span class="adm-soon-pill">준비 중</span></span>
 
@@ -175,5 +175,221 @@
 })();
 </script>
 {% endif %}
+{#
+  ===== 공통 UI 부품(AdmUI) - CLAUDE.md "화면 기본 규칙" =====
+  1) 드롭다운: 브라우저 기본 <select> 대신 AdmUI.select (버튼 + 팝오버 목록)
+  2) 달력: 예약현황·날씨 화면의 date-btn + cal-popover 를 AdmUI.calendar 로 재사용
+  3) 서버 대기: .adm-loading(목록) / .adm-spin(인라인) / AdmUI.btnBusy(버튼) / AdmUI.busy(전체 화면)
+#}
+<style>
+  .adm-spin { display: inline-block; width: 15px; height: 15px; flex: none; border-radius: 99px; box-sizing: border-box;
+              border: 2px solid oklch(0.85 0.01 250); border-top-color: oklch(0.46 0.12 248); animation: admSpin 0.7s linear infinite; vertical-align: -2px; }
+  .adm-spin.on-dark { border-color: oklch(1 0 0 / 0.35); border-top-color: #fff; }
+  @keyframes admSpin { to { transform: rotate(360deg); } }
+  .adm-loading { display: flex; align-items: center; justify-content: center; gap: 9px; padding: 56px 20px; color: oklch(0.56 0.015 250);
+                 font-size: 13.5px; background: #fff; border: 1px dashed oklch(0.88 0.01 240); border-radius: 18px; }
+  .adm-busy { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; background: oklch(1 0 0 / 0.55); }
+  .adm-busy[hidden] { display: none; }
+  .adm-busy > div { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-radius: 14px; background: #fff; border: 1px solid oklch(0.925 0.008 240);
+                    box-shadow: 0 16px 36px oklch(0.2 0.02 250 / 0.14); font-size: 13.5px; font-weight: 700; color: oklch(0.38 0.02 250); }
+
+  /* 커스텀 드롭다운 */
+  .adm-dd { position: relative; min-width: 0; }
+  .adm-dd-btn { display: flex; align-items: center; gap: 8px; width: 100%; height: 44px; padding: 0 12px 0 14px; border-radius: 14px; box-sizing: border-box;
+                border: 1px solid oklch(0.925 0.008 240); background: #fff; font: inherit; font-size: 13.5px; font-weight: 650; color: oklch(0.22 0.02 250);
+                cursor: pointer; text-align: left; transition: border-color 0.15s, box-shadow 0.15s; }
+  .adm-dd-btn:hover { border-color: oklch(0.82 0.03 248); }
+  .adm-dd-btn[aria-expanded="true"] { border-color: oklch(0.6 0.13 245); box-shadow: 0 0 0 4px oklch(0.55 0.12 248 / 0.12); }
+  .adm-dd-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .adm-dd-label.ph { color: oklch(0.6 0.012 250); font-weight: 600; }
+  .adm-dd-caret { flex: none; color: oklch(0.62 0.015 250); transition: transform 0.2s; }
+  .adm-dd-btn[aria-expanded="true"] .adm-dd-caret { transform: rotate(180deg); }
+  .adm-dd-pop { position: fixed; z-index: 9500; min-width: 180px; max-height: 300px; overflow-y: auto; padding: 6px; box-sizing: border-box;
+                background: oklch(0.995 0.002 250); border: 1px solid oklch(0.925 0.008 240); border-radius: 16px;
+                box-shadow: 0 18px 44px oklch(0.35 0.03 255 / 0.18); animation: admDdIn 0.16s cubic-bezier(0.2, 0.9, 0.3, 1); }
+  .adm-dd-pop[hidden] { display: none; }
+  @keyframes admDdIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .adm-dd-opt { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 0 12px; border: none; border-radius: 10px; background: transparent;
+                font: inherit; font-size: 13.5px; font-weight: 620; color: oklch(0.3 0.02 250); text-align: left; cursor: pointer; }
+  .adm-dd-opt:hover, .adm-dd-opt.kb { background: oklch(0.965 0.02 248); }
+  .adm-dd-opt.sel { color: oklch(0.4 0.13 248); font-weight: 780; }
+  .adm-dd-opt.sel::after { content: ''; margin-left: auto; width: 7px; height: 12px; border: solid currentColor; border-width: 0 2px 2px 0; transform: rotate(45deg) translate(-2px, -2px); }
+  .adm-dd-opt .hint { margin-left: auto; font-size: 11.5px; font-weight: 650; color: oklch(0.58 0.015 250); }
+  .adm-dd-opt.sel .hint { margin-left: 8px; }
+  .adm-dd-opt.custom { color: oklch(0.46 0.12 248); font-weight: 700; border-top: 1px solid oklch(0.95 0.006 240); border-radius: 0 0 10px 10px; margin-top: 2px; }
+
+  /* 달력(예약현황·날씨 화면과 같은 모양) */
+  .adm-cal { position: relative; }
+  .adm-cal .date-btn { display: flex; align-items: center; gap: 9px; width: 100%; height: 46px; padding: 0 16px; border-radius: 15px; cursor: pointer; box-sizing: border-box;
+                       font: inherit; font-size: 14.5px; font-weight: 700; letter-spacing: -0.3px; white-space: nowrap; border: 1px solid oklch(0.925 0.008 240);
+                       background: #fff; color: oklch(0.28 0.02 255); box-shadow: 0 2px 8px oklch(0.5 0.02 250 / 0.05); transition: all 0.18s ease; }
+  .adm-cal .date-btn .lbl { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; }
+  .adm-cal .date-btn.is-open { border-color: transparent; color: #fff; background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225)); box-shadow: 0 8px 20px oklch(0.55 0.14 245 / 0.3); }
+  .adm-cal .date-btn-icon { font-size: 16px; line-height: 1; }
+  .adm-cal .date-btn-caret { font-size: 13px; line-height: 1; opacity: 0.6; transition: transform 0.2s ease; }
+  .adm-cal .date-btn.is-open .date-btn-caret { transform: rotate(180deg); }
+  .adm-cal .cal-popover { position: absolute; top: calc(100% + 10px); left: 0; z-index: 70; width: min(324px, calc(100vw - 44px)); padding: 16px; border-radius: 22px; box-sizing: border-box;
+                          background: oklch(0.995 0.002 250); border: 1px solid oklch(0.925 0.008 240); box-shadow: 0 18px 44px oklch(0.35 0.03 255 / 0.16); animation: admDdIn 0.2s ease; }
+  .adm-cal .cal-popover[hidden] { display: none; }
+  .adm-cal .cal-popover-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .adm-cal .cal-nav-btn { width: 34px; height: 34px; border-radius: 12px; border: none; background: oklch(0.96 0.006 250); color: oklch(0.4 0.02 255); font-size: 15px; cursor: pointer; }
+  .adm-cal .cal-month-label { font-size: 15px; font-weight: 770; letter-spacing: -0.4px; }
+  .adm-cal .cal-weekdays, .adm-cal .cal-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .adm-cal .cal-weekday { text-align: center; padding: 6px 0; font-size: 11.5px; font-weight: 700; color: oklch(0.62 0.012 255); }
+  .adm-cal .cal-weekday.sun { color: oklch(0.62 0.15 25); } .adm-cal .cal-weekday.sat { color: oklch(0.58 0.11 250); }
+  .adm-cal .cal-day { height: 40px; border-radius: 13px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 620; border: 1px solid transparent; background: transparent; color: oklch(0.3 0.02 255); }
+  .adm-cal .cal-day:disabled { visibility: hidden; }
+  .adm-cal .cal-day.sun { color: oklch(0.6 0.15 25); } .adm-cal .cal-day.sat { color: oklch(0.55 0.11 250); }
+  .adm-cal .cal-day.today { font-weight: 760; border-color: oklch(0.8 0.07 245); background: oklch(0.97 0.015 245); color: oklch(0.42 0.13 245); }
+  .adm-cal .cal-day.selected { font-weight: 780; border-color: transparent; color: #fff; background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225)); }
+  .adm-cal .cal-popover-foot { display: flex; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid oklch(0.95 0.006 240); }
+  .adm-cal .cal-foot-btn { flex: 1; height: 40px; border-radius: 13px; border: 1px solid oklch(0.925 0.008 240); background: #fff; font: inherit; font-size: 13px; font-weight: 700; color: oklch(0.42 0.02 255); cursor: pointer; }
+  .adm-cal .cal-foot-btn.primary { border: none; color: #fff; background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225)); }
+</style>
+<div class="adm-busy" id="adm-busy" hidden><div><span class="adm-spin"></span><span id="adm-busy-msg">처리 중…</span></div></div>
+<script>
+window.AdmUI = (function () {
+  const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+  const CARET = '<svg class="adm-dd-caret" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 8 4 4 4-4"></path></svg>';
+  function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function todayIso() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function fmtDate(iso) { const [y, m, d] = iso.split('-').map(Number); return y + '년 ' + m + '월 ' + d + '일 (' + WEEK[new Date(y, m - 1, d).getDay()] + ')'; }
+
+  let openDd = null;
+  document.addEventListener('click', (e) => { if (openDd && !openDd.root.contains(e.target) && !openDd.pop.contains(e.target)) openDd.close(); });
+  window.addEventListener('resize', () => openDd && openDd.close());
+  document.addEventListener('scroll', (e) => { if (openDd && !openDd.pop.contains(e.target)) openDd.close(); }, true);
+
+  // 커스텀 드롭다운. options: [{value, label, hint?}]
+  function select(host, cfg) {
+    cfg = Object.assign({ options: [], value: '', placeholder: '선택', allowCustom: false, customPrompt: '직접 입력하세요', ariaLabel: '' }, cfg || {});
+    let options = cfg.options.slice(), value = cfg.value == null ? '' : String(cfg.value), kb = -1;
+    host.innerHTML = '';
+    const root = document.createElement('div'); root.className = 'adm-dd';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'adm-dd-btn';
+    btn.setAttribute('aria-haspopup', 'listbox'); btn.setAttribute('aria-expanded', 'false');
+    if (cfg.ariaLabel) btn.setAttribute('aria-label', cfg.ariaLabel);
+    const pop = document.createElement('div'); pop.className = 'adm-dd-pop'; pop.setAttribute('role', 'listbox'); pop.hidden = true;
+    root.appendChild(btn); host.appendChild(root); document.body.appendChild(pop);
+
+    function labelOf(v) { const o = options.find(o => String(o.value) === v); return o ? o.label : (v || ''); }
+    function paintBtn() {
+      const text = labelOf(value);
+      btn.innerHTML = '<span class="adm-dd-label' + (text ? '' : ' ph') + '">' + esc(text || cfg.placeholder) + '</span>' + CARET;
+    }
+    function items() {
+      const list = options.map(o => ({ value: String(o.value), label: o.label, hint: o.hint }));
+      if (cfg.allowCustom) list.push({ value: '__custom', label: '직접 입력…', custom: true });
+      return list;
+    }
+    function paintPop() {
+      pop.innerHTML = items().map((o, i) => '<button type="button" role="option" data-i="' + i + '" class="adm-dd-opt' + (o.custom ? ' custom' : '') +
+        (o.value === value ? ' sel' : '') + (i === kb ? ' kb' : '') + '" aria-selected="' + (o.value === value) + '">' + esc(o.label) +
+        (o.hint ? '<span class="hint">' + esc(o.hint) + '</span>' : '') + '</button>').join('');
+    }
+    function place() {
+      const r = btn.getBoundingClientRect(), h = Math.min(300, pop.scrollHeight || 300);
+      pop.style.minWidth = r.width + 'px';
+      pop.style.left = Math.min(r.left, window.innerWidth - Math.max(r.width, 180) - 8) + 'px';
+      const below = window.innerHeight - r.bottom;
+      pop.style.top = (below < h + 12 && r.top > below ? r.top - h - 6 : r.bottom + 6) + 'px';
+    }
+    const api = {
+      root, pop,
+      open() {
+        if (openDd && openDd !== api) openDd.close();
+        kb = items().findIndex(o => o.value === value);
+        paintPop(); pop.hidden = false; place(); btn.setAttribute('aria-expanded', 'true'); openDd = api;
+        const sel = pop.querySelector('.sel'); if (sel) sel.scrollIntoView({ block: 'nearest' });
+      },
+      close() { pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); if (openDd === api) openDd = null; },
+      get value() { return value; },
+      set(v) { value = v == null ? '' : String(v); paintBtn(); },
+      setOptions(list) { options = list.slice(); paintBtn(); },
+      destroy() { api.close(); pop.remove(); },
+    };
+    async function choose(o) {
+      api.close();
+      let v = o.value;
+      if (o.custom) {
+        const typed = await showPrompt(cfg.customPrompt, { confirmText: '확인' });
+        if (!typed || !typed.trim()) return;
+        v = typed.trim();
+        if (!options.some(x => String(x.value) === v)) options.push({ value: v, label: v });
+      }
+      if (v === value) return;
+      value = v; paintBtn();
+      if (cfg.onChange) cfg.onChange(value);
+    }
+    btn.addEventListener('click', (e) => { e.stopPropagation(); pop.hidden ? api.open() : api.close(); });
+    btn.addEventListener('keydown', (e) => {
+      const list = items();
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault(); if (pop.hidden) { api.open(); return; }
+        kb = Math.max(0, Math.min(list.length - 1, kb + (e.key === 'ArrowDown' ? 1 : -1))); paintPop();
+        const k = pop.querySelector('.kb'); if (k) k.scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter' && !pop.hidden && kb >= 0) { e.preventDefault(); choose(list[kb]); }
+      else if (e.key === 'Escape' && !pop.hidden) { e.preventDefault(); e.stopPropagation(); api.close(); }
+    });
+    pop.addEventListener('click', (e) => { e.stopPropagation(); const b = e.target.closest('[data-i]'); if (b) choose(items()[Number(b.dataset.i)]); });
+    paintBtn();
+    return api;
+  }
+
+  // 달력 - 예약현황 화면의 date-btn + cal-popover 와 같은 모양·동작
+  function calendar(host, cfg) {
+    cfg = Object.assign({ value: '', placeholder: '날짜 선택' }, cfg || {});
+    let value = cfg.value || '', ym = (value || todayIso()).slice(0, 7);
+    host.innerHTML = '<div class="adm-cal"><button type="button" class="date-btn" aria-haspopup="true" aria-expanded="false">' +
+      '<span class="date-btn-icon">📅</span><span class="lbl"></span><span class="date-btn-caret">⌄</span></button>' +
+      '<div class="cal-popover" role="dialog" aria-label="날짜 선택 달력" hidden><div class="cal-popover-header">' +
+      '<button type="button" class="cal-nav-btn" data-nav="-1" aria-label="이전 달">‹</button><div class="cal-month-label"></div>' +
+      '<button type="button" class="cal-nav-btn" data-nav="1" aria-label="다음 달">›</button></div><div class="cal-weekdays">' +
+      WEEK.map((w, i) => '<div class="cal-weekday' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '') + '">' + w + '</div>').join('') +
+      '</div><div class="cal-days"></div><div class="cal-popover-foot"><button type="button" class="cal-foot-btn" data-today="1">오늘로</button>' +
+      '<button type="button" class="cal-foot-btn primary" data-ok="1">확인</button></div></div></div>';
+    const wrap = host.firstChild, btn = wrap.querySelector('.date-btn'), pop = wrap.querySelector('.cal-popover');
+    function paintBtn() { wrap.querySelector('.lbl').textContent = value ? fmtDate(value) : cfg.placeholder; }
+    function render() {
+      const [y, m] = ym.split('-').map(Number), first = new Date(y, m - 1, 1).getDay(), len = new Date(y, m, 0).getDate(), today = todayIso();
+      wrap.querySelector('.cal-month-label').textContent = y + '년 ' + m + '월';
+      let html = '';
+      for (let i = 0; i < first; i++) html += '<button type="button" class="cal-day" disabled></button>';
+      for (let d = 1; d <= len; d++) {
+        const iso = y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0'), dow = (first + d - 1) % 7;
+        html += '<button type="button" class="cal-day' + (dow === 0 ? ' sun' : dow === 6 ? ' sat' : '') + (iso === today ? ' today' : '') +
+          (iso === value ? ' selected' : '') + '" data-iso="' + iso + '">' + d + '</button>';
+      }
+      wrap.querySelector('.cal-days').innerHTML = html;
+    }
+    function open() { ym = (value || todayIso()).slice(0, 7); render(); pop.hidden = false; btn.classList.add('is-open'); btn.setAttribute('aria-expanded', 'true'); }
+    function close() { pop.hidden = true; btn.classList.remove('is-open'); btn.setAttribute('aria-expanded', 'false'); }
+    function pick(iso) { value = iso; paintBtn(); render(); if (cfg.onChange) cfg.onChange(value); }
+    btn.addEventListener('click', (e) => { e.stopPropagation(); pop.hidden ? open() : close(); });
+    pop.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const t = e.target.closest('button'); if (!t) return;
+      if (t.dataset.nav) { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + Number(t.dataset.nav), 1); ym = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); render(); }
+      else if (t.dataset.today) { ym = todayIso().slice(0, 7); pick(todayIso()); }
+      else if (t.dataset.ok) close();
+      else if (t.dataset.iso) { pick(t.dataset.iso); close(); }
+    });
+    document.addEventListener('click', close);
+    paintBtn();
+    return { get value() { return value; }, set(v) { value = v || ''; paintBtn(); close(); }, close, btn };
+  }
+
+  function busy(on, msg) { document.getElementById('adm-busy-msg').textContent = msg || '처리 중…'; document.getElementById('adm-busy').hidden = !on; }
+  function btnBusy(btn, on, label) {
+    if (on) {
+      btn.dataset.admLabel = btn.innerHTML; btn.disabled = true;
+      const dark = getComputedStyle(btn).color.replace(/\s/g, '') === 'rgb(255,255,255)';
+      btn.innerHTML = '<span class="adm-spin' + (dark ? ' on-dark' : '') + '"></span> ' + esc(label || '처리 중…');
+    } else { btn.disabled = false; if (btn.dataset.admLabel) btn.innerHTML = btn.dataset.admLabel; }
+  }
+  function loadingHtml(msg) { return '<div class="adm-loading"><span class="adm-spin"></span> ' + esc(msg || '불러오는 중…') + '</div>'; }
+  return { select, calendar, busy, btnBusy, loadingHtml, esc, fmtDate, todayIso };
+})();
+</script>
 {% block admin_scripts %}{% endblock %}
 {% endblock %}

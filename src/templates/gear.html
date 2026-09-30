@@ -1,0 +1,684 @@
+{% extends "admin_layout.html" %}
+{% block title %}장비 구매 · AFT 관리자{% endblock %}
+{#
+  내 낚시 기록 > 장비 구매 - docs/superpowers/specs/2026-10-01-fishing-log-gear-design.md §4.
+  드롭다운·달력·스피너는 admin_layout 의 AdmUI 공통 부품만 쓴다(화면 기본 규칙).
+#}
+{% block admin_content %}
+<style>
+  .gr, .gr-overlay { --ink: oklch(0.22 0.02 250); --muted: oklch(0.52 0.015 250); --line: oklch(0.925 0.008 240); --line-soft: oklch(0.95 0.006 240);
+    --soft: oklch(0.97 0.005 240); --accent: oklch(0.46 0.12 248); --accent-soft: oklch(0.955 0.03 248);
+    --grad: linear-gradient(145deg, oklch(0.5 0.13 248), oklch(0.4 0.11 238)); color: oklch(0.22 0.02 250); }
+  .gr { font-feature-settings: 'tnum' 1; padding: 24px clamp(14px, 2.4vw, 32px) 120px; max-width: 1320px; box-sizing: border-box; }
+  .gr button, .gr-overlay button { font: inherit; cursor: pointer; }
+  .gr-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .gr-head h1 { margin: 0; font-size: clamp(22px, 2.8vw, 27px); font-weight: 800; letter-spacing: -1px; }
+  .gr-head p { margin: 5px 0 0; font-size: 12.5px; font-weight: 560; color: var(--muted); }
+  .gr-row-flex { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .gr-year { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 13px; border-radius: 99px; border: 1px solid oklch(0.92 0.008 240); background: #fff; font-size: 12.5px; font-weight: 700; color: oklch(0.4 0.02 250); }
+  .gr-year.on { background: var(--accent); border-color: transparent; color: #fff; box-shadow: 0 3px 10px oklch(0.46 0.12 248 / 0.26); }
+  .gr-year:disabled { cursor: default; }
+  .gr-primary { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 40px; padding: 0 16px; border-radius: 12px; border: none;
+                background: var(--grad); color: #fff; font-size: 13px; font-weight: 740; box-shadow: 0 6px 16px oklch(0.45 0.12 248 / 0.28); white-space: nowrap; }
+  .gr-primary:disabled { opacity: 0.75; cursor: default; }
+  .gr-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 12.5px; font-weight: 700; color: oklch(0.38 0.02 250); }
+  .gr-ghost:disabled { opacity: 0.7; cursor: default; }
+  .gr-danger { height: 42px; padding: 0 14px; border-radius: 11px; border: 1px solid oklch(0.93 0.02 25); background: #fff; font-size: 13px; font-weight: 720; color: oklch(0.5 0.17 25); }
+
+  .gr-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) 170px 190px; gap: 8px; padding: 10px 12px; background: #fff; border: 1px solid var(--line); border-radius: 16px; margin-bottom: 16px; }
+  .gr-search { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; border-radius: 14px; background: var(--soft); box-sizing: border-box; min-width: 0; }
+  .gr-search input { flex: 1; min-width: 0; border: none; background: transparent; outline: none; font: inherit; font-size: 13.5px; font-weight: 560; }
+
+  .gr-body { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; grid-template-areas: "list side"; }
+  .gr-list { grid-area: list; min-width: 0; }
+  .gr-side { grid-area: side; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 76px; }
+  .gr-card { padding: 16px 18px; border-radius: 18px; background: #fff; border: 1px solid var(--line); }
+  .gr-card h2 { margin: 0; font-size: 14.5px; font-weight: 800; letter-spacing: -0.3px; }
+  .gr-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .gr-total { font-size: 20px; font-weight: 800; letter-spacing: -0.6px; }
+  .gr-bar { display: flex; height: 10px; border-radius: 99px; overflow: hidden; gap: 2px; margin: 4px 0 10px; background: oklch(0.955 0.006 240); }
+  .gr-legend { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; font-size: 12.5px; font-weight: 650; }
+  .gr-legend span { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .gr-dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+  .gr-legend b { font-weight: 760; }
+  .gr-shops { display: grid; grid-template-columns: 18px 1fr auto; gap: 7px 10px; align-items: center; font-size: 13px; font-weight: 680; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+  .gr-shops .rank { color: var(--accent); font-weight: 800; }
+  .gr-shops .amt { color: oklch(0.42 0.015 250); }
+  .gr-cleanup { display: flex; align-items: center; gap: 10px; width: 100%; padding: 13px 14px; border-radius: 16px; border: 1px solid oklch(0.9 0.05 70); background: oklch(0.97 0.03 70); text-align: left; color: inherit; }
+  .gr-cleanup[disabled] { cursor: default; border-color: var(--line); background: #fff; }
+  .gr-cleanup b { display: block; font-size: 13px; font-weight: 780; color: oklch(0.46 0.12 55); }
+  .gr-cleanup small { display: block; margin-top: 2px; font-size: 12px; font-weight: 600; color: oklch(0.42 0.04 60); }
+  .gr-cleanup[disabled] b { color: oklch(0.45 0.02 250); }
+  .gr-gear { display: flex; flex-direction: column; gap: 8px; }
+  .gr-gear-item { display: flex; flex-direction: column; gap: 3px; width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid transparent; background: oklch(0.975 0.005 240); text-align: left; color: inherit; }
+  .gr-gear-item:hover { border-color: oklch(0.85 0.04 248); }
+  .gr-gear-item .top { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .gr-gear-item .kind { flex: none; padding: 1px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 760; background: #fff; border: 1px solid var(--line); color: oklch(0.45 0.015 250); }
+  .gr-gear-item .name { font-size: 13px; font-weight: 780; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gr-gear-item .memo { font-size: 12px; font-weight: 580; color: oklch(0.45 0.015 250); line-height: 1.45; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .gr-gear-item .stat { font-size: 11.5px; font-weight: 700; color: var(--accent); }
+  .gr-mini-loading { display: flex; align-items: center; gap: 8px; padding: 10px 2px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+
+  .gr-table { border-radius: 18px; background: #fff; border: 1px solid var(--line); overflow: hidden; }
+  .gr-month { display: flex; align-items: baseline; gap: 10px; padding: 12px 18px 8px; background: oklch(0.99 0.003 240); border-top: 1px solid var(--line-soft); }
+  .gr-month:first-child { border-top: none; }
+  .gr-month b { font-size: 14px; font-weight: 800; }
+  .gr-month span { font-size: 12px; font-weight: 650; color: var(--muted); }
+  .gr-month .amt { margin-left: auto; font-size: 13px; font-weight: 780; color: oklch(0.36 0.02 250); }
+  .gr-order { border-top: 1px solid var(--line-soft); }
+  .gr-order.open { background: oklch(0.975 0.012 248); box-shadow: inset 3px 0 0 var(--accent); }
+  .gr-orow { display: grid; grid-template-columns: 56px minmax(0, 150px) minmax(0, 1fr) 96px 30px; gap: 12px; align-items: center; width: 100%; padding: 11px 18px;
+             border: none; background: transparent; text-align: left; color: inherit; box-sizing: border-box; transition: background 0.12s; }
+  .gr-orow:hover { background: oklch(0.985 0.008 248); }
+  .gr-dtile { width: 48px; height: 48px; border-radius: 13px; background: oklch(0.965 0.01 248); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; }
+  .gr-dtile b { font-size: 18px; font-weight: 800; color: oklch(0.3 0.04 250); }
+  .gr-dtile small { font-size: 10.5px; font-weight: 700; color: var(--muted); }
+  .gr-dtile.sat b { color: oklch(0.48 0.13 250); } .gr-dtile.sun b { color: oklch(0.55 0.17 25); }
+  .gr-shop b { display: block; font-size: 14px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gr-shop small { font-size: 11.5px; font-weight: 650; color: var(--muted); }
+  .gr-shop.none b { color: oklch(0.6 0.012 250); font-weight: 700; }
+  .gr-what { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .gr-what .t { font-size: 13px; font-weight: 600; color: oklch(0.32 0.02 250); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .gr-cat { flex: none; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 760; background: oklch(0.96 0.006 240); color: oklch(0.45 0.015 250); white-space: nowrap; }
+  .gr-amount { text-align: right; font-size: 14px; font-weight: 800; }
+  .gr-chev { width: 30px; height: 30px; border-radius: 9px; border: 1px solid oklch(0.92 0.008 240); display: grid; place-items: center; color: oklch(0.45 0.015 250); background: #fff; }
+  .gr-items { margin: 0 18px 14px 86px; border-radius: 13px; border: 1px solid oklch(0.9 0.03 248); background: #fff; overflow: hidden; }
+  .gr-items .ir { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto 90px; gap: 10px; align-items: center; padding: 9px 14px; border-top: 1px solid var(--line-soft); font-size: 13px; }
+  .gr-items .ir:first-child { border-top: none; }
+  .gr-items .ir .n { font-weight: 620; color: oklch(0.3 0.02 250); }
+  .gr-items .ir .p { text-align: right; font-weight: 740; }
+  .gr-link { padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 740; background: var(--accent-soft); color: oklch(0.4 0.12 248); white-space: nowrap; }
+  .gr-items .foot { display: flex; justify-content: flex-end; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--line-soft); background: oklch(0.99 0.003 240); }
+  .gr-empty { padding: 26px; border-radius: 16px; border: 1px dashed oklch(0.88 0.01 240); text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); background: #fff; }
+  .gr-cat.c-에기 { background: oklch(0.96 0.045 55); color: oklch(0.47 0.13 50); }
+  .gr-cat.c-릴 { background: oklch(0.955 0.03 248); color: oklch(0.4 0.12 248); }
+  .gr-cat.c-로드 { background: oklch(0.955 0.02 240); color: oklch(0.42 0.08 240); }
+  .gr-cat.c-라인 { background: oklch(0.95 0.03 200); color: oklch(0.4 0.08 200); }
+  .gr-cat.c-의류 { background: oklch(0.95 0.035 320); color: oklch(0.42 0.12 320); }
+
+  /* ---- 패널 · 모달 ---- */
+  .gr-overlay { position: fixed; inset: 0; z-index: 100; background: oklch(0.2 0.02 250 / 0.46); }
+  .gr-overlay[hidden] { display: none !important; }
+  .gr-panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(640px, 100%); background: #fff; display: flex; flex-direction: column; box-shadow: -20px 0 50px oklch(0.2 0.02 250 / 0.2); }
+  .gr-modal { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(620px, calc(100% - 24px)); max-height: calc(100% - 40px); background: #fff; border-radius: 22px; display: flex; flex-direction: column; overflow: hidden; }
+  .gr-phead { display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid oklch(0.94 0.006 240); }
+  .gr-phead .t { flex: 1; min-width: 0; }
+  .gr-phead small { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+  .gr-phead h2 { margin: 2px 0 0; font-size: 20px; font-weight: 800; letter-spacing: -0.7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gr-x { width: 44px; height: 44px; border-radius: 12px; border: 1px solid oklch(0.92 0.008 240); background: #fff; display: grid; place-items: center; color: oklch(0.42 0.02 250); flex: none; }
+  .gr-pbody { flex: 1; overflow-y: auto; padding: 18px 20px 28px; display: flex; flex-direction: column; gap: 18px; }
+  .gr-pfoot { display: flex; align-items: center; gap: 8px; padding: 12px 20px 16px; border-top: 1px solid oklch(0.94 0.006 240); background: oklch(0.99 0.002 240); }
+  .gr-pfoot .grow { flex: 1; font-size: 11.5px; font-weight: 600; color: oklch(0.56 0.015 250); }
+  .gr-field { display: flex; flex-direction: column; gap: 8px; position: relative; }
+  .gr-field.err .gr-input, .gr-field.err .date-btn { border-color: oklch(0.6 0.18 25); box-shadow: 0 0 0 4px oklch(0.6 0.18 25 / 0.12); }
+  .gr-label { font-size: 12.5px; font-weight: 760; color: oklch(0.45 0.015 250); }
+  .gr-label .req { color: oklch(0.55 0.18 25); }
+  .gr-input { height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid oklch(0.88 0.01 240); font: inherit; font-size: 14.5px; font-weight: 650; color: var(--ink); background: #fff; box-sizing: border-box; width: 100%; min-width: 0; }
+  .gr-input:focus, .gr-textarea:focus { outline: none; border-color: oklch(0.55 0.12 248); box-shadow: 0 0 0 4px oklch(0.55 0.12 248 / 0.12); }
+  .gr-textarea { resize: vertical; min-height: 88px; padding: 11px 13px; border-radius: 12px; border: 1px solid oklch(0.88 0.01 240); font: inherit; font-size: 14px; font-weight: 560; line-height: 1.6; box-sizing: border-box; width: 100%; color: var(--ink); }
+  .gr-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .gr-suggest { position: absolute; top: 76px; left: 0; right: 0; z-index: 5; background: #fff; border: 1px solid oklch(0.9 0.01 240); border-radius: 13px; box-shadow: 0 16px 36px oklch(0.2 0.02 250 / 0.16); padding: 6px; max-height: 260px; overflow-y: auto; }
+  .gr-suggest[hidden] { display: none; }
+  .gr-suggest button { display: flex; width: 100%; min-height: 40px; align-items: center; padding: 0 10px; border: none; border-radius: 9px; background: transparent; font-size: 13.5px; font-weight: 650; text-align: left; }
+  .gr-suggest button:hover { background: oklch(0.965 0.02 248); }
+  .gr-lines { display: flex; flex-direction: column; gap: 10px; }
+  .gr-line { display: grid; grid-template-columns: minmax(0, 1fr) 130px 110px 36px; grid-template-areas: "item cat price rm" "gear gear gear ."; gap: 8px; padding: 12px; border-radius: 14px; border: 1px solid oklch(0.92 0.008 240); background: oklch(0.99 0.002 240); }
+  .gr-line .i-item { grid-area: item; } .gr-line .i-cat { grid-area: cat; min-width: 0; } .gr-line .i-price { grid-area: price; text-align: right; }
+  .gr-line .i-gear { grid-area: gear; min-width: 0; } .gr-line .i-rm { grid-area: rm; align-self: center; height: 36px; border: none; background: none; font-size: 18px; color: oklch(0.55 0.015 250); }
+  .gr-add { height: 44px; border-radius: 12px; border: 1px dashed oklch(0.82 0.03 248); background: oklch(0.985 0.008 248); font-size: 13.5px; font-weight: 740; color: oklch(0.42 0.12 248); }
+  .gr-sum { display: flex; align-items: baseline; justify-content: space-between; padding: 12px 14px; border-radius: 13px; background: var(--accent-soft); color: oklch(0.32 0.1 248); font-size: 13px; font-weight: 700; }
+  .gr-sum b { font-size: 19px; font-weight: 800; }
+  .gr-sug { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; align-items: center; padding: 12px 14px; border-radius: 13px; border: 1px solid var(--line); }
+  .gr-sug .d { font-size: 13px; font-weight: 650; color: oklch(0.32 0.02 250); line-height: 1.5; min-width: 0; }
+  .gr-sug .d small { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
+  .gr-sug .acts { display: flex; gap: 6px; }
+  .gr-sug.done { opacity: 0.45; }
+  .gr-purchases { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 13px; overflow: hidden; }
+  .gr-purchases div { display: grid; grid-template-columns: 90px minmax(0, 1fr) auto; gap: 8px; padding: 9px 12px; border-top: 1px solid var(--line-soft); font-size: 12.5px; font-weight: 620; }
+  .gr-purchases div:first-child { border-top: none; }
+
+  @media (max-width: 1023px) {
+    .gr-body { grid-template-columns: minmax(0, 1fr); grid-template-areas: "side" "list"; }
+    .gr-side { position: static; }
+    .gr-side .gr-card.gear-card { order: 9; }
+  }
+  @media (max-width: 767px) {
+    .gr { padding: 14px 16px 110px; }
+    .gr-head .gr-primary.add-top { display: none; }
+    .gr-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0; background: transparent; border: none; }
+    .gr-search { grid-column: 1 / -1; background: #fff; border: 1px solid var(--line); }
+    .gr-table { background: transparent; border: none; border-radius: 0; overflow: visible; display: flex; flex-direction: column; gap: 8px; }
+    .gr-month { background: transparent; border: none; padding: 10px 2px 0; }
+    .gr-order { border: 1px solid var(--line); border-radius: 16px; background: #fff; overflow: hidden; }
+    .gr-orow { grid-template-columns: 48px minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 4px 12px; padding: 12px 14px; }
+    .gr-orow .c-date { grid-row: 1 / span 2; }
+    .gr-orow .c-shop { grid-column: 2; grid-row: 1; min-width: 0; }
+    .gr-orow .c-what { grid-column: 2 / -1; grid-row: 2; }
+    .gr-orow .c-amt { grid-column: 3; grid-row: 1; }
+    .gr-orow .c-chev { display: none; }
+    .gr-items { display: none; }
+    .gr-fab { position: fixed; left: 16px; right: 16px; bottom: 18px; z-index: 50; height: 52px; border-radius: 15px; font-size: 15px; }
+    .gr-panel { width: 100%; box-shadow: none; }
+    .gr-phead { padding: 6px 8px; } .gr-phead .gr-x { border: none; }
+    .gr-pbody { padding: 16px; }
+    .gr-pfoot { padding: 12px 16px 18px; }
+    .gr-pfoot .gr-primary { flex: 1; height: 52px; font-size: 15px; }
+    .gr-two { grid-template-columns: minmax(0, 1fr); }
+    .gr-line { grid-template-columns: minmax(0, 1fr) 110px 30px; grid-template-areas: "item item rm" "cat price price" "gear gear gear"; }
+  }
+  @media (min-width: 768px) { .gr-fab { display: none; } }
+</style>
+
+<div class="gr" id="gear-app">
+  <input type="hidden" id="csrf_token" value="{{ form.csrf_token.current_token }}">
+  <div class="gr-head">
+    <div><h1>장비 구매</h1><p>내 낚시 기록 · 구매 시점에 주문 단위로 입력하고, 지출과 장비를 관리합니다</p></div>
+    <div class="gr-row-flex">
+      <div class="gr-row-flex" id="gr-years"></div>
+      <button type="button" class="gr-primary add-top" data-act="new">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>구매 추가</button>
+    </div>
+  </div>
+  <div class="gr-toolbar">
+    <label class="gr-search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.6 0.015 250)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input type="search" id="gr-q" placeholder="품목 · 구매처 · 메모 검색" aria-label="검색">
+    </label>
+    <div id="gr-f-cat"></div>
+    <div id="gr-f-shop"></div>
+  </div>
+  <div class="gr-body">
+    <section class="gr-list" id="gr-list"></section>
+    <aside class="gr-side">
+      <section class="gr-card" id="gr-summary"></section>
+      <button type="button" class="gr-cleanup" id="gr-cleanup" disabled></button>
+      <section class="gr-card gear-card">
+        <div class="gr-card-head"><h2>내 장비 노트</h2><button type="button" class="gr-ghost" id="gr-gear-add" style="height:32px">+ 장비</button></div>
+        <div class="gr-gear" id="gr-gear"></div>
+      </section>
+    </aside>
+  </div>
+  <button type="button" class="gr-primary gr-fab" data-act="new">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>구매 추가</button>
+</div>
+
+<!-- 주문 입력 · 수정 -->
+<div class="gr-overlay" id="gr-editor" hidden>
+  <section class="gr-panel" role="dialog" aria-modal="true" aria-labelledby="gr-ed-title">
+    <div class="gr-phead">
+      <button type="button" class="gr-x" data-act="close" aria-label="닫기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+      <div class="t"><small id="gr-ed-kind">구매 추가</small><h2 id="gr-ed-title">새 주문</h2></div>
+    </div>
+    <div class="gr-pbody">
+      <div class="gr-two">
+        <div class="gr-field" data-field="date"><span class="gr-label">구매일 <span class="req">*</span></span><div id="gr-ed-date"></div></div>
+        <div class="gr-field" data-field="shop"><label class="gr-label" for="gr-ed-shop">구매처</label>
+          <input class="gr-input" id="gr-ed-shop" placeholder="예: 가나낚시, Temu" autocomplete="off">
+          <div class="gr-suggest" id="gr-shop-list" hidden></div></div>
+      </div>
+      <div class="gr-field" data-field="items">
+        <span class="gr-label">품목 <span class="req">*</span> <span style="font-weight:600;color:oklch(0.56 0.015 250)">품목명 · 카테고리 · 가격 · 내 장비(선택)</span></span>
+        <div class="gr-lines" id="gr-lines"></div>
+        <button type="button" class="gr-add" id="gr-add-line">+ 품목 추가</button>
+      </div>
+      <div class="gr-sum"><span>주문 합계</span><b id="gr-ed-total">0원</b></div>
+    </div>
+    <div class="gr-pfoot">
+      <button type="button" class="gr-danger" id="gr-ed-delete" hidden>주문 삭제</button>
+      <span class="grow" id="gr-ed-note"></span>
+      <button type="button" class="gr-ghost" data-act="close" style="height:42px">취소</button>
+      <button type="button" class="gr-primary" id="gr-ed-save" style="height:42px">저장</button>
+    </div>
+  </section>
+</div>
+
+<!-- 정리 제안 -->
+<div class="gr-overlay" id="gr-clean" hidden>
+  <section class="gr-modal" role="dialog" aria-modal="true" aria-labelledby="gr-cl-title">
+    <div class="gr-phead">
+      <div class="t"><small>예전 기록의 표기를 한 번에 정리합니다</small><h2 id="gr-cl-title">정리 제안</h2></div>
+      <button type="button" class="gr-x" data-act="close" aria-label="닫기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+    </div>
+    <div class="gr-pbody" id="gr-cl-body" style="gap:10px"></div>
+    <div class="gr-pfoot">
+      <span class="grow" id="gr-cl-note"></span>
+      <button type="button" class="gr-ghost" data-act="close" style="height:42px">닫기</button>
+      <button type="button" class="gr-primary" id="gr-cl-all" style="height:42px">모두 적용</button>
+    </div>
+  </section>
+</div>
+
+<!-- 내 장비 -->
+<div class="gr-overlay" id="gr-gear-ed" hidden>
+  <section class="gr-panel" role="dialog" aria-modal="true" aria-labelledby="gr-gd-title" style="width:min(520px,100%)">
+    <div class="gr-phead">
+      <button type="button" class="gr-x" data-act="close" aria-label="닫기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+      <div class="t"><small>내 장비 노트</small><h2 id="gr-gd-title">새 장비</h2></div>
+    </div>
+    <div class="gr-pbody">
+      <div class="gr-two">
+        <label class="gr-field" data-field="name"><span class="gr-label">장비 이름 <span class="req">*</span></span><input class="gr-input" id="gr-gd-name" placeholder="예: 도요 코바4 베이트릴"></label>
+        <div class="gr-field" data-field="kind"><span class="gr-label">종류</span><div id="gr-gd-kind"></div></div>
+      </div>
+      <label class="gr-field" data-field="memo"><span class="gr-label">메모</span><textarea class="gr-textarea" id="gr-gd-memo" rows="4" placeholder="기어비, 합사 호수, 쓰기 좋은 상황 등"></textarea></label>
+      <div class="gr-field"><span class="gr-label">연결된 구매</span><div id="gr-gd-purchases"></div></div>
+    </div>
+    <div class="gr-pfoot">
+      <button type="button" class="gr-danger" id="gr-gd-delete" hidden>삭제</button>
+      <span class="grow"></span>
+      <button type="button" class="gr-ghost" data-act="close" style="height:42px">취소</button>
+      <button type="button" class="gr-primary" id="gr-gd-save" style="height:42px">저장</button>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block admin_scripts %}
+<script>
+(function () {
+  const API = '/admin/api/fishing/gear';
+  const csrf = document.getElementById('csrf_token').value;
+  const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+  const THIS_YEAR = new Date().getFullYear();
+  const DRAFT = 'aft-gear-draft:';
+  const IGNORED = 'aft-gear-cleanup-ignored';
+  const GEAR_KINDS = ['릴', '로드', '라인', '에기', '소품', '의류', '기타'];
+  const CAT_COLORS = ['oklch(0.62 0.15 50)', 'oklch(0.76 0.13 65)', 'oklch(0.46 0.12 248)', 'oklch(0.66 0.09 240)', 'oklch(0.55 0.09 200)', 'oklch(0.5 0.12 320)', 'oklch(0.82 0.02 250)'];
+  const $ = (id) => document.getElementById(id);
+  const esc = AdmUI.esc;
+  const isMobile = () => window.matchMedia('(max-width: 767px)').matches;
+  const state = { year: String(THIS_YEAR), data: null, loading: false, openKey: null, f: { q: '', cat: '', shop: '' }, cleanup: null };
+
+  function won(n) { return n == null ? '-' : Number(n).toLocaleString('ko-KR'); }
+  function keyOf(o) { return o.date + '|' + (o.shop || ''); }
+  function parts(iso) { const [y, m, d] = iso.split('-').map(Number); return { y, m, d, dow: new Date(y, m - 1, d).getDay() }; }
+  async function api(url, opts) {
+    const o = Object.assign({ headers: {} }, opts || {});
+    if (o.body && typeof o.body !== 'string') { o.body = JSON.stringify(o.body); o.headers['Content-Type'] = 'application/json'; }
+    if (o.method && o.method !== 'GET') o.headers['X-CSRFToken'] = csrf;
+    let resp;
+    try { resp = await fetch(url, Object.assign({ cache: 'no-store' }, o)); } catch (e) { throw new Error('네트워크 연결을 확인해 주세요.'); }
+    let body = {};
+    try { body = await resp.json(); } catch (e) { /* 빈 응답 */ }
+    if (resp.status === 403) throw new Error('로그인이 만료됐어요. 다시 로그인해 주세요 (작성 내용은 임시저장돼 있어요).');
+    if (!resp.ok) { const err = new Error(body.error || '요청을 처리하지 못했습니다.'); err.field = body.field; throw err; }
+    return body;
+  }
+  function lsGet(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 무시 */ } }
+  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* 무시 */ } }
+
+  // ---------- 겹치는 화면 + 뒤로가기 ----------
+  const stack = [];
+  function openOverlay(id) { $(id).hidden = false; document.body.style.overflow = 'hidden'; stack.push(id); history.pushState({ grOverlay: id }, ''); }
+  function closeOverlay(id, fromPop) {
+    const i = stack.lastIndexOf(id); if (i < 0) return;
+    stack.splice(i, 1); $(id).hidden = true;
+    if (!stack.length) document.body.style.overflow = '';
+    if (!fromPop && history.state && history.state.grOverlay === id) history.back();
+  }
+  window.addEventListener('popstate', () => { const top = stack[stack.length - 1]; if (top) closeOverlay(top, true); });
+  document.querySelectorAll('.gr-overlay').forEach(ov => {
+    ov.addEventListener('click', (e) => { if (e.target === ov) requestClose(ov.id); });
+    ov.querySelectorAll('[data-act="close"]').forEach(b => b.addEventListener('click', () => requestClose(ov.id)));
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && stack.length) requestClose(stack[stack.length - 1]); });
+  async function requestClose(id) {
+    if (id === 'gr-editor' && ed.dirty) {
+      if (!(await showConfirm('작성 중인 주문을 버릴까요?', { confirmText: '버리기', danger: true }))) return;
+      lsDel(DRAFT + ed.key); ed.dirty = false;
+    }
+    closeOverlay(id, false);
+  }
+
+  // ---------- 필터(커스텀 드롭다운) ----------
+  const fCat = AdmUI.select($('gr-f-cat'), { placeholder: '카테고리 전체', ariaLabel: '카테고리', onChange: v => { state.f.cat = v; renderList(); } });
+  const fShop = AdmUI.select($('gr-f-shop'), { placeholder: '구매처 전체', ariaLabel: '구매처', onChange: v => { state.f.shop = v; renderList(); } });
+  $('gr-q').addEventListener('input', (e) => { state.f.q = e.target.value; renderList(); });
+
+  // ---------- 조회 ----------
+  async function load() {
+    state.loading = true; renderYears();
+    $('gr-list').innerHTML = AdmUI.loadingHtml();
+    $('gr-summary').innerHTML = '<div class="gr-mini-loading"><span class="adm-spin"></span> 요약 계산 중…</div>';
+    $('gr-gear').innerHTML = '<div class="gr-mini-loading"><span class="adm-spin"></span> 불러오는 중…</div>';
+    try {
+      state.data = await api(API + '?year=' + encodeURIComponent(state.year));
+      state.loading = false;
+      renderAll();
+      loadCleanup();
+    } catch (err) {
+      state.loading = false; renderYears();
+      $('gr-list').innerHTML = '<div class="gr-empty">' + esc(err.message) + ' <button type="button" class="gr-ghost" id="gr-retry">다시 시도</button></div>';
+      $('gr-retry').onclick = load;
+    }
+  }
+  async function loadCleanup() {
+    const b = $('gr-cleanup');
+    b.disabled = true; b.innerHTML = '<span class="adm-spin"></span><span><b>정리할 것 찾는 중…</b></span>';
+    try {
+      const body = await api(API + '/cleanup');
+      const ignored = lsGet(IGNORED) || [];
+      state.cleanup = body.suggestions.filter(s => !ignored.includes(sugKey(s)));
+      paintCleanupBanner();
+    } catch (err) { b.innerHTML = '<span><b>정리 제안을 불러오지 못했어요</b><small>' + esc(err.message) + '</small></span>'; }
+  }
+  function sugKey(s) { return s.kind === 'shop' ? 'shop:' + s.key + ':' + s.from.join(',') : 'cat:' + s.id + ':' + s.to; }
+  function paintCleanupBanner() {
+    const n = state.cleanup ? state.cleanup.length : 0, b = $('gr-cleanup');
+    const shops = (state.cleanup || []).filter(s => s.kind === 'shop').length;
+    b.disabled = !n;
+    b.innerHTML = n
+      ? '<span style="flex:1"><b>정리 제안 ' + n + '건</b><small>구매처 표기 ' + shops + ' · 카테고리 ' + (n - shops) + '</small></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.5 0.1 55)" stroke-width="2.2"><path d="m9 18 6-6-6-6"></path></svg>'
+      : '<span><b>정리할 표기가 없어요</b><small>구매처·카테고리가 깔끔하게 정리돼 있어요</small></span>';
+  }
+
+  // ---------- 그리기 ----------
+  function renderYears() {
+    const years = ((state.data && state.data.years) || [THIS_YEAR]).map(String).concat('all');
+    $('gr-years').innerHTML = years.map(y => {
+      const on = y === state.year;
+      return '<button type="button" class="gr-year' + (on ? ' on' : '') + '" data-year="' + y + '"' + (state.loading ? ' disabled' : '') + '>' +
+        (on && state.loading ? '<span class="adm-spin on-dark"></span>' : '') + (y === 'all' ? '전체' : y) + '</button>';
+    }).join('');
+  }
+  function renderAll() { renderYears(); renderFilters(); renderList(); renderSummary(); renderGear(); }
+  function renderFilters() {
+    fCat.setOptions([{ value: '', label: '카테고리 전체' }].concat(state.data.categories.map(c => ({ value: c, label: c }))));
+    fShop.setOptions([{ value: '', label: '구매처 전체' }].concat(state.data.shops.map(s => ({ value: s, label: s }))));
+    fCat.set(state.f.cat); fShop.set(state.f.shop);
+  }
+  function filteredOrders() {
+    const f = state.f, q = f.q.trim().toLowerCase();
+    return state.data.orders.filter(o => {
+      if (f.shop && o.shop !== f.shop) return false;
+      if (f.cat && !o.items.some(i => i.category === f.cat)) return false;
+      if (q && ![o.shop || '', ...o.items.map(i => i.item + ' ' + (i.memo || '') + ' ' + (i.gear_name || ''))].join(' ').toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }
+  function catChip(c) { return '<span class="gr-cat c-' + esc(c) + '">' + esc(c) + '</span>'; }
+  function orderRow(o) {
+    const p = parts(o.date), open = state.openKey === keyOf(o);
+    const cats = [...new Set(o.items.map(i => i.category))];
+    const first = o.items[0] ? o.items[0].item : '';
+    let html = '<div class="gr-order' + (open ? ' open' : '') + '"><button type="button" class="gr-orow" data-key="' + esc(keyOf(o)) + '" aria-expanded="' + open + '">' +
+      '<span class="c-date"><span class="gr-dtile' + (p.dow === 0 ? ' sun' : p.dow === 6 ? ' sat' : '') + '"><b>' + p.d + '</b><small>' +
+      (state.year === 'all' ? String(p.y).slice(2) + '.' : '') + p.m + '월 · ' + WEEK[p.dow] + '</small></span></span>' +
+      '<span class="c-shop gr-shop' + (o.shop ? '' : ' none') + '"><b>' + esc(o.shop || '구매처 미입력') + '</b><small>품목 ' + o.items.length + '개</small></span>' +
+      '<span class="c-what gr-what">' + cats.slice(0, 2).map(catChip).join('') + '<span class="t">' + esc(first) + (o.items.length > 1 ? ' 외 ' + (o.items.length - 1) : '') + '</span></span>' +
+      '<span class="c-amt gr-amount">' + won(o.total) + '</span>' +
+      '<span class="c-chev gr-chev" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="' + (open ? 'm18 15-6-6-6 6' : 'm6 9 6 6 6-6') + '"></path></svg></span></button>';
+    if (open) html += '<div class="gr-items">' + o.items.map(i => '<div class="ir">' + catChip(i.category) + '<span class="n">' + esc(i.item) +
+      (i.memo ? ' <span style="color:oklch(0.56 0.015 250);font-weight:560">· ' + esc(i.memo) + '</span>' : '') + '</span>' +
+      (i.gear_name ? '<span class="gr-link">' + esc(i.gear_name) + '</span>' : '<span></span>') + '<span class="p">' + won(i.price) + '</span></div>').join('') +
+      '<div class="foot"><button type="button" class="gr-ghost" data-edit="' + esc(keyOf(o)) + '">주문 수정</button></div></div>';
+    return html + '</div>';
+  }
+  function renderList() {
+    if (!state.data) return;
+    const orders = filteredOrders();
+    if (!orders.length) { $('gr-list').innerHTML = '<div class="gr-empty">' + (state.data.orders.length ? '조건에 맞는 구매가 없어요' : '아직 구매 기록이 없어요') + '</div>'; return; }
+    const groups = [];
+    orders.forEach(o => { const k = o.date.slice(0, 7); let g = groups[groups.length - 1]; if (!g || g.k !== k) { g = { k, orders: [] }; groups.push(g); } g.orders.push(o); });
+    $('gr-list').innerHTML = '<div class="gr-table">' + groups.map(g => {
+      const [y, m] = g.k.split('-').map(Number);
+      const total = g.orders.reduce((a, o) => a + o.total, 0), n = g.orders.reduce((a, o) => a + o.items.length, 0);
+      return '<div class="gr-month"><b>' + (state.year === 'all' ? y + '년 ' : '') + m + '월</b><span>주문 ' + g.orders.length + '건 · 품목 ' + n + '개</span><span class="amt">' + won(total) + '원</span></div>' +
+        g.orders.map(orderRow).join('');
+    }).join('') + '</div>';
+  }
+  function renderSummary() {
+    const s = state.data.summary;
+    const label = state.year === 'all' ? '전체' : state.year + '년';
+    if (!s.count) { $('gr-summary').innerHTML = '<div class="gr-card-head"><h2>' + label + ' 장비 지출</h2></div><div class="gr-mini-loading">아직 구매 기록이 없어요</div>'; return; }
+    const cats = s.by_category.slice(0, 6), rest = s.by_category.slice(6).reduce((a, c) => a + c.amount, 0);
+    const rows = cats.map((c, i) => ({ label: c.category, amount: c.amount, color: CAT_COLORS[i] }));
+    if (rest) rows.push({ label: '그 외', amount: rest, color: CAT_COLORS[6] });
+    $('gr-summary').innerHTML = '<div class="gr-card-head"><h2>' + label + ' 장비 지출</h2><span class="gr-total">' + won(s.total) + '원</span></div>' +
+      '<div class="gr-bar">' + rows.map(r => '<div style="width:' + (s.total ? r.amount / s.total * 100 : 0) + '%;background:' + r.color + '"></div>').join('') + '</div>' +
+      '<div class="gr-legend">' + rows.map(r => '<span><span class="gr-dot" style="background:' + r.color + '"></span>' + esc(r.label) +
+        ' <span style="color:oklch(0.58 0.015 250);font-weight:650">' + (s.total ? Math.round(r.amount / s.total * 100) : 0) + '%</span></span><b>' + won(r.amount) + '</b>').join('') + '</div>' +
+      (s.top_shops.length ? '<div class="gr-shops">' + s.top_shops.map((t, i) => '<span class="rank">' + (i + 1) + '</span><span>' + esc(t.shop) + '</span><span class="amt">' + won(t.amount) + '원 · ' + t.count + '개</span>').join('') + '</div>' : '');
+  }
+  function renderGear() {
+    const list = state.data.gear_items;
+    $('gr-gear').innerHTML = list.length ? list.map(g => '<button type="button" class="gr-gear-item" data-gear="' + g.id + '"><span class="top">' +
+      (g.kind ? '<span class="kind">' + esc(g.kind) + '</span>' : '') + '<span class="name">' + esc(g.name) + '</span></span>' +
+      (g.memo ? '<span class="memo">' + esc(g.memo) + '</span>' : '') +
+      '<span class="stat">' + (g.purchase_count ? '연결된 구매 ' + g.purchase_count + '건 · ' + won(g.purchase_total) + '원' : '연결된 구매 없음') + '</span></button>').join('')
+      : '<div class="gr-mini-loading">아직 등록한 장비가 없어요</div>';
+  }
+  // 목록을 다시 불러오지 않고 바뀐 주문만 반영(합계·요약은 화면에서 다시 계산)
+  function inYear(date) { return state.year === 'all' || date.slice(0, 4) === state.year; }
+  function recomputeSummary() {
+    const items = state.data.orders.flatMap(o => o.items.map(i => Object.assign({ shop: o.shop }, i)));
+    const cat = {}, shop = {};
+    items.forEach(i => {
+      cat[i.category] = cat[i.category] || { category: i.category, amount: 0, count: 0 }; cat[i.category].amount += i.price || 0; cat[i.category].count++;
+      if (i.shop) { shop[i.shop] = shop[i.shop] || { shop: i.shop, amount: 0, count: 0 }; shop[i.shop].amount += i.price || 0; shop[i.shop].count++; }
+    });
+    const byAmt = (a, b) => b.amount - a.amount;
+    state.data.summary = { total: items.reduce((a, i) => a + (i.price || 0), 0), count: items.length,
+                           by_category: Object.values(cat).sort(byAmt), top_shops: Object.values(shop).sort(byAmt).slice(0, 5) };
+  }
+  function replaceOrder(oldKey, order) {
+    state.data.orders = state.data.orders.filter(o => keyOf(o) !== oldKey && (!order || keyOf(o) !== keyOf(order)));
+    if (order && inYear(order.date)) state.data.orders.push(order);
+    state.data.orders.sort((a, b) => b.date.localeCompare(a.date) || (a.shop || '').localeCompare(b.shop || ''));
+    if (order && order.shop && !state.data.shops.includes(order.shop)) state.data.shops.push(order.shop);
+    recomputeSummary();
+  }
+  async function refreshGearCard() {
+    $('gr-gear').innerHTML = '<div class="gr-mini-loading"><span class="adm-spin"></span> 갱신 중…</div>';
+    try { state.data.gear_items = (await api(API + '/items')).items; } catch (e) { /* 다음 조회 때 반영 */ }
+    renderGear();
+  }
+
+  // ---------- 목록 이벤트 ----------
+  $('gr-years').addEventListener('click', (e) => { const b = e.target.closest('[data-year]'); if (!b || state.loading || b.dataset.year === state.year) return; state.year = b.dataset.year; state.openKey = null; load(); });
+  $('gr-list').addEventListener('click', (e) => {
+    const find = (k) => state.data.orders.find(o => keyOf(o) === k);
+    let b;
+    if ((b = e.target.closest('[data-edit]'))) return openEditor(find(b.dataset.edit));
+    if ((b = e.target.closest('[data-key]'))) {
+      if (isMobile()) return openEditor(find(b.dataset.key));
+      state.openKey = state.openKey === b.dataset.key ? null : b.dataset.key; renderList();
+    }
+  });
+  document.querySelectorAll('[data-act="new"]').forEach(b => b.addEventListener('click', () => openEditor(null)));
+
+  // ---------- 주문 입력 · 수정 ----------
+  const ed = { order: null, key: 'new', dirty: false, lines: [], widgets: [] };
+  const edDate = AdmUI.calendar($('gr-ed-date'), { onChange: () => touched() });
+  function emptyLine() { return { id: null, item: '', category: '', price: '', gear_id: '', memo: '' }; }
+  function openEditor(order) {
+    ed.order = order || null; ed.key = order ? keyOf(order) : 'new';
+    let v = order ? { date: order.date, shop: order.shop || '', lines: order.items.map(i => ({ id: i.id, item: i.item, category: i.category, price: i.price == null ? '' : won(i.price), gear_id: i.gear_id || '', memo: i.memo || '' })) }
+                  : { date: AdmUI.todayIso(), shop: '', lines: [emptyLine()] };
+    const draft = lsGet(DRAFT + ed.key);
+    if (draft) { v = draft; setTimeout(() => showToast('임시저장된 내용을 불러왔어요', { type: 'info' }), 60); }
+    edDate.set(v.date); $('gr-ed-shop').value = v.shop; ed.lines = v.lines; ed.dirty = !!draft;
+    $('gr-ed-kind').textContent = order ? '주문 수정' : '구매 추가';
+    $('gr-ed-title').textContent = order ? (order.shop || '구매처 미입력') + ' · ' + AdmUI.fmtDate(order.date) : '새 주문';
+    $('gr-ed-delete').hidden = !order; $('gr-ed-note').textContent = '';
+    document.querySelectorAll('#gr-editor .err').forEach(el => el.classList.remove('err'));
+    renderLines(); openOverlay('gr-editor');
+    if (!order && !draft) setTimeout(() => { const f = document.querySelector('#gr-lines .i-item'); if (f) f.focus(); }, 80);
+  }
+  function renderLines() {
+    ed.widgets.forEach(w => w.destroy()); ed.widgets = [];
+    const cats = state.data ? state.data.categories : [];
+    const gears = [{ value: '', label: '내 장비 연결 안 함' }].concat((state.data ? state.data.gear_items : []).map(g => ({ value: String(g.id), label: g.name, hint: g.kind || '' })));
+    $('gr-lines').innerHTML = ed.lines.map((l, i) => '<div class="gr-line" data-i="' + i + '">' +
+      '<input class="gr-input i-item" data-k="item" value="' + esc(l.item) + '" placeholder="품목명 (예: 요즈리 틴셀 3호 수박 2개)" aria-label="품목명">' +
+      '<div class="i-cat"></div>' +
+      '<input class="gr-input i-price" data-k="price" inputmode="numeric" value="' + esc(l.price) + '" placeholder="가격" aria-label="가격">' +
+      '<button type="button" class="i-rm" data-rm="1" aria-label="이 품목 지우기"' + (ed.lines.length === 1 ? ' disabled' : '') + '>×</button>' +
+      '<div class="i-gear"></div></div>').join('');
+    document.querySelectorAll('#gr-lines .gr-line').forEach(row => {
+      const l = ed.lines[Number(row.dataset.i)];
+      ed.widgets.push(AdmUI.select(row.querySelector('.i-cat'), { options: cats.map(c => ({ value: c, label: c })), value: l.category, placeholder: '카테고리',
+        allowCustom: true, customPrompt: '카테고리를 입력하세요', ariaLabel: '카테고리', onChange: v => { l.category = v; touched(); } }));
+      ed.widgets.push(AdmUI.select(row.querySelector('.i-gear'), { options: gears, value: String(l.gear_id || ''), placeholder: '내 장비 연결 안 함',
+        ariaLabel: '내 장비', onChange: v => { l.gear_id = v; touched(); } }));
+    });
+    paintTotal();
+  }
+  function paintTotal() { $('gr-ed-total').textContent = won(ed.lines.reduce((a, l) => a + (parseInt(String(l.price).replace(/[^\d]/g, ''), 10) || 0), 0)) + '원'; }
+  let draftTimer = null;
+  function touched() {
+    ed.dirty = true; paintTotal(); clearTimeout(draftTimer);
+    draftTimer = setTimeout(() => { lsSet(DRAFT + ed.key, { date: edDate.value, shop: $('gr-ed-shop').value, lines: ed.lines }); $('gr-ed-note').textContent = '임시저장됨'; }, 400);
+  }
+  $('gr-lines').addEventListener('input', (e) => { const row = e.target.closest('[data-i]'); if (!row || !e.target.dataset.k) return; ed.lines[Number(row.dataset.i)][e.target.dataset.k] = e.target.value; touched(); });
+  $('gr-lines').addEventListener('focusout', (e) => {
+    if (!e.target.classList.contains('i-price')) return;
+    const n = e.target.value.replace(/[^\d]/g, ''); e.target.value = n ? Number(n).toLocaleString('ko-KR') : '';
+    ed.lines[Number(e.target.closest('[data-i]').dataset.i)].price = e.target.value;
+  });
+  $('gr-lines').addEventListener('click', (e) => { const b = e.target.closest('[data-rm]'); if (!b || ed.lines.length === 1) return; ed.lines.splice(Number(b.closest('[data-i]').dataset.i), 1); renderLines(); touched(); });
+  $('gr-add-line').addEventListener('click', () => { const last = ed.lines[ed.lines.length - 1]; ed.lines.push(Object.assign(emptyLine(), { category: last ? last.category : '' })); renderLines(); touched();
+    setTimeout(() => { const rows = document.querySelectorAll('#gr-lines .i-item'); rows[rows.length - 1].focus(); }, 30); });
+  // 구매처 자동완성(과거 구매처 - 이미 받은 목록에서 걸러 서버 호출 없음)
+  $('gr-ed-shop').addEventListener('input', () => { touched(); paintShopList(); });
+  $('gr-ed-shop').addEventListener('focus', paintShopList);
+  function paintShopList() {
+    const q = $('gr-ed-shop').value.trim().toLowerCase(), list = $('gr-shop-list');
+    const hits = (state.data ? state.data.shops : []).filter(s => s.toLowerCase().includes(q) && s !== $('gr-ed-shop').value).slice(0, 8);
+    list.innerHTML = hits.map(s => '<button type="button" data-shop="' + esc(s) + '">' + esc(s) + '</button>').join(''); list.hidden = !hits.length;
+  }
+  $('gr-shop-list').addEventListener('click', (e) => { const b = e.target.closest('[data-shop]'); if (!b) return; $('gr-ed-shop').value = b.dataset.shop; $('gr-shop-list').hidden = true; touched(); });
+  document.addEventListener('click', (e) => { if (!e.target.closest('[data-field="shop"]')) $('gr-shop-list').hidden = true; });
+
+  $('gr-ed-save').addEventListener('click', async () => {
+    const btn = $('gr-ed-save'); if (btn.disabled) return;
+    document.querySelectorAll('#gr-editor .err').forEach(el => el.classList.remove('err'));
+    const payload = {
+      original: ed.order ? { date: ed.order.date, shop: ed.order.shop } : null, date: edDate.value, shop: $('gr-ed-shop').value,
+      items: ed.lines.filter(l => l.id || String(l.item).trim() || String(l.price).trim()).map(l => ({ id: l.id, item: l.item, category: l.category,
+        price: String(l.price).replace(/[^\d]/g, ''), gear_id: l.gear_id || null, memo: l.memo })),
+    };
+    AdmUI.btnBusy(btn, true, '저장 중…');
+    try {
+      const body = await api(API + '/orders', { method: 'POST', body: payload });
+      lsDel(DRAFT + ed.key); ed.dirty = false; closeOverlay('gr-editor', false);
+      replaceOrder(ed.order ? keyOf(ed.order) : null, body.order);
+      state.openKey = null; renderFilters(); renderList(); renderSummary();
+      showToast((ed.order ? '주문을 수정했어요' : '구매를 추가했어요') + (inYear(body.order.date) ? '' : ' · ' + body.order.date.slice(0, 4) + '년 목록에 있어요'), { type: 'success' });
+      refreshGearCard(); loadCleanup();
+    } catch (err) {
+      const el = err.field && document.querySelector('#gr-editor [data-field="' + err.field + '"]');
+      if (el) el.classList.add('err');
+      showToast(err.message, { type: 'error' });
+    } finally { AdmUI.btnBusy(btn, false); }
+  });
+  $('gr-ed-delete').addEventListener('click', async () => {
+    const o = ed.order; if (!o) return;
+    if (!(await showConfirm((o.shop || '구매처 미입력') + ' ' + AdmUI.fmtDate(o.date) + ' 주문(품목 ' + o.items.length + '개)을 삭제할까요?', { confirmText: '삭제', danger: true }))) return;
+    AdmUI.busy(true, '삭제하는 중…');
+    try {
+      await api(API + '/orders', { method: 'DELETE', body: { date: o.date, shop: o.shop } });
+      lsDel(DRAFT + ed.key); ed.dirty = false; closeOverlay('gr-editor', false);
+      replaceOrder(keyOf(o), null); state.openKey = null; renderList(); renderSummary();
+      showToast('주문을 삭제했어요', { type: 'success' });
+      refreshGearCard();
+    } catch (err) { showToast(err.message, { type: 'error' }); }
+    finally { AdmUI.busy(false); }
+  });
+
+  // ---------- 정리 제안 ----------
+  $('gr-cleanup').addEventListener('click', () => { if (!state.cleanup || !state.cleanup.length) return; renderCleanup(); openOverlay('gr-clean'); });
+  function renderCleanup() {
+    const list = state.cleanup;
+    $('gr-cl-note').textContent = list.length + '건';
+    $('gr-cl-body').innerHTML = list.length ? list.map((s, i) => '<div class="gr-sug" data-i="' + i + '"><div class="d">' +
+      (s.kind === 'shop' ? '<small>구매처 표기 통일 · ' + s.count + '개 품목</small>' + s.from.map(esc).join(', ') + ' → <b>' + esc(s.to) + '</b>'
+                         : '<small>카테고리 제안</small>' + esc(s.item) + ' · 기타 → <b>' + esc(s.to) + '</b>') +
+      '</div><div class="acts"><button type="button" class="gr-ghost" data-ignore="' + i + '">무시</button><button type="button" class="gr-ghost" data-apply="' + i + '" style="color:oklch(0.4 0.12 248);border-color:oklch(0.85 0.05 248)">적용</button></div></div>').join('')
+      : '<div class="gr-mini-loading">남은 제안이 없어요</div>';
+    $('gr-cl-all').disabled = !list.length;
+  }
+  function payloadFor(list) {
+    return { shops: list.filter(s => s.kind === 'shop').map(s => ({ from: s.from, to: s.to })),
+             categories: list.filter(s => s.kind === 'category').map(s => ({ id: s.id, category: s.to })) };
+  }
+  async function applySuggestions(list, btn) {
+    btn ? AdmUI.btnBusy(btn, true, '적용 중…') : AdmUI.busy(true, '정리하는 중…');
+    try {
+      const body = await api(API + '/cleanup', { method: 'POST', body: payloadFor(list) });
+      state.cleanup = state.cleanup.filter(s => !list.includes(s));
+      showToast(body.changed + '개 품목을 정리했어요', { type: 'success' });
+      renderCleanup(); paintCleanupBanner();
+      if (!state.cleanup.length) closeOverlay('gr-clean', false);
+      load();  // 구매처·카테고리가 여러 주문에 걸쳐 바뀌므로 목록을 다시 조회(스피너 표시)
+    } catch (err) { showToast(err.message, { type: 'error' }); if (btn) AdmUI.btnBusy(btn, false); }
+    finally { if (!btn) AdmUI.busy(false); }
+  }
+  $('gr-cl-body').addEventListener('click', (e) => {
+    let b;
+    if ((b = e.target.closest('[data-apply]'))) return applySuggestions([state.cleanup[Number(b.dataset.apply)]], b);
+    if ((b = e.target.closest('[data-ignore]'))) {
+      const s = state.cleanup[Number(b.dataset.ignore)];
+      lsSet(IGNORED, (lsGet(IGNORED) || []).concat(sugKey(s)));
+      state.cleanup = state.cleanup.filter(x => x !== s); renderCleanup(); paintCleanupBanner();
+    }
+  });
+  $('gr-cl-all').addEventListener('click', async () => {
+    if (!(await showConfirm('제안 ' + state.cleanup.length + '건을 모두 적용할까요?', { confirmText: '모두 적용' }))) return;
+    applySuggestions(state.cleanup.slice(), null);
+  });
+
+  // ---------- 내 장비 노트 ----------
+  let gearId = null;
+  const gdKind = AdmUI.select($('gr-gd-kind'), { options: GEAR_KINDS.map(k => ({ value: k, label: k })), placeholder: '종류 선택', allowCustom: true, customPrompt: '종류를 입력하세요', ariaLabel: '종류' });
+  $('gr-gear').addEventListener('click', (e) => { const b = e.target.closest('[data-gear]'); if (b) openGear(Number(b.dataset.gear)); });
+  $('gr-gear-add').addEventListener('click', () => openGear(null));
+  async function openGear(id) {
+    gearId = id;
+    const g = id ? state.data.gear_items.find(x => x.id === id) : null;
+    $('gr-gd-title').textContent = g ? g.name : '새 장비';
+    $('gr-gd-name').value = g ? g.name : ''; gdKind.set(g ? g.kind : ''); $('gr-gd-memo').value = g ? (g.memo || '') : '';
+    $('gr-gd-delete').hidden = !id;
+    $('gr-gd-purchases').innerHTML = id ? '<div class="gr-mini-loading"><span class="adm-spin"></span> 연결된 구매 불러오는 중…</div>' : '<div class="gr-mini-loading">저장한 뒤 주문 입력 화면에서 품목을 이 장비에 연결할 수 있어요</div>';
+    openOverlay('gr-gear-ed');
+    if (!id) { setTimeout(() => $('gr-gd-name').focus(), 60); return; }
+    try {
+      const item = (await api(API + '/items/' + id)).item;
+      $('gr-gd-purchases').innerHTML = item.purchases.length ? '<div class="gr-purchases">' + item.purchases.map(p => '<div><span>' + esc(p.date) + '</span><span>' +
+        esc((p.shop ? p.shop + ' · ' : '') + p.item) + '</span><b>' + won(p.price) + '</b></div>').join('') + '</div>' : '<div class="gr-mini-loading">연결된 구매가 없어요</div>';
+    } catch (err) { $('gr-gd-purchases').innerHTML = '<div class="gr-mini-loading">' + esc(err.message) + '</div>'; }
+  }
+  $('gr-gd-save').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    AdmUI.btnBusy(btn, true, '저장 중…');
+    try {
+      const body = await api(API + '/items' + (gearId ? '/' + gearId : ''), { method: gearId ? 'PUT' : 'POST',
+        body: { name: $('gr-gd-name').value, kind: gdKind.value, memo: $('gr-gd-memo').value } });
+      const summary = { id: body.item.id, name: body.item.name, kind: body.item.kind, memo: body.item.memo, purchase_count: body.item.purchase_count, purchase_total: body.item.purchase_total };
+      state.data.gear_items = state.data.gear_items.filter(g => g.id !== summary.id).concat(summary).sort((a, b) => a.name.localeCompare(b.name));
+      if (gearId) state.data.orders.forEach(o => o.items.forEach(i => { if (i.gear_id === summary.id) i.gear_name = summary.name; }));
+      closeOverlay('gr-gear-ed', false); renderGear(); renderList();
+      showToast(gearId ? '장비를 수정했어요' : '장비를 추가했어요', { type: 'success' });
+    } catch (err) {
+      const el = err.field && document.querySelector('#gr-gear-ed [data-field="' + err.field + '"]'); if (el) el.classList.add('err');
+      showToast(err.message, { type: 'error' });
+    } finally { AdmUI.btnBusy(btn, false); }
+  });
+  $('gr-gd-delete').addEventListener('click', async () => {
+    if (!gearId || !(await showConfirm('이 장비 노트를 삭제할까요? 구매 기록은 남고 연결만 풀려요.', { confirmText: '삭제', danger: true }))) return;
+    AdmUI.busy(true, '삭제하는 중…');
+    try {
+      await api(API + '/items/' + gearId, { method: 'DELETE' });
+      state.data.gear_items = state.data.gear_items.filter(g => g.id !== gearId);
+      state.data.orders.forEach(o => o.items.forEach(i => { if (i.gear_id === gearId) { i.gear_id = null; i.gear_name = null; } }));
+      closeOverlay('gr-gear-ed', false); renderGear(); renderList();
+      showToast('장비 노트를 삭제했어요', { type: 'success' });
+    } catch (err) { showToast(err.message, { type: 'error' }); }
+    finally { AdmUI.busy(false); }
+  });
+
+  load();
+})();
+</script>
+{% endblock %}

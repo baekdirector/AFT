@@ -122,3 +122,154 @@ def search_ships_api():
     if guard:
         return guard
     return _no_store(jsonify({'ships': trip_service.search_ships(request.args.get('q', ''))}))
+
+
+# ---------------------------------------------------------------------------
+# 장비 구매 - docs/superpowers/specs/2026-10-01-fishing-log-gear-design.md
+# ---------------------------------------------------------------------------
+
+def _gear_error(exc):
+    return jsonify({'error': str(exc), 'field': exc.field}), 400
+
+
+def _year_arg(today):
+    raw = request.args.get('year')
+    if raw in (None, ''):
+        return today.year, None
+    if raw == 'all':
+        return None, None
+    if raw.isdigit():
+        return int(raw), None
+    return None, (jsonify({'error': '연도가 올바르지 않습니다.', 'field': 'year'}), 400)
+
+
+@fishing_views.route('/admin/fishing/gear')
+def gear_page():
+    if not session.get('admin_authed'):
+        return redirect(url_for('views.admin_page'))
+    from forms import AdminLoginForm
+    return render_template('gear.html', active_menu='fishing_gear', form=AdminLoginForm())
+
+
+@fishing_views.route('/admin/api/fishing/gear', methods=['GET'])
+def list_gear_api():
+    guard = _read_guard()
+    if guard:
+        return guard
+    from services.fishing_log import gear_service
+    today = trip_service.kst_today()
+    year, error = _year_arg(today)
+    if error:
+        return error
+    return _no_store(jsonify(gear_service.list_gear(year, today)))
+
+
+@fishing_views.route('/admin/api/fishing/gear/orders', methods=['POST'])
+def save_gear_order_api():
+    guard = _write_guard()
+    if guard:
+        return guard
+    from services.fishing_log import gear_service
+    try:
+        order = gear_service.save_order(request.get_json(silent=True) or {})
+    except gear_service.GearValidationError as exc:
+        return _gear_error(exc)
+    return jsonify({'order': order})
+
+
+@fishing_views.route('/admin/api/fishing/gear/orders', methods=['DELETE'])
+def delete_gear_order_api():
+    guard = _write_guard()
+    if guard:
+        return guard
+    from services.fishing_log import gear_service
+    data = request.get_json(silent=True) or {}
+    try:
+        deleted = gear_service.delete_order(data.get('date'), data.get('shop'))
+    except gear_service.GearValidationError as exc:
+        return _gear_error(exc)
+    return jsonify({'deleted': deleted})
+
+
+@fishing_views.route('/admin/api/fishing/gear/cleanup', methods=['GET'])
+def gear_cleanup_api():
+    guard = _read_guard()
+    if guard:
+        return guard
+    from services.fishing_log import gear_service
+    return _no_store(jsonify({'suggestions': gear_service.cleanup_suggestions()}))
+
+
+@fishing_views.route('/admin/api/fishing/gear/cleanup', methods=['POST'])
+def apply_gear_cleanup_api():
+    guard = _write_guard()
+    if guard:
+        return guard
+    from services.fishing_log import gear_service
+    try:
+        changed = gear_service.apply_cleanup(request.get_json(silent=True) or {})
+    except gear_service.GearValidationError as exc:
+        return _gear_error(exc)
+    return jsonify({'changed': changed})
+
+
+@fishing_views.route('/admin/api/fishing/gear/items', methods=['GET'])
+def list_gear_items_api():
+    guard = _read_guard()
+    if guard:
+        return guard
+    from services.fishing_log import gear_service
+    return _no_store(jsonify({'items': gear_service.gear_items_summary()}))
+
+
+@fishing_views.route('/admin/api/fishing/gear/items', methods=['POST'])
+def create_gear_item_api():
+    guard = _write_guard()
+    if guard:
+        return guard
+    from services.fishing_log import gear_service
+    try:
+        item = gear_service.save_gear_item(None, request.get_json(silent=True) or {})
+    except gear_service.GearValidationError as exc:
+        return _gear_error(exc)
+    return jsonify({'item': item}), 201
+
+
+@fishing_views.route('/admin/api/fishing/gear/items/<int:gear_id>', methods=['GET'])
+def get_gear_item_api(gear_id):
+    guard = _read_guard()
+    if guard:
+        return guard
+    from services.fishing_log import gear_service
+    gear = gear_service.get_gear_item(gear_id)
+    if gear is None:
+        return jsonify({'error': '장비를 찾을 수 없습니다.'}), 404
+    return _no_store(jsonify({'item': gear_service.gear_item_dict(gear)}))
+
+
+@fishing_views.route('/admin/api/fishing/gear/items/<int:gear_id>', methods=['PUT'])
+def update_gear_item_api(gear_id):
+    guard = _write_guard()
+    if guard:
+        return guard
+    from services.fishing_log import gear_service
+    try:
+        item = gear_service.save_gear_item(gear_id, request.get_json(silent=True) or {})
+    except gear_service.GearValidationError as exc:
+        return _gear_error(exc)
+    except gear_service.GearNotFound:
+        return jsonify({'error': '장비를 찾을 수 없습니다.'}), 404
+    return jsonify({'item': item})
+
+
+@fishing_views.route('/admin/api/fishing/gear/items/<int:gear_id>', methods=['DELETE'])
+def delete_gear_item_api(gear_id):
+    guard = _write_guard()
+    if guard:
+        return guard
+    from services.fishing_log import gear_service
+    try:
+        gear_service.delete_gear_item(gear_id)
+    except gear_service.GearNotFound:
+        return jsonify({'error': '장비를 찾을 수 없습니다.'}), 404
+    return jsonify({'deleted': gear_id})

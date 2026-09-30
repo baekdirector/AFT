@@ -88,6 +88,7 @@
   .ft-seg button { height: 38px; padding: 0 12px; border-radius: 9px; border: none; background: transparent; font-size: 12.5px; font-weight: 680; color: var(--muted); white-space: nowrap; }
   .ft-seg button.on { background: #fff; color: var(--ink); font-weight: 760; box-shadow: 0 1px 3px oklch(0.3 0.02 250 / 0.12); }
   .ft-filter-btn { display: none; }
+  .ft-toolbar .ft-dd { width: 150px; flex: none; }
 
   /* ---- 다가오는 출조 ---- */
   .ft-section-title { display: flex; align-items: baseline; gap: 10px; margin: 18px 0 10px; }
@@ -244,7 +245,7 @@
     .ft-head { align-items: flex-start; }
     .ft-head .ft-primary.add-top { display: none; }
     .ft-toolbar { padding: 0; background: transparent; border: none; }
-    .ft-toolbar .ft-seg, .ft-toolbar .ft-select { display: none; }
+    .ft-toolbar .ft-seg, .ft-toolbar .ft-dd { display: none; }
     .ft-search { background: #fff; border: 1px solid var(--line); }
     .ft-filter-btn { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 13px; border-radius: 14px; background: #fff; border: 1px solid var(--line); font-size: 13.5px; font-weight: 720; color: oklch(0.35 0.02 250); }
     .ft-filter-btn .n[hidden] { display: none; }
@@ -274,6 +275,7 @@
     .ft-panel-foot { padding: 12px 16px 18px; }
     .ft-panel-foot .ft-primary { flex: 1; height: 52px; font-size: 15px; }
     .ft-catch-row { grid-template-columns: 64px minmax(0, 1fr) 44px 54px 44px 30px; }
+    .ft-two { grid-template-columns: minmax(0, 1fr); }
   }
   @media (min-width: 768px) { .ft-fab { display: none; } }
 </style>
@@ -298,9 +300,9 @@
       <input type="search" id="ft-q" placeholder="선사 · 항구 · 비고 검색" aria-label="검색">
     </label>
     <div class="ft-seg" id="ft-status" role="group" aria-label="상태"></div>
-    <select class="ft-select" id="ft-f-species" aria-label="어종"></select>
-    <select class="ft-select" id="ft-f-with" aria-label="동행"></select>
-    <select class="ft-select" id="ft-f-rating" aria-label="재이용"></select>
+    <div class="ft-dd" id="ft-f-species"></div>
+    <div class="ft-dd" id="ft-f-with"></div>
+    <div class="ft-dd" id="ft-f-rating"></div>
     <button type="button" class="ft-filter-btn" data-act="filter">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M7 12h10M10 18h4"></path></svg>필터<span class="n" id="ft-filter-n" hidden></span></button>
   </div>
@@ -332,28 +334,7 @@
       </div>
       <div class="ft-two">
         <div class="ft-field" data-field="trip_date"><span class="ft-label">날짜 <span class="req">*</span></span>
-          <div class="date-picker-wrap">
-            <button type="button" id="ed-date-btn" class="date-btn" aria-expanded="false" aria-haspopup="true">
-              <span class="date-btn-icon">📅</span><span id="ed-date-label">날짜 선택</span><span class="date-btn-caret">⌄</span>
-            </button>
-            <div id="ed-cal" class="cal-popover" style="display:none;" role="dialog" aria-label="날짜 선택 달력">
-              <div class="cal-popover-header">
-                <button type="button" id="ed-cal-prev" class="cal-nav-btn" aria-label="이전 달">‹</button>
-                <div id="ed-cal-month" class="cal-month-label"></div>
-                <button type="button" id="ed-cal-next" class="cal-nav-btn" aria-label="다음 달">›</button>
-              </div>
-              <div class="cal-weekdays">
-                <div class="cal-weekday cal-weekday-sun">일</div><div class="cal-weekday">월</div><div class="cal-weekday">화</div>
-                <div class="cal-weekday">수</div><div class="cal-weekday">목</div><div class="cal-weekday">금</div><div class="cal-weekday cal-weekday-sat">토</div>
-              </div>
-              <div id="ed-cal-days" class="cal-days"></div>
-              <div class="cal-popover-foot">
-                <button type="button" id="ed-cal-today" class="cal-foot-btn">오늘로</button>
-                <button type="button" id="ed-cal-ok" class="cal-foot-btn cal-foot-btn-primary">확인</button>
-              </div>
-            </div>
-          </div>
-          <input type="hidden" id="ed-date">
+          <div id="ed-date-cal"></div>
         </div>
         <label class="ft-field" data-field="cost"><span class="ft-label">비용 (원)</span>
           <input class="ft-input" type="text" inputmode="numeric" id="ed-cost" placeholder="0" style="text-align:right"></label>
@@ -614,16 +595,21 @@
         (state.loading ? ' disabled' : '') + '>' + (on && state.loading ? SPIN_DARK : '') + (y === 'all' ? '전체' : y) + '</button>';
     }).join('');
   }
+  // 필터 드롭다운 - admin_layout 의 공통 커스텀 드롭다운(화면 기본 규칙)
+  const fSpecies = AdmUI.select($('ft-f-species'), { placeholder: '어종 전체', ariaLabel: '어종', onChange: v => { state.f.species = v; render(); } });
+  const fWith = AdmUI.select($('ft-f-with'), { placeholder: '동행 전체', ariaLabel: '동행', onChange: v => { state.f.with = v; render(); } });
+  const fRating = AdmUI.select($('ft-f-rating'), { placeholder: '재이용 전체', ariaLabel: '재이용', onChange: v => { state.f.rating = v; render(); } });
   function renderFilters() {
     const s = state.data.summary, total = s.planned + s.done + s.cancelled;
     const seg = [['all', '전체 ' + total], ['planned', '예정 ' + s.planned], ['done', '완료 ' + s.done], ['cancelled', '취소 ' + s.cancelled]]
       .filter(([v]) => v !== 'planned' || showUpcoming());
     $('ft-status').innerHTML = seg.map(([v, l]) => '<button type="button" data-status="' + v + '" class="' + (state.f.status === v ? 'on' : '') + '">' + l + '</button>').join('');
     const used = (key) => [...new Set(state.data.trips.flatMap(t => key === 'species' ? t.species : (t.companions ? [t.companions] : [])))];
-    const opt = (v, l, cur) => '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>';
-    $('ft-f-species').innerHTML = opt('', '어종 전체', state.f.species) + used('species').map(v => opt(v, v, state.f.species)).join('');
-    $('ft-f-with').innerHTML = opt('', '동행 전체', state.f.with) + used('with').map(v => opt(v, v, state.f.with)).join('');
-    $('ft-f-rating').innerHTML = opt('', '재이용 전체', state.f.rating) + ['again', 'maybe', 'never'].map(v => opt(v, RATE_LABEL[v], state.f.rating)).join('') + opt('none', '미평가', state.f.rating);
+    const opts = (all, list) => [{ value: '', label: all }].concat(list.map(v => ({ value: v, label: v })));
+    fSpecies.setOptions(opts('어종 전체', used('species'))); fSpecies.set(state.f.species);
+    fWith.setOptions(opts('동행 전체', used('with'))); fWith.set(state.f.with);
+    fRating.setOptions([{ value: '', label: '재이용 전체' }].concat(['again', 'maybe', 'never'].map(v => ({ value: v, label: RATE_LABEL[v] })), [{ value: 'none', label: '미평가' }]));
+    fRating.set(state.f.rating);
     const n = activeFilterCount(), badge = $('ft-filter-n');
     badge.hidden = !n; badge.textContent = n;
   }
@@ -721,8 +707,6 @@
     load();
   });
   $('ft-status').addEventListener('click', (e) => { const b = e.target.closest('[data-status]'); if (!b) return; state.f.status = b.dataset.status; render(); });
-  [['ft-f-species', 'species'], ['ft-f-with', 'with'], ['ft-f-rating', 'rating']].forEach(([id, k]) =>
-    $(id).addEventListener('change', (e) => { state.f[k] = e.target.value; render(); }));
   $('ft-q').addEventListener('input', (e) => { state.f.q = e.target.value; render(); });
   $('ft-list').addEventListener('click', (e) => {
     const t = (id) => state.data.trips.find(x => x.id === Number(id));
@@ -826,37 +810,7 @@
                    companions: '', species: [], tags: [], catches: [], saving: false };
 
   // 날짜: 예약현황 화면의 달력 팝오버와 같은 컴포넌트(모양·동작)를 쓴다.
-  const cal = (function () {
-    const btn = $('ed-date-btn'), pop = $('ed-cal'), input = $('ed-date'), label = $('ed-date-label'), days = $('ed-cal-days'), month = $('ed-cal-month');
-    let ym = todayIso().slice(0, 7);
-    function shift(n) { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); ym = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); render(); }
-    function updateLabel() { label.textContent = input.value ? fmtDate(input.value, true) : '날짜 선택'; }
-    function render() {
-      const [y, m] = ym.split('-').map(Number);
-      month.textContent = y + '년 ' + m + '월';
-      const first = new Date(y, m - 1, 1).getDay(), len = new Date(y, m, 0).getDate(), today = todayIso();
-      let html = '';
-      for (let i = 0; i < first; i++) html += '<button type="button" class="cal-day" disabled></button>';
-      for (let d = 1; d <= len; d++) {
-        const iso = y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0'), dow = (first + d - 1) % 7;
-        html += '<button type="button" class="cal-day' + (dow === 0 ? ' cal-day-sun' : dow === 6 ? ' cal-day-sat' : '') + (iso === today ? ' cal-day-today' : '') +
-          (iso === input.value ? ' cal-day-selected' : '') + '" data-iso="' + iso + '">' + d + '</button>';
-      }
-      days.innerHTML = html;
-    }
-    function open() { ym = (input.value || todayIso()).slice(0, 7); render(); pop.style.display = ''; btn.classList.add('is-open'); btn.setAttribute('aria-expanded', 'true'); }
-    function close() { pop.style.display = 'none'; btn.classList.remove('is-open'); btn.setAttribute('aria-expanded', 'false'); }
-    function pick(iso) { input.value = iso; updateLabel(); render(); dateChanged(); }
-    btn.addEventListener('click', (e) => { e.stopPropagation(); pop.style.display === 'none' ? open() : close(); });
-    $('ed-cal-prev').addEventListener('click', () => shift(-1));
-    $('ed-cal-next').addEventListener('click', () => shift(1));
-    $('ed-cal-today').addEventListener('click', () => { ym = todayIso().slice(0, 7); pick(todayIso()); });
-    $('ed-cal-ok').addEventListener('click', close);
-    days.addEventListener('click', (e) => { const d = e.target.closest('[data-iso]'); if (d) { pick(d.dataset.iso); close(); } });
-    pop.addEventListener('click', (e) => e.stopPropagation());
-    document.addEventListener('click', close);
-    return { set(v) { input.value = v || ''; updateLabel(); close(); }, close };
-  })();
+  const cal = AdmUI.calendar($('ed-date-cal'), { onChange: () => dateChanged() });
 
   function openEditor(trip) {
     editor.trip = trip || null;
@@ -905,7 +859,7 @@
     $('ed-ship-hint').textContent = locked ? '기록된 선사 · 지역/항구 자동' : (editor.ship && editor.ship.boat_id ? 'AFT 배 목록과 연결' : '');
   }
   function snapshot() {
-    return { trip_date: $('ed-date').value, status: editor.status, ship_name: $('ed-ship').value, ship_region: $('ed-region').value,
+    return { trip_date: cal.value, status: editor.status, ship_name: $('ed-ship').value, ship_region: $('ed-region').value,
              ship_port: $('ed-port').value, boat_id: editor.ship && editor.ship.boat_id || null, cost: $('ed-cost').value,
              companions: editor.companions, species: editor.species, tags: editor.tags, catches: editor.catches,
              rating: editor.rating, memo: $('ed-memo').value, prepaid: $('ed-prepaid').checked, shipLocked: !!(editor.ship && editor.ship.locked) };
@@ -917,7 +871,7 @@
     draftTimer = setTimeout(() => { draftSet(editor.key, snapshot()); $('ed-draft-note').textContent = '임시저장됨'; }, 400);
   }
   function dateChanged() {
-    if (!editor.trip) editor.status = $('ed-date').value > todayIso() ? 'planned' : 'done';
+    if (!editor.trip) editor.status = cal.value > todayIso() ? 'planned' : 'done';
     renderEditorBits(); touched();
   }
 
@@ -943,38 +897,30 @@
     const sug = state.data ? state.data.suggestions.species : [];
     return [...new Set(editor.species.concat(sug, editor.catches.map(c => c.species).filter(Boolean)))];
   }
-  function selectHtml(key, value, options) {
-    const label = key === 'who' ? '누구' : '어종';
-    return '<select class="ft-select" data-k="' + key + '" aria-label="' + label + '">' +
-      (value ? '' : '<option value="" selected>' + label + '</option>') +
-      options.map(o => '<option value="' + esc(o) + '"' + (o === value ? ' selected' : '') + '>' + esc(o) + '</option>').join('') +
-      '<option value="__custom">직접 입력…</option></select>';
-  }
+  let catchWidgets = [];
   function renderCatches() {
     if (!editor.catches.length && editor.status === 'done' && !(editor.trip && editor.trip.catch_raw)) {
       const sp = editor.species.length ? editor.species : ['쭈꾸미', '갑오징어'];
       editor.catches = sp.slice(0, 2).map(x => ({ who: '나', species: x, count: '' }));
     }
-    const people = catchPeople(), species = catchSpecies();
+    catchWidgets.forEach(w => w.destroy()); catchWidgets = [];
+    const toOpts = (list) => list.map(v => ({ value: v, label: v }));
+    const people = toOpts(catchPeople()), species = toOpts(catchSpecies());
     $('ed-catches').innerHTML = editor.catches.length ? editor.catches.map((c, i) =>
-      '<div class="ft-catch-row" data-i="' + i + '">' +
-      selectHtml('who', c.who, people) + selectHtml('species', c.species, species) +
+      '<div class="ft-catch-row" data-i="' + i + '"><div class="c-who"></div><div class="c-sp"></div>' +
       '<button type="button" class="step" data-step="-1" aria-label="한 마리 빼기">−</button>' +
       '<input type="text" inputmode="numeric" class="num" value="' + esc(c.count) + '" data-k="count" aria-label="마릿수">' +
       '<button type="button" class="step" data-step="1" aria-label="한 마리 더하기">+</button>' +
       '<button type="button" class="rm" data-rm="1" aria-label="이 줄 지우기">×</button></div>').join('')
       : '<div class="ft-raw" style="margin:0">아직 조과가 없어요. 아래 버튼으로 추가하세요.</div>';
+    document.querySelectorAll('#ed-catches .ft-catch-row').forEach(row => {
+      const c = editor.catches[Number(row.dataset.i)];
+      catchWidgets.push(AdmUI.select(row.querySelector('.c-who'), { options: people, value: c.who, placeholder: '누구', ariaLabel: '누구',
+        allowCustom: true, customPrompt: '누가 잡았나요? (예: 마눌)', onChange: v => { c.who = v.slice(0, 20); touched(); } }));
+      catchWidgets.push(AdmUI.select(row.querySelector('.c-sp'), { options: species, value: c.species, placeholder: '어종', ariaLabel: '어종',
+        allowCustom: true, customPrompt: '어종을 입력하세요', onChange: v => { c.species = v.slice(0, 20); touched(); } }));
+    });
   }
-  $('ed-catches').addEventListener('change', async (e) => {
-    const sel = e.target.closest('select'); const row = e.target.closest('[data-i]'); if (!sel || !row) return;
-    const c = editor.catches[Number(row.dataset.i)], key = sel.dataset.k;
-    if (sel.value === '__custom') {
-      const v = await askText(key === 'who' ? '누가 잡았나요? (예: 마눌)' : '어종을 입력하세요');
-      if (v && v.trim()) c[key] = v.trim().slice(0, 20);
-      renderCatches();
-    } else { c[key] = sel.value; }
-    touched();
-  });
   $('ed-skunk').addEventListener('click', () => {
     const sp = editor.species[0] || (editor.catches[0] && editor.catches[0].species) || '기타';
     if (editor.catches.length) editor.catches.forEach(c => { c.count = 0; if (!c.species) c.species = sp; if (!c.who) c.who = '나'; });
