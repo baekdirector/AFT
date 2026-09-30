@@ -222,7 +222,8 @@ def test_ship_map_overrides_extraction():
     wb = _book([_row(datetime(2026, 5, 2), '솔로', '가항', '가시', '25시 수평선호 (새벽)', '쭈꾸미', '선비')])
     result = parse_workbook(wb, TODAY, ship_map={'25시 수평선호 (새벽)': '25시 수평선호'})
     assert result.trips[0].ship_name == '25시 수평선호'
-    assert result.trips[0].memo is None
+    # 보정표로 선사명을 정해도 원문의 나머지 정보(출항 시각 등)는 잃지 않는다
+    assert result.trips[0].memo == '25시 수평선호 (새벽)'
 
 
 def test_header_mismatch_skips_sheet():

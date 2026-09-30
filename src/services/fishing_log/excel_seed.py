@@ -259,7 +259,8 @@ def _parse_year_sheet(ws, today, ship_map, result, trip_ship_hints):
             result.warnings.append(SeedIssue(sheet, row_no, '출조인데 내용(선사) 칸이 비어 건너뜀'))
             continue
         if ship_map and content in ship_map:
-            ship_name, rest = ship_map[content], None
+            # 보정표로 선사명만 정하고, 원문(출항 시각 등)은 메모에 그대로 남긴다
+            ship_name, rest = ship_map[content], content
         else:
             ship_name, rest = extract_ship_name(content)
         catch_raw = _text(catch)
