@@ -7,10 +7,12 @@
 #}
 {% block admin_content %}
 <style>
-  .ft { --ink: oklch(0.22 0.02 250); --muted: oklch(0.52 0.015 250); --line: oklch(0.925 0.008 240); --soft: oklch(0.97 0.005 240);
-        --accent: oklch(0.46 0.12 248); --accent-soft: oklch(0.955 0.03 248); --grad: linear-gradient(145deg, oklch(0.5 0.13 248), oklch(0.4 0.11 238));
-        color: var(--ink); font-feature-settings: 'tnum' 1; padding: 24px clamp(14px, 2.4vw, 32px) 120px; max-width: 1240px; box-sizing: border-box; }
-  .ft button { font: inherit; cursor: pointer; }
+  /* 입력 패널·상세·필터 시트는 .ft 밖(body 직속)에 있으므로 변수를 함께 정의한다 */
+  .ft, .ft-overlay { --ink: oklch(0.22 0.02 250); --muted: oklch(0.52 0.015 250); --line: oklch(0.925 0.008 240); --soft: oklch(0.97 0.005 240);
+        --accent: oklch(0.46 0.12 248); --accent-soft: oklch(0.955 0.03 248); --grad: linear-gradient(145deg, oklch(0.5 0.13 248), oklch(0.4 0.11 238)); color: oklch(0.22 0.02 250); }
+  .ft { font-feature-settings: 'tnum' 1; padding: 24px clamp(14px, 2.4vw, 32px) 120px; max-width: 1240px; box-sizing: border-box; }
+  .ft button, .ft-overlay button { font: inherit; cursor: pointer; }
+  .ft-raw-cell { display: block; color: var(--muted); font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ft-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
   .ft-head h1 { margin: 0; font-size: clamp(22px, 2.8vw, 27px); font-weight: 800; letter-spacing: -1px; }
   .ft-head p { margin: 5px 0 0; font-size: 12.5px; font-weight: 560; color: var(--muted); }
@@ -146,6 +148,7 @@
     .ft-toolbar .ft-seg, .ft-toolbar .ft-select { display: none; }
     .ft-search { background: #fff; border: 1px solid var(--line); height: 44px; }
     .ft-filter-btn { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 13px; border-radius: 12px; background: #fff; border: 1px solid var(--line); font-size: 13.5px; font-weight: 720; color: oklch(0.35 0.02 250); }
+    .ft-filter-btn .n[hidden] { display: none; }
     .ft-filter-btn .n { min-width: 18px; height: 18px; border-radius: 99px; background: var(--accent); color: #fff; font-size: 11px; display: grid; place-items: center; }
     .ft-upcoming { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 2px 16px 6px; }
     .ft-upcoming .ft-card { flex: none; width: 236px; scroll-snap-align: start; }
@@ -473,14 +476,17 @@
   function rowHtml(t) {
     const open = state.openId === t.id;
     const badge = t.needs_result ? '<span class="ft-badge-need">결과 입력 필요</span>' : t.status === 'cancelled' ? '<span class="ft-badge-cancel">취소</span>' : '';
-    const catches = catchText(t.catches) || (t.status === 'cancelled' ? '-' : (t.catch_raw ? '원문만 있음' : '-'));
+    // 숫자로 인식 못 한 엑셀 조과는 원문 앞부분을 흐리게 보여준다(상세에서 전문)
+    const parsed = catchText(t.catches);
+    const catchCell = parsed ? esc(parsed) : (t.catch_raw && t.status !== 'cancelled'
+      ? '<span class="ft-raw-cell" title="' + esc(t.catch_raw) + '">' + esc(t.catch_raw.length > 28 ? t.catch_raw.slice(0, 28) + '…' : t.catch_raw) + '</span>' : '-');
     let html = '<div class="ft-item' + (open ? ' open' : '') + '">' +
       '<button type="button" class="ft-row" data-row="' + t.id + '" aria-expanded="' + open + '">' +
       '<span class="c-date">' + fmtDate(t.trip_date, state.year === 'all') + '</span>' +
       '<span class="c-ship"><b>' + esc(t.ship.name) + '</b>' + badge + '<span class="sub">' + esc([t.ship.region, t.ship.port].filter(Boolean).join(' · ')) + '</span></span>' +
       '<span class="c-species ft-chips">' + speciesChips(t.species) + '</span>' +
       '<span class="c-with">' + esc(t.companions || '-') + '</span>' +
-      '<span class="c-catch">' + esc(catches) + '</span>' +
+      '<span class="c-catch" style="min-width:0">' + catchCell + '</span>' +
       '<span class="c-cost" style="text-align:right">' + won(t.cost) + '</span>' +
       '<span class="c-rate">' + rateHtml(t) + '</span>' +
       '<span class="c-chev ft-chev" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="' + (open ? 'm18 15-6-6-6 6' : 'm6 9 6 6 6-6') + '"></path></svg></span>' +
