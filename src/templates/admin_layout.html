@@ -1,0 +1,179 @@
+{% extends "base_design.html" %}
+{#
+  admin 공통 레이아웃 - 상단 바 + LNB("서비스 관리" / "내 낚시 기록").
+  docs/superpowers/specs/2026-09-30-fishing-log-trips-design.md §2.1.
+  base_design.html 은 건드리지 않고 이 위에 얹는다(스트랭글러).
+
+  - 자식 템플릿: {% block admin_content %}, {% block admin_scripts %}
+  - active_menu: 'ports' | 'access' | 'watch' | 'fishing_trips' (서버에서 강조할 항목)
+  - authed 가 False 로 넘어오면(로그인 전 /admin) 상단 바·LNB 없이 내용만 그린다.
+#}
+{% block content %}
+{% set adm_shell = authed is not defined or authed %}
+<style>
+  :root { --adm-ink: oklch(0.22 0.02 250); --adm-accent: oklch(0.46 0.12 248); --adm-line: oklch(0.925 0.008 240); }
+  body { background: oklch(0.975 0.006 250); }
+  .adm-topbar {
+    position: sticky; top: 0; z-index: 60; background: oklch(1 0 0 / 0.92); backdrop-filter: blur(20px) saturate(160%);
+    border-bottom: 1px solid oklch(0.92 0.008 240);
+  }
+  .adm-topbar-inner { height: 58px; padding: 0 clamp(10px, 2vw, 24px); display: flex; align-items: center; gap: 11px; color: var(--adm-ink); }
+  .adm-menu-btn {
+    display: none; width: 44px; height: 44px; margin-left: -6px; border: none; border-radius: 12px; background: transparent;
+    color: oklch(0.3 0.02 250); cursor: pointer; place-items: center;
+  }
+  .adm-logo {
+    width: 32px; height: 32px; flex: none; border-radius: 11px; display: grid; place-items: center; color: #fff;
+    background: linear-gradient(150deg, oklch(0.52 0.12 248), oklch(0.4 0.1 235));
+  }
+  .adm-title-main { font-size: 14px; font-weight: 800; letter-spacing: -0.4px; line-height: 1.25; white-space: nowrap; }
+  .adm-title-sub { font-size: 10.5px; font-weight: 600; color: oklch(0.56 0.012 250); line-height: 1.3; white-space: nowrap; }
+  .adm-spacer { flex: 1 1 0; min-width: 0; }
+  .adm-site-links { display: flex; gap: 4px; padding: 4px; background: oklch(0.94 0.008 250); border-radius: 13px; flex: none; }
+  .adm-site-links a {
+    height: 34px; padding: 0 13px; border-radius: 10px; display: flex; align-items: center; font-size: 13px; font-weight: 700;
+    color: oklch(0.52 0.015 255); text-decoration: none; white-space: nowrap;
+  }
+  .adm-site-links a:hover { color: var(--adm-accent); background: #fff; }
+  .adm-pill { font-size: 10px; font-weight: 800; letter-spacing: 0.4px; padding: 4px 8px; border-radius: 7px; color: #fff; background: oklch(0.48 0.14 288); flex: none; }
+  .adm-logout button {
+    height: 34px; padding: 0 13px; border-radius: 10px; border: 1px solid oklch(0.91 0.008 240); background: #fff; cursor: pointer;
+    font: inherit; font-size: 12.5px; font-weight: 660; color: oklch(0.42 0.02 250); white-space: nowrap;
+  }
+
+  .adm-shell { display: flex; align-items: flex-start; min-height: calc(100vh - 59px); }
+  .adm-lnb {
+    position: sticky; top: 59px; flex: none; width: 240px; box-sizing: border-box; height: calc(100vh - 59px); overflow-y: auto;
+    padding: 8px 12px 20px; background: #fff; border-right: 1px solid var(--adm-line); color: var(--adm-ink);
+  }
+  .adm-lnb-group { padding: 14px 12px 6px; font-size: 11px; font-weight: 780; letter-spacing: 0.3px; color: oklch(0.56 0.015 250); }
+  .adm-lnb a, .adm-lnb .adm-lnb-soon {
+    display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 11px;
+    font-size: 13.5px; font-weight: 680; color: oklch(0.4 0.02 250); text-decoration: none;
+  }
+  .adm-lnb a:hover { background: oklch(0.97 0.01 248); color: var(--adm-accent); }
+  .adm-lnb a.active {
+    background: oklch(0.955 0.03 248); color: oklch(0.38 0.13 248); font-weight: 780; box-shadow: inset 3px 0 0 var(--adm-accent);
+  }
+  .adm-lnb .adm-lnb-soon { color: oklch(0.62 0.012 250); cursor: default; }
+  .adm-soon-pill {
+    margin-left: auto; font-size: 10.5px; font-weight: 740; padding: 2px 7px; border-radius: 99px;
+    background: oklch(0.955 0.006 240); color: oklch(0.58 0.015 250);
+  }
+  .adm-lnb-site { display: none; }
+  .adm-main { flex: 1 1 0; min-width: 0; }
+  .adm-backdrop { display: none; }
+
+  @media (max-width: 1023px) {
+    .adm-menu-btn { display: grid; }
+    .adm-site-links, .adm-title-sub { display: none; }
+    .adm-lnb {
+      position: fixed; top: 0; left: 0; bottom: 0; height: 100vh; width: 300px; z-index: 90;
+      transform: translateX(-102%); transition: transform 0.22s ease; box-shadow: 20px 0 50px oklch(0.2 0.02 250 / 0.2);
+      padding-top: 12px;
+    }
+    .adm-lnb a, .adm-lnb .adm-lnb-soon { min-height: 48px; font-size: 15px; }
+    .adm-lnb-site { display: flex; flex-wrap: wrap; gap: 6px; padding: 16px 12px 0; margin-top: 12px; border-top: 1px solid var(--adm-line); }
+    .adm-lnb-site a { min-height: 36px; padding: 0 12px; border-radius: 10px; background: oklch(0.96 0.006 240); font-size: 13px; }
+    body.adm-drawer-open .adm-lnb { transform: none; }
+    body.adm-drawer-open .adm-backdrop { display: block; position: fixed; inset: 0; z-index: 80; background: oklch(0.2 0.02 250 / 0.46); }
+  }
+  @media (max-width: 520px) {
+    .adm-pill { display: none; }
+  }
+</style>
+
+{% if adm_shell %}
+<header class="adm-topbar">
+  <div class="adm-topbar-inner">
+    <button type="button" class="adm-menu-btn" id="adm-menu-btn" aria-label="관리자 메뉴 열기" aria-controls="adm-lnb" aria-expanded="false">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+    </button>
+    <div class="adm-logo" aria-hidden="true">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"></path><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.94 5.34 2.81 7.76"></path><path d="M19 13V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6"></path></svg>
+    </div>
+    <div>
+      <div class="adm-title-main">AFT 관리자</div>
+      <div class="adm-title-sub">admin · 관리자 권한</div>
+    </div>
+    <div class="adm-spacer"></div>
+    <nav class="adm-site-links" aria-label="사이트 화면">
+      <a href="{{ url_for('views.weather') }}">날씨</a>
+      <a href="{{ url_for('views.index') }}">배 목록</a>
+      <a href="{{ url_for('views.status') }}">예약현황</a>
+      <a href="{{ url_for('views.watches') }}">알림</a>
+    </nav>
+    <span class="adm-pill">ADMIN</span>
+    <form class="adm-logout" method="post" action="{{ url_for('views.admin_logout') }}">
+      <button type="submit">로그아웃</button>
+    </form>
+  </div>
+</header>
+
+<div class="adm-shell">
+  <nav class="adm-lnb" id="adm-lnb" aria-label="관리자 메뉴">
+    <div class="adm-lnb-group">서비스 관리</div>
+    <a href="{{ url_for('views.admin_page') }}#ports" data-admin-tab="ports" class="{{ 'active' if active_menu == 'ports' }}">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="5" r="3"></circle><path d="M12 22V8M5 12H2a10 10 0 0 0 20 0h-3"></path></svg>항구 정보</a>
+    <a href="{{ url_for('views.admin_page') }}#access" data-admin-tab="access" class="{{ 'active' if active_menu == 'access' }}">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"></path></svg>접속 이력</a>
+    <a href="{{ url_for('views.admin_page') }}#watch" data-admin-tab="watch" class="{{ 'active' if active_menu == 'watch' }}">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>알림 등록</a>
+
+    <div class="adm-lnb-group">내 낚시 기록</div>
+    <span class="adm-lnb-soon">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="M7 15l4-4 3 3 5-6"></path></svg>개요<span class="adm-soon-pill">준비 중</span></span>
+    <a href="{{ url_for('fishing_views.trips_page') }}" class="{{ 'active' if active_menu == 'fishing_trips' }}"{% if active_menu == 'fishing_trips' %} aria-current="page"{% endif %}>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 12c.94-3.46 4.94-6 8.5-6 3.56 0 6.06 2.54 7 6-.94 3.47-3.44 6-7 6s-7.56-2.53-8.5-6Z"></path><path d="M7 10.67C7 8 5.58 5.97 2.73 5.5c-1 1.5-1 5 .23 6.5-1.24 1.5-1.24 5-.23 6.5C5.58 18.03 7 16 7 13.33"></path></svg>출조 기록</a>
+    <span class="adm-lnb-soon">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path><path d="M3 6h18M16 10a4 4 0 0 1-8 0"></path></svg>장비 구매<span class="adm-soon-pill">준비 중</span></span>
+    <span class="adm-lnb-soon">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"></path><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.94 5.34 2.81 7.76"></path></svg>선사 노트<span class="adm-soon-pill">준비 중</span></span>
+
+    <div class="adm-lnb-site">
+      <a href="{{ url_for('views.weather') }}">날씨</a>
+      <a href="{{ url_for('views.index') }}">배 목록</a>
+      <a href="{{ url_for('views.status') }}">예약현황</a>
+      <a href="{{ url_for('views.watches') }}">알림</a>
+    </div>
+  </nav>
+  <div class="adm-backdrop" id="adm-backdrop"></div>
+  <main class="adm-main">
+{% endif %}
+{% block admin_content %}{% endblock %}
+{% if adm_shell %}
+  </main>
+</div>
+<script>
+// 모바일 서랍 메뉴 - 햄버거/배경/ESC/뒤로가기로 닫는다(안드로이드 뒤로가기가 페이지를
+// 벗어나지 않고 메뉴만 닫히도록 열 때 history 한 칸을 쌓는다).
+(function () {
+  const btn = document.getElementById('adm-menu-btn');
+  const backdrop = document.getElementById('adm-backdrop');
+  const lnb = document.getElementById('adm-lnb');
+  if (!btn) return;
+  function isOpen() { return document.body.classList.contains('adm-drawer-open'); }
+  function open() {
+    if (isOpen()) return;
+    document.body.classList.add('adm-drawer-open');
+    btn.setAttribute('aria-expanded', 'true');
+    history.pushState({ admDrawer: true }, '');
+  }
+  function close(fromPop) {
+    if (!isOpen()) return;
+    document.body.classList.remove('adm-drawer-open');
+    btn.setAttribute('aria-expanded', 'false');
+    if (!fromPop && history.state && history.state.admDrawer) history.back();
+  }
+  btn.addEventListener('click', open);
+  backdrop.addEventListener('click', () => close(false));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(false); });
+  window.addEventListener('popstate', () => close(true));
+  lnb.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+    document.body.classList.remove('adm-drawer-open');
+  }));
+})();
+</script>
+{% endif %}
+{% block admin_scripts %}{% endblock %}
+{% endblock %}

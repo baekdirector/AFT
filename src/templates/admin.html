@@ -1,6 +1,6 @@
-{% extends "base_design.html" %}
+{% extends "admin_layout.html" %}
 {% block title %}관리자{% endblock %}
-{% block content %}
+{% block admin_content %}
 <style>
   :root {
     --ink: oklch(0.22 0.02 250);
@@ -23,6 +23,9 @@
     color: #fff; font-size: 14.5px; font-weight: 700; cursor: pointer; margin-top: 6px;
   }
   .admin-login-card button:hover { filter: brightness(1.05); }
+  .admin-remember { display: flex; align-items: center; gap: 8px; margin: 4px 0 12px; font-size: 13px; font-weight: 650; color: oklch(0.4 0.02 250); cursor: pointer; }
+  .admin-remember input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .admin-remember small { font-weight: 560; color: oklch(0.56 0.015 250); }
 
   /* ================= 콘솔 셸 ================= */
   .admin-console { min-height: 100vh; color: var(--ink); font-feature-settings: 'tnum' 1; }
@@ -73,10 +76,9 @@
 
   .admin-body { max-width: 1320px; margin: 0 auto; padding: clamp(14px, 2.2vw, 24px) clamp(14px, 2.4vw, 28px) 60px; }
 
-  .admin-tabs {
-    display: flex; gap: 6px; overflow-x: auto; padding: 4px; background: #fff;
-    border: 1px solid oklch(0.925 0.008 240); border-radius: 14px; margin-bottom: clamp(14px, 2vw, 22px); scrollbar-width: none;
-  }
+  /* 탭 줄은 공통 레이아웃의 LNB(#ports/#access/#watch)로 대체됐다 - 탭 전환
+     로직(loadTabData)은 그대로 두고 줄만 숨긴다. */
+  .admin-tabs { display: none !important; }
   .admin-tab {
     display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 15px; border-radius: 11px;
     border: none; cursor: pointer; font-size: 13.5px; font-weight: 730; letter-spacing: -0.3px; flex: none;
@@ -494,32 +496,14 @@
         <label for="admin-password">비밀번호</label>
         {{ form.password(id="admin-password", type="password", autocomplete="current-password") }}
       </div>
+      <label class="admin-remember">
+        {{ form.remember(id="admin-remember") }}
+        <span>로그인 유지 <small>(이 기기에서 30일)</small></span>
+      </label>
       <button type="submit">로그인</button>
     </form>
   </div>
 {% else %}
-  <header class="admin-topbar">
-    <div class="admin-topbar-inner">
-      <div class="admin-logo">🛥️</div>
-      <div style="min-width:0;">
-        <div class="admin-title-main">AFT 관리자</div>
-        <div class="admin-title-sub">admin · 관리자 권한</div>
-      </div>
-      <div style="flex:1 1 0; min-width:0;"></div>
-      <div class="aux-links">
-        <a href="{{ url_for('views.weather') }}">🌊 날씨</a>
-      </div>
-      <nav class="header-nav">
-        <a href="{{ url_for('views.index') }}" class="header-nav-btn">배 목록</a>
-        <a href="{{ url_for('views.status') }}" class="header-nav-btn">예약현황</a>
-        <a href="{{ url_for('views.watches') }}" class="header-nav-btn">알림</a>
-      </nav>
-      <span class="admin-pill">ADMIN</span>
-      <form class="admin-logout-form" method="post" action="{{ url_for('views.admin_logout') }}">
-        <button type="submit">로그아웃</button>
-      </form>
-    </div>
-  </header>
 
   {{ form.csrf_token }}
 
@@ -720,16 +704,22 @@
   const loadedTabs = new Set(); // 이미 한 번 불러온 탭은 탭 전환만으로 다시 안 부른다
 
   // ---- 탭 전환 ----
+  // 공통 레이아웃의 LNB 가 /admin#ports|#access|#watch 로 탭을 고른다(같은 페이지에서
+  // LNB 를 누르면 hashchange). 숨겨 둔 옛 탭 버튼도 같은 함수를 부른다.
+  const ADMIN_TABS = ['ports', 'access', 'watch'];
+  function activateTab(tab) {
+    if (!ADMIN_TABS.includes(tab)) tab = 'ports';
+    document.querySelectorAll('.admin-tab').forEach(b => b.classList.toggle('active', b.getAttribute('data-tab') === tab));
+    document.querySelectorAll('[data-admin-tab]').forEach(a => a.classList.toggle('active', a.getAttribute('data-admin-tab') === tab));
+    document.getElementById('tab-ports').hidden = tab !== 'ports';
+    document.getElementById('tab-access').hidden = tab !== 'access';
+    document.getElementById('tab-watch').hidden = tab !== 'watch';
+    loadTabData(tab);
+  }
   document.querySelectorAll('.admin-tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.admin-tab').forEach(b => b.classList.toggle('active', b === btn));
-      const tab = btn.getAttribute('data-tab');
-      document.getElementById('tab-ports').hidden = tab !== 'ports';
-      document.getElementById('tab-access').hidden = tab !== 'access';
-      document.getElementById('tab-watch').hidden = tab !== 'watch';
-      loadTabData(tab);
-    });
+    btn.addEventListener('click', () => { location.hash = btn.getAttribute('data-tab'); });
   });
+  window.addEventListener('hashchange', () => activateTab(location.hash.slice(1)));
 
   // ---- 항구 정보 탭 ----
   // renderPortsTab(ports)를 호출하면 #port-rows를 통째로 다시 그린다(로딩
@@ -1686,7 +1676,8 @@
   document.getElementById('watch-refresh-btn').addEventListener('click', () => loadWatchTab());
 
   render();
-  loadTabData('ports'); // 기본 활성 탭 - 로그인 직후 이것만 바로 불러온다
+  // 주소의 해시가 가리키는 탭(없으면 항구 정보)만 로그인 직후 바로 불러온다
+  activateTab(location.hash.slice(1));
 })();
 </script>
 {% endif %}

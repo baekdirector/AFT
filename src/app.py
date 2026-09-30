@@ -2,6 +2,7 @@ from flask import Flask, render_template
 import webbrowser
 import os
 import sys
+from datetime import timedelta
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
@@ -126,6 +127,8 @@ def create_app(test_config=None):
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url or f'sqlite:///{sqlite_path}'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'change_this_in_production')
+    # admin "로그인 유지" 체크 시 세션 쿠키 수명(session.permanent=True 일 때만 적용)
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
     app.config['DEBUG_LOGGING_ENABLED'] = False
     # /api/status 의 배별 동시 조회 스레드 수.
     #
@@ -175,6 +178,9 @@ def create_app(test_config=None):
 
     from routes.watch_views import watch_views
     app.register_blueprint(watch_views, url_prefix='')
+
+    from routes.fishing_views import fishing_views
+    app.register_blueprint(fishing_views, url_prefix='')
 
     import models
 

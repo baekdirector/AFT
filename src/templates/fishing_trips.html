@@ -1,0 +1,858 @@
+{% extends "admin_layout.html" %}
+{% block title %}출조 기록 · AFT 관리자{% endblock %}
+{#
+  내 낚시 기록 > 출조 기록 - docs/superpowers/specs/2026-09-30-fishing-log-trips-design.md §4.
+  PC: 목록 표 + 오른쪽 입력 패널. 모바일: 카드 목록 + 전체 화면 상세/입력 + 필터 바텀시트.
+  겹치는 화면은 history 한 칸을 쌓아 안드로이드 뒤로가기로 닫는다.
+#}
+{% block admin_content %}
+<style>
+  .ft { --ink: oklch(0.22 0.02 250); --muted: oklch(0.52 0.015 250); --line: oklch(0.925 0.008 240); --soft: oklch(0.97 0.005 240);
+        --accent: oklch(0.46 0.12 248); --accent-soft: oklch(0.955 0.03 248); --grad: linear-gradient(145deg, oklch(0.5 0.13 248), oklch(0.4 0.11 238));
+        color: var(--ink); font-feature-settings: 'tnum' 1; padding: 24px clamp(14px, 2.4vw, 32px) 120px; max-width: 1240px; box-sizing: border-box; }
+  .ft button { font: inherit; cursor: pointer; }
+  .ft-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .ft-head h1 { margin: 0; font-size: clamp(22px, 2.8vw, 27px); font-weight: 800; letter-spacing: -1px; }
+  .ft-head p { margin: 5px 0 0; font-size: 12.5px; font-weight: 560; color: var(--muted); }
+  .ft-head-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .ft-year { height: 34px; padding: 0 13px; border-radius: 99px; border: 1px solid oklch(0.92 0.008 240); background: #fff; font-size: 12.5px; font-weight: 700; color: oklch(0.4 0.02 250); }
+  .ft-year.on { background: var(--accent); border-color: transparent; color: #fff; box-shadow: 0 3px 10px oklch(0.46 0.12 248 / 0.26); }
+  .ft-primary { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 40px; padding: 0 16px; border-radius: 12px; border: none;
+                background: var(--grad); color: #fff; font-size: 13px; font-weight: 740; box-shadow: 0 6px 16px oklch(0.45 0.12 248 / 0.28); white-space: nowrap; }
+  .ft-primary:disabled { opacity: 0.6; cursor: default; }
+  .ft-ghost { height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 12.5px; font-weight: 700; color: oklch(0.38 0.02 250); }
+
+  .ft-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; background: #fff; border: 1px solid var(--line); border-radius: 13px; margin-bottom: 16px; }
+  .ft-search { flex: 1 1 220px; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 10px; background: var(--soft); min-width: 0; }
+  .ft-search input { flex: 1; min-width: 0; border: none; background: transparent; outline: none; font: inherit; font-size: 13.5px; font-weight: 560; }
+  .ft-seg { display: flex; gap: 3px; padding: 3px; background: oklch(0.955 0.006 240); border-radius: 10px; }
+  .ft-seg button { height: 32px; padding: 0 11px; border-radius: 8px; border: none; background: transparent; font-size: 12.5px; font-weight: 680; color: var(--muted); white-space: nowrap; }
+  .ft-seg button.on { background: #fff; color: var(--ink); font-weight: 760; box-shadow: 0 1px 3px oklch(0.3 0.02 250 / 0.12); }
+  .ft-select { height: 38px; padding: 0 10px; border-radius: 10px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font: inherit; font-size: 12.5px; font-weight: 680; color: oklch(0.38 0.02 250); }
+  .ft-filter-btn { display: none; }
+
+  .ft-section-title { display: flex; align-items: baseline; gap: 10px; margin: 18px 0 10px; }
+  .ft-section-title h2 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -0.4px; }
+  .ft-section-title span { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .ft-upcoming { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .ft-card { padding: 14px 15px; border-radius: 16px; background: #fff; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 7px; text-align: left; color: inherit; }
+  .ft-card.soon { border-color: oklch(0.8 0.07 248); box-shadow: 0 8px 20px oklch(0.46 0.12 248 / 0.14); }
+  .ft-card-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .ft-dday { font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 99px; background: oklch(0.955 0.02 248); color: oklch(0.4 0.12 248); }
+  .ft-card.soon .ft-dday { background: var(--accent); color: #fff; }
+  .ft-date { font-size: 12px; font-weight: 700; color: var(--muted); }
+  .ft-ship { font-size: 17px; font-weight: 800; letter-spacing: -0.5px; }
+  .ft-where { font-size: 12.5px; font-weight: 620; color: oklch(0.48 0.015 250); }
+  .ft-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid oklch(0.95 0.006 240); padding-top: 8px; font-size: 13px; font-weight: 760; }
+  .ft-chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 7px; font-size: 11.5px; font-weight: 720; background: oklch(0.96 0.006 240); color: oklch(0.42 0.015 250); white-space: nowrap; }
+  .ft-chip.sp-octo { background: oklch(0.95 0.035 320); color: oklch(0.42 0.12 320); }
+  .ft-chip.sp-jju { background: oklch(0.96 0.04 55); color: oklch(0.47 0.13 50); }
+  .ft-chip.sp-gap { background: oklch(0.95 0.03 200); color: oklch(0.4 0.08 200); }
+  .ft-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .ft-empty { padding: 26px; border-radius: 16px; border: 1px dashed oklch(0.88 0.01 240); text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); background: #fff; }
+
+  .ft-table { border-radius: 18px; background: #fff; border: 1px solid var(--line); overflow: hidden; }
+  .ft-row-head, .ft-row { display: grid; grid-template-columns: 104px minmax(0, 1.3fr) 130px 70px minmax(0, 1.5fr) 96px 104px 34px; gap: 12px; align-items: center; padding: 11px 18px; }
+  .ft-row-head { background: oklch(0.978 0.004 240); font-size: 10.5px; font-weight: 740; color: oklch(0.54 0.015 250); padding-top: 9px; padding-bottom: 9px; }
+  .ft-item { border-top: 1px solid oklch(0.965 0.006 240); }
+  .ft-item.open { background: oklch(0.975 0.012 248); }
+  .ft-row { cursor: pointer; font-size: 13px; width: 100%; box-sizing: border-box; border: none; background: transparent; text-align: left; color: inherit; }
+  .ft-row b { font-weight: 780; }
+  .ft-row .sub { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+  .ft-rate { justify-self: start; display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 740; white-space: nowrap; }
+  .ft-rate::before { content: ''; width: 6px; height: 6px; border-radius: 99px; background: currentColor; }
+  .rate-again { background: oklch(0.95 0.04 160); color: oklch(0.42 0.11 160); }
+  .rate-maybe { background: oklch(0.96 0.045 80); color: oklch(0.5 0.11 70); }
+  .rate-never { background: oklch(0.96 0.03 25); color: oklch(0.5 0.17 25); }
+  .rate-none { background: oklch(0.955 0.006 240); color: oklch(0.55 0.015 250); }
+  .ft-badge-need { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 780; background: oklch(0.96 0.05 80); color: oklch(0.48 0.12 60); }
+  .ft-badge-cancel { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 760; background: oklch(0.955 0.006 240); color: oklch(0.5 0.015 250); }
+  .ft-chev { width: 30px; height: 30px; border-radius: 9px; border: 1px solid oklch(0.92 0.008 240); display: grid; place-items: center; color: oklch(0.45 0.015 250); background: #fff; }
+  .ft-expand { margin: 0 18px 16px 134px; padding: 14px 16px; border-radius: 13px; background: #fff; border: 1px solid oklch(0.9 0.03 248); display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 18px; }
+  .ft-memo { margin: 0 0 10px; font-size: 13px; font-weight: 560; line-height: 1.65; color: oklch(0.32 0.02 250); white-space: pre-line; }
+  .ft-raw { font-size: 12px; font-weight: 580; color: var(--muted); margin: 0 0 10px; white-space: pre-line; }
+  .ft-tag { padding: 4px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 700; background: oklch(0.96 0.006 240); color: oklch(0.42 0.015 250); }
+  .ft-tag.pos { background: oklch(0.95 0.04 160); color: oklch(0.4 0.1 160); }
+  .ft-tag.neg { background: oklch(0.96 0.03 25); color: oklch(0.48 0.15 25); }
+  .ft-actions { display: flex; flex-direction: column; gap: 6px; }
+  .ft-actions button { height: 36px; border-radius: 10px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 12.5px; font-weight: 700; color: oklch(0.38 0.02 250); }
+  .ft-actions .edit { border-color: oklch(0.88 0.05 248); background: oklch(0.97 0.02 248); color: oklch(0.4 0.12 248); font-weight: 740; }
+  .ft-actions .del { border-color: oklch(0.93 0.02 25); color: oklch(0.5 0.17 25); }
+  .ft-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 16px; padding: 14px 20px; border-radius: 14px; background: var(--accent-soft); color: oklch(0.32 0.1 248); font-size: 13px; font-weight: 700; }
+  .ft-sum b { margin-left: auto; font-size: 15px; font-weight: 800; }
+
+  /* ---- 겹치는 화면(입력 패널 / 상세 / 필터 시트) ---- */
+  .ft-overlay { position: fixed; inset: 0; z-index: 100; background: oklch(0.2 0.02 250 / 0.46); }
+  .ft-overlay[hidden] { display: none !important; }
+  .ft-panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(600px, 100%); background: #fff; display: flex; flex-direction: column; box-shadow: -20px 0 50px oklch(0.2 0.02 250 / 0.2); }
+  .ft-panel-head { display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid oklch(0.94 0.006 240); }
+  .ft-panel-head .t { flex: 1; min-width: 0; }
+  .ft-panel-head .t small { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+  .ft-panel-head h2 { margin: 2px 0 0; font-size: 20px; font-weight: 800; letter-spacing: -0.7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ft-x { width: 44px; height: 44px; border-radius: 12px; border: 1px solid oklch(0.92 0.008 240); background: #fff; display: grid; place-items: center; color: oklch(0.42 0.02 250); flex: none; }
+  .ft-panel-body { flex: 1; overflow-y: auto; padding: 18px 20px 28px; display: flex; flex-direction: column; gap: 20px; }
+  .ft-panel-foot { display: flex; align-items: center; gap: 8px; padding: 12px 20px 16px; border-top: 1px solid oklch(0.94 0.006 240); background: oklch(0.99 0.002 240); }
+  .ft-panel-foot .grow { flex: 1; font-size: 11.5px; font-weight: 600; color: oklch(0.56 0.015 250); }
+  .ft-field { display: flex; flex-direction: column; gap: 8px; position: relative; }
+  .ft-label { font-size: 12.5px; font-weight: 760; color: oklch(0.45 0.015 250); }
+  .ft-label .req { color: oklch(0.55 0.18 25); }
+  .ft-label .hint { font-weight: 600; color: var(--accent); margin-left: 4px; }
+  .ft-input { height: 46px; padding: 0 13px; border-radius: 12px; border: 1px solid oklch(0.88 0.01 240); font: inherit; font-size: 15px; font-weight: 650; color: var(--ink); background: #fff; box-sizing: border-box; width: 100%; }
+  .ft-input:focus, .ft-textarea:focus { outline: none; border-color: oklch(0.55 0.12 248); box-shadow: 0 0 0 4px oklch(0.55 0.12 248 / 0.12); }
+  .ft-input[readonly] { background: oklch(0.975 0.005 240); color: oklch(0.4 0.02 250); }
+  .ft-input.err, .ft-field.err .ft-input { border-color: oklch(0.6 0.18 25); box-shadow: 0 0 0 4px oklch(0.6 0.18 25 / 0.12); }
+  .ft-textarea { resize: vertical; min-height: 96px; padding: 11px 13px; border-radius: 12px; border: 1px solid oklch(0.88 0.01 240); font: inherit; font-size: 14px; font-weight: 560; line-height: 1.6; box-sizing: border-box; width: 100%; }
+  .ft-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .ft-radio3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; background: oklch(0.955 0.006 240); border-radius: 12px; }
+  .ft-radio3 button { height: 40px; border-radius: 9px; border: none; background: transparent; font-size: 13.5px; font-weight: 700; color: var(--muted); }
+  .ft-radio3 button.on { background: #fff; color: oklch(0.4 0.12 248); font-weight: 780; box-shadow: 0 1px 3px oklch(0.3 0.02 250 / 0.14); }
+  .ft-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ft-pick button { min-height: 38px; padding: 0 13px; border-radius: 99px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 13px; font-weight: 700; color: oklch(0.4 0.02 250); }
+  .ft-pick button.on { background: var(--accent); border-color: transparent; color: #fff; }
+  .ft-pick.tags button.on.pos { background: oklch(0.95 0.04 160); border-color: oklch(0.8 0.07 160); color: oklch(0.38 0.1 160); }
+  .ft-pick.tags button.on.neg { background: oklch(0.96 0.03 25); border-color: oklch(0.85 0.06 25); color: oklch(0.46 0.15 25); }
+  .ft-pick .add { border-style: dashed; color: var(--muted); }
+  .ft-rating { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .ft-rating button { height: 46px; border-radius: 12px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 14px; font-weight: 700; color: oklch(0.42 0.02 250); }
+  .ft-rating button.on.again { border: 2px solid oklch(0.55 0.13 160); background: oklch(0.95 0.04 160); color: oklch(0.38 0.1 160); }
+  .ft-rating button.on.maybe { border: 2px solid oklch(0.65 0.12 75); background: oklch(0.96 0.045 80); color: oklch(0.45 0.1 70); }
+  .ft-rating button.on.never { border: 2px solid oklch(0.6 0.17 25); background: oklch(0.96 0.03 25); color: oklch(0.48 0.16 25); }
+  .ft-catch { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; border: 1px solid oklch(0.92 0.008 240); }
+  .ft-catch-row { display: grid; grid-template-columns: 76px minmax(0, 1fr) 44px 60px 44px 36px; gap: 6px; align-items: center; }
+  .ft-catch-row input { height: 44px; padding: 0 10px; border-radius: 11px; border: 1px solid oklch(0.88 0.01 240); font: inherit; font-size: 14px; font-weight: 700; min-width: 0; box-sizing: border-box; width: 100%; }
+  .ft-catch-row input.num { text-align: center; font-size: 16px; font-weight: 800; }
+  .ft-catch-row .step { height: 44px; border-radius: 11px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 20px; font-weight: 600; color: oklch(0.35 0.02 250); }
+  .ft-catch-row .rm { height: 36px; border: none; background: none; color: oklch(0.55 0.015 250); font-size: 18px; }
+  .ft-add-row { height: 44px; border-radius: 12px; border: 1px dashed oklch(0.82 0.03 248); background: oklch(0.985 0.008 248); font-size: 13.5px; font-weight: 740; color: oklch(0.42 0.12 248); }
+  .ft-suggest { position: absolute; top: 76px; left: 0; right: 0; z-index: 5; background: #fff; border: 1px solid oklch(0.9 0.01 240); border-radius: 13px; box-shadow: 0 16px 36px oklch(0.2 0.02 250 / 0.16); padding: 6px; max-height: 320px; overflow-y: auto; }
+  .ft-suggest[hidden] { display: none; }
+  .ft-suggest .grp { padding: 6px 10px 4px; font-size: 10.5px; font-weight: 760; color: oklch(0.56 0.015 250); }
+  .ft-suggest button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 42px; padding: 0 10px; border-radius: 9px; border: none; background: transparent; text-align: left; }
+  .ft-suggest button:hover, .ft-suggest button.kb { background: oklch(0.965 0.02 248); }
+  .ft-suggest b { font-size: 14px; font-weight: 760; }
+  .ft-suggest span { font-size: 12px; font-weight: 620; color: var(--muted); }
+  .ft-suggest em { margin-left: auto; font-style: normal; font-size: 11px; font-weight: 740; color: oklch(0.42 0.11 160); }
+  .ft-danger { height: 42px; padding: 0 14px; border-radius: 11px; border: 1px solid oklch(0.93 0.02 25); background: #fff; font-size: 13px; font-weight: 720; color: oklch(0.5 0.17 25); }
+  .ft-sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 85vh; background: #fff; border-radius: 22px 22px 0 0; display: flex; flex-direction: column; }
+  .ft-sheet .grip { display: flex; justify-content: center; padding-top: 8px; }
+  .ft-sheet .grip span { width: 40px; height: 5px; border-radius: 99px; background: oklch(0.88 0.008 240); }
+
+  /* ---- 모바일 ---- */
+  @media (max-width: 767px) {
+    .ft { padding: 14px 16px 110px; }
+    .ft-head { align-items: flex-start; }
+    .ft-head .ft-primary.add-top { display: none; }
+    .ft-toolbar { padding: 0; background: transparent; border: none; }
+    .ft-toolbar .ft-seg, .ft-toolbar .ft-select { display: none; }
+    .ft-search { background: #fff; border: 1px solid var(--line); height: 44px; }
+    .ft-filter-btn { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 13px; border-radius: 12px; background: #fff; border: 1px solid var(--line); font-size: 13.5px; font-weight: 720; color: oklch(0.35 0.02 250); }
+    .ft-filter-btn .n { min-width: 18px; height: 18px; border-radius: 99px; background: var(--accent); color: #fff; font-size: 11px; display: grid; place-items: center; }
+    .ft-upcoming { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 2px 16px 6px; }
+    .ft-upcoming .ft-card { flex: none; width: 236px; scroll-snap-align: start; }
+    .ft-row-head { display: none; }
+    .ft-table { background: transparent; border: none; border-radius: 0; display: flex; flex-direction: column; gap: 8px; }
+    .ft-item { border: 1px solid var(--line); border-radius: 15px; background: #fff; }
+    .ft-row { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; padding: 13px 14px; }
+    .ft-row .c-date { grid-column: 1; font-size: 12px; font-weight: 720; color: var(--muted); }
+    .ft-row .c-rate { grid-column: 2; grid-row: 1; justify-self: end; }
+    .ft-row .c-ship { grid-column: 1 / -1; }
+    .ft-row .c-ship b { font-size: 16px; }
+    .ft-row .c-ship .sub { display: inline; margin-left: 6px; }
+    .ft-row .c-catch { grid-column: 1; font-weight: 720; }
+    .ft-row .c-cost { grid-column: 2; justify-self: end; font-weight: 760; }
+    .ft-row .c-species, .ft-row .c-with, .ft-row .c-chev { display: none; }
+    .ft-expand { display: none; }
+    .ft-sum b { margin-left: 0; width: 100%; }
+    .ft-fab { position: fixed; left: 16px; right: 16px; bottom: 18px; z-index: 50; height: 52px; border-radius: 15px; font-size: 15px; }
+    .ft-panel { width: 100%; box-shadow: none; }
+    .ft-panel-head { padding: 6px 8px; }
+    .ft-panel-head .ft-x { border: none; }
+    .ft-panel-body { padding: 16px; }
+    .ft-panel-foot { padding: 12px 16px 18px; }
+    .ft-panel-foot .ft-primary { flex: 1; height: 52px; font-size: 15px; }
+    .ft-catch-row { grid-template-columns: 64px minmax(0, 1fr) 44px 54px 44px 30px; }
+  }
+  @media (min-width: 768px) { .ft-fab { display: none; } }
+</style>
+
+<div class="ft" id="trip-app">
+  <input type="hidden" id="csrf_token" value="{{ form.csrf_token.current_token }}">
+  <div class="ft-head">
+    <div>
+      <h1>출조 기록</h1>
+      <p>내 낚시 기록 · 예정 · 완료 · 취소한 출조를 관리합니다</p>
+    </div>
+    <div class="ft-head-actions">
+      <div class="ft-head-actions" id="ft-years"></div>
+      <button type="button" class="ft-primary add-top" data-act="new">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>출조 기록 추가</button>
+    </div>
+  </div>
+
+  <div class="ft-toolbar">
+    <label class="ft-search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.6 0.015 250)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input type="search" id="ft-q" placeholder="선사 · 항구 · 메모 검색" aria-label="검색">
+    </label>
+    <div class="ft-seg" id="ft-status" role="group" aria-label="상태"></div>
+    <select class="ft-select" id="ft-f-species" aria-label="어종"></select>
+    <select class="ft-select" id="ft-f-with" aria-label="동행"></select>
+    <select class="ft-select" id="ft-f-rating" aria-label="재이용"></select>
+    <button type="button" class="ft-filter-btn" data-act="filter">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M7 12h10M10 18h4"></path></svg>필터<span class="n" id="ft-filter-n" hidden></span></button>
+  </div>
+
+  <div id="ft-list"><div class="ft-empty">불러오는 중…</div></div>
+
+  <button type="button" class="ft-primary ft-fab" data-act="new">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>출조 기록 추가</button>
+</div>
+
+<!-- 입력 · 수정 패널 (PC: 오른쪽 패널 / 모바일: 전체 화면) -->
+<div class="ft-overlay" id="ft-editor" hidden>
+  <section class="ft-panel" role="dialog" aria-modal="true" aria-labelledby="ft-ed-title">
+    <div class="ft-panel-head">
+      <button type="button" class="ft-x" data-act="close" aria-label="닫기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+      <div class="t"><small id="ft-ed-kind">출조 기록 추가</small><h2 id="ft-ed-title">새 출조</h2></div>
+    </div>
+    <form class="ft-panel-body" id="ft-form" autocomplete="off" novalidate>
+      <div class="ft-field">
+        <span class="ft-label">상태</span>
+        <div class="ft-radio3" id="ed-status" role="radiogroup" aria-label="상태">
+          <button type="button" data-v="planned" role="radio">예정</button>
+          <button type="button" data-v="done" role="radio">완료</button>
+          <button type="button" data-v="cancelled" role="radio">취소됨</button>
+        </div>
+      </div>
+      <div class="ft-two">
+        <label class="ft-field" data-field="trip_date"><span class="ft-label">날짜 <span class="req">*</span></span>
+          <input class="ft-input" type="date" id="ed-date" required></label>
+        <label class="ft-field" data-field="cost"><span class="ft-label">비용 (원)</span>
+          <input class="ft-input" type="text" inputmode="numeric" id="ed-cost" placeholder="0" style="text-align:right"></label>
+      </div>
+      <div class="ft-field" data-field="ship_name">
+        <label class="ft-label" for="ed-ship">선사 · 배 이름 <span class="req">*</span><span class="hint" id="ed-ship-hint"></span></label>
+        <input class="ft-input" type="text" id="ed-ship" placeholder="예: 가나다호 (AFT 배 목록에서 찾기)" role="combobox" aria-expanded="false" aria-controls="ed-ship-list">
+        <div class="ft-suggest" id="ed-ship-list" role="listbox" hidden></div>
+      </div>
+      <div class="ft-two">
+        <label class="ft-field" data-field="ship_region"><span class="ft-label">지역</span><input class="ft-input" type="text" id="ed-region" placeholder="예: 여수"></label>
+        <label class="ft-field" data-field="ship_port"><span class="ft-label">항구</span><input class="ft-input" type="text" id="ed-port" placeholder="예: 돌산항"></label>
+      </div>
+      <div class="ft-field" data-field="companions">
+        <span class="ft-label">동행</span>
+        <div class="ft-pick" id="ed-with"></div>
+      </div>
+      <div class="ft-field" data-field="species">
+        <span class="ft-label">대상 어종</span>
+        <div class="ft-pick" id="ed-species"></div>
+      </div>
+      <div class="ft-field" data-field="catches">
+        <span class="ft-label">조과 <span style="font-weight:600;color:oklch(0.56 0.015 250)">사람별 · 어종별 마릿수</span></span>
+        <div class="ft-catch" id="ed-catches"></div>
+        <button type="button" class="ft-add-row" id="ed-add-catch">+ 조과 줄 추가</button>
+        <div class="ft-raw" id="ed-raw" hidden></div>
+      </div>
+      <div class="ft-field" data-field="rating">
+        <span class="ft-label">이 배, 또 탈까요?</span>
+        <div class="ft-rating" id="ed-rating" role="radiogroup" aria-label="재이용 의사">
+          <button type="button" data-v="again" class="again" role="radio">또 탈래요</button>
+          <button type="button" data-v="maybe" class="maybe" role="radio">글쎄요</button>
+          <button type="button" data-v="never" class="never" role="radio">안 탈래요</button>
+        </div>
+      </div>
+      <div class="ft-field" data-field="tags">
+        <span class="ft-label">빠른 태그</span>
+        <div class="ft-pick tags" id="ed-tags"></div>
+      </div>
+      <label class="ft-field" data-field="memo"><span class="ft-label">후기 메모</span>
+        <textarea class="ft-textarea" id="ed-memo" rows="4" placeholder="배 상태, 선장, 식사, 포인트 등"></textarea></label>
+    </form>
+    <div class="ft-panel-foot">
+      <button type="button" class="ft-danger" id="ed-delete" hidden>삭제</button>
+      <span class="grow" id="ed-draft-note"></span>
+      <button type="button" class="ft-ghost" data-act="close" style="height:42px">취소</button>
+      <button type="button" class="ft-primary" id="ed-save" style="height:42px">저장</button>
+    </div>
+  </section>
+</div>
+
+<!-- 상세 (모바일) -->
+<div class="ft-overlay" id="ft-detail" hidden>
+  <section class="ft-panel" role="dialog" aria-modal="true" aria-labelledby="ft-dt-title">
+    <div class="ft-panel-head">
+      <button type="button" class="ft-x" data-act="close" aria-label="뒤로"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m15 18-6-6 6-6"></path></svg></button>
+      <div class="t"><small>출조 상세</small><h2 id="ft-dt-title"></h2></div>
+    </div>
+    <div class="ft-panel-body" id="ft-dt-body"></div>
+    <div class="ft-panel-foot">
+      <button type="button" class="ft-danger" id="dt-delete">삭제</button>
+      <button type="button" class="ft-primary" id="dt-edit" style="flex:1">수정</button>
+    </div>
+  </section>
+</div>
+
+<!-- 필터 시트 (모바일) -->
+<div class="ft-overlay" id="ft-filter" hidden>
+  <section class="ft-sheet" role="dialog" aria-modal="true" aria-labelledby="ft-fl-title">
+    <div class="grip"><span></span></div>
+    <div class="ft-panel-head" style="border:none;padding:8px 16px 4px">
+      <div class="t"><h2 id="ft-fl-title" style="font-size:18px">필터 · 연도</h2></div>
+      <button type="button" class="ft-ghost" id="fl-reset" style="border:none;height:44px">초기화</button>
+    </div>
+    <div class="ft-panel-body" id="ft-fl-body" style="gap:16px"></div>
+    <div class="ft-panel-foot"><button type="button" class="ft-primary" id="fl-apply" style="flex:1;height:52px"></button></div>
+  </section>
+</div>
+{% endblock %}
+
+{% block admin_scripts %}
+<script>
+(function () {
+  const API = '/admin/api/fishing/trips';
+  const SHIP_API = '/admin/api/fishing/ships';
+  const csrf = document.getElementById('csrf_token').value;
+  const STATUS_LABEL = { planned: '예정', done: '완료', cancelled: '취소' };
+  const RATE_LABEL = { again: '또 탈래요', maybe: '글쎄요', never: '안 탈래요' };
+  const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+  const DRAFT_PREFIX = 'aft-trip-draft:';
+  const isMobile = () => window.matchMedia('(max-width: 767px)').matches;
+
+  const state = {
+    year: String(new Date().getFullYear()), data: null, openId: null,
+    f: { status: 'all', species: '', with: '', rating: '', q: '' },
+  };
+
+  // ---------- 유틸 ----------
+  function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function won(n) { return n == null ? '-' : Number(n).toLocaleString('ko-KR'); }
+  function fmtDate(iso, withYear) {
+    const [y, m, d] = iso.split('-').map(Number);
+    const wd = WEEK[new Date(y, m - 1, d).getDay()];
+    return (withYear ? y + '년 ' : '') + m + '월 ' + d + '일 (' + wd + ')';
+  }
+  function spClass(s) { return s.includes('문어') ? 'sp-octo' : (s.includes('쭈') || s.includes('주꾸')) ? 'sp-jju' : s.includes('갑') ? 'sp-gap' : ''; }
+  function speciesChips(list) { return list.map(s => '<span class="ft-chip ' + spClass(s) + '">' + esc(s) + '</span>').join(''); }
+  function short(sp) { return sp === '쭈꾸미' ? '쭈' : sp === '갑오징어' ? '갑' : sp; }
+  function catchText(catches) {
+    if (!catches || !catches.length) return '';
+    const byWho = [];
+    catches.forEach(c => {
+      let g = byWho.find(x => x.who === c.who);
+      if (!g) { g = { who: c.who, items: [] }; byWho.push(g); }
+      g.items.push(short(c.species) + ' ' + c.count);
+    });
+    const multi = byWho.length > 1;
+    return byWho.map(g => (multi || g.who !== '나' ? g.who + ' ' : '') + g.items.join(' · ')).join(' / ');
+  }
+  function tagClass(t) {
+    const tones = (state.data && state.data.tag_tones) || { positive: [], negative: [] };
+    return tones.positive.includes(t) ? 'pos' : tones.negative.includes(t) ? 'neg' : '';
+  }
+  async function api(url, opts) {
+    const o = Object.assign({ headers: {} }, opts || {});
+    if (o.body && typeof o.body !== 'string') { o.body = JSON.stringify(o.body); o.headers['Content-Type'] = 'application/json'; }
+    if (o.method && o.method !== 'GET') o.headers['X-CSRFToken'] = csrf;
+    const resp = await fetch(url, Object.assign({ cache: 'no-store' }, o));
+    let body = {};
+    try { body = await resp.json(); } catch (e) { /* 빈 응답 */ }
+    if (resp.status === 403) {
+      const err = new Error('로그인이 만료됐어요. 다시 로그인한 뒤 저장해 주세요 (작성 내용은 임시저장돼 있어요).');
+      err.auth = true; throw err;
+    }
+    if (!resp.ok) { const err = new Error(body.error || '요청을 처리하지 못했습니다.'); err.field = body.field; throw err; }
+    return body;
+  }
+  function draftGet(key) { try { const v = localStorage.getItem(DRAFT_PREFIX + key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  function draftSet(key, v) { try { localStorage.setItem(DRAFT_PREFIX + key, JSON.stringify(v)); } catch (e) { /* 저장 불가 무시 */ } }
+  function draftDel(key) { try { localStorage.removeItem(DRAFT_PREFIX + key); } catch (e) { /* 무시 */ } }
+
+  // ---------- 겹치는 화면 + 뒤로가기 ----------
+  const stack = [];
+  function openOverlay(id) {
+    const el = document.getElementById(id);
+    el.hidden = false;
+    document.body.style.overflow = 'hidden';
+    stack.push(id);
+    history.pushState({ ftOverlay: id }, '');
+  }
+  function closeOverlay(id, fromPop) {
+    const idx = stack.lastIndexOf(id);
+    if (idx < 0) return;
+    stack.splice(idx, 1);
+    document.getElementById(id).hidden = true;
+    if (!stack.length) document.body.style.overflow = '';
+    if (!fromPop && history.state && history.state.ftOverlay === id) history.back();
+  }
+  window.addEventListener('popstate', () => {
+    const top = stack[stack.length - 1];
+    if (!top) return;
+    if (top === 'ft-editor' && editor.dirty) {
+      // 뒤로가기로 입력을 닫아도 임시저장은 남는다 - 다시 열면 이어서 쓸 수 있다.
+      showToast('작성 중인 내용은 임시저장됐어요', { type: 'info' });
+    }
+    closeOverlay(top, true);
+  });
+  document.querySelectorAll('.ft-overlay').forEach(ov => {
+    ov.addEventListener('click', (e) => { if (e.target === ov) requestClose(ov.id); });
+    ov.querySelectorAll('[data-act="close"]').forEach(b => b.addEventListener('click', () => requestClose(ov.id)));
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && stack.length) requestClose(stack[stack.length - 1]); });
+  async function requestClose(id) {
+    if (id === 'ft-editor' && editor.dirty) {
+      const ok = await showConfirm('작성 중인 내용을 버릴까요?', { confirmText: '버리기', danger: true });
+      if (!ok) return;
+      draftDel(editor.key);
+      editor.dirty = false;
+    }
+    closeOverlay(id, false);
+  }
+
+  // ---------- 목록 ----------
+  async function load() {
+    try {
+      state.data = await api(API + '?year=' + encodeURIComponent(state.year));
+      render();
+    } catch (err) {
+      document.getElementById('ft-list').innerHTML = '<div class="ft-empty">' + esc(err.message) + '</div>';
+    }
+  }
+
+  function filtered() {
+    const f = state.f, q = f.q.trim().toLowerCase();
+    return state.data.trips.filter(t => {
+      if (f.status !== 'all' && t.status !== f.status) return false;
+      if (f.species && !t.species.includes(f.species)) return false;
+      if (f.with && t.companions !== f.with) return false;
+      if (f.rating === 'none' ? t.rating : (f.rating && t.rating !== f.rating)) return false;
+      if (q) {
+        const hay = [t.ship.name, t.ship.region, t.ship.port, t.memo, t.catch_raw, t.companions, (t.tags || []).join(' ')].join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+  function activeFilterCount() {
+    const f = state.f;
+    return (f.status !== 'all') + !!f.species + !!f.with + !!f.rating;
+  }
+
+  function renderYears() {
+    const box = document.getElementById('ft-years');
+    const years = (state.data.years || []).map(String).concat('all');
+    box.innerHTML = years.map(y => '<button type="button" class="ft-year' + (y === state.year ? ' on' : '') + '" data-year="' + y + '"' +
+      (y === state.year ? ' aria-pressed="true"' : '') + '>' + (y === 'all' ? '전체' : y) + '</button>').join('');
+  }
+  function renderFilters() {
+    const s = state.data.summary, total = s.planned + s.done + s.cancelled;
+    const seg = [['all', '전체 ' + total], ['planned', '예정 ' + s.planned], ['done', '완료 ' + s.done], ['cancelled', '취소 ' + s.cancelled]];
+    document.getElementById('ft-status').innerHTML = seg.map(([v, l]) =>
+      '<button type="button" data-status="' + v + '" class="' + (state.f.status === v ? 'on' : '') + '">' + l + '</button>').join('');
+    const used = (key) => [...new Set(state.data.trips.flatMap(t => key === 'species' ? t.species : (t.companions ? [t.companions] : [])))];
+    const opt = (v, l, cur) => '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>';
+    document.getElementById('ft-f-species').innerHTML = opt('', '어종 전체', state.f.species) + used('species').map(v => opt(v, v, state.f.species)).join('');
+    document.getElementById('ft-f-with').innerHTML = opt('', '동행 전체', state.f.with) + used('with').map(v => opt(v, v, state.f.with)).join('');
+    document.getElementById('ft-f-rating').innerHTML = opt('', '재이용 전체', state.f.rating) +
+      ['again', 'maybe', 'never'].map(v => opt(v, RATE_LABEL[v], state.f.rating)).join('') + opt('none', '미평가', state.f.rating);
+    const n = activeFilterCount(), badge = document.getElementById('ft-filter-n');
+    badge.hidden = !n; badge.textContent = n;
+  }
+
+  function upcomingCard(t) {
+    const soon = t.d_day != null && t.d_day <= 7;
+    return '<button type="button" class="ft-card' + (soon ? ' soon' : '') + '" data-open="' + t.id + '">' +
+      '<span class="ft-card-top"><span class="ft-dday">' + (t.d_day === 0 ? 'D-DAY' : 'D-' + t.d_day) + '</span><span class="ft-date">' + fmtDate(t.trip_date) + '</span></span>' +
+      '<span class="ft-ship">' + esc(t.ship.name) + '</span>' +
+      '<span class="ft-where">' + esc([t.ship.region, t.ship.port].filter(Boolean).join(' · ') || '지역 미입력') + (t.companions ? ' · ' + esc(t.companions) : '') + '</span>' +
+      '<span class="ft-chips">' + speciesChips(t.species) + '</span>' +
+      '<span class="ft-card-foot"><span>' + (t.cost != null ? won(t.cost) + '원' : '비용 미입력') + '</span></span></button>';
+  }
+  function rateHtml(t) {
+    return '<span class="ft-rate rate-' + (t.rating || 'none') + '">' + (t.rating ? RATE_LABEL[t.rating] : '미평가') + '</span>';
+  }
+  function rowHtml(t) {
+    const open = state.openId === t.id;
+    const badge = t.needs_result ? '<span class="ft-badge-need">결과 입력 필요</span>' : t.status === 'cancelled' ? '<span class="ft-badge-cancel">취소</span>' : '';
+    const catches = catchText(t.catches) || (t.status === 'cancelled' ? '-' : (t.catch_raw ? '원문만 있음' : '-'));
+    let html = '<div class="ft-item' + (open ? ' open' : '') + '">' +
+      '<button type="button" class="ft-row" data-row="' + t.id + '" aria-expanded="' + open + '">' +
+      '<span class="c-date">' + fmtDate(t.trip_date, state.year === 'all') + '</span>' +
+      '<span class="c-ship"><b>' + esc(t.ship.name) + '</b>' + badge + '<span class="sub">' + esc([t.ship.region, t.ship.port].filter(Boolean).join(' · ')) + '</span></span>' +
+      '<span class="c-species ft-chips">' + speciesChips(t.species) + '</span>' +
+      '<span class="c-with">' + esc(t.companions || '-') + '</span>' +
+      '<span class="c-catch">' + esc(catches) + '</span>' +
+      '<span class="c-cost" style="text-align:right">' + won(t.cost) + '</span>' +
+      '<span class="c-rate">' + rateHtml(t) + '</span>' +
+      '<span class="c-chev ft-chev" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="' + (open ? 'm18 15-6-6-6 6' : 'm6 9 6 6 6-6') + '"></path></svg></span>' +
+      '</button>';
+    if (open) html += '<div class="ft-expand">' + detailInner(t, false) + '<div class="ft-actions">' +
+      '<button type="button" class="edit" data-edit="' + t.id + '">수정</button>' +
+      '<button type="button" data-next="' + t.id + '">이 배로 다음 출조 추가</button>' +
+      '<button type="button" class="del" data-del="' + t.id + '">삭제</button></div></div>';
+    return html + '</div>';
+  }
+  function detailInner(t, full) {
+    let h = '<div>';
+    if (full) {
+      h += '<div class="ft-chips" style="margin-bottom:10px">' + speciesChips(t.species) + '</div>' +
+        '<p class="ft-where" style="margin:0 0 12px">' + esc([t.ship.region, t.ship.port].filter(Boolean).join(' · ') || '지역 미입력') +
+        (t.companions ? ' · ' + esc(t.companions) : '') + ' · ' + (t.cost != null ? won(t.cost) + '원' : '비용 미입력') + '</p>';
+      const c = catchText(t.catches);
+      if (c) h += '<p class="ft-memo" style="font-size:15px;font-weight:760">조과 · ' + esc(c) + '</p>';
+      h += '<p style="margin:0 0 10px">' + rateHtml(t) + '</p>';
+    }
+    h += t.memo ? '<p class="ft-memo">' + esc(t.memo) + '</p>' : (full ? '' : '<p class="ft-raw">후기 메모 없음</p>');
+    if (t.catch_raw) h += '<p class="ft-raw">엑셀 원문 · ' + esc(t.catch_raw) + '</p>';
+    if (t.tags && t.tags.length) h += '<div class="ft-chips">' + t.tags.map(x => '<span class="ft-tag ' + tagClass(x) + '">' + esc(x) + '</span>').join('') + '</div>';
+    return h + '</div>';
+  }
+
+  function render() {
+    renderYears(); renderFilters();
+    const list = filtered();
+    const upcoming = list.filter(t => t.status === 'planned' && !t.needs_result);
+    const rest = list.filter(t => !(t.status === 'planned' && !t.needs_result));
+    const s = state.data.summary;
+    let html = '';
+    if (state.f.status === 'all' || state.f.status === 'planned') {
+      html += '<div class="ft-section-title"><h2>다가오는 출조 <span style="color:oklch(0.46 0.12 248)">' + upcoming.length + '</span></h2>' +
+        '<span>' + (isMobile() ? '옆으로 넘겨 보기' : '다녀오면 조과와 후기를 채워 완료로 바꿔 주세요') + '</span></div>';
+      html += upcoming.length ? '<div class="ft-upcoming">' + upcoming.map(upcomingCard).join('') + '</div>'
+        : '<div class="ft-empty">예정된 출조가 없어요</div>';
+    }
+    html += '<div class="ft-section-title"><h2>다녀온 출조 <span style="color:oklch(0.55 0.015 250)">' + rest.length + '</span></h2>' +
+      '<span>' + (isMobile() ? '눌러서 자세히 보기' : '행을 누르면 후기 전문과 태그가 펼쳐집니다') + '</span></div>';
+    html += rest.length ? '<div class="ft-table"><div class="ft-row-head"><span>날짜</span><span>선사 · 항구</span><span>어종</span><span>동행</span><span>조과</span><span style="text-align:right">비용</span><span>재이용</span><span></span></div>' +
+      rest.map(rowHtml).join('') + '</div>' : '<div class="ft-empty">' + (state.data.trips.length ? '조건에 맞는 출조가 없어요' : '아직 기록이 없어요') + '</div>';
+    const yearLabel = state.year === 'all' ? '전체' : state.year + '년';
+    html += '<div class="ft-sum"><span>' + yearLabel + ' 합계</span><span>완료 ' + s.done + '회</span><span>예정 ' + s.planned + '회</span><span>취소 ' + s.cancelled + '회</span><b>' + won(s.cost_total) + '원</b></div>';
+    document.getElementById('ft-list').innerHTML = html;
+  }
+
+  // ---------- 목록 이벤트 ----------
+  document.getElementById('ft-years').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-year]'); if (!b) return;
+    state.year = b.dataset.year; state.openId = null; load();
+  });
+  document.getElementById('ft-status').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-status]'); if (!b) return;
+    state.f.status = b.dataset.status; render();
+  });
+  [['ft-f-species', 'species'], ['ft-f-with', 'with'], ['ft-f-rating', 'rating']].forEach(([id, k]) =>
+    document.getElementById(id).addEventListener('change', (e) => { state.f[k] = e.target.value; render(); }));
+  document.getElementById('ft-q').addEventListener('input', (e) => { state.f.q = e.target.value; render(); });
+  document.getElementById('ft-list').addEventListener('click', (e) => {
+    const t = (id) => state.data.trips.find(x => x.id === Number(id));
+    let b;
+    if ((b = e.target.closest('[data-edit]'))) return openEditor(t(b.dataset.edit));
+    if ((b = e.target.closest('[data-next]'))) return openEditor(null, t(b.dataset.next));
+    if ((b = e.target.closest('[data-del]'))) return removeTrip(t(b.dataset.del));
+    if ((b = e.target.closest('[data-open]'))) return isMobile() ? openDetail(t(b.dataset.open)) : openEditor(t(b.dataset.open));
+    if ((b = e.target.closest('[data-row]'))) {
+      const id = Number(b.dataset.row);
+      if (isMobile()) return openDetail(t(id));
+      state.openId = state.openId === id ? null : id; render();
+    }
+  });
+  document.querySelectorAll('[data-act="new"]').forEach(b => b.addEventListener('click', () => openEditor(null)));
+  document.querySelector('[data-act="filter"]').addEventListener('click', openFilter);
+
+  async function removeTrip(t) {
+    const ok = await showConfirm(fmtDate(t.trip_date, true) + ' ' + t.ship.name + ' 기록을 삭제할까요? 되돌릴 수 없어요.', { confirmText: '삭제', danger: true });
+    if (!ok) return;
+    try {
+      await api(API + '/' + t.id, { method: 'DELETE' });
+      showToast('삭제했어요', { type: 'success' });
+      state.openId = null;
+      if (stack.includes('ft-detail')) closeOverlay('ft-detail', false);
+      if (stack.includes('ft-editor')) { editor.dirty = false; draftDel(editor.key); closeOverlay('ft-editor', false); }
+      load();
+    } catch (err) { showToast(err.message, { type: 'error' }); }
+  }
+
+  // ---------- 상세 (모바일) ----------
+  let detailTrip = null;
+  function openDetail(t) {
+    detailTrip = t;
+    document.getElementById('ft-dt-title').textContent = t.ship.name;
+    const head = '<p class="ft-date" style="margin:0">' + fmtDate(t.trip_date, true) + ' · ' + STATUS_LABEL[t.status] +
+      (t.needs_result ? '<span class="ft-badge-need">결과 입력 필요</span>' : '') + (t.d_day != null ? ' · D-' + t.d_day : '') + '</p>';
+    document.getElementById('ft-dt-body').innerHTML = head + detailInner(t, true) +
+      '<button type="button" class="ft-ghost" id="dt-next" style="height:48px;margin-top:4px">이 배로 다음 출조 추가</button>';
+    document.getElementById('dt-next').onclick = () => { closeOverlay('ft-detail', false); setTimeout(() => openEditor(null, t), 30); };
+    openOverlay('ft-detail');
+  }
+  document.getElementById('dt-edit').addEventListener('click', () => {
+    const t = detailTrip; closeOverlay('ft-detail', false); setTimeout(() => openEditor(t), 30);
+  });
+  document.getElementById('dt-delete').addEventListener('click', () => removeTrip(detailTrip));
+
+  // ---------- 필터 시트 (모바일) ----------
+  let pendingF = null, pendingYear = null;
+  function openFilter() {
+    pendingF = Object.assign({}, state.f); pendingYear = state.year;
+    renderFilterSheet(); openOverlay('ft-filter');
+  }
+  function renderFilterSheet() {
+    const used = (fn) => [...new Set(state.data.trips.flatMap(fn))];
+    const group = (label, key, opts) => '<div class="ft-field"><span class="ft-label">' + label + '</span><div class="ft-pick">' +
+      opts.map(([v, l]) => '<button type="button" data-k="' + key + '" data-v="' + esc(v) + '" class="' + ((key === 'year' ? pendingYear : pendingF[key]) === v ? 'on' : '') + '">' + esc(l) + '</button>').join('') + '</div></div>';
+    const years = (state.data.years || []).map(y => [String(y), String(y)]).concat([['all', '전체']]);
+    document.getElementById('ft-fl-body').innerHTML =
+      group('연도', 'year', years) +
+      group('상태', 'status', [['all', '전체'], ['planned', '예정'], ['done', '완료'], ['cancelled', '취소']]) +
+      group('어종', 'species', [['', '전체']].concat(used(t => t.species).map(v => [v, v]))) +
+      group('동행', 'with', [['', '전체']].concat(used(t => t.companions ? [t.companions] : []).map(v => [v, v]))) +
+      group('재이용', 'rating', [['', '전체'], ['again', '또 탈래요'], ['maybe', '글쎄요'], ['never', '안 탈래요'], ['none', '미평가']]);
+    document.getElementById('fl-apply').textContent = pendingYear === state.year ? '출조 ' + countWith(pendingF) + '건 보기' : '적용';
+  }
+  function countWith(f) { const saved = state.f; state.f = Object.assign({}, f, { q: saved.q }); const n = filtered().length; state.f = saved; return n; }
+  document.getElementById('ft-fl-body').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-k]'); if (!b) return;
+    if (b.dataset.k === 'year') pendingYear = b.dataset.v; else pendingF[b.dataset.k] = b.dataset.v;
+    renderFilterSheet();
+  });
+  document.getElementById('fl-reset').addEventListener('click', () => {
+    pendingF = { status: 'all', species: '', with: '', rating: '', q: state.f.q }; renderFilterSheet();
+  });
+  document.getElementById('fl-apply').addEventListener('click', () => {
+    const yearChanged = pendingYear !== state.year;
+    state.f = Object.assign({}, pendingF, { q: state.f.q }); state.year = pendingYear;
+    closeOverlay('ft-filter', false);
+    yearChanged ? load() : render();
+  });
+
+  // ---------- 입력 · 수정 ----------
+  const editor = { trip: null, key: 'new', dirty: false, ship: null, status: 'done', rating: null,
+                   companions: '', species: [], tags: [], catches: [], saving: false };
+  const $ = (id) => document.getElementById(id);
+
+  function todayIso() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+  function openEditor(trip, basedOn) {
+    editor.trip = trip || null;
+    editor.key = trip ? String(trip.id) : 'new';
+    let v;
+    if (trip) {
+      v = { trip_date: trip.trip_date, status: trip.status, ship_name: trip.ship.name, ship_region: trip.ship.region || '',
+            ship_port: trip.ship.port || '', cost: trip.cost == null ? '' : won(trip.cost), companions: trip.companions || '',
+            species: trip.species.slice(), tags: trip.tags.slice(), catches: trip.catches.map(c => Object.assign({}, c)),
+            rating: trip.rating, memo: trip.memo || '', shipLocked: true };
+    } else {
+      const base = basedOn ? basedOn.ship : null;
+      v = { trip_date: '', status: 'planned', ship_name: base ? base.name : '', ship_region: base ? base.region || '' : '',
+            ship_port: base ? base.port || '' : '', cost: '', companions: basedOn ? basedOn.companions || '' : '',
+            species: basedOn ? basedOn.species.slice() : [], tags: [], catches: [], rating: null, memo: '', shipLocked: !!base };
+    }
+    const draft = draftGet(editor.key);
+    if (draft && !basedOn) { v = draft; setTimeout(() => showToast('임시저장된 내용을 불러왔어요', { type: 'info' }), 60); }
+    fillEditor(v);
+    editor.dirty = !!(draft && !basedOn);
+    $('ft-ed-kind').textContent = trip ? '출조 기록 수정' : '출조 기록 추가';
+    $('ft-ed-title').textContent = trip ? fmtDate(trip.trip_date) + ' · ' + trip.ship.name : (basedOn ? basedOn.ship.name + ' 다음 출조' : '새 출조');
+    $('ed-delete').hidden = !trip;
+    $('ed-raw').hidden = !(trip && trip.catch_raw);
+    $('ed-raw').textContent = trip && trip.catch_raw ? '엑셀 원문 · ' + trip.catch_raw : '';
+    $('ed-draft-note').textContent = '';
+    clearErrors();
+    openOverlay('ft-editor');
+    if (!trip && !v.trip_date) setTimeout(() => $('ed-date').focus(), 80);
+  }
+
+  function fillEditor(v) {
+    editor.status = v.status; editor.rating = v.rating || null;
+    editor.companions = v.companions || ''; editor.species = v.species || []; editor.tags = v.tags || [];
+    editor.catches = (v.catches || []).map(c => Object.assign({}, c));
+    editor.ship = v.shipLocked ? { locked: true, boat_id: v.boat_id || null } : (v.boat_id ? { locked: false, boat_id: v.boat_id } : null);
+    $('ed-date').value = v.trip_date || '';
+    $('ed-cost').value = v.cost == null ? '' : v.cost;
+    $('ed-ship').value = v.ship_name || '';
+    $('ed-region').value = v.ship_region || '';
+    $('ed-port').value = v.ship_port || '';
+    $('ed-memo').value = v.memo || '';
+    applyShipLock();
+    renderEditorBits();
+  }
+  function applyShipLock() {
+    const locked = !!(editor.ship && editor.ship.locked);
+    $('ed-region').readOnly = locked; $('ed-port').readOnly = locked;
+    $('ed-ship-hint').textContent = locked ? '기록된 선사 · 지역/항구 자동' : (editor.ship && editor.ship.boat_id ? 'AFT 배 목록과 연결' : '');
+  }
+  function snapshot() {
+    return { trip_date: $('ed-date').value, status: editor.status, ship_name: $('ed-ship').value, ship_region: $('ed-region').value,
+             ship_port: $('ed-port').value, boat_id: editor.ship && editor.ship.boat_id || null, cost: $('ed-cost').value,
+             companions: editor.companions, species: editor.species, tags: editor.tags, catches: editor.catches,
+             rating: editor.rating, memo: $('ed-memo').value, shipLocked: !!(editor.ship && editor.ship.locked) };
+  }
+  let draftTimer = null;
+  function touched() {
+    editor.dirty = true;
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(() => { draftSet(editor.key, snapshot()); $('ed-draft-note').textContent = '임시저장됨'; }, 400);
+  }
+
+  function pickHtml(values, selected, extraClass) {
+    return values.map(v => '<button type="button" data-v="' + esc(v) + '" class="' + (selected.includes(v) ? 'on ' : '') + (extraClass ? extraClass(v) : '') + '"' +
+      ' aria-pressed="' + selected.includes(v) + '">' + esc(v) + '</button>').join('') + '<button type="button" class="add" data-add="1">+ 직접 입력</button>';
+  }
+  function renderEditorBits() {
+    const sug = (state.data && state.data.suggestions) || { companions: [], species: [], tags: [] };
+    document.querySelectorAll('#ed-status button').forEach(b => { const on = b.dataset.v === editor.status; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+    document.querySelectorAll('#ed-rating button').forEach(b => { const on = b.dataset.v === editor.rating; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+    const withOpts = [...new Set(['솔로'].concat(sug.companions, editor.companions ? [editor.companions] : []))];
+    $('ed-with').innerHTML = pickHtml(withOpts, editor.companions ? [editor.companions] : []);
+    const spOpts = [...new Set(sug.species.concat(editor.species))];
+    $('ed-species').innerHTML = pickHtml(spOpts, editor.species);
+    const tagOpts = [...new Set(sug.tags.concat(editor.tags))];
+    $('ed-tags').innerHTML = pickHtml(tagOpts, editor.tags, tagClass);
+    renderCatches();
+  }
+  function renderCatches() {
+    const people = [...new Set(['나'].concat(editor.companions && editor.companions !== '솔로' ? editor.companions.split(/[,\s]+/).filter(Boolean) : []))];
+    const species = editor.species.length ? editor.species : ['쭈꾸미', '갑오징어', '문어'];
+    if (!editor.catches.length && editor.status === 'done' && !(editor.trip && editor.trip.catch_raw)) {
+      editor.catches = species.slice(0, 2).map(s => ({ who: '나', species: s, count: '' }));
+    }
+    $('ed-catches').innerHTML = editor.catches.length ? editor.catches.map((c, i) =>
+      '<div class="ft-catch-row" data-i="' + i + '">' +
+      '<input type="text" list="ft-people" value="' + esc(c.who) + '" data-k="who" aria-label="누구">' +
+      '<input type="text" list="ft-species-list" value="' + esc(c.species) + '" data-k="species" aria-label="어종">' +
+      '<button type="button" class="step" data-step="-1" aria-label="한 마리 빼기">−</button>' +
+      '<input type="text" inputmode="numeric" class="num" value="' + esc(c.count) + '" data-k="count" aria-label="마릿수">' +
+      '<button type="button" class="step" data-step="1" aria-label="한 마리 더하기">+</button>' +
+      '<button type="button" class="rm" data-rm="1" aria-label="이 줄 지우기">×</button></div>').join('')
+      : '<div class="ft-raw" style="margin:0">아직 조과가 없어요. 아래 버튼으로 추가하세요.</div>';
+    $('ed-catches').insertAdjacentHTML('beforeend',
+      '<datalist id="ft-people">' + people.map(p => '<option value="' + esc(p) + '">').join('') + '</datalist>' +
+      '<datalist id="ft-species-list">' + [...new Set(species.concat(state.data ? state.data.suggestions.species : []))].map(p => '<option value="' + esc(p) + '">').join('') + '</datalist>');
+  }
+
+  // 상태 · 재이용
+  $('ed-status').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (!b) return; editor.status = b.dataset.v; renderEditorBits(); touched(); });
+  $('ed-rating').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-v]'); if (!b) return;
+    editor.rating = editor.rating === b.dataset.v ? null : b.dataset.v; renderEditorBits(); touched();
+  });
+  // 칩 선택(동행은 하나, 어종·태그는 여러 개)
+  function bindPick(id, key, single) {
+    $(id).addEventListener('click', async (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.add) {
+        const v = await askText(single ? '동행을 입력하세요 (예: 마눌, 김·신)' : (key === 'tags' ? '태그를 입력하세요' : '어종을 입력하세요'));
+        if (!v || !v.trim()) return;
+        const val = v.trim().slice(0, single ? 100 : 20);
+        if (single) editor.companions = val; else if (!editor[key].includes(val)) editor[key].push(val);
+      } else if (single) {
+        editor.companions = editor.companions === b.dataset.v ? '' : b.dataset.v;
+      } else {
+        const v = b.dataset.v, arr = editor[key];
+        arr.includes(v) ? arr.splice(arr.indexOf(v), 1) : arr.push(v);
+      }
+      renderEditorBits(); touched();
+    });
+  }
+  bindPick('ed-with', 'companions', true); bindPick('ed-species', 'species', false); bindPick('ed-tags', 'tags', false);
+  // base_design.html 의 공용 커스텀 입력 모달(브라우저 기본 prompt 금지 규칙)
+  function askText(msg) { return window.showPrompt(msg, { confirmText: '추가' }); }
+  // 조과
+  $('ed-catches').addEventListener('input', (e) => {
+    const row = e.target.closest('[data-i]'); if (!row) return;
+    editor.catches[Number(row.dataset.i)][e.target.dataset.k] = e.target.value; touched();
+  });
+  $('ed-catches').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-i]'); if (!row) return;
+    const c = editor.catches[Number(row.dataset.i)];
+    if (e.target.closest('[data-rm]')) { editor.catches.splice(Number(row.dataset.i), 1); renderCatches(); touched(); return; }
+    const st = e.target.closest('[data-step]');
+    if (st) { c.count = Math.max(0, (parseInt(c.count, 10) || 0) + Number(st.dataset.step)); row.querySelector('.num').value = c.count; touched(); }
+  });
+  $('ed-add-catch').addEventListener('click', () => {
+    const last = editor.catches[editor.catches.length - 1];
+    editor.catches.push({ who: last ? last.who : '나', species: editor.species[0] || '', count: '' });
+    renderCatches(); touched();
+  });
+  ['ed-date', 'ed-cost', 'ed-region', 'ed-port', 'ed-memo'].forEach(id => $(id).addEventListener('input', touched));
+  $('ed-cost').addEventListener('blur', () => { const n = $('ed-cost').value.replace(/[^\d]/g, ''); $('ed-cost').value = n ? Number(n).toLocaleString('ko-KR') : ''; });
+  $('ed-date').addEventListener('change', () => {
+    if (!editor.trip) editor.status = $('ed-date').value > todayIso() ? 'planned' : 'done';
+    renderEditorBits();
+  });
+
+  // 선사 자동완성
+  let shipTimer = null, shipResults = [], kb = -1;
+  $('ed-ship').addEventListener('input', () => {
+    editor.ship = null; applyShipLock(); touched();
+    clearTimeout(shipTimer);
+    shipTimer = setTimeout(searchShips, 180);
+  });
+  $('ed-ship').addEventListener('focus', () => { if (!$('ed-ship').value) searchShips(); });
+  $('ed-ship').addEventListener('keydown', (e) => {
+    const list = $('ed-ship-list'); if (list.hidden) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); kb = Math.max(0, Math.min(shipResults.length - 1, kb + (e.key === 'ArrowDown' ? 1 : -1))); paintShips(); }
+    else if (e.key === 'Enter' && kb >= 0) { e.preventDefault(); chooseShip(shipResults[kb]); }
+  });
+  document.addEventListener('click', (e) => { if (!e.target.closest('[data-field="ship_name"]')) $('ed-ship-list').hidden = true; });
+  async function searchShips() {
+    try {
+      const body = await api(SHIP_API + '?q=' + encodeURIComponent($('ed-ship').value));
+      shipResults = body.ships; kb = -1; paintShips();
+    } catch (err) { /* 자동완성 실패는 입력을 막지 않는다 */ }
+  }
+  function paintShips() {
+    const list = $('ed-ship-list');
+    if (!shipResults.length) { list.hidden = true; $('ed-ship').setAttribute('aria-expanded', 'false'); return; }
+    let html = '', lastKind = null;
+    shipResults.forEach((r, i) => {
+      if (r.kind !== lastKind) { html += '<div class="grp">' + (r.kind === 'ship' ? '기록된 선사' : 'AFT 배 목록') + '</div>'; lastKind = r.kind; }
+      html += '<button type="button" role="option" data-i="' + i + '" class="' + (i === kb ? 'kb' : '') + '"><b>' + esc(r.name) + '</b><span>' +
+        esc([r.region, r.port].filter(Boolean).join(' · ')) + '</span>' + (r.kind === 'ship' && r.trip_count ? '<em>' + r.trip_count + '회</em>' : '') + '</button>';
+    });
+    list.innerHTML = html; list.hidden = false; $('ed-ship').setAttribute('aria-expanded', 'true');
+  }
+  $('ed-ship-list').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) chooseShip(shipResults[Number(b.dataset.i)]); });
+  function chooseShip(r) {
+    $('ed-ship').value = r.name;
+    $('ed-region').value = r.region || ''; $('ed-port').value = r.port || '';
+    editor.ship = r.kind === 'ship' ? { locked: true, boat_id: r.boat_id } : { locked: false, boat_id: r.boat_id };
+    $('ed-ship-list').hidden = true; applyShipLock(); touched();
+  }
+
+  // 저장 · 삭제
+  function clearErrors() { document.querySelectorAll('#ft-form .err').forEach(el => el.classList.remove('err')); }
+  $('ed-save').addEventListener('click', save);
+  async function save() {
+    if (editor.saving) return;
+    clearErrors();
+    const v = snapshot();
+    const payload = Object.assign({}, v, {
+      cost: v.cost.replace(/[^\d]/g, ''),
+      catches: v.catches.filter(c => String(c.count).trim() !== '').map(c => ({ who: c.who, species: c.species, count: Number(c.count) })),
+    });
+    delete payload.shipLocked;
+    editor.saving = true; $('ed-save').disabled = true; $('ed-save').textContent = '저장 중…';
+    try {
+      const body = await api(editor.trip ? API + '/' + editor.trip.id : API, { method: editor.trip ? 'PUT' : 'POST', body: payload });
+      draftDel(editor.key); editor.dirty = false;
+      closeOverlay('ft-editor', false);
+      showToast(editor.trip ? '수정했어요' : '출조 기록을 추가했어요', { type: 'success' });
+      const y = body.trip.trip_date.slice(0, 4);
+      if (state.year !== 'all' && state.year !== y) state.year = y;
+      state.openId = isMobile() ? null : body.trip.id;
+      load();
+    } catch (err) {
+      if (err.field) {
+        const el = document.querySelector('#ft-form [data-field="' + err.field + '"]');
+        if (el) { el.classList.add('err'); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+      }
+      showToast(err.message, { type: 'error' });
+    } finally {
+      editor.saving = false; $('ed-save').disabled = false; $('ed-save').textContent = '저장';
+    }
+  }
+  $('ed-delete').addEventListener('click', () => editor.trip && removeTrip(editor.trip));
+
+  window.addEventListener('resize', () => { if (state.data) render(); });
+  load();
+})();
+</script>
+{% endblock %}

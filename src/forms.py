@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, IntegerField, SubmitField, SelectField, HiddenField, TextAreaField, PasswordField, FloatField
+from wtforms import StringField, IntegerField, SubmitField, SelectField, HiddenField, TextAreaField, PasswordField, FloatField, BooleanField
 from wtforms.validators import DataRequired, URL, NumberRange, Optional, Length
 
 
@@ -59,4 +59,7 @@ class StatusCheckForm(FlaskForm):
 class AdminLoginForm(FlaskForm):
     username = StringField('아이디', validators=[DataRequired()])
     password = PasswordField('비밀번호', validators=[DataRequired()])
+    # 체크하면 이 기기에서 30일 유지(PERMANENT_SESSION_LIFETIME), 안 하면
+    # 브라우저를 닫을 때 풀린다 - 폰에서 출조 기록을 자주 입력하기 위해 추가.
+    remember = BooleanField('로그인 유지')
     submit = SubmitField('로그인')

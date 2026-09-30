@@ -1495,6 +1495,7 @@ def admin_page():
     if form.validate_on_submit():
         if _admin_login_ok(form.username.data, form.password.data):
             session['admin_authed'] = True
+            session.permanent = bool(form.remember.data)
             return redirect(url_for('views.admin_page'))
         flash('아이디 또는 비밀번호가 올바르지 않습니다.', 'danger')
         return render_template('admin.html', authed=False, form=form)
@@ -1759,6 +1760,7 @@ def admin_data_device_check_log_route(subscriber_id):
 @views.route('/admin/logout', methods=['POST'])
 def admin_logout():
     session.pop('admin_authed', None)
+    session.permanent = False
     return redirect(url_for('views.admin_page'))
 
 
