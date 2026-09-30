@@ -812,7 +812,7 @@
   // 날짜: 예약현황 화면의 달력 팝오버와 같은 컴포넌트(모양·동작)를 쓴다.
   const cal = AdmUI.calendar($('ed-date-cal'), { onChange: () => dateChanged() });
 
-  function openEditor(trip) {
+  function openEditor(trip, preset) {
     editor.trip = trip || null;
     editor.key = trip ? String(trip.id) : 'new';
     let v;
@@ -827,6 +827,7 @@
     }
     const draft = draftGet(editor.key);
     if (draft) { v = draft; setTimeout(() => showToast('임시저장된 내용을 불러왔어요', { type: 'info' }), 60); }
+    if (preset) v = Object.assign({}, v, preset);   // 선사 노트의 "이 배로 출조 기록 추가"
     fillEditor(v);
     editor.dirty = !!draft;
     $('ft-ed-kind').textContent = trip ? '출조 기록 수정' : '출조 기록 추가';
@@ -1054,7 +1055,38 @@
 
   let resizeTimer = null;
   window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (state.data && !state.loading) render(); }, 150); });
-  load();
+  // 선사 노트에서 넘어온 링크: #trip-<id>(그 기록 펼치기), #new?ship=<id>(선사를 채운 새 기록)
+  async function handleHash() {
+    const trip = /^#trip-(\d+)$/.exec(location.hash), neu = /^#new\?ship=(\d+)$/.exec(location.hash);
+    if (!trip && !neu) return;
+    history.replaceState(history.state, '', location.pathname + location.search);
+    try {
+      if (trip) {
+        const id = Number(trip[1]);
+        state.f.status = 'all';
+        let t = state.data && state.data.trips.find(x => x.id === id);
+        if (!t) {
+          busy(true, '출조 기록 찾는 중…');
+          t = (await api(API + '/' + id)).trip;
+          busy(false);
+          state.year = t.trip_date.slice(0, 4);
+          await load();
+          t = (state.data && state.data.trips.find(x => x.id === id)) || t;
+        }
+        if (isMobile()) return openDetail(t);
+        state.openId = id; render();
+        const row = document.querySelector('[data-row="' + id + '"]');
+        if (row) row.scrollIntoView({ block: 'center' });
+      } else {
+        busy(true, '선사 정보 불러오는 중…');
+        const s = (await api('/admin/api/fishing/ships/' + neu[1])).ship;
+        busy(false);
+        openEditor(null, { ship_name: s.name, ship_region: s.region || '', ship_port: s.port || '', boat_id: s.boat_id, shipLocked: true });
+      }
+    } catch (err) { busy(false); showToast(err.message, { type: 'error' }); }
+  }
+
+  load().then(handleHash);
 })();
 </script>
 {% endblock %}

@@ -1,0 +1,476 @@
+{% extends "admin_layout.html" %}
+{% block title %}선사 노트 · AFT 관리자{% endblock %}
+{#
+  내 낚시 기록 > 선사 노트 - docs/superpowers/specs/2026-10-01-fishing-log-ships-design.md §5.
+  통계는 서버(ship_service)가 계산하고, 화면은 그리기만 한다. 드롭다운·스피너는 AdmUI 공통 부품.
+#}
+{% block admin_content %}
+<style>
+  .sn, .sn-overlay { --ink: oklch(0.22 0.02 250); --muted: oklch(0.52 0.015 250); --line: oklch(0.925 0.008 240); --line-soft: oklch(0.95 0.006 240);
+    --soft: oklch(0.97 0.005 240); --accent: oklch(0.46 0.12 248); --accent-soft: oklch(0.955 0.03 248); --catch: oklch(0.5 0.12 320);
+    --grad: linear-gradient(145deg, oklch(0.5 0.13 248), oklch(0.4 0.11 238)); color: oklch(0.22 0.02 250); font-feature-settings: 'tnum' 1; }
+  .sn { padding: 24px clamp(14px, 2.4vw, 32px) 60px; max-width: 1320px; box-sizing: border-box; }
+  .sn button, .sn-overlay button { font: inherit; cursor: pointer; }
+  .sn a, .sn-overlay a { text-decoration: none; }
+  .sn-head { margin-bottom: 14px; }
+  .sn-head h1 { margin: 0; font-size: clamp(22px, 2.8vw, 27px); font-weight: 800; letter-spacing: -1px; }
+  .sn-head p { margin: 5px 0 0; font-size: 12.5px; font-weight: 560; color: var(--muted); }
+  .sn-body { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
+
+  /* ---- 목록 ---- */
+  .sn-side { position: sticky; top: 76px; display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 96px); }
+  .sn-search { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; border-radius: 14px; background: #fff; border: 1px solid var(--line); box-sizing: border-box; }
+  .sn-search input { flex: 1; min-width: 0; border: none; background: transparent; outline: none; font: inherit; font-size: 13.5px; font-weight: 560; }
+  .sn-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 3px; background: oklch(0.94 0.008 250); border-radius: 11px; }
+  .sn-seg button { height: 36px; border-radius: 9px; border: none; background: transparent; font-size: 12.5px; font-weight: 700; color: oklch(0.5 0.015 250); white-space: nowrap; }
+  .sn-seg button.on { background: #fff; color: var(--ink); font-weight: 780; box-shadow: 0 1px 3px oklch(0.3 0.02 250 / 0.12); }
+  .sn-seg button:disabled { cursor: default; color: oklch(0.66 0.01 250); }
+  .sn-seg small { font-size: 10px; font-weight: 700; }
+  .sn-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-bottom: 2px; }
+  .sn-group { border-radius: 16px; background: #fff; border: 1px solid var(--line); overflow: hidden; flex: none; }
+  .sn-ghead { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: oklch(0.978 0.004 240); }
+  .sn-ghead b { font-size: 13.5px; font-weight: 800; } .sn-ghead span { font-size: 12px; font-weight: 700; color: oklch(0.58 0.015 250); }
+  .sn-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; width: 100%; padding: 10px 14px; min-height: 54px; box-sizing: border-box;
+             border: none; border-top: 1px solid oklch(0.965 0.006 240); background: transparent; text-align: left; color: inherit; }
+  .sn-item:hover { background: oklch(0.985 0.008 248); }
+  .sn-item.on { background: oklch(0.965 0.02 248); box-shadow: inset 3px 0 0 var(--accent); }
+  .sn-item b { font-size: 14px; font-weight: 760; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sn-item .sub { grid-column: 1; font-size: 11.5px; font-weight: 600; color: oklch(0.52 0.015 250); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sn-item .sn-tag { grid-column: 2; grid-row: 1 / span 2; }
+  .sn-tag { padding: 3px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 740; white-space: nowrap; }
+  .sn-tag.good { background: oklch(0.95 0.04 160); color: oklch(0.42 0.11 160); }
+  .sn-tag.bad { background: oklch(0.96 0.03 25); color: oklch(0.5 0.17 25); }
+  .sn-tag.plan { background: var(--accent-soft); color: oklch(0.4 0.12 248); }
+  .sn-tag.memo { background: oklch(0.96 0.006 240); color: oklch(0.5 0.015 250); }
+  .sn-soon { height: 44px; border-radius: 13px; border: 1px dashed oklch(0.86 0.01 240); background: #fff; font-size: 13px; font-weight: 700; color: oklch(0.6 0.012 250); flex: none; }
+  .sn-empty { padding: 26px; border-radius: 16px; border: 1px dashed oklch(0.88 0.01 240); text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); background: #fff; }
+
+  /* ---- 상세 ---- */
+  .sn-detail { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .sn-card { padding: 18px 20px; border-radius: 18px; background: #fff; border: 1px solid var(--line); }
+  .sn-card h2 { margin: 0 0 12px; font-size: 15px; font-weight: 800; letter-spacing: -0.3px; }
+  .sn-card h2 small { font-size: 12px; font-weight: 650; color: oklch(0.55 0.015 250); margin-left: 4px; }
+  .sn-hero { display: flex; flex-direction: column; gap: 8px; }
+  .sn-hero-top { display: flex; align-items: flex-start; gap: 10px; }
+  .sn-hero h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -1px; flex: 1; min-width: 0; word-break: keep-all; }
+  .sn-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sn-badge { padding: 3px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 740; background: var(--accent-soft); color: oklch(0.4 0.12 248); }
+  .sn-badge.sp { background: oklch(0.95 0.035 320); color: oklch(0.42 0.12 320); }
+  .sn-badge.off { background: oklch(0.96 0.006 240); color: oklch(0.52 0.015 250); }
+  .sn-hero .meta { font-size: 13px; font-weight: 620; line-height: 1.55; color: oklch(0.48 0.015 250); }
+  .sn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 13px; border-radius: 11px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 13px; font-weight: 720; color: oklch(0.38 0.02 250); white-space: nowrap; flex: none; }
+  .sn-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+  .sn-link { height: 60px; border-radius: 13px; background: oklch(0.975 0.005 240); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 12.5px; font-weight: 720; color: oklch(0.34 0.02 250); }
+  .sn-link.main { background: var(--accent); color: #fff; }
+  .sn-link.off { opacity: 0.45; cursor: not-allowed; }
+  .sn-link-note { font-size: 11.5px; font-weight: 620; color: var(--muted); }
+  .sn-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .sn-stat { padding: 13px 14px; border-radius: 14px; background: #fff; border: 1px solid var(--line); min-width: 0; }
+  .sn-stat .l { font-size: 11.5px; font-weight: 700; color: oklch(0.52 0.015 250); }
+  .sn-stat .v { font-size: 20px; font-weight: 800; margin-top: 3px; letter-spacing: -0.5px; word-break: keep-all; }
+  .sn-stat .v small { font-size: 12px; font-weight: 700; color: oklch(0.55 0.015 250); }
+  .sn-stat .v .plus { color: var(--accent); }
+  .sn-stat.rate { background: oklch(0.95 0.04 160); border-color: transparent; }
+  .sn-stat.rate .l { color: oklch(0.42 0.1 160); } .sn-stat.rate .v { font-size: 14.5px; color: oklch(0.36 0.1 160); margin-top: 6px; line-height: 1.45; }
+  .sn-two { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 12px; align-items: start; }
+  .sn-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .sn-trend { display: flex; align-items: flex-end; gap: 8px; height: 130px; border-bottom: 1px solid oklch(0.92 0.008 240); }
+  .sn-trend .c { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; }
+  .sn-trend .c b { font-size: 12px; font-weight: 780; }
+  .sn-trend .bar { width: min(36px, 80%); border-radius: 6px 6px 2px 2px; background: var(--catch); }
+  .sn-trend .bar.zero { height: 3px; background: oklch(0.88 0.01 250); }
+  .sn-trend .bar.plan { height: 18px; background: transparent; border: 2px dashed oklch(0.75 0.06 248); box-sizing: border-box; }
+  .sn-trend .c .p { font-size: 11px; font-weight: 700; color: var(--accent); }
+  .sn-trend-x { display: flex; gap: 8px; margin-top: 6px; }
+  .sn-trend-x span { flex: 1; min-width: 0; text-align: center; font-size: 10.5px; font-weight: 680; color: oklch(0.5 0.015 250); white-space: nowrap; overflow: hidden; }
+  .sn-visit { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 12px; color: inherit; border-radius: 10px; }
+  .sn-visit:hover .vb { background: oklch(0.985 0.008 248); }
+  .sn-visit .rail { display: flex; flex-direction: column; align-items: center; }
+  .sn-visit .dot { width: 12px; height: 12px; border-radius: 99px; margin-top: 4px; border: 3px solid var(--catch); background: var(--catch); box-sizing: border-box; flex: none; }
+  .sn-visit.planned .dot { border-color: oklch(0.75 0.06 248); background: #fff; }
+  .sn-visit.cancelled { opacity: 0.5; } .sn-visit.cancelled .dot { border-color: oklch(0.8 0.01 250); background: #fff; }
+  .sn-visit .line { flex-grow: 1; width: 2px; background: oklch(0.93 0.008 240); }
+  .sn-visit:last-child .line { display: none; }
+  .sn-visit .vb { padding: 0 6px 14px; display: flex; flex-direction: column; gap: 3px; border-radius: 8px; min-width: 0; }
+  .sn-visit .top { display: flex; align-items: center; gap: 8px; }
+  .sn-visit .top b { font-size: 13.5px; font-weight: 780; }
+  .sn-visit .top .sn-rate { margin-left: auto; }
+  .sn-visit .w { font-size: 12px; font-weight: 640; color: oklch(0.5 0.015 250); }
+  .sn-visit .ct { font-size: 13px; font-weight: 740; color: oklch(0.34 0.02 250); }
+  .sn-visit .m { font-size: 12.5px; font-weight: 560; line-height: 1.55; color: oklch(0.45 0.015 250); white-space: pre-wrap; word-break: break-word; }
+  .sn-rate { padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 740; white-space: nowrap; }
+  .sn-rate.again { background: oklch(0.95 0.04 160); color: oklch(0.42 0.11 160); }
+  .sn-rate.maybe { background: oklch(0.96 0.045 80); color: oklch(0.5 0.11 70); }
+  .sn-rate.never { background: oklch(0.96 0.03 25); color: oklch(0.5 0.17 25); }
+  .sn-rate.plan { background: var(--accent-soft); color: oklch(0.4 0.12 248); }
+  .sn-rate.none, .sn-rate.cancelled { background: oklch(0.96 0.006 240); color: oklch(0.52 0.015 250); }
+  .sn-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sn-chip { padding: 5px 10px; border-radius: 99px; font-size: 12px; font-weight: 720; background: oklch(0.96 0.006 240); color: oklch(0.4 0.015 250); }
+  .sn-chip.pos { background: oklch(0.95 0.04 160); color: oklch(0.4 0.1 160); }
+  .sn-chip.neg { background: oklch(0.96 0.03 25); color: oklch(0.48 0.15 25); }
+  .sn-info { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 8px 10px; font-size: 13px; }
+  .sn-info dt { font-weight: 700; color: oklch(0.54 0.015 250); }
+  .sn-info dd { margin: 0; font-weight: 650; white-space: pre-wrap; word-break: break-word; }
+  .sn-info dd.none { color: oklch(0.62 0.012 250); }
+  .sn-none { font-size: 13px; font-weight: 600; color: var(--muted); padding: 6px 0; }
+  .sn-cta { display: grid; place-items: center; height: 50px; border-radius: 15px; background: var(--grad); box-shadow: 0 8px 20px oklch(0.45 0.12 248 / 0.28); font-size: 14.5px; font-weight: 780; color: #fff; }
+
+  /* ---- 패널 ---- */
+  .sn-overlay { position: fixed; inset: 0; z-index: 100; background: oklch(0.2 0.02 250 / 0.46); }
+  .sn-overlay[hidden] { display: none !important; }
+  .sn-panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(560px, 100%); background: #fff; display: flex; flex-direction: column; box-shadow: -20px 0 50px oklch(0.2 0.02 250 / 0.2); }
+  .sn-page { position: absolute; inset: 0; background: oklch(0.975 0.006 250); display: flex; flex-direction: column; }
+  .sn-phead { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid oklch(0.94 0.006 240); background: #fff; }
+  .sn-phead .t { flex: 1; min-width: 0; }
+  .sn-phead small { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+  .sn-phead h2 { margin: 2px 0 0; font-size: 19px; font-weight: 800; letter-spacing: -0.6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sn-x { width: 44px; height: 44px; border-radius: 12px; border: 1px solid oklch(0.92 0.008 240); background: #fff; display: grid; place-items: center; color: oklch(0.42 0.02 250); flex: none; }
+  .sn-pbody { flex: 1; overflow-y: auto; padding: 18px 20px 28px; display: flex; flex-direction: column; gap: 16px; }
+  .sn-pfoot { display: flex; align-items: center; gap: 8px; padding: 12px 20px 16px; border-top: 1px solid oklch(0.94 0.006 240); background: oklch(0.99 0.002 240); }
+  .sn-pfoot .grow { flex: 1; }
+  .sn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 42px; padding: 0 18px; border-radius: 12px; border: none; background: var(--grad); color: #fff; font-size: 13.5px; font-weight: 740; }
+  .sn-primary:disabled { opacity: 0.75; cursor: default; }
+  .sn-field { display: flex; flex-direction: column; gap: 8px; }
+  .sn-field.err .sn-input, .sn-field.err .adm-dd-btn { border-color: oklch(0.6 0.18 25); box-shadow: 0 0 0 4px oklch(0.6 0.18 25 / 0.12); }
+  .sn-label { font-size: 12.5px; font-weight: 760; color: oklch(0.45 0.015 250); }
+  .sn-label .req { color: oklch(0.55 0.18 25); }
+  .sn-input { height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid oklch(0.88 0.01 240); font: inherit; font-size: 14.5px; font-weight: 650; color: var(--ink); background: #fff; box-sizing: border-box; width: 100%; min-width: 0; }
+  .sn-input:focus, .sn-textarea:focus { outline: none; border-color: oklch(0.55 0.12 248); box-shadow: 0 0 0 4px oklch(0.55 0.12 248 / 0.12); }
+  .sn-textarea { resize: vertical; min-height: 110px; padding: 11px 13px; border-radius: 12px; border: 1px solid oklch(0.88 0.01 240); font: inherit; font-size: 14px; font-weight: 560; line-height: 1.6; box-sizing: border-box; width: 100%; color: var(--ink); }
+  .sn-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .sn-hint { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+
+  @media (max-width: 1100px) { .sn-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sn-two { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 899px) {
+    .sn { padding: 14px 16px 40px; }
+    .sn-body { grid-template-columns: minmax(0, 1fr); }
+    .sn-side { position: static; max-height: none; }
+    .sn-list { overflow: visible; }
+    .sn-body > .sn-detail { display: none; }
+    .sn-item.on { background: transparent; box-shadow: none; }
+    .sn-page .sn-pbody { padding: 14px 16px 24px; gap: 10px; }
+    .sn-card { padding: 16px; }
+    .sn-hero h1 { font-size: 24px; }
+    .sn-panel { width: 100%; box-shadow: none; }
+    .sn-phead { padding: 6px 8px; } .sn-phead .sn-x { border: none; }
+    .sn-pfoot { padding: 12px 16px 18px; } .sn-pfoot .sn-primary { flex: 1; height: 52px; font-size: 15px; }
+    .sn-grid2 { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+
+<div class="sn" id="ship-app">
+  <input type="hidden" id="csrf_token" value="{{ form.csrf_token.current_token }}">
+  <div class="sn-head"><h1>선사 노트</h1><p>내 낚시 기록 · 탄 배를 선사별로 모아 또 탈지 판단합니다</p></div>
+  <div class="sn-body">
+    <aside class="sn-side">
+      <label class="sn-search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.6 0.015 250)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+        <input type="search" id="sn-q" placeholder="선사 · 항구 · 메모 검색" aria-label="선사 검색">
+      </label>
+      <div class="sn-seg" role="group" aria-label="선사 필터" id="sn-seg"></div>
+      <div class="sn-list" id="sn-list"></div>
+      <button type="button" class="sn-soon" disabled>+ 가 볼 선사 메모 · 준비 중</button>
+    </aside>
+    <section class="sn-detail" id="sn-detail" aria-live="polite"></section>
+  </div>
+</div>
+
+<!-- 모바일 상세 -->
+<div class="sn-overlay" id="sn-m" hidden>
+  <section class="sn-page" role="dialog" aria-modal="true" aria-labelledby="sn-m-title">
+    <div class="sn-phead">
+      <button type="button" class="sn-x" data-act="close" aria-label="뒤로"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m15 18-6-6 6-6"></path></svg></button>
+      <div class="t"><h2 id="sn-m-title">선사 노트</h2></div>
+    </div>
+    <div class="sn-pbody"><div class="sn-detail" id="sn-m-detail"></div></div>
+  </section>
+</div>
+
+<!-- 선사 정보 수정 -->
+<div class="sn-overlay" id="sn-editor" hidden>
+  <section class="sn-panel" role="dialog" aria-modal="true" aria-labelledby="sn-ed-title">
+    <div class="sn-phead">
+      <button type="button" class="sn-x" data-act="close" aria-label="닫기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+      <div class="t"><small>선사 정보 수정</small><h2 id="sn-ed-title">선사</h2></div>
+    </div>
+    <div class="sn-pbody">
+      <label class="sn-field" data-field="name"><span class="sn-label">선사명 <span class="req">*</span></span><input class="sn-input" id="sn-ed-name" autocomplete="off"></label>
+      <div class="sn-grid2">
+        <div class="sn-field" data-field="region"><span class="sn-label">지역</span><div id="sn-ed-region"></div></div>
+        <label class="sn-field" data-field="port"><span class="sn-label">항구</span><input class="sn-input" id="sn-ed-port" placeholder="예: 돌산항" autocomplete="off"></label>
+        <label class="sn-field" data-field="fleet"><span class="sn-label">선단</span><input class="sn-input" id="sn-ed-fleet" placeholder="예: 레드헌터" autocomplete="off"></label>
+        <label class="sn-field" data-field="travel_time"><span class="sn-label">이동 시간</span><input class="sn-input" id="sn-ed-travel" placeholder="예: 50분" autocomplete="off"></label>
+      </div>
+      <div class="sn-field" data-field="boat_id"><span class="sn-label">AFT 배 목록 연결</span><div id="sn-ed-boat"></div>
+        <span class="sn-hint">연결하면 예약현황·빈자리 알림·예약 페이지 바로가기를 쓸 수 있어요</span></div>
+      <label class="sn-field" data-field="memo"><span class="sn-label">메모</span><textarea class="sn-textarea" id="sn-ed-memo" rows="5" placeholder="추천인, 특징, 주의할 점 등"></textarea></label>
+    </div>
+    <div class="sn-pfoot">
+      <span class="grow"></span>
+      <button type="button" class="sn-ghost" data-act="close" style="height:42px">취소</button>
+      <button type="button" class="sn-primary" id="sn-ed-save">저장</button>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block admin_scripts %}
+<script>
+(function () {
+  const API = '/admin/api/fishing/ships';
+  const TRIPS = '/admin/fishing/trips';
+  const csrf = document.getElementById('csrf_token').value;
+  const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+  const RATE_LABEL = { again: '또 탈래요', maybe: '글쎄요', never: '다신 안 탐' };
+  // 출조 기록 화면의 기본 태그와 같은 구분(긍정/부정 색)
+  const POS_TAGS = ['신조선배', '배 컨디션 좋음', '줄 잘 잡아줌', '사무장 있음', '밥 맛있음'];
+  const NEG_TAGS = ['선장이 낚시함', '준비물 부족', '너무 멀다', '포인트 이동 적음'];
+  const $ = (id) => document.getElementById(id);
+  const esc = AdmUI.esc;
+  const isMobile = () => window.matchMedia('(max-width: 899px)').matches;
+  const state = { ships: [], regions: [], boats: [], sel: null, detail: {}, f: { q: '', only: 'all' }, loading: true };
+
+  function won(n) { return Number(n || 0).toLocaleString('ko-KR'); }
+  function parts(iso) { const [y, m, d] = iso.split('-').map(Number); return { y, m, d, dow: new Date(y, m - 1, d).getDay() }; }
+  function shortDate(iso) { const p = parts(iso); return String(p.y).slice(2) + '.' + p.m + '.' + p.d; }
+  function dayDate(iso) { const p = parts(iso); return shortDate(iso) + ' (' + WEEK[p.dow] + ')'; }
+  function daysFromToday(iso) { const p = parts(iso), t = new Date(); t.setHours(0, 0, 0, 0); return Math.round((new Date(p.y, p.m - 1, p.d) - t) / 86400000); }
+  async function api(url, opts) {
+    const o = Object.assign({ headers: {} }, opts || {});
+    if (o.body && typeof o.body !== 'string') { o.body = JSON.stringify(o.body); o.headers['Content-Type'] = 'application/json'; }
+    if (o.method && o.method !== 'GET') o.headers['X-CSRFToken'] = csrf;
+    let resp;
+    try { resp = await fetch(url, Object.assign({ cache: 'no-store' }, o)); } catch (e) { throw new Error('네트워크 연결을 확인해 주세요.'); }
+    let body = {};
+    try { body = await resp.json(); } catch (e) { /* 빈 응답 */ }
+    if (resp.status === 403) throw new Error('로그인이 만료됐어요. 다시 로그인해 주세요.');
+    if (!resp.ok) { const err = new Error(body.error || '요청을 처리하지 못했습니다.'); err.field = body.field; throw err; }
+    return body;
+  }
+
+  // ---------- 겹치는 화면 + 뒤로가기 ----------
+  const stack = [];
+  function openOverlay(id) { $(id).hidden = false; document.body.style.overflow = 'hidden'; stack.push(id); history.pushState({ snOverlay: id }, ''); }
+  function closeOverlay(id, fromPop) {
+    const i = stack.lastIndexOf(id); if (i < 0) return;
+    stack.splice(i, 1); $(id).hidden = true;
+    if (!stack.length) document.body.style.overflow = '';
+    if (!fromPop && history.state && history.state.snOverlay === id) history.back();
+  }
+  window.addEventListener('popstate', () => { const top = stack[stack.length - 1]; if (top) closeOverlay(top, true); });
+  document.querySelectorAll('.sn-overlay').forEach(ov => {
+    ov.addEventListener('click', (e) => { if (e.target === ov) closeOverlay(ov.id, false); });
+    ov.querySelectorAll('[data-act="close"]').forEach(b => b.addEventListener('click', () => closeOverlay(ov.id, false)));
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && stack.length) closeOverlay(stack[stack.length - 1], false); });
+
+  // ---------- 목록 ----------
+  // 서버(list_ship_notes)와 같은 묶음·정렬 규칙 - 수정 후 한 건만 바꿔 끼운 뒤 다시 묶는다.
+  function hasTrips(s) { return s.done_count + s.planned_count > 0; }
+  function shipCmp(a, b) {
+    return (hasTrips(b) - hasTrips(a)) || (b.done_count - a.done_count) ||
+      ((b.last_trip || b.next_planned || '').localeCompare(a.last_trip || a.next_planned || '')) || a.name.localeCompare(b.name);
+  }
+  function grouped(ships) {
+    const map = new Map();
+    ships.forEach(s => { const k = s.region || ''; if (!map.has(k)) map.set(k, []); map.get(k).push(s); });
+    const sum = (list) => list.reduce((a, s) => a + s.done_count, 0);
+    return [...map.entries()].map(([region, list]) => ({ region, ships: list.sort(shipCmp) }))
+      .sort((a, b) => (!a.region - !b.region) || (sum(b.ships) - sum(a.ships)) || a.region.localeCompare(b.region));
+  }
+  function visible() {
+    const q = state.f.q.trim().toLowerCase();
+    return state.ships.filter(s => {
+      if (state.f.only === 'done' && !s.done_count) return false;
+      if (!q) return true;
+      return [s.name, s.region, s.port, s.fleet, s.memo].join(' ').toLowerCase().includes(q);
+    });
+  }
+  function subLine(s) { return [s.port, s.fleet, s.travel_time].filter(Boolean).join(' · ') || (s.memo ? s.memo.split('\n')[0] : '') || '정보 미입력'; }
+  function renderSeg() {
+    const done = state.ships.filter(s => s.done_count).length;
+    $('sn-seg').innerHTML =
+      '<button type="button" data-only="all" class="' + (state.f.only === 'all' ? 'on' : '') + '" aria-pressed="' + (state.f.only === 'all') + '">전체 ' + state.ships.length + '</button>' +
+      '<button type="button" data-only="done" class="' + (state.f.only === 'done' ? 'on' : '') + '" aria-pressed="' + (state.f.only === 'done') + '">타 본 곳 ' + done + '</button>' +
+      '<button type="button" disabled title="준비 중">가 볼 곳 <small>준비 중</small></button>';
+  }
+  function renderList() {
+    renderSeg();
+    if (state.loading) { $('sn-list').innerHTML = AdmUI.loadingHtml('선사 목록 불러오는 중…'); return; }
+    const groups = grouped(visible());
+    if (!groups.length) { $('sn-list').innerHTML = '<div class="sn-empty">' + (state.ships.length ? '조건에 맞는 선사가 없어요' : '아직 선사가 없어요. 출조 기록을 추가하면 생겨요') + '</div>'; return; }
+    $('sn-list').innerHTML = groups.map(g => '<div class="sn-group"><div class="sn-ghead"><b>' + esc(g.region || '지역 미입력') + '</b><span>' + g.ships.length + '</span></div>' +
+      g.ships.map(s => '<button type="button" class="sn-item' + (s.id === state.sel ? ' on' : '') + '" data-id="' + s.id + '"' + (s.id === state.sel ? ' aria-current="true"' : '') + '>' +
+        '<b>' + esc(s.name) + '</b><span class="sn-tag ' + s.tone + '">' + esc(s.tag) + '</span><span class="sub">' + esc(subLine(s)) + '</span></button>').join('') + '</div>').join('');
+  }
+  $('sn-q').addEventListener('input', (e) => { state.f.q = e.target.value; renderList(); });
+  $('sn-seg').addEventListener('click', (e) => { const b = e.target.closest('[data-only]'); if (!b) return; state.f.only = b.dataset.only; renderList(); });
+  $('sn-list').addEventListener('click', (e) => { const b = e.target.closest('[data-id]'); if (b) select(Number(b.dataset.id), true); });
+
+  async function load() {
+    state.loading = true; renderList();
+    $('sn-detail').innerHTML = '';
+    try {
+      const data = await api(API + '/notes');
+      state.ships = data.groups.flatMap(g => g.ships); state.regions = data.regions; state.boats = data.boats;
+      state.loading = false;
+      const fromHash = /^#ship-(\d+)$/.exec(location.hash);
+      const want = fromHash && state.ships.some(s => s.id === Number(fromHash[1])) ? Number(fromHash[1]) : null;
+      renderList();
+      if (want) select(want, isMobile());
+      else if (!isMobile() && state.ships.length) select(grouped(state.ships)[0].ships[0].id, false);
+    } catch (err) {
+      state.loading = false;
+      $('sn-list').innerHTML = '<div class="sn-empty">' + esc(err.message) + ' <button type="button" class="sn-ghost" id="sn-retry" style="margin-left:6px">다시 시도</button></div>';
+      $('sn-retry').onclick = load;
+    }
+  }
+
+  // ---------- 상세 ----------
+  let reqSeq = 0;
+  function target() { return isMobile() ? $('sn-m-detail') : $('sn-detail'); }
+  async function select(id, openOnMobile) {
+    state.sel = id; renderList();
+    if (!isMobile()) history.replaceState(history.state, '', '#ship-' + id);
+    const s = state.ships.find(x => x.id === id);
+    if (isMobile()) { $('sn-m-title').textContent = s ? s.name : '선사 노트'; if (openOnMobile && $('sn-m').hidden) openOverlay('sn-m'); }
+    if (state.detail[id]) { renderDetail(state.detail[id]); return; }
+    target().innerHTML = '<div class="sn-card">' + AdmUI.loadingHtml('선사 정보 불러오는 중…') + '</div>';
+    const seq = ++reqSeq;
+    try {
+      const d = (await api(API + '/' + id)).ship;
+      state.detail[id] = d;
+      if (seq === reqSeq && state.sel === id) renderDetail(d);
+    } catch (err) {
+      if (seq !== reqSeq) return;
+      target().innerHTML = '<div class="sn-empty">' + esc(err.message) + ' <button type="button" class="sn-ghost" data-retry="' + id + '" style="margin-left:6px">다시 시도</button></div>';
+    }
+  }
+  function renderDetail(d) {
+    const box = target();
+    box.innerHTML = heroHtml(d) + (d.done_count + d.planned_count ? statsHtml(d) + '<div class="sn-two"><div class="sn-col">' + trendHtml(d) + visitsHtml(d) +
+      '</div><div class="sn-col">' + tagsHtml(d) + infoHtml(d) + '</div></div>'
+      : '<div class="sn-card"><div class="sn-none">아직 탄 기록이 없어요. 출조 기록을 추가하면 통계가 쌓여요.</div></div>' + infoHtml(d)) +
+      '<a class="sn-cta" href="' + TRIPS + '#new?ship=' + d.id + '">이 배로 출조 기록 추가</a>';
+  }
+  function heroHtml(d) {
+    const where = [d.fleet ? d.fleet + ' 선단' : '', [d.region, d.port].filter(Boolean).join(' '), d.travel_time ? '이동 ' + d.travel_time : ''].filter(Boolean).join(' · ');
+    const memo = d.memo ? d.memo.split('\n')[0] : '';
+    const link = (href, label, icon, main, external) => d.boat
+      ? '<a class="sn-link' + (main ? ' main' : '') + '" href="' + esc(href) + '"' + (external ? ' target="_blank" rel="noopener"' : '') + '>' + icon + label + '</a>'
+      : '<span class="sn-link off' + (main ? ' main' : '') + '" aria-disabled="true">' + icon + label + '</span>';
+    const I = (p) => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">' + p + '</svg>';
+    return '<section class="sn-card sn-hero">' +
+      '<div class="sn-badges">' + (d.boat ? '<span class="sn-badge">AFT 배 목록 연결됨</span>' : '<span class="sn-badge off">AFT 배 연결 안 됨</span>') +
+        (d.main_species ? '<span class="sn-badge sp">' + esc(d.main_species) + ' 위주</span>' : '') + '</div>' +
+      '<div class="sn-hero-top"><h1>' + esc(d.name) + '</h1><button type="button" class="sn-ghost" data-edit="' + d.id + '">정보 수정</button></div>' +
+      (where || memo ? '<div class="meta">' + esc(where) + (where && memo ? '<br>' : '') + (memo ? '메모 “' + esc(memo) + '”' : '') + '</div>' : '') +
+      '<div class="sn-links">' +
+        link('/status', '예약현황', I('<rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path>')) +
+        link('/watches', '빈자리 알림', I('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>')) +
+        link(d.boat ? d.boat.url : '#', '예약 페이지', I('<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>'), true, true) +
+      '</div>' + (d.boat ? '' : '<span class="sn-link-note">정보 수정에서 AFT 배를 연결하면 쓸 수 있어요</span>') + '</section>';
+  }
+  function statsHtml(d) {
+    const r = d.ratings, rated = ['again', 'maybe', 'never'].filter(k => r[k]).map(k => RATE_LABEL[k] + ' ' + r[k]);
+    return '<div class="sn-stats">' +
+      '<div class="sn-stat"><div class="l">탄 횟수</div><div class="v">' + d.done_count + '회' + (d.planned_count ? ' <small class="plus">+예정 ' + d.planned_count + '</small>' : '') + '</div></div>' +
+      '<div class="sn-stat"><div class="l">쓴 돈</div><div class="v">' + won(d.spent) + '<small>원</small>' +
+        (d.prepaid_planned ? '<br><small class="plus">예정 선입금 ' + won(d.prepaid_planned) + '원</small>' : '') + '</div></div>' +
+      '<div class="sn-stat"><div class="l">내 평균 조과</div><div class="v">' + (d.my_catch.length ? d.my_catch.map(c => esc(c.species) + ' ' + c.avg).join('<br>') : '<small>기록 없음</small>') + '</div></div>' +
+      '<div class="sn-stat rate"><div class="l">또 탈까?</div><div class="v">' + (rated.length ? rated.join(' · ') : '아직 평가 없음') + '</div></div></div>';
+  }
+  function trendHtml(d) {
+    if (!d.main_species) return '<section class="sn-card"><h2>내 조과 추이</h2><div class="sn-none">조과 기록이 없어요</div></section>';
+    const max = Math.max(1, ...d.trend.filter(t => !t.planned).map(t => t.count));
+    return '<section class="sn-card"><h2>내 조과 추이<small>' + esc(d.main_species) + ' · 마리</small></h2><div class="sn-trend">' +
+      d.trend.map(t => '<div class="c">' + (t.planned ? '<span class="p">예정</span><div class="bar plan"></div>'
+        : '<b>' + t.count + '</b><div class="bar' + (t.count ? '' : ' zero') + '" style="height:' + (t.count ? Math.max(6, Math.round(t.count / max * 96)) : 3) + 'px"></div>') + '</div>').join('') +
+      '</div><div class="sn-trend-x">' + d.trend.map(t => '<span>' + shortDate(t.date) + '</span>').join('') + '</div></section>';
+  }
+  function visitsHtml(d) {
+    return '<section class="sn-card"><h2>탄 기록<small>' + d.visits.length + '건</small></h2>' + d.visits.map(v => {
+      let badge;
+      if (v.status === 'cancelled') badge = '<span class="sn-rate cancelled">취소</span>';
+      else if (v.status === 'planned') { const n = daysFromToday(v.date); badge = '<span class="sn-rate plan">' + (n > 0 ? 'D-' + n : n === 0 ? 'D-DAY' : '결과 입력 필요') + '</span>'; }
+      else badge = '<span class="sn-rate ' + (v.rating || 'none') + '">' + (v.rating ? RATE_LABEL[v.rating] : '미평가') + '</span>';
+      const w = [v.companions || '', v.cost != null ? won(v.cost) + '원' + (v.status === 'planned' ? (v.prepaid ? ' 입금 완료' : ' 입금 전') : '') : ''].filter(Boolean).join(' · ');
+      return '<a class="sn-visit ' + v.status + '" href="' + TRIPS + '#trip-' + v.id + '"><div class="rail"><span class="dot"></span><span class="line"></span></div><div class="vb">' +
+        '<div class="top"><b>' + dayDate(v.date) + '</b>' + badge + '</div>' +
+        (w ? '<span class="w">' + esc(w) + '</span>' : '') +
+        (v.catch && v.status !== 'cancelled' ? '<span class="ct">' + esc(v.catch) + '</span>' : '') +
+        (v.memo ? '<span class="m">' + esc(v.memo) + '</span>' : '') + '</div></a>';
+    }).join('') + '</section>';
+  }
+  function tagsHtml(d) {
+    const cls = (t) => POS_TAGS.includes(t) ? ' pos' : NEG_TAGS.includes(t) ? ' neg' : '';
+    return '<section class="sn-card"><h2>자주 남긴 말</h2>' + (d.tags.length
+      ? '<div class="sn-chips">' + d.tags.map(t => '<span class="sn-chip' + cls(t) + '">' + esc(t) + '</span>').join('') + '</div>'
+      : '<div class="sn-none">출조 기록에 남긴 태그가 없어요</div>') + '</section>';
+  }
+  function infoHtml(d) {
+    const row = (k, v) => '<dt>' + k + '</dt><dd' + (v ? '' : ' class="none"') + '>' + (v ? esc(v) : '미입력') + '</dd>';
+    return '<section class="sn-card"><h2>선사 정보</h2><dl class="sn-info" style="margin:0">' + row('지역', d.region) + row('항구', d.port) + row('선단', d.fleet) +
+      row('이동 시간', d.travel_time) + row('AFT 배', d.boat ? d.boat.name : '') + row('메모', d.memo) + '</dl></section>';
+  }
+  document.addEventListener('click', (e) => {
+    const ed = e.target.closest('[data-edit]'); if (ed) { openEditor(Number(ed.dataset.edit)); return; }
+    const rt = e.target.closest('[data-retry]'); if (rt) { select(Number(rt.dataset.retry), false); return; }
+    if (e.target.closest('.sn-link.off')) e.preventDefault();
+  });
+
+  // ---------- 선사 정보 수정 ----------
+  const edRegion = AdmUI.select($('sn-ed-region'), { placeholder: '지역 미입력', ariaLabel: '지역', allowCustom: true, customPrompt: '지역을 입력하세요' });
+  const edBoat = AdmUI.select($('sn-ed-boat'), { placeholder: '연결 안 함', ariaLabel: 'AFT 배 목록 연결' });
+  let editing = null;
+  function openEditor(id) {
+    const d = state.detail[id]; if (!d) return;
+    editing = id;
+    document.querySelectorAll('#sn-editor .err').forEach(el => el.classList.remove('err'));
+    $('sn-ed-title').textContent = d.name;
+    $('sn-ed-name').value = d.name; $('sn-ed-port').value = d.port || ''; $('sn-ed-fleet').value = d.fleet || '';
+    $('sn-ed-travel').value = d.travel_time || ''; $('sn-ed-memo').value = d.memo || '';
+    const regions = state.regions.slice(); if (d.region && !regions.includes(d.region)) regions.push(d.region);
+    edRegion.setOptions([{ value: '', label: '지역 미입력' }].concat(regions.map(r => ({ value: r, label: r })))); edRegion.set(d.region || '');
+    edBoat.setOptions([{ value: '', label: '연결 안 함' }].concat(state.boats.map(b => ({ value: String(b.id), label: b.name, hint: b.port || '' }))));
+    edBoat.set(d.boat_id ? String(d.boat_id) : '');
+    openOverlay('sn-editor');
+  }
+  $('sn-ed-save').addEventListener('click', async () => {
+    const btn = $('sn-ed-save');
+    document.querySelectorAll('#sn-editor .err').forEach(el => el.classList.remove('err'));
+    const body = { name: $('sn-ed-name').value, region: edRegion.value, port: $('sn-ed-port').value, fleet: $('sn-ed-fleet').value,
+                   travel_time: $('sn-ed-travel').value, memo: $('sn-ed-memo').value, boat_id: edBoat.value ? Number(edBoat.value) : null };
+    AdmUI.btnBusy(btn, true, '저장 중…');
+    try {
+      const d = (await api(API + '/' + editing, { method: 'PUT', body })).ship;
+      // 전체 재조회 없이 이 선사만 교체한다.
+      state.detail[d.id] = d;
+      const summary = {}; Object.keys(state.ships.find(s => s.id === d.id) || d).forEach(k => { summary[k] = d[k]; });
+      state.ships = state.ships.map(s => s.id === d.id ? summary : s);
+      if (d.region && !state.regions.includes(d.region)) state.regions.push(d.region);
+      AdmUI.btnBusy(btn, false);
+      closeOverlay('sn-editor', false);
+      renderList(); renderDetail(d);
+      if (isMobile()) $('sn-m-title').textContent = d.name;
+      showToast('선사 정보를 저장했어요', { type: 'success' });
+    } catch (err) {
+      AdmUI.btnBusy(btn, false);
+      if (err.field) { const f = document.querySelector('#sn-editor [data-field="' + err.field + '"]'); if (f) f.classList.add('err'); }
+      showToast(err.message, { type: 'error' });
+    }
+  });
+
+  // PC ↔ 모바일 폭이 바뀌면 상세를 알맞은 자리에 다시 그린다.
+  let wasMobile = isMobile();
+  window.addEventListener('resize', () => {
+    const m = isMobile(); if (m === wasMobile) return; wasMobile = m;
+    if (!m && !$('sn-m').hidden) closeOverlay('sn-m', false);
+    if (state.sel && state.detail[state.sel]) renderDetail(state.detail[state.sel]);
+    else if (!m && state.sel) select(state.sel, false);
+  });
+
+  load();
+})();
+</script>
+{% endblock %}

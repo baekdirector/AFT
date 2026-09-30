@@ -125,6 +125,54 @@ def search_ships_api():
 
 
 # ---------------------------------------------------------------------------
+# 선사 노트 - docs/superpowers/specs/2026-10-01-fishing-log-ships-design.md
+# ---------------------------------------------------------------------------
+
+@fishing_views.route('/admin/fishing/ships')
+def ships_page():
+    if not session.get('admin_authed'):
+        return redirect(url_for('views.admin_page'))
+    from forms import AdminLoginForm
+    return render_template('fishing_ships.html', active_menu='fishing_ships', form=AdminLoginForm())
+
+
+@fishing_views.route('/admin/api/fishing/ships/notes', methods=['GET'])
+def ship_notes_api():
+    guard = _read_guard()
+    if guard:
+        return guard
+    from services.fishing_log import ship_service
+    return _no_store(jsonify(ship_service.list_ship_notes(trip_service.kst_today())))
+
+
+@fishing_views.route('/admin/api/fishing/ships/<int:ship_id>', methods=['GET'])
+def ship_detail_api(ship_id):
+    guard = _read_guard()
+    if guard:
+        return guard
+    from services.fishing_log import ship_service
+    ship = ship_service.get_ship(ship_id)
+    if ship is None:
+        return jsonify({'error': '선사를 찾을 수 없습니다.'}), 404
+    return _no_store(jsonify({'ship': ship_service.ship_detail(ship, trip_service.kst_today())}))
+
+
+@fishing_views.route('/admin/api/fishing/ships/<int:ship_id>', methods=['PUT'])
+def update_ship_api(ship_id):
+    guard = _write_guard()
+    if guard:
+        return guard
+    from services.fishing_log import ship_service
+    try:
+        ship = ship_service.update_ship(ship_id, request.get_json(silent=True) or {}, trip_service.kst_today())
+    except ship_service.ShipValidationError as exc:
+        return _validation_error(exc)
+    except ship_service.ShipNotFound:
+        return jsonify({'error': '선사를 찾을 수 없습니다.'}), 404
+    return jsonify({'ship': ship})
+
+
+# ---------------------------------------------------------------------------
 # 장비 구매 - docs/superpowers/specs/2026-10-01-fishing-log-gear-design.md
 # ---------------------------------------------------------------------------
 
