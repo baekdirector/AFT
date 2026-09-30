@@ -628,9 +628,7 @@
   }
   function tagsHtml(t) { return t.tags && t.tags.length ? '<div class="ft-chips" style="margin-bottom:10px">' + t.tags.map(x => '<span class="ft-tag ' + tagClass(x) + '">' + esc(x) + '</span>').join('') + '</div>' : ''; }
   function noteEditor(t, id) {
-    return '<label class="ft-note-label" for="' + id + '">비고</label>' +
-      '<textarea class="ft-textarea" id="' + id + '" rows="3" placeholder="이 배에 대한 메모를 남겨 보세요 (비우고 저장하면 지워집니다)">' + esc(noteOf(t)) + '</textarea>' +
-      (t.memo && t.catch_raw && t.memo !== t.catch_raw ? '<p class="ft-raw">엑셀 원문 · ' + esc(t.catch_raw) + '</p>' : '');
+    return '<textarea class="ft-textarea" id="' + id + '" rows="3" aria-label="비고" placeholder="이 배에 대한 메모를 남겨 보세요 (비우고 저장하면 지워집니다)">' + esc(noteOf(t)) + '</textarea>';
   }
   function rowHtml(t) {
     const open = state.openId === t.id;
@@ -1072,7 +1070,8 @@
       showToast(editor.trip ? '수정했어요' : '출조 기록을 추가했어요', { type: 'success' });
       const y = body.trip.trip_date.slice(0, 4);
       if (state.year !== 'all' && state.year !== y) state.year = y;
-      state.openId = isMobile() ? null : body.trip.id;
+      // 전체 수정 저장 뒤에는 펼쳐 둔 행을 접는다(사용자 요청)
+      state.openId = null;
       load();
     } catch (err) {
       if (err.field) {
