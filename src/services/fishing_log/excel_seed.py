@@ -240,6 +240,10 @@ def _parse_year_sheet(ws, today, ship_map, result, trip_ship_hints):
             status = 'planned' if row_date > today else 'done'
         elif kind is None and note and any(w in note for w in CANCEL_WORDS):
             status = 'cancelled'
+        elif kind is None and _text(who):
+            # 품목 칸만 비운 출조 줄(실제 엑셀에 있음) - 장비 구매 줄은 '함께'를
+            # 채우지 않으므로 함께가 있으면 출조로 본다.
+            status = 'planned' if row_date > today else 'done'
         else:
             status = None
 

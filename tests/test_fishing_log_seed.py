@@ -281,3 +281,12 @@ def test_gear_sheets_with_content_become_gear_items_and_map_is_ignored():
     })
     items = parse_workbook(wb, TODAY).gear_items
     assert [(g.name, g.memo) for g in items] == [('테스트 릴', '기어비 5.6 우핸들\n합사 1호')]
+
+
+def test_row_with_companions_but_no_kind_is_a_trip():
+    """실제 엑셀에서 품목 칸만 비운 출조 줄이 있었다 - 장비 구매 줄은 '함께'를
+    채우지 않으므로, 품목이 비어도 함께가 있으면 출조로 본다."""
+    wb = _book([_row(datetime(2026, 5, 2), '동출', None, None, '오천 가나다호 쭈갑', None, None, None, 0, '동출')])
+    result = parse_workbook(wb, TODAY)
+    assert result.purchases == []
+    assert [(t.ship_name, t.status, t.companions) for t in result.trips] == [('가나다호', 'done', '동출')]
