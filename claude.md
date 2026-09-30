@@ -139,6 +139,15 @@ UI는 Claude Design 기반으로 3화면(배 목록/예약현황/빈자리 알�
   경로) `app.config['SQLALCHEMY_DATABASE_URI']`가 실제 서버와 같은 경로를
   가리키는지 먼저 확인할 것.**
 
+## 화면 기본 규칙 (사용자 지시, 모든 화면에 적용)
+- **드롭다운**: 브라우저 기본 드롭다운(`<select>` 포함 - 펼치면 OS 목록이 뜬다)을 쓰지 않고
+  화면 look & feel에 맞춘 커스텀 드롭다운(버튼 + 팝오버 목록)을 쓴다.
+- **달력**: 브라우저 기본 date 입력 대신 기존 달력 컴포넌트(`date-btn` + `cal-popover`,
+  예약현황·날씨 화면)를 재사용한다.
+- **서버 대기**: 백엔드 조회·저장을 기다리는 동안에는 반드시 스피너를 보여 준다
+  (목록 로딩 영역 / 버튼 안 스피너 / 검색 목록 안 스피너).
+- 알림·확인·입력 팝업은 브라우저 기본 다이얼로그 대신 `showToast`/`showConfirm`/`showPrompt`.
+
 ## 명령어
 - 테스트: `pytest`
 - 로컬 서버: `FLASK_APP=wsgi.py PYTHONPATH=src python -m flask run` (`python app.py`는
