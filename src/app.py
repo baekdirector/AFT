@@ -115,16 +115,26 @@ def _ensure_notification_reminder_columns(app):
         app.logger.exception('notifications 반복알림 컬럼 보정 실패')
 
 
+def _database_uri(database_url, sqlite_path):
+    """DATABASE_URL(Neon) → SQLAlchemy 주소. 없으면 로컬 SQLite.
+
+    Postgres 는 드라이버를 psycopg2 로 명시한다 - SQLAlchemy 2.1 부터
+    'postgresql://' 의 기본 드라이버가 psycopg(3)로 바뀌어, psycopg2 만
+    설치된 운영(Render)에서 앱이 아예 뜨지 못했다(2026-09-30 배포 실패)."""
+    if not database_url:
+        return f'sqlite:///{sqlite_path}'
+    for prefix in ('postgres://', 'postgresql://'):
+        if database_url.startswith(prefix):
+            return 'postgresql+psycopg2://' + database_url[len(prefix):]
+    return database_url
+
+
 def create_app(test_config=None):
     app = Flask(__name__, static_folder='../img', static_url_path='/img')
     os.makedirs(app.instance_path, exist_ok=True)
 
-    database_url = os.environ.get('DATABASE_URL')
-    if database_url and database_url.startswith('postgres://'):
-        database_url = database_url.replace('postgres://', 'postgresql://', 1)
-
     sqlite_path = os.path.join(app.instance_path, 'boats.db').replace('\\', '/')
-    app.config['SQLALCHEMY_DATABASE_URI'] = database_url or f'sqlite:///{sqlite_path}'
+    app.config['SQLALCHEMY_DATABASE_URI'] = _database_uri(os.environ.get('DATABASE_URL'), sqlite_path)
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'change_this_in_production')
     # admin "로그인 유지" 체크 시 세션 쿠키 수명(session.permanent=True 일 때만 적용)

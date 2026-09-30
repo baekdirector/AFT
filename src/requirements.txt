@@ -1,5 +1,8 @@
 Flask
 Flask-SQLAlchemy
+# 2.1 은 postgresql:// 기본 드라이버를 psycopg(3)로 바꾸는 등 동작이 달라져
+# 운영 배포가 실패했다 - 테스트한 2.0 계열로 고정한다.
+SQLAlchemy>=2.0,<2.1
 Flask-WTF
 python-dotenv
 requests
