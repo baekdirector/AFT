@@ -40,6 +40,34 @@ def _validation_error(exc):
     return jsonify({'error': str(exc), 'field': exc.field}), 400
 
 
+@fishing_views.route('/admin/fishing')
+def overview_page():
+    """개요 대시보드 - docs/superpowers/specs/2026-10-01-fishing-log-overview-design.md"""
+    if not session.get('admin_authed'):
+        return redirect(url_for('views.admin_page'))
+    from forms import AdminLoginForm
+    return render_template('fishing_overview.html', active_menu='fishing_overview', form=AdminLoginForm())
+
+
+@fishing_views.route('/admin/api/fishing/overview', methods=['GET'])
+def overview_api():
+    guard = _read_guard()
+    if guard:
+        return guard
+    from services.fishing_log import overview_service
+    today = trip_service.kst_today()
+    raw = request.args.get('year')   # 없으면 올해, 'all' 이면 전체 기간
+    if raw in (None, ''):
+        year = today.year
+    elif raw == 'all':
+        year = None
+    elif raw.isdigit():
+        year = int(raw)
+    else:
+        return jsonify({'error': '연도가 올바르지 않습니다.', 'field': 'year'}), 400
+    return _no_store(jsonify(overview_service.build_overview(year, today)))
+
+
 @fishing_views.route('/admin/fishing/trips')
 def trips_page():
     if not session.get('admin_authed'):

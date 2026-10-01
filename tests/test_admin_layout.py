@@ -12,10 +12,11 @@ def test_admin_page_uses_shared_layout_with_lnb(client, monkeypatch):
     _login(client, monkeypatch)
     html = client.get('/admin').get_data(as_text=True)
     assert 'id="adm-lnb"' in html
-    for label in ('서비스 관리', '항구 정보', '접속 이력', '알림 등록', '내 낚시 기록', '출조 기록', '준비 중'):
+    for label in ('서비스 관리', '항구 정보', '접속 이력', '알림 등록', '내 낚시 기록', '개요', '출조 기록', '장비 구매', '선사 노트'):
         assert label in html
     assert 'href="/admin#ports"' in html and 'href="/admin#watch"' in html
-    assert 'href="/admin/fishing/trips"' in html
+    for href in ('/admin/fishing', '/admin/fishing/trips', '/admin/fishing/gear', '/admin/fishing/ships'):
+        assert f'href="{href}"' in html
     # 기존 탭 콘텐츠는 그대로 있다
     assert 'id="tab-ports"' in html and 'id="tab-access"' in html and 'id="tab-watch"' in html
     assert 'activateTab(location.hash.slice(1))' in html

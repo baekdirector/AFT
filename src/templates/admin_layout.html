@@ -121,8 +121,8 @@
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>알림 등록</a>
 
     <div class="adm-lnb-group">내 낚시 기록</div>
-    <span class="adm-lnb-soon">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="M7 15l4-4 3 3 5-6"></path></svg>개요<span class="adm-soon-pill">준비 중</span></span>
+    <a href="{{ url_for('fishing_views.overview_page') }}" class="{{ 'active' if active_menu == 'fishing_overview' }}"{% if active_menu == 'fishing_overview' %} aria-current="page"{% endif %}>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="M7 15l4-4 3 3 5-6"></path></svg>개요</a>
     <a href="{{ url_for('fishing_views.trips_page') }}" class="{{ 'active' if active_menu == 'fishing_trips' }}"{% if active_menu == 'fishing_trips' %} aria-current="page"{% endif %}>
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 12c.94-3.46 4.94-6 8.5-6 3.56 0 6.06 2.54 7 6-.94 3.47-3.44 6-7 6s-7.56-2.53-8.5-6Z"></path><path d="M7 10.67C7 8 5.58 5.97 2.73 5.5c-1 1.5-1 5 .23 6.5-1.24 1.5-1.24 5-.23 6.5C5.58 18.03 7 16 7 13.33"></path></svg>출조 기록</a>
     <a href="{{ url_for('fishing_views.gear_page') }}" class="{{ 'active' if active_menu == 'fishing_gear' }}"{% if active_menu == 'fishing_gear' %} aria-current="page"{% endif %}>

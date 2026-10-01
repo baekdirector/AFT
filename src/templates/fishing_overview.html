@@ -1,0 +1,237 @@
+{% extends "admin_layout.html" %}
+{% block title %}개요 · AFT 관리자{% endblock %}
+{#
+  내 낚시 기록 > 개요 - docs/superpowers/specs/2026-10-01-fishing-log-overview-design.md §4.
+  집계는 서버(overview_service)가 하고 화면은 그리기만 한다. 스피너는 AdmUI 공통 부품.
+#}
+{% block admin_content %}
+<style>
+  .ov { --ink: oklch(0.22 0.02 250); --muted: oklch(0.52 0.015 250); --line: oklch(0.925 0.008 240); --line-soft: oklch(0.95 0.006 240);
+    --accent: oklch(0.46 0.12 248); --accent-soft: oklch(0.955 0.03 248); --trip: oklch(0.46 0.12 248); --gear: oklch(0.76 0.13 60);
+    --grad: linear-gradient(145deg, oklch(0.5 0.13 248), oklch(0.4 0.11 238));
+    color: var(--ink); font-feature-settings: 'tnum' 1; padding: 24px clamp(14px, 2.4vw, 32px) 60px; max-width: 1320px; box-sizing: border-box; }
+  .ov button { font: inherit; cursor: pointer; }
+  .ov a { text-decoration: none; color: inherit; }
+  .ov-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .ov-head h1 { margin: 0; font-size: clamp(22px, 2.8vw, 27px); font-weight: 800; letter-spacing: -1px; }
+  .ov-head p { margin: 5px 0 0; font-size: 12.5px; font-weight: 560; color: var(--muted); }
+  .ov-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ov-years { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ov-year { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 13px; border-radius: 99px; border: 1px solid oklch(0.92 0.008 240); background: #fff; font-size: 12.5px; font-weight: 700; color: oklch(0.4 0.02 250); }
+  .ov-year.on { background: var(--accent); border-color: transparent; color: #fff; box-shadow: 0 3px 10px oklch(0.46 0.12 248 / 0.26); }
+  .ov-year:disabled { cursor: default; }
+  .ov-actions { display: flex; gap: 8px; }
+  .ov-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 15px; border-radius: 12px; font-size: 13px; font-weight: 740; white-space: nowrap; }
+  .ov-btn.primary { background: var(--grad); color: #fff !important; box-shadow: 0 6px 16px oklch(0.45 0.12 248 / 0.28); }
+  .ov-btn.ghost { background: #fff; border: 1px solid oklch(0.88 0.03 248); color: oklch(0.4 0.12 248) !important; }
+
+  .ov-card { padding: 16px 18px; border-radius: 18px; background: #fff; border: 1px solid var(--line); min-width: 0; box-sizing: border-box; }
+  .ov-card h2 { margin: 0; font-size: 15px; font-weight: 800; letter-spacing: -0.3px; }
+  .ov-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  .ov-card-head a { font-size: 12.5px; font-weight: 700; color: var(--accent); }
+  .ov-none { font-size: 13px; font-weight: 600; color: var(--muted); padding: 4px 0; }
+
+  /* 지금 챙길 것 */
+  .ov-todo { margin-bottom: 16px; }
+  .ov-todo .row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(170px, 0.8fr); gap: 10px; }
+  .ov-up { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 14px; background: oklch(0.975 0.012 248); border: 1px solid oklch(0.92 0.03 248); }
+  .ov-up.soon { background: oklch(0.96 0.03 248); border-color: oklch(0.85 0.06 248); }
+  .ov-up .top { display: flex; align-items: center; gap: 8px; }
+  .ov-dday { padding: 2px 8px; border-radius: 99px; font-size: 11.5px; font-weight: 800; background: var(--accent); color: #fff; }
+  .ov-up .d { font-size: 12px; font-weight: 700; color: var(--muted); }
+  .ov-up b { font-size: 14.5px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ov-up .pay { font-size: 12px; font-weight: 700; }
+  .ov-up .pay.ok { color: oklch(0.42 0.11 160); } .ov-up .pay.no { color: oklch(0.5 0.15 40); }
+  .ov-alerts { display: flex; flex-direction: column; gap: 8px; }
+  .ov-alert { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 11px 13px; border-radius: 13px; font-size: 12.5px; font-weight: 720; }
+  .ov-alert b { font-size: 15px; font-weight: 800; }
+  .ov-alert.need { background: oklch(0.97 0.03 70); color: oklch(0.45 0.12 55); border: 1px solid oklch(0.9 0.05 70); }
+  .ov-alert.unpaid { background: oklch(0.97 0.02 25); color: oklch(0.48 0.14 30); border: 1px solid oklch(0.92 0.03 25); }
+  .ov-alert.clear { background: oklch(0.97 0.006 240); color: var(--muted); }
+
+  /* 결산 */
+  .ov-body { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .ov-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .ov-hero { padding: 18px 20px; border-radius: 18px; background: linear-gradient(150deg, oklch(0.4 0.11 248), oklch(0.3 0.08 240)); color: #fff; box-shadow: 0 10px 24px oklch(0.35 0.1 245 / 0.24); display: flex; flex-direction: column; gap: 6px; }
+  .ov-hero .l { font-size: 12.5px; font-weight: 700; opacity: 0.82; }
+  .ov-hero .v { font-size: 32px; font-weight: 800; letter-spacing: -1px; line-height: 1.1; }
+  .ov-hero .v small { font-size: 15px; font-weight: 700; opacity: 0.75; margin-left: 3px; }
+  .ov-hero .bar { display: flex; height: 7px; border-radius: 99px; overflow: hidden; background: oklch(1 0 0 / 0.15); margin-top: 4px; }
+  .ov-hero .bar span:first-child { background: oklch(0.82 0.08 240); } .ov-hero .bar span:last-child { background: oklch(0.8 0.12 60); }
+  .ov-hero .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; font-weight: 640; opacity: 0.92; }
+  .ov-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .ov-kpi { padding: 14px; border-radius: 16px; background: #fff; border: 1px solid var(--line); min-width: 0; }
+  .ov-kpi .l { font-size: 12px; font-weight: 700; color: var(--muted); }
+  .ov-kpi .v { font-size: 24px; font-weight: 800; margin-top: 4px; letter-spacing: -0.6px; }
+  .ov-kpi .v.t { font-size: 17px; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ov-kpi .v small { font-size: 13px; font-weight: 700; color: oklch(0.55 0.015 250); }
+  .ov-kpi .s { font-size: 11.5px; font-weight: 620; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ov-kpi.best { background: oklch(0.97 0.025 60); border-color: oklch(0.91 0.05 60); }
+  .ov-kpi.best .l { color: oklch(0.5 0.12 55); }
+  .ov-kpi.best .v.t { white-space: normal; word-break: keep-all; line-height: 1.3; }
+  .ov-legend { display: flex; gap: 10px; font-size: 11.5px; font-weight: 650; color: var(--muted); }
+  .ov-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .ov-flow { display: grid; gap: 4px; height: 170px; align-items: end; border-bottom: 1px solid oklch(0.9 0.008 240); }
+  .ov-flow .c { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; min-width: 0; height: 100%; }
+  .ov-flow .c span { font-size: 9.5px; font-weight: 760; color: oklch(0.42 0.02 250); white-space: nowrap; }
+  .ov-flow .stack { width: min(22px, 80%); display: flex; flex-direction: column; border-radius: 4px 4px 1px 1px; overflow: hidden; }
+  .ov-flow .stack .g { background: var(--gear); } .ov-flow .stack .t { background: var(--trip); }
+  .ov-flow-x { display: grid; gap: 4px; margin-top: 6px; font-size: 10.5px; font-weight: 700; color: var(--muted); text-align: center; }
+  .ov-note { margin-top: 10px; padding: 9px 11px; border-radius: 11px; background: oklch(0.972 0.005 240); font-size: 12.5px; font-weight: 600; line-height: 1.55; color: oklch(0.45 0.015 250); }
+  .ov-hbar { display: flex; flex-direction: column; gap: 9px; }
+  .ov-hbar .r { display: flex; flex-direction: column; gap: 5px; }
+  .ov-hbar .t { display: flex; justify-content: space-between; font-size: 13px; font-weight: 720; }
+  .ov-hbar .t small { font-size: 11px; font-weight: 650; color: oklch(0.58 0.015 250); margin-left: 4px; }
+  .ov-hbar .b { height: 7px; border-radius: 99px; background: oklch(0.955 0.006 240); overflow: hidden; }
+  .ov-hbar .b span { display: block; height: 7px; border-radius: 99px; }
+  .ov-ships { margin: 0 -18px -16px; }
+  .ov-ship { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 10px 18px; border-top: 1px solid oklch(0.965 0.006 240); }
+  .ov-ship:hover { background: oklch(0.985 0.008 248); }
+  .ov-ship .rk { grid-row: 1 / span 2; font-size: 13px; font-weight: 800; color: var(--accent); text-align: center; }
+  .ov-ship b { font-size: 14px; font-weight: 780; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ov-ship b small { font-size: 12px; font-weight: 700; color: var(--accent); margin-left: 4px; }
+  .ov-ship .sub { grid-column: 2 / -1; font-size: 12px; font-weight: 620; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ov-rate { padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 740; white-space: nowrap; }
+  .ov-rate.again { background: oklch(0.95 0.04 160); color: oklch(0.42 0.11 160); }
+  .ov-rate.maybe { background: oklch(0.96 0.045 80); color: oklch(0.5 0.11 70); }
+  .ov-rate.never { background: oklch(0.96 0.03 25); color: oklch(0.5 0.17 25); }
+  .ov-empty { padding: 26px; border-radius: 16px; border: 1px dashed oklch(0.88 0.01 240); text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); background: #fff; }
+
+  @media (max-width: 1100px) { .ov-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ov-todo .row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 899px) { .ov-body { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 767px) {
+    .ov { padding: 14px 16px 100px; }
+    .ov-head .ov-actions { position: fixed; left: 16px; right: 16px; bottom: 18px; z-index: 50; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ov-head .ov-btn { height: 52px; border-radius: 15px; font-size: 14.5px; }
+    .ov-head .ov-btn.ghost { box-shadow: 0 10px 24px oklch(0.3 0.02 250 / 0.12); }
+    .ov-todo .row { grid-template-columns: minmax(0, 1fr); }
+    .ov-hero .v { font-size: 28px; }
+    .ov-kpi .v { font-size: 21px; }
+  }
+</style>
+
+<div class="ov" id="overview-app">
+  <div class="ov-head">
+    <div><h1>개요</h1><p>내 낚시 기록 · 지금 챙길 것과 한 해의 출조·장비 지출을 한눈에</p></div>
+    <div class="ov-tools">
+      <div class="ov-years" id="ov-years"></div>
+      <div class="ov-actions">
+        <a class="ov-btn primary" href="/admin/fishing/trips#new">+ 출조 기록</a>
+        <a class="ov-btn ghost" href="/admin/fishing/gear#new">+ 장비 구매</a>
+      </div>
+    </div>
+  </div>
+  <section class="ov-card ov-todo" id="ov-todo" hidden></section>
+  <div id="ov-main"></div>
+</div>
+{% endblock %}
+
+{% block admin_scripts %}
+<script>
+(function () {
+  const API = '/admin/api/fishing/overview';
+  const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+  const RATE_LABEL = { again: '또 탈래요', maybe: '글쎄요', never: '다신 안 탐' };
+  const SP_COLORS = ['oklch(0.5 0.12 320)', 'oklch(0.68 0.14 50)', 'oklch(0.55 0.09 200)', 'oklch(0.46 0.12 248)', 'oklch(0.6 0.12 140)', 'oklch(0.7 0.02 250)'];
+  const $ = (id) => document.getElementById(id);
+  const esc = AdmUI.esc;
+  const THIS_YEAR = new Date().getFullYear();
+  const state = { year: String(THIS_YEAR), data: null, loading: false };
+
+  function won(n) { return Number(n || 0).toLocaleString('ko-KR'); }
+  function md(iso) { const [y, m, d] = iso.split('-').map(Number); return m + '/' + d + ' (' + WEEK[new Date(y, m - 1, d).getDay()] + ')'; }
+  function ymd(iso) { const [y, m, d] = iso.split('-').map(Number); return String(y).slice(2) + '.' + m + '.' + d; }
+  function pct(a, b) { return b ? Math.round(a / b * 100) : 0; }
+
+  function renderYears() {
+    const ys = ((state.data && state.data.years) || [THIS_YEAR]).map(String);
+    if (state.year !== 'all' && !ys.includes(state.year)) ys.push(state.year);
+    ys.sort((a, b) => b.localeCompare(a));
+    $('ov-years').innerHTML = ys.concat('all').map(y => { const on = y === state.year;
+      return '<button type="button" class="ov-year' + (on ? ' on' : '') + '" data-year="' + y + '"' + (on ? ' aria-pressed="true"' : '') + (state.loading ? ' disabled' : '') + '>' +
+        (on && state.loading ? '<span class="adm-spin"></span>' : '') + (y === 'all' ? '전체' : y) + '</button>'; }).join('');
+  }
+  $('ov-years').addEventListener('click', (e) => { const b = e.target.closest('[data-year]'); if (!b || state.loading || b.dataset.year === state.year) return; state.year = b.dataset.year; load(); });
+
+  // ---------- 지금 챙길 것 (연도 무관) ----------
+  function renderTodo(t) {
+    const box = $('ov-todo');
+    if (!t.upcoming_total && !t.needs_result.count && !t.unpaid.count) { box.hidden = true; return; }
+    box.hidden = false;
+    const ups = t.upcoming.map(u => '<a class="ov-up' + (u.d_day <= 7 ? ' soon' : '') + '" href="/admin/fishing/trips#trip-' + u.id + '">' +
+      '<span class="top"><span class="ov-dday">' + (u.d_day === 0 ? 'D-DAY' : 'D-' + u.d_day) + '</span><span class="d">' + md(u.date) + '</span></span>' +
+      '<b>' + esc(u.ship) + '</b><span class="d">' + esc([u.region, u.companions].filter(Boolean).join(' · ') || ' ') + '</span>' +
+      '<span class="pay ' + (u.prepaid ? 'ok' : 'no') + '">' + (u.cost != null ? won(u.cost) + '원 · ' : '') + (u.prepaid ? '입금 완료' : '입금 전') + '</span></a>').join('');
+    const alerts = (t.needs_result.count ? '<a class="ov-alert need" href="/admin/fishing/trips"><span>결과 입력 필요<br><small>' + ymd(t.needs_result.oldest) + '부터</small></span><b>' + t.needs_result.count + '건</b></a>' : '') +
+      (t.unpaid.count ? '<a class="ov-alert unpaid" href="/admin/fishing/trips"><span>선비 입금 전<br><small>' + won(t.unpaid.amount) + '원</small></span><b>' + t.unpaid.count + '건</b></a>' : '') +
+      (!t.needs_result.count && !t.unpaid.count ? '<div class="ov-alert clear">결과 입력·입금 모두 정리됐어요</div>' : '');
+    box.innerHTML = '<div class="ov-card-head"><h2>지금 챙길 것</h2>' + (t.upcoming_total > t.upcoming.length ? '<a href="/admin/fishing/trips">다가오는 출조 ' + t.upcoming_total + '건 모두 보기</a>' : '') + '</div>' +
+      '<div class="row">' + (ups || '<div class="ov-none">다가오는 출조가 없어요</div>') + '<div class="ov-alerts">' + alerts + '</div></div>';
+  }
+
+  // ---------- 연간 결산 ----------
+  function renderMain(d) {
+    const scope = d.year == null ? '전체 기간' : d.year + '년';
+    if (!d.total && !d.trips.done && !d.trips.cancelled && !d.gear.items) {
+      $('ov-main').innerHTML = '<div class="ov-empty">' + (d.year == null ? '아직 기록이 없어요' : d.year + '년에는 기록이 없어요') + '</div>';
+      return;
+    }
+    const tp = pct(d.trip_spent, d.total);
+    const hero = '<section class="ov-hero"><div class="l">' + scope + ' 총 지출</div><div class="v">' + won(d.total) + '<small>원</small></div>' +
+      '<div class="bar"><span style="width:' + tp + '%"></span><span style="width:' + (d.total ? 100 - tp : 0) + '%"></span></div>' +
+      '<div class="legend"><span>출조 ' + won(d.trip_spent) + '</span><span>장비 ' + won(d.gear_spent) + '</span></div></section>';
+    const kpis = '<div class="ov-kpis">' +
+      '<div class="ov-kpi"><div class="l">출조</div><div class="v">' + d.trips.done + '<small>회</small></div><div class="s">' + (d.trips.cancelled ? '취소 ' + d.trips.cancelled + '회 별도' : '취소 없음') + '</div></div>' +
+      '<div class="ov-kpi"><div class="l">장비 구매</div><div class="v">' + d.gear.items + '<small>개</small></div><div class="s">주문 ' + d.gear.orders + '건</div></div>' +
+      '<a class="ov-kpi" href="' + (d.top_ship ? '/admin/fishing/ships#ship-' + d.top_ship.id : '/admin/fishing/ships') + '"><div class="l">가장 많이 탄 배</div><div class="v t">' + (d.top_ship ? esc(d.top_ship.name) : '-') + '</div><div class="s">' +
+        (d.top_ship ? d.top_ship.count + '회 · ' + esc([d.top_ship.region, d.top_ship.port].filter(Boolean).join(' ') || '지역 미입력') : '기록 없음') + '</div></a>' +
+      '<div class="ov-kpi best"><div class="l">' + (d.year == null ? '' : (d.year === THIS_YEAR ? '올해 ' : d.year + '년 ')) + '최고 조과</div><div class="v t">' + (d.best_catch ? esc(d.best_catch.label) : '-') + '</div><div class="s">' +
+        (d.best_catch ? ymd(d.best_catch.date) + ' ' + esc(d.best_catch.ship) : '조과 기록 없음') + '</div></div></div>';
+    const flowMax = Math.max(1, ...d.flow.map(f => f.trip + f.gear));
+    const cols = 'grid-template-columns: repeat(' + d.flow.length + ', minmax(0, 1fr))';
+    const flow = '<section class="ov-card"><div class="ov-card-head"><h2>' + (d.year == null ? '연도별 흐름' : '월별 흐름') + '</h2>' +
+      '<div class="ov-legend"><span><i style="background:var(--trip)"></i>출조</span><span><i style="background:var(--gear)"></i>장비</span></div></div>' +
+      '<div class="ov-flow" style="' + cols + '">' + d.flow.map(f => { const sum = f.trip + f.gear;
+        return '<div class="c" title="' + f.key + (d.year == null ? '년' : '월') + ' · 출조 ' + won(f.trip) + '원 · 장비 ' + won(f.gear) + '원">' +
+          (sum ? '<span>' + (sum >= 10000 ? Math.round(sum / 10000) : '<1') + '</span>' : '') +
+          '<div class="stack"><div class="g" style="height:' + Math.round(f.gear / flowMax * 130) + 'px"></div><div class="t" style="height:' + Math.round(f.trip / flowMax * 130) + 'px"></div></div></div>'; }).join('') + '</div>' +
+      '<div class="ov-flow-x" style="' + cols + '">' + d.flow.map(f => '<span>' + f.key + '</span>').join('') + '</div>' +
+      '<div class="ov-note">' + (d.flow_note ? esc(d.flow_note) : '막대 위 숫자는 만원 단위예요') + '</div></section>';
+    const spMax = Math.max(1, ...d.species.map(s => s.count));
+    const species = '<section class="ov-card"><div class="ov-card-head"><h2>어종별 출조</h2></div>' + (d.species.length
+      ? '<div class="ov-hbar">' + d.species.map((s, i) => '<div class="r"><div class="t"><span>' + esc(s.name) + '</span><span>' + s.count + '회</span></div><div class="b"><span style="width:' +
+          Math.round(s.count / spMax * 100) + '%;background:' + SP_COLORS[i % SP_COLORS.length] + '"></span></div></div>').join('') + '</div>'
+      : '<div class="ov-none">완료한 출조가 없어요</div>') + '</section>';
+    const cats = '<section class="ov-card"><div class="ov-card-head"><h2>장비 카테고리</h2><a href="/admin/fishing/gear">전체 보기</a></div>' + (d.categories.length
+      ? '<div class="ov-hbar">' + d.categories.map(c => '<div class="r"><div class="t"><span>' + esc(c.name) + '</span><span>' + won(c.amount) + '<small>' + c.pct + '%</small></span></div><div class="b"><span style="width:' +
+          c.pct + '%;background:var(--gear)"></span></div></div>').join('') + '</div>'
+      : '<div class="ov-none">장비 구매 기록이 없어요</div>') + '</section>';
+    const ships = '<section class="ov-card"><div class="ov-card-head"><h2>이용 선사</h2><a href="/admin/fishing/ships">선사 노트</a></div>' + (d.ships.length
+      ? '<div class="ov-ships">' + d.ships.map((s, i) => '<a class="ov-ship" href="/admin/fishing/ships#ship-' + s.id + '"><span class="rk">' + (i + 1) + '</span>' +
+          '<b>' + esc(s.name) + '<small>' + s.count + '회</small></b>' + (s.last_rating ? '<span class="ov-rate ' + s.last_rating + '">' + RATE_LABEL[s.last_rating] + '</span>' : '<span></span>') +
+          '<span class="sub">' + esc([[s.region, s.port].filter(Boolean).join(' ') || '지역 미입력', s.best ? '최고 ' + s.best : ''].filter(Boolean).join(' · ')) + '</span></a>').join('') + '</div>'
+      : '<div class="ov-none">다녀온 배가 없어요</div>') + '</section>';
+    $('ov-main').innerHTML = '<div class="ov-body"><div class="ov-col">' + hero + kpis + flow + '</div><div class="ov-col">' + species + cats + ships + '</div></div>';
+  }
+
+  async function load() {
+    state.loading = true; renderYears();
+    $('ov-main').innerHTML = '<div class="ov-card">' + AdmUI.loadingHtml('개요 불러오는 중…') + '</div>';
+    try {
+      const resp = await fetch(API + '?year=' + state.year, { cache: 'no-store' });
+      const body = await resp.json().catch(() => ({}));
+      if (resp.status === 403) throw new Error('로그인이 만료됐어요. 다시 로그인해 주세요.');
+      if (!resp.ok) throw new Error(body.error || '불러오지 못했습니다.');
+      state.data = body; state.loading = false;
+      renderYears(); renderTodo(body.todo); renderMain(body);
+    } catch (err) {
+      state.loading = false; renderYears();
+      $('ov-main').innerHTML = '<div class="ov-empty">' + esc(err.message === 'Failed to fetch' ? '네트워크 연결을 확인해 주세요.' : err.message) +
+        ' <button type="button" class="ov-year" id="ov-retry" style="margin-left:6px">다시 시도</button></div>';
+      $('ov-retry').onclick = load;
+    }
+  }
+  load();
+})();
+</script>
+{% endblock %}

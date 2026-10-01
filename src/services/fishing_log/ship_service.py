@@ -114,8 +114,11 @@ def _season(done):
     return '·'.join(runs) + '월'
 
 
-def _best_catch(done):
-    """'나'의 한 번 출조 조과 합계가 가장 컸던 날(동률이면 최근). 그날 상위 2개 어종."""
+def best_catch(done, with_ship=False):
+    """'나'의 한 번 출조 조과 합계가 가장 컸던 날(동률이면 최근). 그날 상위 2개 어종.
+
+    done 은 날짜 오름차순이어야 한다(동률 시 뒤의 것 = 최근이 이긴다). 개요 대시보드도 쓴다.
+    """
     best = None
     for trip in done:
         mine = Counter()
@@ -128,7 +131,10 @@ def _best_catch(done):
     if best is None:
         return None
     label = ' · '.join(f'{sp} {n}' for sp, n in best[2].most_common(MY_CATCH_LIMIT))
-    return {'label': label, 'date': best[1].trip_date.isoformat()}
+    result = {'label': label, 'date': best[1].trip_date.isoformat()}
+    if with_ship:
+        result['ship'] = best[1].ship.name
+    return result
 
 
 def ship_summary(ship, today, trips=None):
@@ -145,7 +151,7 @@ def ship_summary(ship, today, trips=None):
         'tag': _tag(done, planned), 'tone': _tone(done, planned, last_rating),
         'spent': sum(t.cost or 0 for t in done),
         'season': _season(done),
-        'best_catch': _best_catch(done),
+        'best_catch': best_catch(done),
     }
 
 

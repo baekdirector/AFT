@@ -1055,9 +1055,10 @@
 
   let resizeTimer = null;
   window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (state.data && !state.loading) render(); }, 150); });
-  // 선사 노트에서 넘어온 링크: #trip-<id>(그 기록 펼치기), #new?ship=<id>(선사를 채운 새 기록)
+  // 선사 노트·개요에서 넘어온 링크: #trip-<id>(그 기록 펼치기), #new?ship=<id>(선사를 채운 새 기록), #new(빈 새 기록)
   async function handleHash() {
     const trip = /^#trip-(\d+)$/.exec(location.hash), neu = /^#new\?ship=(\d+)$/.exec(location.hash);
+    if (location.hash === '#new') { history.replaceState(history.state, '', location.pathname + location.search); openEditor(null); return; }
     if (!trip && !neu) return;
     history.replaceState(history.state, '', location.pathname + location.search);
     try {

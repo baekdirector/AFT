@@ -690,7 +690,12 @@
     finally { AdmUI.busy(false); }
   });
 
-  load();
+  // 개요의 "장비 구매 추가" 링크(#new)면 목록을 불러온 뒤 새 주문 편집기를 연다.
+  load().then(() => {
+    if (location.hash !== '#new') return;
+    history.replaceState(history.state, '', location.pathname + location.search);
+    openEditor(null);
+  });
 })();
 </script>
 {% endblock %}
