@@ -98,6 +98,39 @@ def _trips_of(ship):
 
 # ---- 요약 · 상세 ----
 
+def _season(done):
+    """탄 달을 '9~11월', '4·10~11월'처럼 묶는다. 연도는 무시(어느 철에 가는 배인지)."""
+    months = sorted({t.trip_date.month for t in done})
+    if not months:
+        return None
+    runs, start, prev = [], months[0], months[0]
+    for m in months[1:] + [None]:
+        if m is not None and m == prev + 1:
+            prev = m
+            continue
+        runs.append(str(start) if start == prev else f'{start}~{prev}')
+        if m is not None:
+            start = prev = m
+    return '·'.join(runs) + '월'
+
+
+def _best_catch(done):
+    """'나'의 한 번 출조 조과 합계가 가장 컸던 날(동률이면 최근). 그날 상위 2개 어종."""
+    best = None
+    for trip in done:
+        mine = Counter()
+        for c in trip.catches or []:
+            if c.get('who') == ME and c.get('species') and (c.get('count') or 0) > 0:
+                mine[c['species']] += c['count']
+        total = sum(mine.values())
+        if total and (best is None or total >= best[0]):
+            best = (total, trip, mine)
+    if best is None:
+        return None
+    label = ' · '.join(f'{sp} {n}' for sp, n in best[2].most_common(MY_CATCH_LIMIT))
+    return {'label': label, 'date': best[1].trip_date.isoformat()}
+
+
 def ship_summary(ship, today, trips=None):
     trips = _trips_of(ship) if trips is None else trips
     done, planned = _split(trips, today)
@@ -110,6 +143,9 @@ def ship_summary(ship, today, trips=None):
         'last_trip': done[-1].trip_date.isoformat() if done else None,
         'last_rating': last_rating,
         'tag': _tag(done, planned), 'tone': _tone(done, planned, last_rating),
+        'spent': sum(t.cost or 0 for t in done),
+        'season': _season(done),
+        'best_catch': _best_catch(done),
     }
 
 
@@ -140,7 +176,6 @@ def ship_detail(ship, today):
     visits = sorted(trips, key=lambda t: (t.trip_date, t.id), reverse=True)
 
     result.update({
-        'spent': sum(t.cost or 0 for t in done),
         'prepaid_planned': sum(t.cost or 0 for t in planned if t.prepaid),
         'my_catch': [{'species': sp, 'avg': _number(n / len(done))} for sp, n in ranked],
         'main_species': main,
@@ -159,26 +194,45 @@ def ship_detail(ship, today):
 
 # ---- 목록 ----
 
-def list_ship_notes(today):
-    ships = FishingShip.query.all()
+def list_ship_notes(today, year=None):
+    """다녀온 배 중심(4단계 spec §3, 사용자 결정으로 수정). year=None 이면 전체 기간.
+
+    - ships: 그 기간에 완료 출조가 1회 이상인 배, 이용 횟수 순(동률은 최근 출조, 이름)
+    - planned: 완료 기록 없이 다가오는 예정만 있는 배(가까운 날짜 순)
+    - 출조 기록이 전혀 없는 선사는 보여주지 않는다(데이터는 그대로 둔다).
+    """
+    trips = FishingTrip.query.all()
+    years = sorted({t.trip_date.year for t in trips if t.status != 'cancelled'} | {today.year}, reverse=True)
+    if year is not None:
+        trips = [t for t in trips if t.trip_date.year == year]
     by_ship = {}
-    for trip in FishingTrip.query.all():
+    for trip in trips:
         by_ship.setdefault(trip.ship_id, []).append(trip)
-    summaries = [ship_summary(s, today, by_ship.get(s.id, [])) for s in ships]
+    ships = FishingShip.query.filter(FishingShip.id.in_(list(by_ship))).all() if by_ship else []
+    summaries = [ship_summary(s, today, by_ship[s.id]) for s in ships]
 
-    def ship_key(s):
-        has = s['done_count'] + s['planned_count'] > 0
-        recent = s['last_trip'] or s['next_planned'] or ''
-        return (not has, -s['done_count'], _desc(recent), s['name'])
+    visited = sorted((s for s in summaries if s['done_count']),
+                     key=lambda s: (-s['done_count'], _desc(s['last_trip']), s['name']))
+    planned = sorted((s for s in summaries if not s['done_count'] and s['planned_count']),
+                     key=lambda s: (s['next_planned'], s['name']))
 
-    groups = {}
-    for s in summaries:
-        groups.setdefault(s['region'], []).append(s)
-    ordered = sorted(groups.items(), key=lambda kv: (kv[0] is None, -sum(s['done_count'] for s in kv[1]), kv[0] or ''))
-    regions = [r for r, _ in Counter(s.region for s in ships if s.region).most_common()]
+    done_trips = [t for t in trips if t.status == 'done']
+    costed = [t.cost for t in done_trips if t.cost is not None]
+    top = visited[0] if visited else None
+    all_ships = FishingShip.query.all()
     return {
-        'groups': [{'region': region, 'ships': sorted(items, key=ship_key)} for region, items in ordered],
-        'regions': regions,
+        'ships': visited,
+        'planned': planned,
+        'summary': {
+            'ship_count': len(visited),
+            'trip_count': len(done_trips),
+            'spent': sum(costed),
+            'avg_cost': round(sum(costed) / len(costed)) if costed else None,
+            'top_ship': {'id': top['id'], 'name': top['name'], 'done_count': top['done_count'],
+                         'region': top['region'], 'port': top['port']} if top else None,
+        },
+        'years': years,
+        'regions': [r for r, _ in Counter(s.region for s in all_ships if s.region).most_common()],
         'boats': [{'id': b.id, 'name': b.name, 'port': b.port} for b in Boat.query.order_by(Boat.name).all()],
     }
 

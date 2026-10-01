@@ -26,13 +26,22 @@ def test_page_and_api_require_login(client, app):
 def test_notes_detail_and_update_round_trip(client, app, monkeypatch):
     with app.app_context():
         sid = _make_ship(region='여수')
+        _make_ship('안 간 배')
+        from datetime import date
+        from db import db
+        from models import FishingTrip
+        db.session.add(FishingTrip(ship_id=sid, trip_date=date(2025, 10, 2), status='done', cost=100000))
+        db.session.commit()
     _login(client, monkeypatch)
     notes = client.get(API + '/notes').get_json()
-    assert notes['groups'][0]['ships'][0]['name'] == '가나다호'
+    assert [s['name'] for s in notes['ships']] == ['가나다호']
     assert 'boats' in notes and notes['regions'] == ['여수']
+    assert client.get(API + '/notes?year=2025').get_json()['summary']['spent'] == 100000
+    assert client.get(API + '/notes?year=2024').get_json()['ships'] == []
+    assert client.get(API + '/notes?year=abc').status_code == 400
 
     detail = client.get(f'{API}/{sid}').get_json()['ship']
-    assert detail['tag'] == '기록 없음' and detail['visits'] == []
+    assert detail['tag'] == '1회' and len(detail['visits']) == 1
 
     h = {'X-CSRFToken': _csrf(client)}
     assert client.put(f'{API}/{sid}', json={'name': '가나다2호'}).status_code == 400   # CSRF 없음

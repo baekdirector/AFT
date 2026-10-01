@@ -142,7 +142,11 @@ def ship_notes_api():
     if guard:
         return guard
     from services.fishing_log import ship_service
-    return _no_store(jsonify(ship_service.list_ship_notes(trip_service.kst_today())))
+    raw = request.args.get('year')   # 없거나 'all' 이면 전체 기간
+    if raw not in (None, '', 'all') and not raw.isdigit():
+        return jsonify({'error': '연도가 올바르지 않습니다.', 'field': 'year'}), 400
+    year = int(raw) if raw and raw.isdigit() else None
+    return _no_store(jsonify(ship_service.list_ship_notes(trip_service.kst_today(), year)))
 
 
 @fishing_views.route('/admin/api/fishing/ships/<int:ship_id>', methods=['GET'])

@@ -145,25 +145,62 @@ def test_detail_of_ship_without_trips_and_boat_link(app):
 
 # ---- 목록 ----
 
-def test_list_groups_by_region_and_sorts(app):
+def test_list_shows_only_visited_ships_ranked_with_summary(app):
     from services.fishing_log.ship_service import list_ship_notes
-    a = _ship('A호', region='여수')
-    b = _ship('B호', region='여수')
-    c = _ship('C호', region='여수')
-    d = _ship('D호', region='군산')
-    e = _ship('E호')
-    for day in ('01', '02'):
-        _trip(a, f'2026-05-{day}')
-    _trip(b, '2026-05-09')
-    _trip(d, '2026-05-01')
-    _trip(d, '2026-05-02')
-    _trip(d, '2026-05-03')
-    _trip(e, '2026-05-01')
+    a = _ship('A호', region='여수', port='돌산항')
+    b = _ship('B호', region='군산')
+    c = _ship('C호')                     # 예정만 - 별도 목록
+    _ship('D호', region='여수')           # 기록 없음 - 안 보임
+    e = _ship('E호')                     # 취소만 - 안 보임
+    _trip(a, '2025-10-02', cost=100000)
+    _trip(a, '2026-05-01', cost=200000)
+    _trip(b, '2026-05-09', cost=None)
+    _trip(b, '2026-05-10', cost=60000)
+    _trip(b, '2025-04-01', status='cancelled', cost=999)
+    _trip(c, '2026-10-17', status='planned')
+    _trip(e, '2026-05-01', status='cancelled')
     data = list_ship_notes(TODAY)
-    assert [(g['region'], [s['name'] for s in g['ships']]) for g in data['groups']] == [
-        ('군산', ['D호']), ('여수', ['A호', 'B호', 'C호']), (None, ['E호'])]
+    # 동률(2회)이면 최근 출조가 먼저
+    assert [s['name'] for s in data['ships']] == ['B호', 'A호']
+    assert [s['name'] for s in data['planned']] == ['C호']
+    assert data['summary'] == {'ship_count': 2, 'trip_count': 4, 'spent': 360000, 'avg_cost': 120000,
+                               'top_ship': {'id': b.id, 'name': 'B호', 'done_count': 2, 'region': '군산', 'port': None}}
+    assert data['years'] == [2026, 2025]
     assert data['regions'] == ['여수', '군산']
-    assert c.id in [s['id'] for s in data['groups'][1]['ships']]
+
+
+def test_list_year_scope(app):
+    from services.fishing_log.ship_service import list_ship_notes
+    a = _ship('A호')
+    b = _ship('B호')
+    _trip(a, '2025-10-02', cost=100000)
+    _trip(a, '2025-10-09', cost=100000)
+    _trip(b, '2026-05-01', cost=50000)
+    data = list_ship_notes(TODAY, 2025)
+    assert [(s['name'], s['done_count'], s['spent']) for s in data['ships']] == [('A호', 2, 200000)]
+    assert data['summary']['spent'] == 200000
+    assert list_ship_notes(TODAY, 2024)['ships'] == []
+
+
+def test_summary_season_and_best_catch(app):
+    from services.fishing_log.ship_service import ship_summary
+    ship = _ship()
+    _trip(ship, '2025-04-03', catches=[_c('나', '쭈꾸미', 30)])
+    _trip(ship, '2025-10-02', catches=[_c('나', '쭈꾸미', 114), _c('나', '갑오징어', 15), _c('마눌', '쭈꾸미', 200)])
+    _trip(ship, '2025-11-01', catches=[_c('나', '문어', 0)])
+    _trip(ship, '2024-09-20')
+    _trip(ship, '2026-12-01', status='planned')
+    s = ship_summary(ship, TODAY)
+    assert s['season'] == '4·9~11월'
+    assert s['best_catch'] == {'label': '쭈꾸미 114 · 갑오징어 15', 'date': '2025-10-02'}
+
+
+def test_summary_without_catches(app):
+    from services.fishing_log.ship_service import ship_summary
+    ship = _ship()
+    _trip(ship, '2026-12-01', status='planned')
+    s = ship_summary(ship, TODAY)
+    assert (s['season'], s['best_catch'], s['spent']) == (None, None, 0)
 
 
 def test_list_includes_boats_for_link_dropdown(app):
