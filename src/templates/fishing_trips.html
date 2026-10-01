@@ -629,7 +629,7 @@
   function dateTile(t) {
     const p = parts(t.trip_date);
     return '<span class="ft-dtile' + (p.dow === 0 ? ' sun' : p.dow === 6 ? ' sat' : '') + '"><b>' + p.d + '</b><small>' +
-      (state.year === 'all' ? String(p.y).slice(2) + '.' : '') + p.m + '월 · ' + WEEK[p.dow] + '</small></span>';
+      p.m + '월 · ' + WEEK[p.dow] + '</small></span>';
   }
   function tagsHtml(t) { return t.tags && t.tags.length ? '<div class="ft-chips" style="margin-bottom:10px">' + t.tags.map(x => '<span class="ft-tag ' + tagClass(x) + '">' + esc(x) + '</span>').join('') + '</div>' : ''; }
   function noteEditor(t, id) {

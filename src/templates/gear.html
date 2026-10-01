@@ -430,7 +430,7 @@
     const first = o.items[0] ? o.items[0].item : '';
     let html = '<div class="gr-order' + (open ? ' open' : '') + '"><button type="button" class="gr-orow" data-key="' + esc(keyOf(o)) + '" aria-expanded="' + open + '">' +
       '<span class="c-date"><span class="gr-dtile' + (p.dow === 0 ? ' sun' : p.dow === 6 ? ' sat' : '') + '"><b>' + p.d + '</b><small>' +
-      (state.year === 'all' ? String(p.y).slice(2) + '.' : '') + p.m + '월 · ' + WEEK[p.dow] + '</small></span></span>' +
+      p.m + '월 · ' + WEEK[p.dow] + '</small></span></span>' +
       '<span class="c-shop gr-shop' + (o.shop ? '' : ' none') + '"><b>' + esc(o.shop || '구매처 미입력') + '</b><small>품목 ' + o.items.length + '개</small></span>' +
       '<span class="c-what gr-what">' + cats.slice(0, 2).map(catChip).join('') + '<span class="t">' + esc(first) + (o.items.length > 1 ? ' 외 ' + (o.items.length - 1) : '') + '</span></span>' +
       '<span class="c-amt gr-amount">' + won(o.total) + '</span>' +
