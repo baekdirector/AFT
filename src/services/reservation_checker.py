@@ -191,6 +191,23 @@ def _extract_fish_from_notice_area(node) -> str | None:
 
     return None
 
+def _extract_fish_from_label_row(node) -> str | None:
+    """
+    선박 행 안에 중첩된 정보 테이블의 <img alt="낚시종류"> 옆 칸에서 배별 어종을 읽는다.
+    칸피싱(khanfishing.com)처럼 배마다 낚시종류가 다른 사이트는 페이지 맨 위 첫 배의
+    어종을 모든 배에 퍼뜨리면 안 된다(예: 와이파이호 = 외수질 + 다운샷).
+    """
+    if not node or not getattr(node, 'find', None):
+        return None
+    label_img = node.find('img', alt='낚시종류')
+    if not label_img:
+        return None
+    label_td = label_img.find_parent('td')
+    fish_td = label_td.find_next_sibling('td') if label_td else None
+    if not fish_td:
+        return None
+    return fish_td.get_text(" ", strip=True) or None
+
 def _extract_fish_from_special_marker(text: str) -> str | None:
     """
     특수문자(★/◆/☆/●)로 감싼 어종 전체를 추출
@@ -964,6 +981,8 @@ def _check_single_boat_locally(boat_url: str, year: int, month: int, day: int, d
             ship_fish = None
             if len(tds) >= 2:
                 ship_fish = _extract_fish_from_notice_area(tds[1])
+                if not ship_fish:
+                    ship_fish = _extract_fish_from_label_row(tds[1])
                 td1_text = tds[1].get_text(strip=True)
                 if debug_enabled:
                     print(f"DEBUG_TD1_TEXT: '{td1_text}'")
