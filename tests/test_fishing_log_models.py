@@ -102,3 +102,19 @@ def test_prepaid_column_is_added_back_when_missing(app):
     _ensure_fishing_trip_prepaid_column(app)
     _ensure_fishing_trip_prepaid_column(app)  # 두 번 불러도 안전
     assert 'prepaid' in {c['name'] for c in inspect(db.engine).get_columns('fishing_trips')}
+
+
+def test_gear_status_column_is_added_back_when_missing(app):
+    """gear_items.status(사용 중/부러짐/분실)도 운영 테이블이 먼저 있어서 ALTER 로 보정한다."""
+    from sqlalchemy import inspect, text
+    from db import db
+    from models import GearItem
+    from src.app import _ensure_gear_item_status_column
+    db.session.add(GearItem(name='예전 릴'))
+    db.session.commit()
+    with db.engine.begin() as conn:
+        conn.execute(text('ALTER TABLE gear_items DROP COLUMN status'))
+    _ensure_gear_item_status_column(app)
+    _ensure_gear_item_status_column(app)  # 두 번 불러도 안전
+    with db.engine.begin() as conn:
+        assert conn.execute(text('SELECT status FROM gear_items')).scalar() == 'active'

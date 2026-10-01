@@ -53,6 +53,23 @@ def _ensure_fishing_trip_prepaid_column(app):
         app.logger.exception('fishing_trips 스키마 보정 실패')
 
 
+def _ensure_gear_item_status_column(app):
+    """gear_items.status(사용 중/부러짐/분실)도 운영 테이블이 먼저 있어서 나중에
+    붙였다 - 위 prepaid 와 같은 방식으로 없을 때만 보정한다."""
+    from sqlalchemy import inspect, text
+    try:
+        inspector = inspect(db.engine)
+        if 'gear_items' not in inspector.get_table_names():
+            return
+        if 'status' in {col['name'] for col in inspector.get_columns('gear_items')}:
+            return
+        with db.engine.begin() as conn:
+            conn.execute(text("ALTER TABLE gear_items ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'active'"))
+        app.logger.info('gear_items.status 컬럼을 추가했다')
+    except Exception:
+        app.logger.exception('gear_items 스키마 보정 실패')
+
+
 def _ensure_snapshot_shiptime_columns(app):
     """위 _ensure_ip_location_hosting_column 과 같은 이유(Alembic 없이 가볍게
     유지, db.create_all() 은 기존 테이블에 새 컬럼을 안 얹어준다) - snapshots
@@ -237,6 +254,7 @@ def create_app(test_config=None):
         _ensure_subscriber_device_columns(app)
         _ensure_notification_reminder_columns(app)
         _ensure_fishing_trip_prepaid_column(app)
+        _ensure_gear_item_status_column(app)
         from db import initialize_shared_boats, initialize_ports
         initialize_shared_boats()
         initialize_ports()

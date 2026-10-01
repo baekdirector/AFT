@@ -442,6 +442,9 @@ class FishingTrip(db.Model):
         return f'<FishingTrip {self.trip_date} ship={self.ship_id}>'
 
 
+GEAR_STATUSES = ('active', 'broken', 'lost')
+
+
 class GearItem(db.Model):
     """내 장비 노트(예: 릴·로드 한 대에 대한 메모)."""
     __tablename__ = 'gear_items'
@@ -450,6 +453,9 @@ class GearItem(db.Model):
     name = db.Column(db.String(200), nullable=False)
     kind = db.Column(db.String(50), nullable=True)
     memo = db.Column(db.Text, nullable=True)
+    # 사용 중(active) / 부러짐(broken) / 분실(lost). 운영 테이블이 먼저 만들어져서
+    # app._ensure_gear_item_status_column 이 ALTER 로 보정한다.
+    status = db.Column(db.String(16), nullable=False, default='active', server_default='active')
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     def __repr__(self):

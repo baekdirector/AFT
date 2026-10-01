@@ -54,6 +54,28 @@
   .gr-gear-item:hover { border-color: oklch(0.85 0.04 248); }
   .gr-gear-item .top { display: flex; align-items: center; gap: 7px; min-width: 0; }
   .gr-gear-item .kind { flex: none; padding: 1px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 760; background: #fff; border: 1px solid var(--line); color: oklch(0.45 0.015 250); }
+  /* 종류별 색 - 릴과 로드가 같은 색이라 구분이 안 된다는 지적 */
+  .gr-gear-item .kind[data-k="릴"] { background: oklch(0.955 0.03 248); border-color: oklch(0.88 0.05 248); color: oklch(0.4 0.12 248); }
+  .gr-gear-item .kind[data-k="로드"] { background: oklch(0.955 0.04 150); border-color: oklch(0.87 0.06 150); color: oklch(0.4 0.11 150); }
+  .gr-gear-item .kind[data-k="라인"] { background: oklch(0.955 0.03 200); border-color: oklch(0.88 0.05 200); color: oklch(0.42 0.08 200); }
+  .gr-gear-item .kind[data-k="에기"] { background: oklch(0.96 0.045 55); border-color: oklch(0.89 0.07 55); color: oklch(0.47 0.13 50); }
+  .gr-gear-item .kind[data-k="소품"] { background: oklch(0.96 0.03 90); border-color: oklch(0.89 0.05 90); color: oklch(0.45 0.08 85); }
+  .gr-gear-item .kind[data-k="의류"] { background: oklch(0.955 0.035 320); border-color: oklch(0.88 0.06 320); color: oklch(0.42 0.12 320); }
+  .gr-gear-item.gone { opacity: 0.55; background: oklch(0.97 0.003 240); }
+  .gr-gear-item.gone .name { text-decoration: line-through; text-decoration-color: oklch(0.6 0.01 250); }
+  .gr-gone { flex: none; margin-left: auto; padding: 1px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 780; background: oklch(0.96 0.03 25); color: oklch(0.5 0.16 25); }
+  .gr-gk { display: flex; gap: 3px; padding: 3px; background: oklch(0.95 0.006 240); border-radius: 9px; }
+  .gr-gk button { height: 26px; padding: 0 9px; border-radius: 7px; border: none; background: transparent; font-size: 11.5px; font-weight: 720; color: oklch(0.5 0.015 250); }
+  .gr-gk button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px oklch(0.3 0.02 250 / 0.12); }
+  .gr-catchips { display: flex; gap: 6px; flex-wrap: wrap; margin: -6px 0 14px; }
+  .gr-catchips button { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 12px; border-radius: 99px; border: 1px solid oklch(0.92 0.008 240); background: #fff; font-size: 12.5px; font-weight: 700; color: oklch(0.4 0.02 250); white-space: nowrap; }
+  .gr-catchips button small { font-size: 11px; font-weight: 700; color: oklch(0.6 0.012 250); }
+  .gr-catchips button.on { background: var(--accent); border-color: transparent; color: #fff; }
+  .gr-catchips button.on small { color: oklch(1 0 0 / 0.75); }
+  .gr-status { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; background: oklch(0.95 0.006 240); border-radius: 12px; }
+  .gr-status button { height: 38px; border-radius: 9px; border: none; background: transparent; font-size: 13px; font-weight: 720; color: oklch(0.5 0.015 250); }
+  .gr-status button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px oklch(0.3 0.02 250 / 0.12); }
+  .gr-status button.on[data-st="broken"], .gr-status button.on[data-st="lost"] { color: oklch(0.5 0.16 25); }
   .gr-gear-item .name { font-size: 13px; font-weight: 780; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .gr-gear-item .memo { font-size: 12px; font-weight: 580; color: oklch(0.45 0.015 250); line-height: 1.45; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .gr-mini-loading { display: flex; align-items: center; gap: 8px; padding: 10px 2px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
@@ -90,7 +112,7 @@
   .gr-empty { padding: 26px; border-radius: 16px; border: 1px dashed oklch(0.88 0.01 240); text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); background: #fff; }
   .gr-cat.c-에기 { background: oklch(0.96 0.045 55); color: oklch(0.47 0.13 50); }
   .gr-cat.c-릴 { background: oklch(0.955 0.03 248); color: oklch(0.4 0.12 248); }
-  .gr-cat.c-로드 { background: oklch(0.955 0.02 240); color: oklch(0.42 0.08 240); }
+  .gr-cat.c-로드 { background: oklch(0.955 0.04 150); color: oklch(0.4 0.11 150); }
   .gr-cat.c-라인 { background: oklch(0.95 0.03 200); color: oklch(0.4 0.08 200); }
   .gr-cat.c-의류 { background: oklch(0.95 0.035 320); color: oklch(0.42 0.12 320); }
 
@@ -146,6 +168,7 @@
     .gr-head .gr-primary.add-top { display: none; }
     .gr-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0; background: transparent; border: none; }
     .gr-search { grid-column: 1 / -1; background: #fff; border: 1px solid var(--line); }
+    .gr-catchips { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px 12px; padding: 0 16px; scrollbar-width: none; }
     .gr-table { background: transparent; border: none; border-radius: 0; overflow: visible; display: flex; flex-direction: column; gap: 8px; }
     .gr-month { background: transparent; border: none; padding: 10px 2px 0; }
     .gr-order { border: 1px solid var(--line); border-radius: 16px; background: #fff; overflow: hidden; }
@@ -186,13 +209,14 @@
     <div id="gr-f-cat"></div>
     <div id="gr-f-shop"></div>
   </div>
+  <div class="gr-catchips" id="gr-catchips" role="group" aria-label="카테고리 필터"></div>
   <div class="gr-body">
     <section class="gr-list" id="gr-list"></section>
     <aside class="gr-side">
       <section class="gr-card" id="gr-summary"></section>
       <button type="button" class="gr-cleanup" id="gr-cleanup" disabled></button>
       <section class="gr-card gear-card">
-        <div class="gr-card-head"><h2>내 장비 노트</h2><button type="button" class="gr-ghost" id="gr-gear-add" style="height:32px">+ 장비</button></div>
+        <div class="gr-card-head"><h2>내 장비 노트</h2><div class="gr-gk" id="gr-gk" role="group" aria-label="장비 종류 필터"></div><button type="button" class="gr-ghost" id="gr-gear-add" style="height:32px">+ 장비</button></div>
         <div class="gr-gear" id="gr-gear"></div>
       </section>
     </aside>
@@ -259,6 +283,10 @@
         <label class="gr-field" data-field="name"><span class="gr-label">장비 이름 <span class="req">*</span></span><input class="gr-input" id="gr-gd-name" placeholder="예: 도요 코바4 베이트릴"></label>
         <div class="gr-field" data-field="kind"><span class="gr-label">종류</span><div id="gr-gd-kind"></div></div>
       </div>
+      <div class="gr-field" data-field="status"><span class="gr-label">상태</span>
+        <div class="gr-status" id="gr-gd-status" role="group" aria-label="장비 상태">
+          <button type="button" data-st="active">사용 중</button><button type="button" data-st="broken">부러짐</button><button type="button" data-st="lost">분실</button>
+        </div></div>
       <label class="gr-field" data-field="memo"><span class="gr-label">메모</span><textarea class="gr-textarea" id="gr-gd-memo" rows="4" placeholder="기어비, 합사 호수, 쓰기 좋은 상황 등"></textarea></label>
     </div>
     <div class="gr-pfoot">
@@ -285,7 +313,7 @@
   const $ = (id) => document.getElementById(id);
   const esc = AdmUI.esc;
   const isMobile = () => window.matchMedia('(max-width: 767px)').matches;
-  const state = { year: String(THIS_YEAR), data: null, loading: false, openKey: null, f: { q: '', cat: '', shop: '' }, cleanup: null };
+  const state = { year: String(THIS_YEAR), data: null, loading: false, openKey: null, f: { q: '', cat: '', shop: '' }, cleanup: null, gearKind: '' };
 
   function won(n) { return n == null ? '-' : Number(n).toLocaleString('ko-KR'); }
   function keyOf(o) { return o.date + '|' + (o.shop || ''); }
@@ -413,8 +441,23 @@
       '<div class="foot"><button type="button" class="gr-ghost" data-edit="' + esc(keyOf(o)) + '">주문 수정</button></div></div>';
     return html + '</div>';
   }
+  // 검색 아래 카테고리 필터 칩 - 지금 연도 구매에 나온 카테고리, 많이 산 순. 드롭다운(fCat)과 같은 값을 쓴다.
+  function renderCatChips() {
+    const n = {};
+    state.data.orders.forEach(o => o.items.forEach(i => { n[i.category] = (n[i.category] || 0) + 1; }));
+    const cats = Object.keys(n).sort((a, b) => n[b] - n[a] || a.localeCompare(b));
+    if (state.f.cat && !cats.includes(state.f.cat)) cats.push(state.f.cat);
+    const total = Object.values(n).reduce((a, b) => a + b, 0);
+    $('gr-catchips').innerHTML = (cats.length ? [['', '전체', total]].concat(cats.map(c => [c, c, n[c] || 0])) : []).map(([v, l, c]) =>
+      '<button type="button" data-cat="' + esc(v) + '" class="' + (state.f.cat === v ? 'on' : '') + '" aria-pressed="' + (state.f.cat === v) + '">' + esc(l) + ' <small>' + c + '</small></button>').join('');
+  }
+  $('gr-catchips').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-cat]'); if (!b) return;
+    state.f.cat = b.dataset.cat; fCat.set(state.f.cat); renderList();
+  });
   function renderList() {
     if (!state.data) return;
+    renderCatChips();
     const orders = filteredOrders();
     if (!orders.length) { $('gr-list').innerHTML = '<div class="gr-empty">' + (state.data.orders.length ? '조건에 맞는 구매가 없어요' : '아직 구매 기록이 없어요') + '</div>'; return; }
     const groups = [];
@@ -439,13 +482,19 @@
         ' <span style="color:oklch(0.58 0.015 250);font-weight:650">' + (s.total ? Math.round(r.amount / s.total * 100) : 0) + '%</span></span><b>' + won(r.amount) + '</b>').join('') + '</div>' +
       (s.top_shops.length ? '<div class="gr-shops">' + s.top_shops.map((t, i) => '<span class="rank">' + (i + 1) + '</span><span>' + esc(t.shop) + '</span><span class="amt">' + won(t.amount) + '원 · ' + t.count + '개</span>').join('') + '</div>' : '');
   }
+  const GONE_LABEL = { broken: '부러짐', lost: '분실' };
+  function gearSort(a, b) { return ((a.status || 'active') !== 'active') - ((b.status || 'active') !== 'active') || a.name.localeCompare(b.name); }
   function renderGear() {
-    const list = state.data.gear_items;
-    $('gr-gear').innerHTML = list.length ? list.map(g => '<button type="button" class="gr-gear-item" data-gear="' + g.id + '"><span class="top">' +
-      (g.kind ? '<span class="kind">' + esc(g.kind) + '</span>' : '') + '<span class="name">' + esc(g.name) + '</span></span>' +
-      (g.memo ? '<span class="memo">' + esc(g.memo) + '</span>' : '') +
-      '</button>').join('')
-      : '<div class="gr-mini-loading">아직 등록한 장비가 없어요</div>';
+    const all = state.data.gear_items;
+    $('gr-gk').innerHTML = [['', '전체'], ['릴', '릴'], ['로드', '로드']].map(([v, l]) =>
+      '<button type="button" data-gk="' + v + '" class="' + (state.gearKind === v ? 'on' : '') + '" aria-pressed="' + (state.gearKind === v) + '">' + l + '</button>').join('');
+    const list = state.gearKind ? all.filter(g => g.kind === state.gearKind) : all;
+    $('gr-gear').innerHTML = list.length ? list.map(g => { const gone = g.status && g.status !== 'active';
+      return '<button type="button" class="gr-gear-item' + (gone ? ' gone' : '') + '" data-gear="' + g.id + '"><span class="top">' +
+        (g.kind ? '<span class="kind" data-k="' + esc(g.kind) + '">' + esc(g.kind) + '</span>' : '') + '<span class="name">' + esc(g.name) + '</span>' +
+        (gone ? '<span class="gr-gone">' + GONE_LABEL[g.status] + '</span>' : '') + '</span>' +
+        (g.memo ? '<span class="memo">' + esc(g.memo) + '</span>' : '') + '</button>'; }).join('')
+      : '<div class="gr-mini-loading">' + (all.length ? state.gearKind + ' 장비가 없어요' : '아직 등록한 장비가 없어요') + '</div>';
   }
   // 목록을 다시 불러오지 않고 바뀐 주문만 반영(합계·요약은 화면에서 다시 계산)
   function inYear(date) { return state.year === 'all' || date.slice(0, 4) === state.year; }
@@ -652,11 +701,16 @@
   const gdKind = AdmUI.select($('gr-gd-kind'), { options: GEAR_KINDS.map(k => ({ value: k, label: k })), placeholder: '종류 선택', allowCustom: true, customPrompt: '종류를 입력하세요', ariaLabel: '종류' });
   $('gr-gear').addEventListener('click', (e) => { const b = e.target.closest('[data-gear]'); if (b) openGear(Number(b.dataset.gear)); });
   $('gr-gear-add').addEventListener('click', () => openGear(null));
+  $('gr-gk').addEventListener('click', (e) => { const b = e.target.closest('[data-gk]'); if (!b) return; state.gearKind = b.dataset.gk; renderGear(); });
+  let gdStatus = 'active';
+  function paintStatus() { document.querySelectorAll('#gr-gd-status [data-st]').forEach(b => { const on = b.dataset.st === gdStatus; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); }
+  $('gr-gd-status').addEventListener('click', (e) => { const b = e.target.closest('[data-st]'); if (!b) return; gdStatus = b.dataset.st; paintStatus(); });
   async function openGear(id) {
     gearId = id;
     const g = id ? state.data.gear_items.find(x => x.id === id) : null;
     $('gr-gd-title').textContent = g ? g.name : '새 장비';
     $('gr-gd-name').value = g ? g.name : ''; gdKind.set(g ? g.kind : ''); $('gr-gd-memo').value = g ? (g.memo || '') : '';
+    gdStatus = (g && g.status) || 'active'; paintStatus();
     $('gr-gd-delete').hidden = !id;
     openOverlay('gr-gear-ed');
     if (!id) setTimeout(() => $('gr-gd-name').focus(), 60);
@@ -666,9 +720,9 @@
     AdmUI.btnBusy(btn, true, '저장 중…');
     try {
       const body = await api(API + '/items' + (gearId ? '/' + gearId : ''), { method: gearId ? 'PUT' : 'POST',
-        body: { name: $('gr-gd-name').value, kind: gdKind.value, memo: $('gr-gd-memo').value } });
-      const summary = { id: body.item.id, name: body.item.name, kind: body.item.kind, memo: body.item.memo, purchase_count: body.item.purchase_count, purchase_total: body.item.purchase_total };
-      state.data.gear_items = state.data.gear_items.filter(g => g.id !== summary.id).concat(summary).sort((a, b) => a.name.localeCompare(b.name));
+        body: { name: $('gr-gd-name').value, kind: gdKind.value, memo: $('gr-gd-memo').value, status: gdStatus } });
+      const summary = { id: body.item.id, name: body.item.name, kind: body.item.kind, memo: body.item.memo, status: body.item.status, purchase_count: body.item.purchase_count, purchase_total: body.item.purchase_total };
+      state.data.gear_items = state.data.gear_items.filter(g => g.id !== summary.id).concat(summary).sort(gearSort);
       if (gearId) state.data.orders.forEach(o => o.items.forEach(i => { if (i.gear_id === summary.id) i.gear_name = summary.name; }));
       closeOverlay('gr-gear-ed', false); renderGear(); renderList();
       showToast(gearId ? '장비를 수정했어요' : '장비를 추가했어요', { type: 'success' });

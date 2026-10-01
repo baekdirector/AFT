@@ -8,7 +8,7 @@ from collections import Counter
 from datetime import date
 
 from db import db
-from models import GearItem, GearPurchase
+from models import GEAR_STATUSES, GearItem, GearPurchase
 from services.fishing_log.excel_seed import normalize_category
 
 DEFAULT_CATEGORIES = ['에기', '채비', '봉돌', '도래', '라인', '로드', '릴', '의류', '기타']
@@ -177,9 +177,11 @@ def gear_items_summary():
     for gear_id, price in db.session.query(GearPurchase.gear_id, GearPurchase.price).filter(GearPurchase.gear_id.isnot(None)):
         count, total = stats.get(gear_id, (0, 0))
         stats[gear_id] = (count + 1, total + (price or 0))
-    return [{'id': g.id, 'name': g.name, 'kind': g.kind, 'memo': g.memo,
+    # 부러지거나 잃어버린 장비는 목록 아래로(각 묶음 안은 이름순)
+    items = sorted(GearItem.query.all(), key=lambda g: ((g.status or 'active') != 'active', g.name))
+    return [{'id': g.id, 'name': g.name, 'kind': g.kind, 'memo': g.memo, 'status': g.status or 'active',
              'purchase_count': stats.get(g.id, (0, 0))[0], 'purchase_total': stats.get(g.id, (0, 0))[1]}
-            for g in GearItem.query.order_by(GearItem.name).all()]
+            for g in items]
 
 
 def list_gear(year, today):
@@ -284,7 +286,7 @@ def apply_cleanup(data):
 
 def gear_item_dict(g):
     purchases = sorted(g.purchases, key=lambda p: (p.purchase_date, p.id), reverse=True)
-    return {'id': g.id, 'name': g.name, 'kind': g.kind, 'memo': g.memo,
+    return {'id': g.id, 'name': g.name, 'kind': g.kind, 'memo': g.memo, 'status': g.status or 'active',
             'purchase_count': len(purchases), 'purchase_total': sum(p.price or 0 for p in purchases),
             'purchases': [{'id': p.id, 'date': p.purchase_date.isoformat(), 'shop': p.shop,
                            'item': p.item, 'price': p.price} for p in purchases]}
@@ -298,6 +300,9 @@ def save_gear_item(gear_id, data):
     name = _text(data.get('name'), 'name', 200, '장비 이름', required=True)
     kind = _text(data.get('kind'), 'kind', 50, '종류')
     memo = _text(data.get('memo'), 'memo', 2000, '메모')
+    status = data.get('status')
+    if status is not None and status not in GEAR_STATUSES:
+        raise GearValidationError('status', '장비 상태를 다시 골라 주세요.')
     if gear_id is None:
         gear = GearItem()
         db.session.add(gear)
@@ -306,6 +311,10 @@ def save_gear_item(gear_id, data):
         if gear is None:
             raise GearNotFound(gear_id)
     gear.name, gear.kind, gear.memo = name, kind, memo
+    if status is not None:
+        gear.status = status
+    elif gear.status is None:
+        gear.status = 'active'
     db.session.commit()
     return gear_item_dict(gear)
 

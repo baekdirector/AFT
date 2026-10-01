@@ -156,7 +156,7 @@ def test_gear_item_crud_and_unlink_on_delete(app):
     gear = _gear()
     save_order(_order(items=[{'item': '릴 본체', 'category': '릴', 'price': 100000, 'gear_id': gear['id']}]))
     listed = list_gear(2026, TODAY)['gear_items']
-    assert listed == [{'id': gear['id'], 'name': '테스트 릴', 'kind': '릴', 'memo': '메모',
+    assert listed == [{'id': gear['id'], 'name': '테스트 릴', 'kind': '릴', 'memo': '메모', 'status': 'active',
                        'purchase_count': 1, 'purchase_total': 100000}]
     updated = save_gear_item(gear['id'], {'name': '바꾼 이름', 'kind': '릴', 'memo': ''})
     assert updated['name'] == '바꾼 이름' and updated['memo'] is None
@@ -165,3 +165,21 @@ def test_gear_item_crud_and_unlink_on_delete(app):
         save_gear_item(None, {'name': ''})
     delete_gear_item(gear['id'])
     assert GearPurchase.query.one().gear_id is None
+
+
+def test_gear_status_save_validate_and_sort(app):
+    from services.fishing_log.gear_service import GearValidationError, gear_items_summary, save_gear_item
+    a = save_gear_item(None, {'name': '가 릴', 'kind': '릴'})
+    assert a['status'] == 'active'
+    save_gear_item(None, {'name': '나 로드', 'kind': '로드', 'status': 'broken'})
+    save_gear_item(None, {'name': '다 릴', 'kind': '릴', 'status': 'lost'})
+    save_gear_item(None, {'name': '라 릴', 'kind': '릴'})
+    # 없어진 장비는 아래로, 각 묶음 안은 이름순
+    assert [(g['name'], g['status']) for g in gear_items_summary()] == [
+        ('가 릴', 'active'), ('라 릴', 'active'), ('나 로드', 'broken'), ('다 릴', 'lost')]
+    # status 를 안 보내면 기존 값 유지
+    assert save_gear_item(a['id'], {'name': '가 릴', 'kind': '릴', 'status': 'lost'})['status'] == 'lost'
+    assert save_gear_item(a['id'], {'name': '가 릴', 'kind': '릴'})['status'] == 'lost'
+    with pytest.raises(GearValidationError) as exc:
+        save_gear_item(a['id'], {'name': '가 릴', 'status': 'gone'})
+    assert exc.value.field == 'status'
