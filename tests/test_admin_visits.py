@@ -8,7 +8,7 @@ from db import db
 
 
 def _csrf_token(client, path):
-    html = client.get(path).get_data(as_text=True)
+    html = client.get(path, follow_redirects=True).get_data(as_text=True)
     m = re.search(r'name="csrf_token" type="hidden" value="([^"]+)"', html)
     assert m, f'{path} 에서 csrf_token 을 찾지 못함'
     return m.group(1)
@@ -79,7 +79,7 @@ def test_purge_old_visit_logs_removes_only_expired_rows(app):
 def test_admin_login_rejected_without_password_env(client, monkeypatch):
     monkeypatch.delenv('ADMIN_PASSWORD', raising=False)
     rv = client.post('/admin', data={
-        'csrf_token': _csrf_token(client, '/admin'),
+        'csrf_token': _csrf_token(client, '/admin/service'),
         'username': 'admin', 'password': 'whatever',
     }, follow_redirects=True)
     assert '관리자 로그인' in rv.get_data(as_text=True)
@@ -90,7 +90,7 @@ def test_admin_login_wrong_password_rejected(client, monkeypatch):
     monkeypatch.setenv('ADMIN_USERNAME', 'admin')
     monkeypatch.setenv('ADMIN_PASSWORD', 'correct-horse')
     rv = client.post('/admin', data={
-        'csrf_token': _csrf_token(client, '/admin'),
+        'csrf_token': _csrf_token(client, '/admin/service'),
         'username': 'admin', 'password': 'wrong',
     }, follow_redirects=True)
     assert '올바르지 않습니다' in rv.get_data(as_text=True)
@@ -101,7 +101,7 @@ def test_admin_login_success_then_logout(client, monkeypatch):
     monkeypatch.setenv('ADMIN_PASSWORD', 'correct-horse')
 
     rv = client.post('/admin', data={
-        'csrf_token': _csrf_token(client, '/admin'),
+        'csrf_token': _csrf_token(client, '/admin/service'),
         'username': 'admin', 'password': 'correct-horse',
     }, follow_redirects=True)
     assert '접속 이력' in rv.get_data(as_text=True)
@@ -221,7 +221,7 @@ def test_admin_table_shows_full_datetime_in_kst_not_utc(client, app, monkeypatch
     monkeypatch.setenv('ADMIN_USERNAME', 'admin')
     monkeypatch.setenv('ADMIN_PASSWORD', 'correct-horse')
     client.post('/admin', data={
-        'csrf_token': _csrf_token(client, '/admin'),
+        'csrf_token': _csrf_token(client, '/admin/service'),
         'username': 'admin', 'password': 'correct-horse',
     })
 
@@ -244,7 +244,7 @@ def test_admin_data_access_route_is_never_cached(app, client, monkeypatch):
     monkeypatch.setenv('ADMIN_USERNAME', 'admin')
     monkeypatch.setenv('ADMIN_PASSWORD', 'correct-horse')
     client.post('/admin', data={
-        'csrf_token': _csrf_token(client, '/admin'),
+        'csrf_token': _csrf_token(client, '/admin/service'),
         'username': 'admin', 'password': 'correct-horse',
     })
 
@@ -340,7 +340,7 @@ def test_admin_hides_hosting_ips_by_default_and_shows_count(client, app, monkeyp
     monkeypatch.setenv('ADMIN_USERNAME', 'admin')
     monkeypatch.setenv('ADMIN_PASSWORD', 'correct-horse')
     client.post('/admin', data={
-        'csrf_token': _csrf_token(client, '/admin'),
+        'csrf_token': _csrf_token(client, '/admin/service'),
         'username': 'admin', 'password': 'correct-horse',
     })
 

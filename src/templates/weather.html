@@ -1,5 +1,6 @@
 {% extends "base_design.html" %}
 {% block content %}
+<script>if (new URLSearchParams(location.search).get('embed') === '1') document.documentElement.classList.add('is-embed');</script>
 <div class="app-shell weather-shell">
 
   <!-- 상단 스티키 헤더 (index.html/status.html 과 동일 패턴) -->
@@ -251,6 +252,9 @@ input.weather-select { background-image: none; }
 .dd-item:hover, .dd-item.is-active { background: oklch(0.96 0.008 250); }
 .dd-item.is-selected { color: oklch(0.48 0.13 235); font-weight: 780; }
 .dd-item.is-selected::after { content: "✓"; font-size: 13px; }
+/* ?embed=1 : 출조 기록 날씨 팝업(iframe) 안에서는 헤더·하단 내비·제목을 숨긴다 */
+.is-embed .app-header, .is-embed .bottom-tabbar, .is-embed .page-title-row { display: none !important; }
+.is-embed .app-main { padding-top: 14px; padding-bottom: 24px; }
 .btn-search {
   height: 46px; padding: 0 22px; border-radius: 14px; border: none; cursor: pointer;
   background: linear-gradient(145deg, oklch(0.57 0.15 245), oklch(0.48 0.13 225)); color: #fff;
@@ -836,9 +840,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const extra = all.filter(r => !REGION_ORDER.includes(r)).sort();
     return known.concat(extra);
   }
+  // 출조 기록 팝업(?embed=1&region=&port=&date=)이 넘긴 값으로 폼을 채우고, 항구까지
+  // 정해졌으면 바로 조회한다. 항구를 못 찾았으면(prefill.port == null) 지역만 채우고
+  // 항구는 직접 고르게 한다.
+  function applyPrefill(prefill) {
+    const q = new URLSearchParams(location.search);
+    const date = q.get('date');
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      dateEl.value = date;
+      window._calRefreshLabel && window._calRefreshLabel();
+    }
+    if (!prefill || !prefill.city) return;
+    citySel.value = prefill.city;
+    citySel.dispatchEvent(new Event('change', { bubbles: true }));
+    if (prefill.port) {
+      portSel.value = prefill.port;
+      portSel.dispatchEvent(new Event('change', { bubbles: true }));
+      form.dispatchEvent(new Event('submit', { cancelable: true }));
+    } else {
+      loadNote.textContent = '※ 선사 노트의 항구와 같은 이름을 찾지 못했어요. 항구를 직접 선택해 주세요.';
+    }
+  }
   async function loadPageData() {
     try {
-      const resp = await fetch('/api/weather_page_data');
+      const resp = await fetch('/api/weather_page_data' + location.search);
       const body = await resp.json();
       if (!resp.ok || body.status !== 'success') throw new Error(body.error || '항구 목록을 불러오지 못했습니다.');
 
@@ -857,6 +882,7 @@ document.addEventListener('DOMContentLoaded', () => {
       submitBtn.disabled = false;
       loadNote.classList.remove('is-loading');
       loadNote.textContent = '※ 바다타임 정보를 그대로 가져와 보여줍니다. 항구를 선택하면 자동으로 조회 ID를 매핑합니다.';
+      applyPrefill(body.data.prefill);
     } catch (err) {
       loadNote.classList.remove('is-loading');
       loadNote.textContent = '⚠️ ' + (err.message || '항구 목록을 불러오지 못했습니다. 새로고침 해주세요.');

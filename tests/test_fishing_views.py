@@ -4,8 +4,8 @@ import re
 API = '/admin/api/fishing/trips'
 
 
-def _csrf(client, path='/admin'):
-    html = client.get(path).get_data(as_text=True)
+def _csrf(client, path='/admin/service'):
+    html = client.get(path, follow_redirects=True).get_data(as_text=True)
     m = re.search(r'name="csrf_token" type="hidden" value="([^"]+)"', html)
     assert m, f'{path} 에서 csrf_token 을 찾지 못함'
     return m.group(1)

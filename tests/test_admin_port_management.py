@@ -15,7 +15,7 @@ from db import db
 
 
 def _csrf_token(client, path):
-    html = client.get(path).get_data(as_text=True)
+    html = client.get(path, follow_redirects=True).get_data(as_text=True)
     m = re.search(r'name="csrf_token" type="hidden" value="([^"]+)"', html)
     assert m, f'{path} 에서 csrf_token 을 찾지 못함'
     return m.group(1)
@@ -25,7 +25,7 @@ def _login(client, monkeypatch):
     monkeypatch.setenv('ADMIN_USERNAME', 'admin')
     monkeypatch.setenv('ADMIN_PASSWORD', 'correct-horse')
     client.post('/admin', data={
-        'csrf_token': _csrf_token(client, '/admin'),
+        'csrf_token': _csrf_token(client, '/admin/service'),
         'username': 'admin', 'password': 'correct-horse',
     })
 
@@ -123,7 +123,7 @@ def test_create_port_route_requires_admin_login(client):
 
 def test_create_port_route_adds_port_and_is_visible_on_register_page(client, monkeypatch):
     _login(client, monkeypatch)
-    csrf = _csrf_token(client, '/admin')
+    csrf = _csrf_token(client, '/admin/service')
 
     rv = client.post('/admin/ports', json={'region': '테스트지역', 'name': '새로운항구', 'lat': 36.5, 'lon': 127.5},
                      headers={'X-CSRFToken': csrf})
@@ -145,7 +145,7 @@ def test_create_port_route_adds_port_and_is_visible_on_register_page(client, mon
 
 def test_create_port_route_rejects_invalid_coordinates(client, monkeypatch):
     _login(client, monkeypatch)
-    csrf = _csrf_token(client, '/admin')
+    csrf = _csrf_token(client, '/admin/service')
 
     rv = client.post('/admin/ports', json={'region': '테스트', 'name': '이상한항구', 'lat': 10, 'lon': 127},
                      headers={'X-CSRFToken': csrf})
@@ -154,7 +154,7 @@ def test_create_port_route_rejects_invalid_coordinates(client, monkeypatch):
 
 def test_create_port_route_rejects_duplicate_name(client, monkeypatch):
     _login(client, monkeypatch)
-    csrf = _csrf_token(client, '/admin')
+    csrf = _csrf_token(client, '/admin/service')
 
     rv = client.post('/admin/ports', json={'region': '인천', 'name': '남항(인천항)', 'lat': 37.47, 'lon': 126.62},
                      headers={'X-CSRFToken': csrf})
@@ -169,7 +169,7 @@ def test_update_port_route_saves_new_values(client, app, monkeypatch):
         from models import Port
         port_id = Port.query.filter_by(name='격포항').one().id
 
-    csrf = _csrf_token(client, '/admin')
+    csrf = _csrf_token(client, '/admin/service')
     rv = client.post(f'/admin/ports/{port_id}', json={'name': '격포항(수정)', 'lat': 35.7, 'lon': 126.5},
                      headers={'X-CSRFToken': csrf})
     assert rv.status_code == 200
@@ -192,7 +192,7 @@ def test_delete_ports_route_reports_skipped_in_use_ports(client, app, monkeypatc
         db.session.commit()
         port_id = port.id
 
-    csrf = _csrf_token(client, '/admin')
+    csrf = _csrf_token(client, '/admin/service')
     rv = client.post('/admin/ports/delete', json={'port_ids': [port_id]}, headers={'X-CSRFToken': csrf})
     assert rv.status_code == 200
     body = rv.get_json()
@@ -218,7 +218,7 @@ def test_admin_page_shell_renders_without_touching_port_or_boat_data(client, mon
     시딩돼 있어도 뼈대엔 그 개수가 안 박혀 있어야 한다 - 있었다면 여전히
     서버가 그 시점에 Port 표를 읽었다는 뜻)."""
     _login(client, monkeypatch)
-    shell_html = client.get('/admin').get_data(as_text=True)
+    shell_html = client.get('/admin/service').get_data(as_text=True)
     assert '항구 정보' in shell_html
     assert 'id="ports-tab-count">…<' in shell_html  # 서버가 채운 숫자가 아니라 로딩 placeholder
 
@@ -230,7 +230,7 @@ def test_admin_page_lists_ports_with_ship_counts(client, app, monkeypatch):
         db.session.add(Boat(name='인천테스트호', url='https://example.com/incheon', city='인천', port='연안부두'))
         db.session.commit()
 
-    shell_html = client.get('/admin').get_data(as_text=True)
+    shell_html = client.get('/admin/service').get_data(as_text=True)
     assert '항구 정보' in shell_html  # 뼈대는 즉시 뜬다(탭 이름은 데이터 없이도 보임)
 
     rv = client.get('/admin/data/ports')

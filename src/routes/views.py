@@ -642,13 +642,21 @@ def api_weather_page_data():
     ID/공휴일 데이터. /weather 라우트를 즉시 응답시키려고 분리했다(위 주석
     참고)."""
     from services.holidays import kr_holidays_around
-    return success_response({
-        'city_port_mapping': PortDataService.get_city_port_mapping(),
+    from services.weather_port_match import resolve_weather_target
+    city_port_mapping = PortDataService.get_city_port_mapping()
+    data = {
+        'city_port_mapping': city_port_mapping,
         'bada_port_ids': BADA_PORT_IDS,
         # 날짜 팝오버 달력에 공휴일을 빨간색으로 표시하기 위한 데이터 -
         # status.html(예약현황)의 같은 컴포넌트와 데이터 소스를 통일한다.
         'kr_holidays': kr_holidays_around(),
-    })
+    }
+    # 출조 기록의 날씨 팝업이 선사 노트의 (자유 입력) 지역·항구를 넘기면 날씨 쪽
+    # 이름에 맞춰 돌려준다(못 찾으면 항구는 None - 화면에서 직접 고르게 한다).
+    if request.args.get('region') or request.args.get('port'):
+        data['prefill'] = resolve_weather_target(
+            request.args.get('region'), request.args.get('port'), city_port_mapping)
+    return success_response(data)
 
 
 @views.route('/api/weather', methods=['GET'])
@@ -1503,8 +1511,19 @@ def admin_page():
     if not session.get('admin_authed'):
         return render_template('admin.html', authed=False, form=form)
 
+    # 로그인된 채 /admin 으로 오면 첫 화면은 출조 기록이다(서비스 관리 탭들은
+    # /admin/service 로 옮겼다 - LNB 에서 들어간다).
+    return redirect(url_for('fishing_views.trips_page'))
+
+
+@views.route('/admin/service')
+def admin_service_page():
+    """서비스 관리(항구 정보/접속 이력/알림 등록) 탭 화면. 예전에는 /admin 이
+    이 화면이었다(탭은 #ports|#access|#watch 해시로 고른다)."""
+    if not session.get('admin_authed'):
+        return redirect(url_for('views.admin_page'))
     from services.snapshot_repository import VISIT_LOG_RETENTION_DAYS
-    return render_template('admin.html', authed=True, form=form,
+    return render_template('admin.html', authed=True, form=AdminLoginForm(),
                            retention_days=VISIT_LOG_RETENTION_DAYS)
 
 

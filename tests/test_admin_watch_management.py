@@ -9,7 +9,7 @@ from db import db
 
 
 def _csrf_token(client, path):
-    html = client.get(path).get_data(as_text=True)
+    html = client.get(path, follow_redirects=True).get_data(as_text=True)
     m = re.search(r'name="csrf_token" type="hidden" value="([^"]+)"', html)
     assert m, f'{path} 에서 csrf_token 을 찾지 못함'
     return m.group(1)
@@ -19,7 +19,7 @@ def _login(client, monkeypatch):
     monkeypatch.setenv('ADMIN_USERNAME', 'admin')
     monkeypatch.setenv('ADMIN_PASSWORD', 'correct-horse')
     client.post('/admin', data={
-        'csrf_token': _csrf_token(client, '/admin'),
+        'csrf_token': _csrf_token(client, '/admin/service'),
         'username': 'admin', 'password': 'correct-horse',
     })
 
@@ -284,7 +284,7 @@ def test_release_route_deactivates_watch_and_returns_count(client, app, monkeypa
     _login(client, monkeypatch)
     _sub_id, watch_id = _seed_watch(app, ship_name='정상해제배')
 
-    csrf = _csrf_token(client, '/admin')
+    csrf = _csrf_token(client, '/admin/service')
     rv = client.post('/admin/watches/release', json={'watch_ids': [watch_id]},
                      headers={'X-CSRFToken': csrf})
     assert rv.status_code == 200
@@ -297,7 +297,7 @@ def test_release_route_deactivates_watch_and_returns_count(client, app, monkeypa
 
 def test_release_route_rejects_non_integer_watch_ids(client, app, monkeypatch):
     _login(client, monkeypatch)
-    csrf = _csrf_token(client, '/admin')
+    csrf = _csrf_token(client, '/admin/service')
     rv = client.post('/admin/watches/release', json={'watch_ids': ['not-an-int']},
                      headers={'X-CSRFToken': csrf})
     assert rv.status_code == 400
@@ -309,7 +309,7 @@ def test_admin_page_renders_device_watch_summary(client, app, monkeypatch):
     _login(client, monkeypatch)
     _seed_watch(app, ip='5.5.5.5', device_type='pc', ship_name='요약테스트배')
 
-    shell_html = client.get('/admin').get_data(as_text=True)
+    shell_html = client.get('/admin/service').get_data(as_text=True)
     assert '알림 등록' in shell_html  # 뼈대는 즉시 뜬다(데이터 없이도 탭 이름은 보임)
 
     data = _dashboard_data(client)
@@ -445,7 +445,7 @@ def test_label_route_requires_csrf_token(client, app, monkeypatch):
 def test_label_route_sets_label_and_returns_it(client, app, monkeypatch):
     _login(client, monkeypatch)
     sub_id, _watch_id = _seed_watch(app, ship_name='정상별명배')
-    csrf = _csrf_token(client, '/admin')
+    csrf = _csrf_token(client, '/admin/service')
 
     rv = client.post(f'/admin/devices/{sub_id}/label', json={'label': '백감독'},
                      headers={'X-CSRFToken': csrf})
@@ -459,7 +459,7 @@ def test_label_route_sets_label_and_returns_it(client, app, monkeypatch):
 def test_label_route_rejects_overly_long_label(client, app, monkeypatch):
     _login(client, monkeypatch)
     sub_id, _watch_id = _seed_watch(app, ship_name='긴별명배')
-    csrf = _csrf_token(client, '/admin')
+    csrf = _csrf_token(client, '/admin/service')
 
     rv = client.post(f'/admin/devices/{sub_id}/label', json={'label': 'a' * 101},
                      headers={'X-CSRFToken': csrf})
@@ -468,7 +468,7 @@ def test_label_route_rejects_overly_long_label(client, app, monkeypatch):
 
 def test_label_route_unknown_subscriber_returns_404(client, monkeypatch):
     _login(client, monkeypatch)
-    csrf = _csrf_token(client, '/admin')
+    csrf = _csrf_token(client, '/admin/service')
     rv = client.post('/admin/devices/999999/label', json={'label': '아무개'},
                      headers={'X-CSRFToken': csrf})
     assert rv.status_code == 404
