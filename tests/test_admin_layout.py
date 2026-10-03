@@ -29,10 +29,10 @@ def test_trips_page_marks_its_menu_active(client, monkeypatch):
     assert html.count('aria-current="page"') == 1
 
 
-def test_admin_when_logged_in_lands_on_trips(client, monkeypatch):
+def test_admin_when_logged_in_lands_on_overview(client, monkeypatch):
     _login(client, monkeypatch)
     rv = client.get('/admin')
-    assert rv.status_code == 302 and rv.headers['Location'].endswith('/admin/fishing/trips')
+    assert rv.status_code == 302 and rv.headers['Location'].endswith('/admin/fishing')
 
 
 def test_admin_service_requires_login(client):

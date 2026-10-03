@@ -40,6 +40,8 @@
   .ov-dday { padding: 2px 8px; border-radius: 99px; font-size: 11.5px; font-weight: 800; background: var(--accent); color: #fff; }
   .ov-up .d { font-size: 12px; font-weight: 700; color: var(--muted); }
   .ov-up b { font-size: 14.5px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ov-date-btn { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; border: 1px solid oklch(0.9 0.02 245); background: #fff; color: oklch(0.42 0.12 248) !important; cursor: pointer; }
+  .ov-date-btn:hover, .ov-date-btn:focus-visible { background: oklch(0.95 0.03 245); border-color: oklch(0.8 0.06 245); outline: none; }
   .ov-up .pay { font-size: 12px; font-weight: 700; }
   .ov-up .pay.ok { color: oklch(0.42 0.11 160); } .ov-up .pay.no { color: oklch(0.5 0.15 40); }
   .ov-alerts { display: flex; flex-direction: column; gap: 8px; }
@@ -154,12 +156,22 @@
   $('ov-years').addEventListener('click', (e) => { const b = e.target.closest('[data-year]'); if (!b || state.loading || b.dataset.year === state.year) return; state.year = b.dataset.year; load(); });
 
   // ---------- 지금 챙길 것 (연도 무관) ----------
+  const WX_ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>';
+  let todoUpcoming = [];
+  function openTodoWeather(el, e) {
+    e.preventDefault(); e.stopPropagation();   // 카드 자체는 <a> 링크라 이동하지 않게 막는다
+    const u = todoUpcoming.find(x => x.id === Number(el.dataset.wx));
+    if (u) AdmWeather.open({ ship: u.ship, date: u.date, region: u.region, port: u.port });
+  }
+  document.addEventListener('click', (e) => { const el = e.target.closest('[data-wx]'); if (el) openTodoWeather(el, e); });
+  document.addEventListener('keydown', (e) => { const el = e.target.closest && e.target.closest('[data-wx]'); if (el && (e.key === 'Enter' || e.key === ' ')) openTodoWeather(el, e); });
   function renderTodo(t) {
+    todoUpcoming = t.upcoming;
     const box = $('ov-todo');
     if (!t.upcoming_total && !t.needs_result.count && !t.unpaid.count) { box.hidden = true; return; }
     box.hidden = false;
     const ups = t.upcoming.map(u => '<a class="ov-up' + (u.d_day <= 7 ? ' soon' : '') + '" href="/admin/fishing/trips#trip-' + u.id + '">' +
-      '<span class="top"><span class="ov-dday">' + (u.d_day === 0 ? 'D-DAY' : 'D-' + u.d_day) + '</span><span class="d">' + md(u.date) + '</span></span>' +
+      '<span class="top"><span class="ov-dday">' + (u.d_day === 0 ? 'D-DAY' : 'D-' + u.d_day) + '</span><span class="d ov-date-btn" role="button" tabindex="0" data-wx="' + u.id + '" title="이 날짜의 날씨·물때 보기">' + WX_ICON + md(u.date) + '</span></span>' +
       '<b>' + esc(u.ship) + '</b><span class="d">' + esc([u.region, u.companions].filter(Boolean).join(' · ') || ' ') + '</span>' +
       '<span class="pay ' + (u.prepaid ? 'ok' : 'no') + '">' + (u.cost != null ? won(u.cost) + '원 · ' : '') + (u.prepaid ? '입금 완료' : '입금 전') + '</span></a>').join('');
     const alerts = (t.needs_result.count ? '<a class="ov-alert need" href="/admin/fishing/trips"><span>결과 입력 필요<br><small>' + ymd(t.needs_result.oldest) + '부터</small></span><b>' + t.needs_result.count + '건</b></a>' : '') +

@@ -23,7 +23,7 @@ def _todo(trips, today):
     return {
         'upcoming': [{
             'id': t.id, 'date': t.trip_date.isoformat(), 'd_day': (t.trip_date - today).days,
-            'ship': t.ship.name, 'region': t.ship.region, 'cost': t.cost, 'prepaid': bool(t.prepaid),
+            'ship': t.ship.name, 'region': t.ship.region, 'port': t.ship.port, 'cost': t.cost, 'prepaid': bool(t.prepaid),
             'companions': t.companions,
         } for t in future[:UPCOMING_LIMIT]],
         'upcoming_total': len(future),

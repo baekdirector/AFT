@@ -50,6 +50,7 @@ def test_todo_upcoming_needs_result_unpaid(app):
     todo = build_overview(2026, TODAY)['todo']
     assert [(u['date'], u['d_day']) for u in todo['upcoming']] == [('2026-06-15', 0), ('2026-07-01', 16), ('2026-08-01', 47)]
     assert todo['upcoming'][0]['ship'] == '가나다호' and todo['upcoming'][0]['prepaid'] is True
+    assert 'port' in todo['upcoming'][0]
     assert todo['upcoming_total'] == 4
     assert todo['needs_result'] == {'count': 2, 'oldest': '2026-05-20'}
     assert todo['unpaid'] == {'count': 3, 'amount': 250000}

@@ -1,0 +1,53 @@
+{# 날씨·물때 팝업 - admin 공통(출조 기록 "다가오는 출조", 개요 "지금 챙길 것"의 날짜 버튼).
+   /weather?embed=1&region&port&date 를 iframe 으로 띄운다. 사용: AdmWeather.open({ship, date, region, port}) #}
+<style>
+  .wxp-overlay { position: fixed; inset: 0; z-index: 9500; background: oklch(0.2 0.02 250 / 0.46); }
+  .wxp-overlay[hidden] { display: none !important; }
+  .wxp-panel { position: absolute; top: 3vh; bottom: 3vh; left: 50%; transform: translateX(-50%); width: min(1100px, 96vw); background: #fff; border-radius: 22px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 24px 60px oklch(0.2 0.02 250 / 0.3); }
+  .wxp-head { display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid oklch(0.94 0.006 240); }
+  .wxp-head .t { flex: 1; min-width: 0; }
+  .wxp-head small { display: block; font-size: 12px; font-weight: 700; color: oklch(0.52 0.015 250); }
+  .wxp-head h2 { margin: 2px 0 0; font-size: 20px; font-weight: 800; letter-spacing: -0.7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: oklch(0.22 0.02 250); }
+  .wxp-x { width: 44px; height: 44px; border-radius: 12px; border: 1px solid oklch(0.92 0.008 240); background: #fff; display: grid; place-items: center; color: oklch(0.42 0.02 250); flex: none; cursor: pointer; }
+  .wxp-body { position: relative; flex: 1; min-height: 0; background: oklch(0.985 0.004 250); }
+  .wxp-body iframe { width: 100%; height: 100%; border: 0; display: block; }
+  .wxp-loading { position: absolute; inset: 0; display: grid; place-items: center; background: #fff; }
+  .wxp-loading[hidden] { display: none; }
+  .wxp-loading .adm-spin { width: 28px; height: 28px; border-width: 3px; }
+  @media (max-width: 720px) { .wxp-panel { top: 0; bottom: 0; width: 100vw; border-radius: 0; } }
+</style>
+<div class="wxp-overlay" id="wxp-overlay" hidden>
+  <section class="wxp-panel" role="dialog" aria-modal="true" aria-labelledby="wxp-title">
+    <div class="wxp-head">
+      <div class="t"><small>날씨 · 물때</small><h2 id="wxp-title"></h2></div>
+      <button type="button" class="wxp-x" id="wxp-close" aria-label="닫기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+    </div>
+    <div class="wxp-body">
+      <iframe id="wxp-frame" title="날씨·물때 조회"></iframe>
+      <div class="wxp-loading" id="wxp-loading"><span class="adm-spin" aria-label="불러오는 중"></span></div>
+    </div>
+  </section>
+</div>
+<script>
+window.AdmWeather = (function () {
+  const ov = document.getElementById('wxp-overlay'), frame = document.getElementById('wxp-frame'),
+        loading = document.getElementById('wxp-loading'), title = document.getElementById('wxp-title');
+  const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+  function label(iso) { const [y, m, d] = iso.split('-').map(Number); return y + '년 ' + m + '월 ' + d + '일 (' + WEEK[new Date(y, m - 1, d).getDay()] + ')'; }
+  function close() { if (ov.hidden) return; ov.hidden = true; frame.src = 'about:blank'; document.body.style.overflow = ''; }
+  function open(o) {
+    const q = new URLSearchParams({ embed: '1', date: o.date });
+    if (o.region) q.set('region', o.region);
+    if (o.port) q.set('port', o.port);
+    title.textContent = (o.ship ? o.ship + ' · ' : '') + label(o.date);
+    loading.hidden = false;
+    frame.onload = () => { loading.hidden = true; };
+    frame.src = '/weather?' + q.toString();
+    ov.hidden = false; document.body.style.overflow = 'hidden';
+  }
+  document.getElementById('wxp-close').addEventListener('click', close);
+  ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  return { open: open, close: close };
+})();
+</script>

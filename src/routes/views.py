@@ -1511,9 +1511,9 @@ def admin_page():
     if not session.get('admin_authed'):
         return render_template('admin.html', authed=False, form=form)
 
-    # 로그인된 채 /admin 으로 오면 첫 화면은 출조 기록이다(서비스 관리 탭들은
+    # 로그인된 채 /admin 으로 오면 첫 화면은 개요다(서비스 관리 탭들은
     # /admin/service 로 옮겼다 - LNB 에서 들어간다).
-    return redirect(url_for('fishing_views.trips_page'))
+    return redirect(url_for('fishing_views.overview_page'))
 
 
 @views.route('/admin/service')
