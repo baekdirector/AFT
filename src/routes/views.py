@@ -1486,8 +1486,8 @@ def offline_page():
 
 @views.route('/admin', methods=['GET', 'POST'])
 def admin_page():
-    """URL을 아는 사람만(로그인 후) 볼 수 있는 접속 이력 표. GNB 어디에도
-    링크를 두지 않는다(사용자 요구: "URL 입력을 통해서만 접근 가능").
+    """로그인 후에만 볼 수 있는 관리자 진입점. 각 화면 GNB 오른쪽의 작은 자물쇠 버튼
+    (_admin_link.html)으로 들어온다(예전엔 URL 직접 입력뿐이었다).
 
     로그인 후 뼈대(탭 구조)만 즉시 내려준다 - 실제 데이터(접속 이력/알림
     등록/항구 정보)는 무겁다(아래 admin_data_access_route/admin_data_watch_route

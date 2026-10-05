@@ -56,9 +56,8 @@
   .admin-logout-form button:hover { border-color: oklch(0.8 0.02 240); }
 
   /* GNB - 다른 화면(index/status/weather)과 같은 패턴(aux-links + header-nav).
-     "다른 화면 -> 관리자로 들어오는" 링크는 여전히 어디에도 안 둔다(/admin 은
-     URL을 아는 사람만 접근) - 여기 추가하는 건 "관리자 -> 다른 화면으로
-     나가는" 링크뿐이다. */
+     "다른 화면 -> 관리자" 진입은 예전엔 URL 직접 입력뿐이었으나 이제 각 화면 GNB 오른쪽에
+     작은 자물쇠 버튼(_admin_link.html)이 있다(사용자 결정). 로그인은 그대로 필요하다. */
   .aux-links { display: flex; align-items: center; gap: 6px; flex: none; margin-left: 6px; }
   .aux-links a {
     display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px;

@@ -1,0 +1,8 @@
+{# GNB 우측 작은 관리자 진입 버튼(자물쇠 아이콘만). 로그인이 필요한 /admin 으로 간다. #}
+<a href="{{ url_for('views.admin_page') }}" class="aux-admin" aria-label="관리자" title="관리자">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+</a>
+<style>
+  .aux-links a.aux-admin { width: 34px; padding: 0; justify-content: center; background: transparent; border: 1px solid oklch(0.9 0.01 250); color: oklch(0.55 0.015 250); }
+  .aux-links a.aux-admin:hover, .aux-links a.aux-admin:focus-visible { background: oklch(0.96 0.005 250); color: oklch(0.38 0.02 255); border-color: oklch(0.82 0.01 250); outline: none; }
+</style>

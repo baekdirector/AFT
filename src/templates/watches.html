@@ -15,6 +15,7 @@
       <div class="header-spacer"></div>
       <div class="aux-links">
         <a href="{{ url_for('views.weather') }}">🌊 날씨</a>
+        {% include '_admin_link.html' %}
       </div>
       <nav class="header-nav">
         <a href="{{ url_for('views.index') }}" class="header-nav-btn">배 목록</a>
