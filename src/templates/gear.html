@@ -143,6 +143,7 @@
   .gr-suggest button:hover { background: oklch(0.965 0.02 248); }
   .gr-lines { display: flex; flex-direction: column; gap: 10px; }
   .gr-line { display: grid; grid-template-columns: minmax(0, 1fr) 130px 110px 36px; grid-template-areas: "item cat price rm"; gap: 8px; padding: 12px; border-radius: 14px; border: 1px solid oklch(0.92 0.008 240); background: oklch(0.99 0.002 240); }
+  .gr-input.bad { border-color: oklch(0.6 0.18 25); box-shadow: 0 0 0 4px oklch(0.6 0.18 25 / 0.12); }
   .gr-line .i-item { grid-area: item; } .gr-line .i-cat { grid-area: cat; min-width: 0; } .gr-line .i-price { grid-area: price; text-align: right; }
   .gr-line .i-rm { grid-area: rm; align-self: center; height: 36px; border: none; background: none; font-size: 18px; color: oklch(0.55 0.015 250); }
   .gr-add { height: 44px; border-radius: 12px; border: 1px dashed oklch(0.82 0.03 248); background: oklch(0.985 0.008 248); font-size: 13.5px; font-weight: 740; color: oklch(0.42 0.12 248); }
@@ -300,6 +301,7 @@
 {% endblock %}
 
 {% block admin_scripts %}
+{% include '_amount_calc.html' %}
 <script>
 (function () {
   const API = '/admin/api/fishing/gear';
@@ -573,7 +575,7 @@
     $('gr-lines').innerHTML = ed.lines.map((l, i) => '<div class="gr-line" data-i="' + i + '">' +
       '<input class="gr-input i-item" data-k="item" value="' + esc(l.item) + '" placeholder="품목명 (예: 요즈리 틴셀 3호 수박 2개)" aria-label="품목명">' +
       '<div class="i-cat"></div>' +
-      '<input class="gr-input i-price" data-k="price" inputmode="numeric" value="' + esc(l.price) + '" placeholder="가격" aria-label="가격">' +
+      '<input class="gr-input i-price" data-k="price" inputmode="text" autocomplete="off" value="' + esc(l.price) + '" placeholder="가격" title="계산식도 돼요 (예: =5000*3)" aria-label="가격 (계산식 가능, 예: =5000*3)">' +
       '<button type="button" class="i-rm" data-rm="1" aria-label="이 품목 지우기"' + (ed.lines.length === 1 ? ' disabled' : '') + '>×</button></div>').join('');
     document.querySelectorAll('#gr-lines .gr-line').forEach(row => {
       const l = ed.lines[Number(row.dataset.i)];
@@ -582,7 +584,8 @@
     });
     paintTotal();
   }
-  function paintTotal() { $('gr-ed-total').textContent = won(ed.lines.reduce((a, l) => a + (parseInt(String(l.price).replace(/[^\d]/g, ''), 10) || 0), 0)) + '원'; }
+  function priceValue(l) { const r = AmountCalc.evaluate(l.price); return r.ok && r.value != null ? r.value : 0; }
+  function paintTotal() { $('gr-ed-total').textContent = won(ed.lines.reduce((a, l) => a + priceValue(l), 0)) + '원'; }
   let draftTimer = null;
   function touched() {
     ed.dirty = true; paintTotal(); clearTimeout(draftTimer);
@@ -591,9 +594,14 @@
   $('gr-lines').addEventListener('input', (e) => { const row = e.target.closest('[data-i]'); if (!row || !e.target.dataset.k) return; ed.lines[Number(row.dataset.i)][e.target.dataset.k] = e.target.value; touched(); });
   $('gr-lines').addEventListener('focusout', (e) => {
     if (!e.target.classList.contains('i-price')) return;
-    const n = e.target.value.replace(/[^\d]/g, ''); e.target.value = n ? Number(n).toLocaleString('ko-KR') : '';
+    // 계산식(=5000*3)이면 계산해서 숫자로 바꾼다. 식이 틀리면 글자를 그대로 두고 빨갛게 표시한다.
+    const r = AmountCalc.evaluate(e.target.value);
+    e.target.classList.toggle('bad', !r.ok);
+    if (r.ok) e.target.value = r.value == null ? '' : r.value.toLocaleString('ko-KR');
     ed.lines[Number(e.target.closest('[data-i]').dataset.i)].price = e.target.value;
+    paintTotal();
   });
+  $('gr-lines').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.classList.contains('i-price')) { e.preventDefault(); e.target.blur(); } });
   $('gr-lines').addEventListener('click', (e) => { const b = e.target.closest('[data-rm]'); if (!b || ed.lines.length === 1) return; ed.lines.splice(Number(b.closest('[data-i]').dataset.i), 1); renderLines(); touched(); });
   $('gr-add-line').addEventListener('click', () => { const last = ed.lines[ed.lines.length - 1]; ed.lines.push(Object.assign(emptyLine(), { category: last ? last.category : '' })); renderLines(); touched();
     setTimeout(() => { const rows = document.querySelectorAll('#gr-lines .i-item'); rows[rows.length - 1].focus(); }, 30); });
@@ -611,10 +619,15 @@
   $('gr-ed-save').addEventListener('click', async () => {
     const btn = $('gr-ed-save'); if (btn.disabled) return;
     document.querySelectorAll('#gr-editor .err').forEach(el => el.classList.remove('err'));
+    const badLine = ed.lines.findIndex(l => !AmountCalc.evaluate(l.price).ok);
+    if (badLine >= 0) {
+      const el = document.querySelectorAll('#gr-lines .i-price')[badLine]; el.classList.add('bad'); el.focus();
+      return showToast('가격 계산식을 확인해 주세요', { type: 'error' });
+    }
     const payload = {
       original: ed.order ? { date: ed.order.date, shop: ed.order.shop } : null, date: edDate.value, shop: $('gr-ed-shop').value,
       items: ed.lines.filter(l => l.id || String(l.item).trim() || String(l.price).trim()).map(l => ({ id: l.id, item: l.item, category: l.category,
-        price: String(l.price).replace(/[^\d]/g, ''), gear_id: l.gear_id || null, memo: l.memo })),
+        price: priceValue(l) || (String(l.price).trim() ? '0' : ''), gear_id: l.gear_id || null, memo: l.memo })),
     };
     AdmUI.btnBusy(btn, true, '저장 중…');
     try {

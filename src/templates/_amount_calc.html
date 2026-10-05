@@ -1,0 +1,43 @@
+{# 금액 입력칸 계산식 - "=5000*3" -> 15000. eval 을 쓰지 않는 작은 재귀 하강 파서(숫자와 + - * / ( ) 만 허용).
+   window.AmountCalc.evaluate(text) -> {ok:true, value:정수|null(빈 입력)} | {ok:false}. 테스트: tests/test_amount_calc.py #}
+<script>
+window.AmountCalc = (function () {
+  function evaluate(text) {
+    let s = String(text == null ? '' : text).replace(/[,\s]/g, '').replace(/^=/, '');
+    if (s === '') return { ok: true, value: null };
+    s = s.replace(/[×xX]/g, '*').replace(/÷/g, '/');
+    let i = 0;
+    function peek() { return s[i]; }
+    function number() {
+      const m = /^\d+(\.\d+)?|^\.\d+/.exec(s.slice(i));
+      if (!m) throw new Error('number');
+      i += m[0].length; return parseFloat(m[0]);
+    }
+    function factor() {
+      if (peek() === '-') { i++; return -factor(); }
+      if (peek() === '+') { i++; return factor(); }
+      if (peek() === '(') { i++; const v = expr(); if (peek() !== ')') throw new Error('paren'); i++; return v; }
+      return number();
+    }
+    function term() {
+      let v = factor();
+      while (peek() === '*' || peek() === '/') {
+        const op = s[i++], r = factor();
+        v = op === '*' ? v * r : v / r;
+      }
+      return v;
+    }
+    function expr() {
+      let v = term();
+      while (peek() === '+' || peek() === '-') { const op = s[i++], r = term(); v = op === '+' ? v + r : v - r; }
+      return v;
+    }
+    try {
+      const v = expr();
+      if (i !== s.length || !isFinite(v) || v < 0) return { ok: false };
+      return { ok: true, value: Math.round(v) };
+    } catch (e) { return { ok: false }; }
+  }
+  return { evaluate: evaluate };
+})();
+</script>
