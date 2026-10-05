@@ -218,6 +218,12 @@ def create_app(test_config=None):
     db.init_app(app)
 
     from routes.views import views
+    from build_info import build_time_kst
+
+    @app.context_processor
+    def _inject_build_time():
+        return {'build_time': build_time_kst()}
+
     app.register_blueprint(views, url_prefix='')
 
     from routes.watch_views import watch_views

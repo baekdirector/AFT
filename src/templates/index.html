@@ -28,6 +28,7 @@
   <main class="app-main">
     <section>
       <div class="page-title-row">
+        <div class="build-stamp" title="이 화면을 내려준 서버의 배포(빌드) 시각 - 최신 배포인지 확인용">배포 {{ build_time }}</div>
         <div>
           <h1 class="page-title">등록된 배 목록</h1>
           <p class="page-subtitle">지역 · 항구 · 배 이름으로 찾아보세요</p>
@@ -366,7 +367,8 @@
 /* 메인 */
 .app-main { max-width: 1180px; margin: 0 auto; padding: clamp(16px, 3vw, 30px) clamp(14px, 3vw, 28px) 40px; }
 
-.page-title-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.build-stamp { position: absolute; top: 2px; right: 0; font-size: 11px; font-weight: 600; color: var(--ink-softer); font-variant-numeric: tabular-nums; letter-spacing: -0.2px; pointer-events: none; }
+.page-title-row { position: relative; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
 .page-title { margin: 0; font-size: clamp(22px, 4.4vw, 30px); font-weight: 800; letter-spacing: -1.1px; color: var(--ink); }
 .page-subtitle { margin: 6px 0 0; font-size: 13.5px; color: var(--ink-soft); }
 .page-title-actions { display: flex; gap: 8px; flex-wrap: wrap; }
