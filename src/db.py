@@ -178,6 +178,24 @@ def initialize_ports():
     _set_app_setting('ports_initialized', 'true')
 
 
+# 선사 노트(FishingShip.port)에 잘못 들어간 항구 오타 -> 바른 이름. 한 번만 적용한다.
+_SHIP_PORT_TYPO_FIXES = {'연안부드': '연안부두'}
+
+
+def fix_ship_port_typos():
+    """선사 노트의 알려진 항구 오타를 1회만 바로잡는다(AppSetting 플래그, 다른 init 함수와 같은 패턴).
+    예: 와이파이호의 '연안부드' -> '연안부두'. 짧게 줄여 쓴 이름(오천, 영흥도 등)은 오타가 아니라서 건드리지 않는다."""
+    from models import FishingShip
+
+    flag = 'ship_port_typos_fixed_20261010'
+    if _get_app_setting(flag) == 'true':
+        return
+    for wrong, right in _SHIP_PORT_TYPO_FIXES.items():
+        FishingShip.query.filter_by(port=wrong).update({'port': right})
+    db.session.commit()
+    _set_app_setting(flag, 'true')
+
+
 def create_port(region: str, name: str, lat: float, lon: float):
     from models import Port
     port = Port(region=region, name=name, lat=lat, lon=lon)

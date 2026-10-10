@@ -37,12 +37,13 @@ def test_postgres_gets_pool_pre_ping_to_survive_cold_connections(monkeypatch):
     create_app() 은 끝에서 db.create_all() 로 실제 연결을 시도하므로, 존재하지
     않는 postgres 호스트를 주면 그 연결 시도 자체가 예외를 낸다. 여기서
     확인하려는 것은 연결 성공 여부가 아니라 엔진 옵션이 설정되는지이므로,
-    그 두 호출을 비활성화해 연결 시도 자체를 막는다.
+    시작 시 DB 를 건드리는 호출들을 비활성화해 연결 시도 자체를 막는다.
     """
     import db as db_module
     monkeypatch.setattr(db_module.db, 'create_all', lambda: None)
     monkeypatch.setattr(db_module, 'initialize_shared_boats', lambda: None)
     monkeypatch.setattr(db_module, 'initialize_ports', lambda: None)
+    monkeypatch.setattr(db_module, 'fix_ship_port_typos', lambda: None)
 
     app = create_app({
         'SQLALCHEMY_DATABASE_URI': 'postgresql://user:pass@host/db',

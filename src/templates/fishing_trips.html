@@ -133,9 +133,9 @@
   .ft-row .c-ship b { font-size: 14.5px; font-weight: 800; letter-spacing: -0.3px; }
   .ft-row .sub { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
   .ft-with { font-weight: 650; color: oklch(0.4 0.015 250); }
-  .ft-catches { display: flex; flex-wrap: wrap; gap: 5px 6px; align-items: center; }
+  .ft-catches { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+  .ft-cgroup { display: flex; flex-wrap: wrap; gap: 5px 6px; align-items: center; }
   .ft-who { font-size: 11px; font-weight: 700; color: var(--muted); }
-  .ft-who:not(:first-child) { margin-left: 4px; }
   .ft-pill { display: inline-flex; align-items: baseline; gap: 4px; padding: 3px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 700; background: oklch(0.96 0.006 240); color: oklch(0.42 0.015 250); white-space: nowrap; }
   .ft-pill b { font-size: 13.5px; font-weight: 800; }
   .ft-none { color: oklch(0.7 0.01 250); font-weight: 600; }
@@ -226,6 +226,7 @@
   .ft-catch-row input { height: 44px; padding: 0 10px; border-radius: 11px; border: 1px solid oklch(0.88 0.01 240); font: inherit; font-size: 14px; font-weight: 700; min-width: 0; box-sizing: border-box; width: 100%; }
   .ft-catch-row input.num { text-align: center; font-size: 16px; font-weight: 800; }
   .ft-catch-row .step { height: 44px; border-radius: 11px; border: 1px solid oklch(0.91 0.008 240); background: #fff; font-size: 20px; font-weight: 600; color: oklch(0.35 0.02 250); }
+  .ft-catch-row .c-step { display: contents; }   /* 넓은 화면: 기존 한 줄 격자에 그대로 참여 */
   .ft-catch-row .rm { height: 36px; border: none; background: none; color: oklch(0.55 0.015 250); font-size: 18px; }
   .ft-add-row { height: 44px; border-radius: 12px; border: 1px dashed oklch(0.82 0.03 248); background: oklch(0.985 0.008 248); font-size: 13.5px; font-weight: 740; color: oklch(0.42 0.12 248); }
   .ft-suggest { position: absolute; top: 76px; left: 0; right: 0; z-index: 5; background: #fff; border: 1px solid oklch(0.9 0.01 240); border-radius: 13px; box-shadow: 0 16px 36px oklch(0.2 0.02 250 / 0.16); padding: 6px; max-height: 320px; overflow-y: auto; }
@@ -253,7 +254,7 @@
     .ft-filter-btn { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 13px; border-radius: 14px; background: #fff; border: 1px solid var(--line); font-size: 13.5px; font-weight: 720; color: oklch(0.35 0.02 250); }
     .ft-filter-btn .n[hidden] { display: none; }
     .ft-filter-btn .n { min-width: 18px; height: 18px; border-radius: 99px; background: var(--accent); color: #fff; font-size: 11px; display: grid; place-items: center; }
-    .ft-upcoming { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 2px 16px 6px; }
+    .ft-upcoming { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-left: 16px; margin: 0 -16px; padding: 2px 16px 6px; }
     .ft-upcoming .ft-card { flex: none; width: 236px; scroll-snap-align: start; }
     .ft-row-head { display: none; }
     .ft-table { background: transparent; border: none; border-radius: 0; box-shadow: none; display: flex; flex-direction: column; gap: 8px; overflow: visible; }
@@ -277,7 +278,10 @@
     .ft-panel-body { padding: 16px; }
     .ft-panel-foot { padding: 12px 16px 18px; }
     .ft-panel-foot .ft-primary { flex: 1; height: 52px; font-size: 15px; }
-    .ft-catch-row { grid-template-columns: 64px minmax(0, 1fr) 44px 54px 44px 30px; }
+    /* 좁은 화면: 한 줄에 다 넣으면 어종 이름이 '쭈…'로 잘려서 두 줄로 나눈다(누구·어종 / 마릿수) */
+    .ft-catch-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) 30px; grid-template-areas: "who sp rm" "step step step"; gap: 8px 6px; }
+    .ft-catch-row .c-who { grid-area: who; } .ft-catch-row .c-sp { grid-area: sp; } .ft-catch-row .rm { grid-area: rm; }
+    .ft-catch-row .c-step { grid-area: step; display: grid; grid-template-columns: 56px minmax(0, 1fr) 56px; gap: 6px; }
     .ft-two { grid-template-columns: minmax(0, 1fr); }
   }
   @media (min-width: 768px) { .ft-fab { display: none; } }
@@ -463,9 +467,9 @@
     // 마릿수가 전부 0인 사람은 "꽝"으로(진짜 꽝과 미입력을 구분)
     return '<span class="ft-catches">' + groups.map(g => {
       const caught = g.items.filter(c => Number(c.count) > 0);
-      return (showWho ? '<span class="ft-who">' + esc(g.who) + '</span>' : '') + (caught.length
+      return '<span class="ft-cgroup">' + (showWho ? '<span class="ft-who">' + esc(g.who) + '</span>' : '') + (caught.length
         ? caught.map(c => '<span class="ft-pill ' + spClass(c.species) + '">' + esc(short(c.species)) + ' <b>' + esc(c.count) + '</b></span>').join('')
-        : '<span class="ft-pill skunk">꽝</span>');
+        : '<span class="ft-pill skunk">꽝</span>') + '</span>';
     }).join('') + '</span>';
   }
   function tagClass(t) {
@@ -926,9 +930,9 @@
     const people = toOpts(catchPeople()), species = toOpts(catchSpecies());
     $('ed-catches').innerHTML = editor.catches.length ? editor.catches.map((c, i) =>
       '<div class="ft-catch-row" data-i="' + i + '"><div class="c-who"></div><div class="c-sp"></div>' +
-      '<button type="button" class="step" data-step="-1" aria-label="한 마리 빼기">−</button>' +
+      '<div class="c-step"><button type="button" class="step" data-step="-1" aria-label="한 마리 빼기">−</button>' +
       '<input type="text" inputmode="numeric" class="num" value="' + esc(c.count) + '" data-k="count" aria-label="마릿수">' +
-      '<button type="button" class="step" data-step="1" aria-label="한 마리 더하기">+</button>' +
+      '<button type="button" class="step" data-step="1" aria-label="한 마리 더하기">+</button></div>' +
       '<button type="button" class="rm" data-rm="1" aria-label="이 줄 지우기">×</button></div>').join('')
       : '<div class="ft-raw" style="margin:0">아직 조과가 없어요. 아래 버튼으로 추가하세요.</div>';
     document.querySelectorAll('#ed-catches .ft-catch-row').forEach(row => {

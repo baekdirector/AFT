@@ -261,9 +261,10 @@ def create_app(test_config=None):
         _ensure_notification_reminder_columns(app)
         _ensure_fishing_trip_prepaid_column(app)
         _ensure_gear_item_status_column(app)
-        from db import initialize_shared_boats, initialize_ports
+        from db import initialize_shared_boats, initialize_ports, fix_ship_port_typos
         initialize_shared_boats()
         initialize_ports()
+        fix_ship_port_typos()
 
     return app
 
